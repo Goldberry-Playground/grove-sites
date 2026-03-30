@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  /* Goldberry tenant tokens */
+  --color-primary: #b45309;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #fde68a;
+  --color-secondary-foreground: #78350f;
+  --color-accent: #f59e0b;
+  --color-background: #fffbeb;
+  --color-foreground: #451a03;
+
+  /* Grove shared tokens */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+}
+
+/* Map to CSS custom properties for @grove/ui */
+:root {
+  --grove-color-primary: var(--color-primary);
+  --grove-color-primary-foreground: var(--color-primary-foreground);
+  --grove-color-secondary: var(--color-secondary);
+  --grove-color-secondary-foreground: var(--color-secondary-foreground);
+}

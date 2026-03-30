@@ -1,0 +1,17 @@
+{
+  "name": "@grove/config",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./eslint": "./src/eslint.ts",
+    "./typescript": "./src/typescript.json",
+    "./tailwind": "./src/tailwind.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "echo 'lint placeholder'"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

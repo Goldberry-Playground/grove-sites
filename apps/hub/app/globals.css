@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  /* Hub tenant tokens */
+  --color-primary: #15803d;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #bbf7d0;
+  --color-secondary-foreground: #14532d;
+  --color-accent: #22c55e;
+  --color-background: #f0fdf4;
+  --color-foreground: #052e16;
+
+  /* Grove shared tokens */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+}
+
+:root {
+  --grove-color-primary: var(--color-primary);
+  --grove-color-primary-foreground: var(--color-primary-foreground);
+  --grove-color-secondary: var(--color-secondary);
+  --grove-color-secondary-foreground: var(--color-secondary-foreground);
+}
