@@ -6,26 +6,31 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@grove/ui": "workspace:*",
-    "@grove/odoo-client": "workspace:*",
-    "@grove/ghost-client": "workspace:*",
     "@grove/analytics": "workspace:*",
     "@grove/config": "workspace:*",
+    "@grove/ghost-client": "workspace:*",
+    "@grove/odoo-client": "workspace:*",
+    "@grove/ui": "workspace:*",
     "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@next/eslint-plugin-next": "^16.2.1",
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.1",
+    "postcss": "^8.4.0",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "postcss": "^8.4.0"
+    "typescript": "^5.7.0"
   }
 }

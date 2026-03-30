@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { tenantConfig } from "../tenant.config";
 import "./globals.css";
 
@@ -20,9 +21,9 @@ export default function RootLayout({
       >
         <header className="border-b border-primary/10 px-6 py-4">
           <nav className="mx-auto flex max-w-6xl items-center justify-between">
-            <a href="/" className="text-xl font-bold font-display text-primary">
+            <Link href="/" className="text-xl font-bold font-display text-primary">
               {tenantConfig.name}
-            </a>
+            </Link>
           </nav>
         </header>
         <main>{children}</main>
