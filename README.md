@@ -8,7 +8,7 @@
 ![Turborepo](https://img.shields.io/badge/Turborepo-2.5-red)
 ![pnpm 9.15](https://img.shields.io/badge/pnpm-9.15-f69220)
 
-Multi-tenant frontend monorepo for the **Gathering at the Grove** ecosystem -- a community of independent businesses (Goldberry Grove Farm, Gathering Grove Gardens, The Grove Nursery) sharing a headless Next.js 15 frontend backed by Odoo 19 ERP and Ghost CMS. Each tenant runs as its own Next.js app with isolated theming and configuration while consuming shared packages for UI components, API clients, analytics, and design tokens.
+Multi-tenant frontend monorepo for the **Gathering at the Grove** ecosystem -- a community of independent businesses (Goldberry Grove Farm, George George George Woodworking, At The Grove Nursery, LLC) sharing a headless Next.js 15 frontend backed by Odoo 19 ERP and Ghost CMS. Each tenant runs as its own Next.js app with isolated theming and configuration while consuming shared packages for UI components, API clients, analytics, and design tokens.
 
 ## Architecture
 
