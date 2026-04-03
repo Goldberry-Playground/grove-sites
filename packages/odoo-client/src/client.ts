@@ -25,6 +25,7 @@ async function api<T>(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "X-Grove-Tenant": config.tenantId,
     ...((options.headers as Record<string, string>) ?? {}),
   };
 
