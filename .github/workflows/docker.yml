@@ -1,0 +1,123 @@
+name: Docker — Goldberry
+
+# Build, smoke-test, and (on main) publish the Goldberry frontend image.
+# Sprint 3 will mirror this workflow for apps/ggg and apps/nursery.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/goldberry/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/goldberry/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
+
+concurrency:
+  group: docker-goldberry-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/grove-goldberry
+
+jobs:
+  build-and-smoke-test:
+    name: Build + smoke test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TEST_TAG: test-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (local load)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/goldberry/Dockerfile
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
+          cache-from: type=gha,scope=goldberry
+          cache-to: type=gha,scope=goldberry,mode=max
+
+      # Run the container with placeholder backend URLs. Server Components catch
+      # fetch errors and render the empty state; the homepage and /cart, /checkout
+      # routes don't depend on backend reachability — perfect for smoke testing.
+      - name: Smoke test container
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
+        run: |
+          docker run -d --name goldberry-smoke \
+            -p 3001:3001 \
+            -e ODOO_URL=http://127.0.0.1:1 \
+            -e GHOST_URL=http://127.0.0.1:1 \
+            -e GHOST_CONTENT_KEY=smoke-test \
+            -e TENANT_ID=goldberry \
+            "$IMAGE"
+
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:3001/ ; then
+              echo "Container responding after ${i} polls"
+              break
+            fi
+            sleep 2
+          done
+
+          fail=0
+          for path in / /cart /checkout; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001${path}")
+            echo "  ${path}  ->  ${code}"
+            case "$code" in
+              2*) ;;
+              *) fail=1 ;;
+            esac
+          done
+
+          docker logs goldberry-smoke
+          docker rm -f goldberry-smoke || true
+          exit $fail
+
+      - name: Scan image for high CVEs
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
+          severity: HIGH,CRITICAL
+          exit-code: "0" # advisory until we triage; flip to "1" later
+          format: table
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+          TAG: ${{ env.TEST_TAG }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker tag "$IMAGE:$TAG" "$IMAGE:latest"
+          docker tag "$IMAGE:$TAG" "$IMAGE:$SHA"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$SHA"
