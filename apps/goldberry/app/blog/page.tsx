@@ -1,7 +1,10 @@
+import Image from "next/image";
+import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
 import { ghost } from "../../lib/clients";
 
-export const revalidate = 3600; // ISR: revalidate every hour
+// Same reasoning as /shop — render-on-demand until Ghost webhooks land.
+export const dynamic = "force-dynamic";
 
 export default async function BlogPage() {
   let posts: Post[] = [];
@@ -38,13 +41,18 @@ export default async function BlogPage() {
             key={post.id}
             className="rounded-lg border border-primary/10 p-6 hover:border-primary/30 transition-colors"
           >
-            <a href={`/blog/${post.slug}`}>
+            <Link href={`/blog/${post.slug}`}>
               {post.featureImage && (
-                <img
-                  src={post.featureImage}
-                  alt={post.title}
-                  className="w-full h-48 object-cover rounded mb-4"
-                />
+                <div className="relative w-full h-48 rounded overflow-hidden mb-4">
+                  <Image
+                    src={post.featureImage}
+                    alt={post.title}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 896px) 100vw, 896px"
+                    unoptimized
+                  />
+                </div>
               )}
               <h2 className="text-xl font-semibold text-foreground mb-2">
                 {post.title}
@@ -79,7 +87,7 @@ export default async function BlogPage() {
                   ))}
                 </div>
               )}
-            </a>
+            </Link>
           </article>
         ))}
       </div>

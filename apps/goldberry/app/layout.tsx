@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { tenantConfig } from "../tenant.config";
+import { Providers } from "./providers";
+import { CartNavLink } from "./cart-nav-link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,29 +21,34 @@ export default function RootLayout({
         className="min-h-screen bg-background text-foreground font-sans antialiased"
         data-tenant={tenantConfig.tenantId}
       >
-        <header className="border-b border-primary/10 px-6 py-4">
-          <nav className="mx-auto flex max-w-6xl items-center justify-between">
-            <Link href="/" className="text-xl font-bold font-display text-primary">
-              {tenantConfig.name}
-            </Link>
-            <ul className="flex gap-6 text-sm font-medium">
-              <li>
-                <Link href="/shop" className="hover:text-primary transition-colors">
-                  Shop
-                </Link>
-              </li>
-              <li>
-                <Link href="/blog" className="hover:text-primary transition-colors">
-                  Blog
-                </Link>
-              </li>
-            </ul>
-          </nav>
-        </header>
-        <main>{children}</main>
-        <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-center text-sm text-foreground/60">
-          <p>&copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.</p>
-        </footer>
+        <Providers>
+          <header className="border-b border-primary/10 px-6 py-4">
+            <nav className="mx-auto flex max-w-6xl items-center justify-between">
+              <Link href="/" className="text-xl font-bold font-display text-primary">
+                {tenantConfig.name}
+              </Link>
+              <ul className="flex gap-6 text-sm font-medium">
+                <li>
+                  <Link href="/shop" className="hover:text-primary transition-colors">
+                    Shop
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/blog" className="hover:text-primary transition-colors">
+                    Blog
+                  </Link>
+                </li>
+                <li>
+                  <CartNavLink />
+                </li>
+              </ul>
+            </nav>
+          </header>
+          <main>{children}</main>
+          <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-center text-sm text-foreground/60">
+            <p>&copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.</p>
+          </footer>
+        </Providers>
       </body>
     </html>
   );

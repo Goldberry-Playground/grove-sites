@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button } from "@grove/ui";
 import { tenantConfig } from "../tenant.config";
 
@@ -12,16 +13,16 @@ export default function HomePage() {
           {tenantConfig.description}
         </p>
         <div className="flex gap-4 justify-center">
-          <a href="/shop">
+          <Link href="/shop">
             <Button variant="primary" size="lg">
               Browse the Shop
             </Button>
-          </a>
-          <a href="/blog">
+          </Link>
+          <Link href="/blog">
             <Button variant="ghost" size="lg">
               Read the Blog
             </Button>
-          </a>
+          </Link>
         </div>
       </section>
     </div>
