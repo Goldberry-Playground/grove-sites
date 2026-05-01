@@ -30,7 +30,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/grove-goldberry
+  IMAGE_NAME: ghcr.io/goldberry-playground/grove-goldberry
 
 jobs:
   build-and-smoke-test:
