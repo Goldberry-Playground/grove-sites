@@ -1,0 +1,194 @@
+name: Release — deploy Goldberry to sandbox
+
+# Sprint 4 deploy gate. Triggered manually or on a tag push so accidental
+# main pushes don't ship to a live environment.
+#
+# Requires repo secrets to actually deploy (commented exports below). Without
+# them the workflow runs to "verify-image" and stops — which is still a useful
+# CI step on every tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Deploy target"
+        required: true
+        default: "sandbox"
+        type: choice
+        options:
+          - sandbox
+          - production
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  # Don't deploy two builds to the same target at once.
+  group: release-${{ github.event.inputs.target || 'tag' }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/goldberry-playground/grove-goldberry
+
+jobs:
+  verify-image:
+    name: Verify image is ready
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: resolve
+        env:
+          REF: ${{ github.ref }}
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "tag=$SHA" >> "$GITHUB_OUTPUT"
+          else
+            # ref is refs/tags/vX.Y.Z; strip prefix.
+            echo "tag=${REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and smoke-test the image
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ steps.resolve.outputs.tag }}
+        run: |
+          docker pull "$IMAGE"
+          docker run -d --name verify \
+            -p 3001:3001 \
+            -e ODOO_URL=http://127.0.0.1:1 \
+            -e GHOST_URL=http://127.0.0.1:1 \
+            -e GHOST_CONTENT_KEY=verify \
+            "$IMAGE"
+
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:3001/ ; then
+              echo "Container responding"
+              break
+            fi
+            sleep 2
+          done
+
+          fail=0
+          for path in / /cart /checkout; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001${path}")
+            echo "  ${path}  ->  ${code}"
+            case "$code" in 2*) ;; *) fail=1 ;; esac
+          done
+
+          docker rm -f verify || true
+          exit $fail
+
+  deploy-sandbox:
+    name: Deploy to sandbox Droplet
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sandbox'
+    needs: verify-image
+    runs-on: ubuntu-latest
+    environment:
+      name: sandbox
+      url: https://goldberry-sandbox.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Droplet has the odoocker stack already running; this job ssh's in,
+      # pulls the new image, and rotates the Goldberry container.
+      #
+      # Required environment secrets:
+      #   SANDBOX_HOST       — sandbox Droplet hostname or IP
+      #   SANDBOX_SSH_KEY    — private key (PEM)
+      #   SANDBOX_SSH_USER   — typically "deploy"
+      #
+      # Wire these in GitHub: Settings → Environments → sandbox → Secrets.
+
+      - name: Skipping (secrets not yet configured)
+        if: secrets.SANDBOX_HOST == ''
+        run: |
+          echo "::warning::SANDBOX_HOST secret missing — sandbox deploy stubbed."
+          echo "Configure secrets in repo settings to enable this step."
+
+      - name: Deploy via SSH
+        if: secrets.SANDBOX_HOST != ''
+        env:
+          SSH_KEY: ${{ secrets.SANDBOX_SSH_KEY }}
+          SSH_HOST: ${{ secrets.SANDBOX_HOST }}
+          SSH_USER: ${{ secrets.SANDBOX_SSH_USER }}
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.verify-image.outputs.tag }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+          ssh "$SSH_USER@$SSH_HOST" \
+            "docker pull $IMAGE \
+              && docker stop grove-goldberry || true \
+              && docker rm grove-goldberry || true \
+              && docker run -d --name grove-goldberry \
+                   --restart unless-stopped \
+                   -p 3001:3001 \
+                   --env-file /opt/grove/.env.frontends \
+                   $IMAGE"
+
+      - name: Smoke test deployed sandbox
+        if: secrets.SANDBOX_HOST != ''
+        env:
+          SANDBOX_URL: https://${{ secrets.SANDBOX_HOST }}
+        run: |
+          for path in / /shop /cart /checkout; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$SANDBOX_URL$path")
+            echo "  $path  ->  $code"
+            case "$code" in 2*) ;; *) exit 1 ;; esac
+          done
+
+  deploy-production:
+    name: Deploy to production Droplet
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify-image
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://goldberrygrove.farm
+    steps:
+      - uses: actions/checkout@v4
+
+      # Production deploys are gated by an Environment review (require
+      # approval in GitHub Environments → production settings). Same SSH
+      # secret pattern as sandbox.
+
+      - name: Skipping (secrets not yet configured)
+        if: secrets.PROD_HOST == ''
+        run: |
+          echo "::warning::PROD_HOST secret missing — production deploy stubbed."
+
+      - name: Deploy via SSH
+        if: secrets.PROD_HOST != ''
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          SSH_HOST: ${{ secrets.PROD_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.verify-image.outputs.tag }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh "$SSH_USER@$SSH_HOST" \
+            "docker pull $IMAGE \
+              && docker stop grove-goldberry || true \
+              && docker rm grove-goldberry || true \
+              && docker run -d --name grove-goldberry \
+                   --restart unless-stopped \
+                   -p 3001:3001 \
+                   --env-file /opt/grove/.env.frontends \
+                   $IMAGE"

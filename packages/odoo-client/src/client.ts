@@ -10,6 +10,11 @@ import type {
   ApiProductListItem,
   ApiProductDetail,
   ApiCartResponse,
+  OrderCreateInput,
+  OrderSummary,
+  OrderDetail,
+  ApiOrderCreateResponse,
+  ApiOrderDetail,
 } from "./types";
 
 /**
@@ -77,7 +82,7 @@ function normalizeProductDetail(raw: ApiProductDetail): Product {
     imageUrl: raw.image_url,
     categoryId: raw.categ_id ? raw.categ_id.id : null,
     categoryName: raw.categ_id ? raw.categ_id.name : null,
-    available: raw.qty_available > 0,
+    available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
     featured: raw.grove_featured,
     variants: (raw.variants ?? []).map(normalizeVariant),
   };
@@ -86,10 +91,10 @@ function normalizeProductDetail(raw: ApiProductDetail): Product {
 function normalizeVariant(raw: ApiProductDetail["variants"][number]): ProductVariant {
   return {
     id: raw.id,
-    name: raw.name,
+    name: raw.display_name,
     sku: raw.default_code || null,
     price: raw.lst_price,
-    available: raw.qty_available > 0,
+    available: raw.qty_available === undefined ? true : raw.qty_available > 0,
     imageUrl: raw.image_url,
   };
 }
@@ -167,6 +172,65 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           body: JSON.stringify({ product_id: productId, quantity }),
         });
         return normalizeCart(raw);
+      },
+    },
+
+    orders: {
+      async create(input: OrderCreateInput): Promise<OrderSummary> {
+        const raw = await api<ApiOrderCreateResponse>(
+          config,
+          "/grove/api/v1/orders",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              contact: input.contact,
+              shipping: input.shipping,
+              billing: input.billing ?? null,
+              payment_method: input.paymentMethod,
+              items: input.items.map((i) => ({
+                variant_id: i.variantId,
+                quantity: i.quantity,
+              })),
+            }),
+          }
+        );
+        return {
+          id: raw.id,
+          name: raw.name,
+          state: raw.state,
+          accessToken: raw.access_token,
+          amountUntaxed: raw.amount_untaxed,
+          amountTax: raw.amount_tax,
+          amountTotal: raw.amount_total,
+          currency: raw.currency.name,
+          lineCount: raw.line_count,
+        };
+      },
+
+      async get(id: number, accessToken: string): Promise<OrderDetail> {
+        const params = new URLSearchParams({ access_token: accessToken });
+        const raw = await api<ApiOrderDetail>(
+          config,
+          `/grove/api/v1/orders/${id}?${params.toString()}`
+        );
+        return {
+          id: raw.id,
+          name: raw.name,
+          state: raw.state,
+          contactName: raw.contact.name,
+          contactEmail: raw.contact.email,
+          lines: raw.lines.map((line) => ({
+            id: line.id,
+            productName: line.product_name,
+            quantity: line.quantity,
+            unitPrice: line.price_unit,
+            totalPrice: line.price_subtotal,
+          })),
+          amountUntaxed: raw.amount_untaxed,
+          amountTax: raw.amount_tax,
+          amountTotal: raw.amount_total,
+          currency: raw.currency.name,
+        };
       },
     },
   };

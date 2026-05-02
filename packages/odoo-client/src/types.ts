@@ -38,10 +38,12 @@ export interface ApiMany2One {
 /** Raw variant from the product detail endpoint. */
 export interface ApiVariant {
   id: number;
-  name: string;
+  /** Variant display name including attribute values (e.g. "Apple Tree (3 gal, Pot)"). */
+  display_name: string;
   default_code: string | false;
   lst_price: number;
-  qty_available: number;
+  /** Only present when the Odoo `stock` module is installed. */
+  qty_available?: number;
   image_url: string;
 }
 
@@ -51,7 +53,8 @@ export interface ApiProductDetail extends ApiProductListItem {
   grove_seo_description: string | false;
   categ_id: ApiMany2One | false;
   currency_id: ApiMany2One | false;
-  qty_available: number;
+  /** Only present when the Odoo `stock` module is installed. */
+  qty_available?: number;
   website_url: string | false;
   variants: ApiVariant[];
 }
@@ -130,6 +133,104 @@ export interface Cart {
   currency: string | null;
 }
 
+// ── Orders ──────────────────────────────────────────────────────────
+
+export interface Address {
+  street: string;
+  street2?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+}
+
+export interface Contact {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
+export interface OrderItemInput {
+  variantId: number;
+  quantity: number;
+}
+
+export interface OrderCreateInput {
+  contact: Contact;
+  shipping: Address;
+  /** Omit or null when billing address matches shipping. */
+  billing?: Address | null;
+  /** Informational — real payment integration lands in a later sprint. */
+  paymentMethod?: string;
+  items: OrderItemInput[];
+}
+
+/** Raw order response from POST /grove/api/v1/orders. */
+export interface ApiOrderCreateResponse {
+  id: number;
+  name: string;
+  state: string;
+  access_token: string;
+  amount_untaxed: number;
+  amount_tax: number;
+  amount_total: number;
+  currency: ApiMany2One;
+  line_count: number;
+}
+
+/** Raw order detail from GET /grove/api/v1/orders/:id. */
+export interface ApiOrderDetail {
+  id: number;
+  name: string;
+  state: string;
+  contact: { name: string; email: string };
+  lines: Array<{
+    id: number;
+    product_name: string;
+    quantity: number;
+    price_unit: number;
+    price_subtotal: number;
+  }>;
+  amount_untaxed: number;
+  amount_tax: number;
+  amount_total: number;
+  currency: ApiMany2One;
+}
+
+export interface OrderSummary {
+  id: number;
+  name: string;
+  state: string;
+  /** Server-issued token. Required to fetch this order's details — pass to orders.get(). */
+  accessToken: string;
+  amountUntaxed: number;
+  amountTax: number;
+  amountTotal: number;
+  currency: string;
+  lineCount: number;
+}
+
+export interface OrderLine {
+  id: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface OrderDetail {
+  id: number;
+  name: string;
+  state: string;
+  contactName: string;
+  contactEmail: string;
+  lines: OrderLine[];
+  amountUntaxed: number;
+  amountTax: number;
+  amountTotal: number;
+  currency: string;
+}
+
 export interface OdooClient {
   health(): Promise<{ status: string }>;
   products: {
@@ -144,5 +245,9 @@ export interface OdooClient {
   cart: {
     get(): Promise<Cart>;
     addItem(productId: number, quantity?: number): Promise<Cart>;
+  };
+  orders: {
+    create(input: OrderCreateInput): Promise<OrderSummary>;
+    get(id: number, accessToken: string): Promise<OrderDetail>;
   };
 }

@@ -1,8 +1,12 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 
-export const revalidate = 300; // ISR: revalidate every 5 minutes
+// Render on every request so the page reflects current Odoo state.
+// (Build-time render can't reach Odoo when building inside Docker; ISR will
+// be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
+export const dynamic = "force-dynamic";
 
 export default async function ShopPage() {
   let products: Product[] = [];
@@ -36,9 +40,10 @@ export default async function ShopPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map((product) => (
-          <div
+          <Link
             key={product.id}
-            className="rounded-lg border border-primary/10 p-4 hover:border-primary/30 transition-colors"
+            href={`/shop/${product.id}`}
+            className="rounded-lg border border-primary/10 p-4 hover:border-primary/30 transition-colors block"
           >
             <div className="relative h-48 bg-secondary/20 rounded mb-4 overflow-hidden">
               {product.imageUrl && (
@@ -69,7 +74,7 @@ export default async function ShopPage() {
                 SKU: {product.sku}
               </p>
             )}
-          </div>
+          </Link>
         ))}
       </div>
     </div>
