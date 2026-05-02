@@ -97,14 +97,24 @@ grove-sites/
 │   │   └── package.json
 │   └── goldberry/                  # Goldberry Grove Farm — goldberrygrove.farm
 │       ├── app/
-│       │   ├── layout.tsx          # Root layout with nav (Shop, Blog)
+│       │   ├── layout.tsx          # Root layout with nav (Shop, Blog, Cart)
 │       │   ├── page.tsx            # Home page
+│       │   ├── providers.tsx       # Client-side context providers (CartProvider)
+│       │   ├── cart-nav-link.tsx   # Cart link with live item count badge
 │       │   ├── shop/page.tsx       # Shop listing (Odoo products)
+│       │   ├── shop/[id]/          # Product detail + Add-to-Cart button
+│       │   ├── cart/page.tsx       # Cart review (qty edit, remove)
+│       │   ├── checkout/page.tsx   # Checkout form (contact, shipping, payment)
+│       │   ├── checkout/success/[id]/page.tsx  # Order confirmation (token-gated)
+│       │   ├── api/cart/route.ts   # BFF: server-side cart proxy
+│       │   ├── api/checkout/route.ts # BFF: order creation against Odoo
 │       │   ├── blog/page.tsx       # Blog listing (Ghost posts)
 │       │   └── globals.css         # Goldberry color tokens
 │       ├── lib/
-│       │   └── clients.ts          # Odoo + Ghost client instances
+│       │   ├── clients.ts          # Odoo + Ghost client instances
+│       │   └── cart-store.tsx      # React Context cart with localStorage persistence
 │       ├── tenant.config.ts        # Goldberry identity, colors, backend URLs
+│       ├── Dockerfile              # Standalone Next.js production image
 │       ├── .env.local.example      # Env template
 │       ├── next.config.ts
 │       └── package.json
@@ -255,8 +265,9 @@ pnpm --filter @grove/ui type-check
 
 - **Domain:** goldberrygrove.farm
 - **Port:** 3001
-- **Purpose:** Farm storefront with a shop (Odoo products) and blog (Ghost posts).
-- **Routes:** `/` (home), `/shop` (product listing), `/blog` (post listing)
+- **Purpose:** Farm storefront with shop, cart, checkout, order confirmation, and blog.
+- **Routes:** `/` (home), `/shop`, `/shop/[id]`, `/cart`, `/checkout`, `/checkout/success/[id]`, `/blog`
+- **BFF API routes:** `/api/cart`, `/api/checkout` (server-to-server calls into Odoo)
 - **Dependencies:** `@grove/ui`, `@grove/odoo-client`, `@grove/ghost-client`, `@grove/config`, `@grove/analytics`
 
 ## Packages
@@ -514,14 +525,22 @@ pnpm --filter @grove/odoo-client type-check
 - CI pipeline (lint + type-check)
 - Design token system with per-tenant color palettes
 
-**Phase 2 — Core Integration (in progress)**
+**Phase 2 — Core Integration (complete)**
 
-- Connect `@grove/odoo-client` to live Odoo 19 for product data
+- Connect `@grove/odoo-client` to live Odoo 19 for product data, cart, and orders
 - Connect `@grove/ghost-client` to live Ghost for blog content
-- Build out shop pages (product detail, cart, checkout)
-- Build out blog pages (post detail, tag filtering)
-- Add unit and integration tests
-- Add remaining tenant apps (GGG Woodworking, At The Grove Nursery)
+- Shop pages: listing, product detail, cart, checkout, order confirmation
+- Cart state via React Context with localStorage persistence (`lib/cart-store.tsx`)
+- Order creation through `/api/checkout` BFF route, fronted by Odoo's `access_token` for confirmation lookup
+- Blog listing page wired to Ghost Content API
+- Containerized goldberry deploy (`Dockerfile` + standalone Next.js output)
+
+**Phase 3 — Hardening & Expansion (next)**
+
+- Real payment integration (Stripe / direct invoice via Odoo)
+- Blog post detail + tag filtering
+- Unit and integration tests (Vitest + Playwright)
+- Remaining tenant apps (GGG Woodworking, At The Grove Nursery)
 
 ## License
 
