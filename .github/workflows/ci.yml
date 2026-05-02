@@ -17,7 +17,7 @@ env:
 
 jobs:
   lint-and-typecheck:
-    name: Lint + Type Check
+    name: Lint, Type Check & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
