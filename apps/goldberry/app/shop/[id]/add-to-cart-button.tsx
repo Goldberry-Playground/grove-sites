@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@grove/ui";
 import { useCart } from "../../../lib/cart-store";
 
@@ -24,11 +24,21 @@ export function AddToCartButton({
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState<"idle" | "added">("idle");
   const { add } = useCart();
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any pending feedback timer if the component unmounts mid-flash —
+  // otherwise React warns about state updates on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    };
+  }, []);
 
   function handleAddToCart() {
     add({ variantId, templateId, name, price, imageUrl }, quantity);
     setFeedback("added");
-    setTimeout(() => setFeedback("idle"), 1800);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = setTimeout(() => setFeedback("idle"), 1800);
   }
 
   return (

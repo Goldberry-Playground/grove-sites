@@ -26,6 +26,10 @@ export default async function ProductDetailPage({
   }
 
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
+  // Build the absolute image URL only when the product actually has an image
+  // path; otherwise leave it empty so we don't store a bare host in the cart
+  // (which would fail next/image remotePatterns and 404 on render).
+  const fullImageUrl = product.imageUrl ? `${odooBase}${product.imageUrl}` : "";
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
@@ -39,9 +43,9 @@ export default async function ProductDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
         {/* Product Image */}
         <div className="relative aspect-square bg-secondary/20 rounded-lg overflow-hidden">
-          {product.imageUrl && (
+          {fullImageUrl && (
             <Image
-              src={`${odooBase}${product.imageUrl}`}
+              src={fullImageUrl}
               alt={product.name}
               fill
               className="object-cover"
@@ -145,7 +149,7 @@ export default async function ProductDetailPage({
                 ? product.variants[0].price
                 : product.price
             }
-            imageUrl={`${odooBase}${product.imageUrl}`}
+            imageUrl={fullImageUrl}
             disabled={!product.available}
           />
         </div>
