@@ -13,8 +13,8 @@ Multi-tenant frontend monorepo for the **Gathering at the Grove** ecosystem — 
 |--------|--------|-----|------|
 | Hub Portal | gatheringatthegrove.com | `apps/hub` | 3000 |
 | Goldberry Grove Farm | goldberrygrove.farm | `apps/goldberry` | 3001 |
-| GGG Woodworking (planned) | woodworkingeorge.com | `apps/ggg` | 3002 |
-| At The Grove Nursery (planned) | atthegrovenursery.com | `apps/nursery` | 3003 |
+| GGG Woodworking | woodworkingeorge.com | `apps/ggg` | 3002 |
+| At The Grove Nursery | atthegrovenursery.com | `apps/nursery` | 3003 |
 
 ## Table of Contents
 
@@ -540,7 +540,7 @@ pnpm --filter @grove/odoo-client type-check
 - Real payment integration (Stripe / direct invoice via Odoo)
 - Blog post detail + tag filtering
 - Unit and integration tests (Vitest + Playwright)
-- Remaining tenant apps (GGG Woodworking, At The Grove Nursery)
+- ~~Remaining tenant apps (GGG Woodworking, At The Grove Nursery)~~ — shipped in Sprint 3
 
 ## License
 
