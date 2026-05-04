@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { Button } from "@grove/ui";
 import { odoo } from "../../../../lib/clients";
 
-export const metadata = { title: "Order Confirmed — Goldberry Grove Farm" };
+import { tenantConfig } from "../../../../tenant.config";
+
+export const metadata = { title: `Order Confirmed — ${tenantConfig.name}` };
 export const dynamic = "force-dynamic";
 
 function formatPrice(amount: number, currency: string): string {

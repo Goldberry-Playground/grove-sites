@@ -9,20 +9,24 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  addItem,
+  cartStorageKey,
+  removeItem,
+  setItemQuantity,
+  subtotal as calculateSubtotal,
+  totalQuantity as calculateTotalQuantity,
+  validateCartItems,
+  type CartItem,
+} from "./cart-reducer";
 
-const STORAGE_KEY = "goldberry-cart-v1";
+// Multi-tenant deployments must NOT share a localStorage key — otherwise
+// a customer's cart from goldberrygrove.farm leaks into nursery.com if
+// either site is ever served from a shared domain or a developer is
+// testing both locally. NEXT_PUBLIC_TENANT_ID is baked at build time.
+const STORAGE_KEY = cartStorageKey(process.env.NEXT_PUBLIC_TENANT_ID);
 
-export type CartItem = {
-  /** product.product id — the actual SKU/variant. Used as the unique line key. */
-  variantId: number;
-  /** product.template id — used to link back to the shop detail page. */
-  templateId: number;
-  /** Display name including variant attributes (e.g. "Apple Tree (3 gal, Pot)"). */
-  name: string;
-  price: number;
-  imageUrl: string;
-  quantity: number;
-};
+export type { CartItem };
 
 type CartContextValue = {
   items: CartItem[];
@@ -43,20 +47,7 @@ function loadFromStorage(): CartItem[] {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is CartItem =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof item.variantId === "number" &&
-        typeof item.templateId === "number" &&
-        typeof item.name === "string" &&
-        typeof item.price === "number" &&
-        typeof item.imageUrl === "string" &&
-        typeof item.quantity === "number" &&
-        item.quantity > 0
-    );
+    return validateCartItems(JSON.parse(raw));
   } catch {
     return [];
   }
@@ -78,46 +69,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const add = useCallback(
     (item: Omit<CartItem, "quantity">, quantity = 1) => {
-      setItems((current) => {
-        const existing = current.find((i) => i.variantId === item.variantId);
-        if (existing) {
-          return current.map((i) =>
-            i.variantId === item.variantId
-              ? { ...i, quantity: i.quantity + quantity }
-              : i
-          );
-        }
-        return [...current, { ...item, quantity }];
-      });
+      setItems((current) => addItem(current, item, quantity));
     },
-    []
+    [],
   );
 
   const setQuantity = useCallback((variantId: number, quantity: number) => {
-    setItems((current) =>
-      quantity <= 0
-        ? current.filter((i) => i.variantId !== variantId)
-        : current.map((i) =>
-            i.variantId === variantId ? { ...i, quantity } : i
-          )
-    );
+    setItems((current) => setItemQuantity(current, variantId, quantity));
   }, []);
 
   const remove = useCallback((variantId: number) => {
-    setItems((current) => current.filter((i) => i.variantId !== variantId));
+    setItems((current) => removeItem(current, variantId));
   }, []);
 
   const clear = useCallback(() => setItems([]), []);
 
-  const totalQuantity = useMemo(
-    () => items.reduce((sum, i) => sum + i.quantity, 0),
-    [items]
-  );
-
-  const subtotal = useMemo(
-    () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-    [items]
-  );
+  const totalQuantity = useMemo(() => calculateTotalQuantity(items), [items]);
+  const subtotal = useMemo(() => calculateSubtotal(items), [items]);
 
   const value = useMemo<CartContextValue>(
     () => ({
