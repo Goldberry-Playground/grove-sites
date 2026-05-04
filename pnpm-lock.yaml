@@ -33,6 +33,70 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@types/node@22.19.15)(@vitest/ui@4.1.5)(happy-dom@20.9.0)(vite@8.0.10(@types/node@22.19.15)(jiti@2.6.1))
 
+  apps/ggg:
+    dependencies:
+      '@grove/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@grove/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@grove/ghost-client':
+        specifier: workspace:*
+        version: link:../../packages/ghost-client
+      '@grove/odoo-client':
+        specifier: workspace:*
+        version: link:../../packages/odoo-client
+      '@grove/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      next:
+        specifier: ^15.2.0
+        version: 15.5.14(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3.3.5
+        version: 3.3.5
+      '@next/eslint-plugin-next':
+        specifier: ^16.2.1
+        version: 16.2.1
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.2.2
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      '@typescript-eslint/parser':
+        specifier: ^8.58.0
+        version: 8.58.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      eslint-config-next:
+        specifier: ^16.2.1
+        version: 16.2.1(@typescript-eslint/parser@8.58.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      postcss:
+        specifier: ^8.4.0
+        version: 8.5.13
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.2.2
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   apps/goldberry:
     dependencies:
       '@grove/analytics':
@@ -148,6 +212,70 @@ importers:
       postcss:
         specifier: ^8.4.0
         version: 8.5.8
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.2.2
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  apps/nursery:
+    dependencies:
+      '@grove/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@grove/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@grove/ghost-client':
+        specifier: workspace:*
+        version: link:../../packages/ghost-client
+      '@grove/odoo-client':
+        specifier: workspace:*
+        version: link:../../packages/odoo-client
+      '@grove/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      next:
+        specifier: ^15.2.0
+        version: 15.5.14(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3.3.5
+        version: 3.3.5
+      '@next/eslint-plugin-next':
+        specifier: ^16.2.1
+        version: 16.2.1
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.2.2
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      '@typescript-eslint/parser':
+        specifier: ^8.58.0
+        version: 8.58.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      eslint-config-next:
+        specifier: ^16.2.1
+        version: 16.2.1(@typescript-eslint/parser@8.58.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      postcss:
+        specifier: ^8.4.0
+        version: 8.5.13
       tailwindcss:
         specifier: ^4.0.0
         version: 4.2.2
@@ -3060,7 +3188,7 @@ snapshots:
       '@alloc/quick-lru': 5.2.0
       '@tailwindcss/node': 4.2.2
       '@tailwindcss/oxide': 4.2.2
-      postcss: 8.5.8
+      postcss: 8.5.13
       tailwindcss: 4.2.2
 
   '@testing-library/dom@10.4.1':

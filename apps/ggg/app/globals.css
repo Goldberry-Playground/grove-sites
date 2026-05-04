@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  /* GGG Woodworking tenant tokens — workshop palette: walnut, oak, sienna */
+  --color-primary: #3f2a1d;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #d4c4a8;
+  --color-secondary-foreground: #2a1d12;
+  --color-accent: #a0522d;
+  --color-background: #faf6f0;
+  --color-foreground: #1f1611;
+
+  /* GGG leans on a slab/condensed display face vs Goldberry's serif */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+:root {
+  --grove-color-primary: var(--color-primary);
+  --grove-color-primary-foreground: var(--color-primary-foreground);
+  --grove-color-secondary: var(--color-secondary);
+  --grove-color-secondary-foreground: var(--color-secondary-foreground);
+}
