@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
+import { tenantConfig } from "../../tenant.config";
 
 // Render on every request so the page reflects current Odoo state.
 // (Build-time render can't reach Odoo when building inside Docker; ISR will
@@ -22,7 +23,7 @@ export default async function ShopPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       <h1 className="text-3xl font-display font-bold text-primary mb-8">
-        Farm Shop
+        {tenantConfig.copy.shopHeading}
       </h1>
 
       {error && (

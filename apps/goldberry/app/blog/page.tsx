@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
 import { ghost } from "../../lib/clients";
+import { tenantConfig } from "../../tenant.config";
 
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function BlogPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <h1 className="text-3xl font-display font-bold text-primary mb-8">
-        From the Grove
+        {tenantConfig.copy.blogHeading}
       </h1>
 
       {error && (
