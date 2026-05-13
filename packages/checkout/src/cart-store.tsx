@@ -23,7 +23,8 @@ import {
 // Multi-tenant deployments must NOT share a localStorage key — otherwise
 // a customer's cart from goldberrygrove.farm leaks into nursery.com if
 // either site is ever served from a shared domain or a developer is
-// testing both locally. NEXT_PUBLIC_TENANT_ID is baked at build time.
+// testing both locally. NEXT_PUBLIC_TENANT_ID is baked at build time
+// in each app's container, so this resolves per-tenant.
 const STORAGE_KEY = cartStorageKey(process.env.NEXT_PUBLIC_TENANT_ID);
 
 export type { CartItem };

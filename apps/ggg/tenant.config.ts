@@ -21,8 +21,11 @@ export const tenantConfig = {
     background: "#faf6f0",
     foreground: "#1f1611",
   },
-  odooUrl: process.env.ODOO_URL ?? "http://localhost:8069",
-  odooApiKey: process.env.ODOO_API_KEY ?? "",
-  ghostUrl: process.env.GHOST_URL ?? "http://localhost:2369",
-  ghostContentKey: process.env.GHOST_CONTENT_KEY ?? "",
+  /** Exact Origin values accepted on state-changing BFF POSTs. Keep in
+   *  sync with prod hostnames + the dev port from package.json. */
+  allowedOrigins: [
+    "https://woodworkingeorge.com",
+    "https://www.woodworkingeorge.com",
+    "http://localhost:3002",
+  ],
 } as const;

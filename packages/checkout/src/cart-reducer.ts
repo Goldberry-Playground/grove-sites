@@ -1,7 +1,6 @@
-// Pure cart reducer functions, extracted from cart-store.tsx so they can
-// be unit-tested without React. Same shapes as the Context provider — the
-// provider is a thin wrapper that calls these and stores the result in
-// useState.
+// Pure cart reducer functions. Extracted from the React store so they can
+// be unit-tested without a DOM — and so all three storefronts share one
+// implementation. Any change to cart semantics happens here once.
 
 export type CartItem = {
   /** product.product id — the actual SKU/variant. Used as the unique line key. */

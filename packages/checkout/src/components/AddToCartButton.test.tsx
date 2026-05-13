@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AddToCartButton } from "./add-to-cart-button";
-import { CartProvider } from "../../../lib/cart-store";
+import { AddToCartButton } from "./AddToCartButton";
+import { CartProvider } from "../cart-store";
 
 const baseProps = {
   variantId: 2,

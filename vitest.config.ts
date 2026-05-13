@@ -35,6 +35,8 @@ export default defineConfig({
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),
       "@grove/config": path.resolve(__dirname, "packages/config/src"),
       "@grove/analytics": path.resolve(__dirname, "packages/analytics/src"),
+      "@grove/checkout/server": path.resolve(__dirname, "packages/checkout/src/server.ts"),
+      "@grove/checkout": path.resolve(__dirname, "packages/checkout/src"),
     },
   },
 });
