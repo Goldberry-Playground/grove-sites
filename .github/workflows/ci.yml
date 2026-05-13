@@ -42,6 +42,9 @@ jobs:
       - name: Type check
         run: pnpm type-check
 
+      - name: Unit tests (vitest)
+        run: pnpm test
+
   build:
     name: Production build
     runs-on: ubuntu-latest

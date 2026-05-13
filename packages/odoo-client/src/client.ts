@@ -1,13 +1,9 @@
 import type {
   TenantConfig,
-  Product,
-  ProductVariant,
   ProductListResult,
   Cart,
-  CartItem,
   OdooClient,
   ApiProductListResponse,
-  ApiProductListItem,
   ApiProductDetail,
   ApiCartResponse,
   OrderCreateInput,
@@ -16,6 +12,13 @@ import type {
   ApiOrderCreateResponse,
   ApiOrderDetail,
 } from "./types";
+import {
+  normalizeProductListItem,
+  normalizeProductDetail,
+  normalizeCart,
+  normalizeOrderSummary,
+  normalizeOrderDetail,
+} from "./normalizers";
 
 /**
  * Fetch from the grove_headless REST API.
@@ -50,77 +53,9 @@ async function api<T>(
   return response.json() as Promise<T>;
 }
 
-// ── Normalizers (API shape → client shape) ──────────────────────────
+// Normalizers live in ./normalizers — extracted there so they can be
+// unit-tested without the fetch wrapper.
 
-function normalizeProductListItem(raw: ApiProductListItem): Product {
-  return {
-    id: raw.id,
-    name: raw.name,
-    sku: raw.default_code || null,
-    description: null,
-    seoDescription: null,
-    price: raw.list_price,
-    currency: null,
-    imageUrl: raw.image_url,
-    categoryId: null,
-    categoryName: null,
-    available: raw.website_published,
-    featured: raw.grove_featured,
-    variants: [],
-  };
-}
-
-function normalizeProductDetail(raw: ApiProductDetail): Product {
-  return {
-    id: raw.id,
-    name: raw.name,
-    sku: raw.default_code || null,
-    description: raw.description_sale || null,
-    seoDescription: raw.grove_seo_description || null,
-    price: raw.list_price,
-    currency: raw.currency_id ? raw.currency_id.name : null,
-    imageUrl: raw.image_url,
-    categoryId: raw.categ_id ? raw.categ_id.id : null,
-    categoryName: raw.categ_id ? raw.categ_id.name : null,
-    available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
-    featured: raw.grove_featured,
-    variants: (raw.variants ?? []).map(normalizeVariant),
-  };
-}
-
-function normalizeVariant(raw: ApiProductDetail["variants"][number]): ProductVariant {
-  return {
-    id: raw.id,
-    name: raw.display_name,
-    sku: raw.default_code || null,
-    price: raw.lst_price,
-    available: raw.qty_available === undefined ? true : raw.qty_available > 0,
-    imageUrl: raw.image_url,
-  };
-}
-
-function normalizeCart(raw: ApiCartResponse): Cart {
-  return {
-    id: raw.id ?? null,
-    items: raw.lines.map(normalizeCartItem),
-    subtotal: raw.amount_untaxed ?? 0,
-    tax: raw.amount_tax ?? 0,
-    total: raw.amount_total,
-    currency: raw.currency?.name ?? null,
-  };
-}
-
-function normalizeCartItem(raw: ApiCartResponse["lines"][number]): CartItem {
-  return {
-    id: raw.id,
-    productId: raw.product_id,
-    name: raw.product_name,
-    quantity: raw.quantity,
-    unitPrice: raw.price_unit,
-    totalPrice: raw.price_subtotal,
-    imageUrl: raw.image_url,
-  };
-}
 
 // ── Client factory ──────────────────────────────────────────────────
 
@@ -194,17 +129,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             }),
           }
         );
-        return {
-          id: raw.id,
-          name: raw.name,
-          state: raw.state,
-          accessToken: raw.access_token,
-          amountUntaxed: raw.amount_untaxed,
-          amountTax: raw.amount_tax,
-          amountTotal: raw.amount_total,
-          currency: raw.currency.name,
-          lineCount: raw.line_count,
-        };
+        return normalizeOrderSummary(raw);
       },
 
       async get(id: number, accessToken: string): Promise<OrderDetail> {
@@ -213,24 +138,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           config,
           `/grove/api/v1/orders/${id}?${params.toString()}`
         );
-        return {
-          id: raw.id,
-          name: raw.name,
-          state: raw.state,
-          contactName: raw.contact.name,
-          contactEmail: raw.contact.email,
-          lines: raw.lines.map((line) => ({
-            id: line.id,
-            productName: line.product_name,
-            quantity: line.quantity,
-            unitPrice: line.price_unit,
-            totalPrice: line.price_subtotal,
-          })),
-          amountUntaxed: raw.amount_untaxed,
-          amountTax: raw.amount_tax,
-          amountTotal: raw.amount_total,
-          currency: raw.currency.name,
-        };
+        return normalizeOrderDetail(raw);
       },
     },
   };

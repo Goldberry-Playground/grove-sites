@@ -1,11 +1,13 @@
-name: Release — deploy Goldberry to sandbox
+name: Release — deploy Goldberry
 
-# Sprint 4 deploy gate. Triggered manually or on a tag push so accidental
-# main pushes don't ship to a live environment.
+# Triggered manually (workflow_dispatch) or by pushing a vX.Y.Z tag.
+# Branch pushes never run this workflow.
 #
-# Requires repo secrets to actually deploy (commented exports below). Without
-# them the workflow runs to "verify-image" and stops — which is still a useful
-# CI step on every tag.
+# Deploy steps assume per-environment secrets are configured:
+#   sandbox   environment → SANDBOX_HOST, SANDBOX_SSH_USER, SANDBOX_SSH_KEY
+#   production environment → PROD_HOST,    PROD_SSH_USER,    PROD_SSH_KEY
+# If a secret is missing, the SSH step fails loudly — that's the intended
+# signal that someone needs to configure the GitHub Environment.
 
 on:
   workflow_dispatch:
@@ -23,8 +25,7 @@ on:
       - "v*.*.*"
 
 concurrency:
-  # Don't deploy two builds to the same target at once.
-  group: release-${{ github.event.inputs.target || 'tag' }}
+  group: release-${{ github.event.inputs.target || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -49,7 +50,6 @@ jobs:
           if [ "$EVENT" = "workflow_dispatch" ]; then
             echo "tag=$SHA" >> "$GITHUB_OUTPUT"
           else
-            # ref is refs/tags/vX.Y.Z; strip prefix.
             echo "tag=${REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
@@ -101,30 +101,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The Droplet has the odoocker stack already running; this job ssh's in,
-      # pulls the new image, and rotates the Goldberry container.
-      #
-      # Required environment secrets:
-      #   SANDBOX_HOST       — sandbox Droplet hostname or IP
-      #   SANDBOX_SSH_KEY    — private key (PEM)
-      #   SANDBOX_SSH_USER   — typically "deploy"
-      #
-      # Wire these in GitHub: Settings → Environments → sandbox → Secrets.
-
-      - name: Skipping (secrets not yet configured)
-        if: secrets.SANDBOX_HOST == ''
-        run: |
-          echo "::warning::SANDBOX_HOST secret missing — sandbox deploy stubbed."
-          echo "Configure secrets in repo settings to enable this step."
-
+      # Required Environment secrets (Settings → Environments → sandbox):
+      #   SANDBOX_HOST       sandbox Droplet hostname or IP
+      #   SANDBOX_SSH_KEY    private key (PEM)
+      #   SANDBOX_SSH_USER   typically "deploy"
+      # Missing secrets cause this step to fail with a clear ssh error.
       - name: Deploy via SSH
-        if: secrets.SANDBOX_HOST != ''
         env:
           SSH_KEY: ${{ secrets.SANDBOX_SSH_KEY }}
           SSH_HOST: ${{ secrets.SANDBOX_HOST }}
           SSH_USER: ${{ secrets.SANDBOX_SSH_USER }}
           IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.verify-image.outputs.tag }}
         run: |
+          if [ -z "$SSH_HOST" ]; then
+            echo "::error::SANDBOX_HOST secret is empty. Configure it in Settings → Environments → sandbox."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -141,7 +133,6 @@ jobs:
                    $IMAGE"
 
       - name: Smoke test deployed sandbox
-        if: secrets.SANDBOX_HOST != ''
         env:
           SANDBOX_URL: https://${{ secrets.SANDBOX_HOST }}
         run: |
@@ -162,23 +153,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Production deploys are gated by an Environment review (require
-      # approval in GitHub Environments → production settings). Same SSH
-      # secret pattern as sandbox.
-
-      - name: Skipping (secrets not yet configured)
-        if: secrets.PROD_HOST == ''
-        run: |
-          echo "::warning::PROD_HOST secret missing — production deploy stubbed."
-
+      # Production env requires required-reviewer approval (configured in
+      # Settings → Environments → production). Secrets:
+      #   PROD_HOST, PROD_SSH_USER, PROD_SSH_KEY
       - name: Deploy via SSH
-        if: secrets.PROD_HOST != ''
         env:
           SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
           SSH_HOST: ${{ secrets.PROD_HOST }}
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
           IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.verify-image.outputs.tag }}
         run: |
+          if [ -z "$SSH_HOST" ]; then
+            echo "::error::PROD_HOST secret is empty. Configure it in Settings → Environments → production."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519

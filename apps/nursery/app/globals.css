@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  /* At The Grove Nursery tenant tokens — garden palette: evergreen, sage, terra cotta */
+  --color-primary: #2f5d3a;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #c4d4a0;
+  --color-secondary-foreground: #1f3a26;
+  --color-accent: #c2604a;
+  --color-background: #f7f4ec;
+  --color-foreground: #1a2e22;
+
+  /* Garden voice — humanist serif rather than Goldberry's elegant Playfair */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Lora", Georgia, serif;
+}
+
+:root {
+  --grove-color-primary: var(--color-primary);
+  --grove-color-primary-foreground: var(--color-primary-foreground);
+  --grove-color-secondary: var(--color-secondary);
+  --grove-color-secondary-foreground: var(--color-secondary-foreground);
+}

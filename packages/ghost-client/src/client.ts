@@ -1,23 +1,5 @@
 import type { GhostConfig, Post, Page, Author, GhostClient } from "./types";
-
-function buildUrl(
-  config: GhostConfig,
-  resource: string,
-  params: Record<string, string | number | undefined> = {}
-): string {
-  const version = config.version ?? "v5.0";
-  const base = `${config.ghostUrl}/ghost/api/content/${resource}`;
-  const searchParams = new URLSearchParams();
-  searchParams.set("key", config.contentKey);
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      searchParams.set(key, String(value));
-    }
-  }
-
-  return `${base}/?${searchParams.toString()}`;
-}
+import { buildUrl } from "./url";
 
 async function ghostFetch<T>(url: string, resource: string): Promise<T> {
   const response = await fetch(url);
