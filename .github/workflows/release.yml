@@ -28,6 +28,9 @@ concurrency:
   group: release-${{ github.event.inputs.target || github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 env:
   IMAGE_NAME: ghcr.io/goldberry-playground/grove-goldberry
 
@@ -35,13 +38,15 @@ jobs:
   verify-image:
     name: Verify image is ready
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
-      - id: resolve
+      - name: Resolve image tag
+        id: resolve
         env:
           REF: ${{ github.ref }}
           EVENT: ${{ github.event_name }}
@@ -95,17 +100,20 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'sandbox'
     needs: verify-image
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: sandbox
       url: https://goldberry-sandbox.example.com
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       # Required Environment secrets (Settings → Environments → sandbox):
       #   SANDBOX_HOST       sandbox Droplet hostname or IP
       #   SANDBOX_SSH_KEY    private key (PEM)
       #   SANDBOX_SSH_USER   typically "deploy"
       # Missing secrets cause this step to fail with a clear ssh error.
+      # TODO: migrate to DO OIDC federation
       - name: Deploy via SSH
         env:
           SSH_KEY: ${{ secrets.SANDBOX_SSH_KEY }}
@@ -147,15 +155,18 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: verify-image
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: production
       url: https://goldberrygrove.farm
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       # Production env requires required-reviewer approval (configured in
       # Settings → Environments → production). Secrets:
       #   PROD_HOST, PROD_SSH_USER, PROD_SSH_KEY
+      # TODO: migrate to DO OIDC federation
       - name: Deploy via SSH
         env:
           SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
