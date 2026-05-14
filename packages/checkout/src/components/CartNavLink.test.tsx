@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { CartNavLink } from "./cart-nav-link";
-import { CartProvider } from "../lib/cart-store";
+import { CartNavLink } from "./CartNavLink";
+import { CartProvider } from "../cart-store";
 
 // We exercise CartNavLink through the real CartProvider rather than mocking
 // useCart — the badge's hydration behavior is the most fragile part, and a

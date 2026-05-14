@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../.."),
   transpilePackages: [
     "@grove/ui",
+    "@grove/checkout",
     "@grove/odoo-client",
     "@grove/ghost-client",
     "@grove/analytics",

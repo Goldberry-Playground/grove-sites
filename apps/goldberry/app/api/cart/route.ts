@@ -1,35 +1,8 @@
-import { NextResponse } from "next/server";
+import { createCartRoute } from "@grove/checkout/server";
 import { odoo } from "../../../lib/clients";
+import { tenantConfig } from "../../../tenant.config";
 
-export async function GET() {
-  try {
-    const cart = await odoo.cart.get();
-    return NextResponse.json(cart);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to fetch cart";
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { product_id, quantity } = body;
-
-    if (!product_id) {
-      return NextResponse.json(
-        { error: "product_id is required" },
-        { status: 400 }
-      );
-    }
-
-    const cart = await odoo.cart.addItem(
-      Number(product_id),
-      Number(quantity ?? 1)
-    );
-    return NextResponse.json(cart);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to update cart";
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
-}
+const { GET: cartGet, POST: cartPost } = createCartRoute(odoo, {
+  allowedOrigins: tenantConfig.allowedOrigins,
+});
+export { cartGet as GET, cartPost as POST };

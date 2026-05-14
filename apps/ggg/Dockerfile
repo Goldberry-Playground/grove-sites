@@ -21,6 +21,7 @@ RUN corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/ggg/package.json apps/ggg/
 COPY packages/ui/package.json packages/ui/
+COPY packages/checkout/package.json packages/checkout/
 COPY packages/odoo-client/package.json packages/odoo-client/
 COPY packages/ghost-client/package.json packages/ghost-client/
 COPY packages/config/package.json packages/config/
@@ -37,6 +38,7 @@ RUN corepack enable
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY --from=deps /workspace/apps/ggg/node_modules ./apps/ggg/node_modules
 COPY --from=deps /workspace/packages/ui/node_modules ./packages/ui/node_modules
+COPY --from=deps /workspace/packages/checkout/node_modules ./packages/checkout/node_modules
 COPY --from=deps /workspace/packages/odoo-client/node_modules ./packages/odoo-client/node_modules
 COPY --from=deps /workspace/packages/ghost-client/node_modules ./packages/ghost-client/node_modules
 COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_modules
