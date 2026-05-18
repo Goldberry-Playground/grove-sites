@@ -6,3 +6,9 @@ dist/
 *.tsbuildinfo
 .vercel
 .output
+
+# Sandcastle agent runtime — never commit env file or local worktrees/logs.
+.sandcastle/.env
+.sandcastle/logs/
+.sandcastle/worktrees/
+.sandcastle/review-notes-*.md
