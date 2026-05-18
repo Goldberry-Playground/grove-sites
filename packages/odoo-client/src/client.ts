@@ -93,6 +93,22 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         const raw = await api<ApiProductDetail>(config, `/grove/api/v1/products/${id}`);
         return normalizeProductDetail(raw);
       },
+
+      async getBySlug(slug) {
+        const params = new URLSearchParams({ slug });
+        const raw = await api<ApiProductListResponse>(
+          config,
+          `/grove/api/v1/products?${params.toString()}`,
+        );
+        if (raw.results.length === 0) return null;
+        // List response carries everything except variants[]. Re-fetch detail by id for
+        // variants — hub product pages need them.
+        const detail = await api<ApiProductDetail>(
+          config,
+          `/grove/api/v1/products/${raw.results[0].id}`,
+        );
+        return normalizeProductDetail(detail);
+      },
     },
 
     cart: {

@@ -243,6 +243,7 @@ export interface OdooClient {
       offset?: number;
     }): Promise<ProductListResult>;
     get(id: number): Promise<Product>;
+    getBySlug(slug: string): Promise<Product | null>;
   };
   cart: {
     get(): Promise<Cart>;
