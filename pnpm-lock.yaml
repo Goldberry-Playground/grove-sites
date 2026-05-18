@@ -181,6 +181,9 @@ importers:
       '@grove/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@grove/ghost-client':
+        specifier: workspace:*
+        version: link:../../packages/ghost-client
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client

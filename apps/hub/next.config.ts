@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     "@grove/ui",
     "@grove/analytics",
     "@grove/config",
+    "@grove/ghost-client",
   ],
 };
 
