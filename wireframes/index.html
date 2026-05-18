@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gather at the Grove — Wireframe Showcase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=Antonio:wght@400;700&family=Bricolage+Grotesque:wght@400..700&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #1A1410;
+    --paper: #F4F0E6;
+    --paper-soft: #FBF8EE;
+    --paper-deep: #E2DBC5;
+    --rule: #1A1410;
+
+    /* Brand swatches */
+    --gb-plum: #5A2A4B;
+    --gb-gold: #C49A3F;
+    --gb-sage: #7B8556;
+    --gb-brown: #5C4630;
+    --gb-cream: #F4ECD8;
+
+    --nu-forest: #1F3F2B;
+    --nu-orange: #D5641A;
+    --nu-leaf: #8AAB6E;
+    --nu-parch: #F2EBD9;
+
+    --gg-walnut: #3A2418;
+    --gg-cherry: #7A2E1A;
+    --gg-amber: #B17839;
+    --gg-bone: #EFE6D3;
+
+    --hb-moss: #2E4530;
+    --hb-amber: #B1864A;
+    --hb-ink: #1A1410;
+    --hb-paper: #F4EFE3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--ink);
+    background: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 100;
+    pointer-events: none;
+    opacity: 0.4;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0 0.06 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+  }
+
+  /* Header */
+  .doc-header {
+    padding: 4rem clamp(1rem, 4vw, 3rem) 3rem;
+    max-width: 1300px;
+    margin: 0 auto;
+    border-bottom: 2px solid var(--rule);
+  }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .eyebrow::before { content: '◐'; }
+  .doc-header h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    line-height: 0.95;
+    letter-spacing: -0.025em;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    margin-bottom: 1.5rem;
+  }
+  .doc-header h1 em {
+    font-style: italic;
+  }
+  .doc-header p.lead {
+    font-size: 1.25rem;
+    max-width: 70ch;
+    color: var(--ink);
+    font-family: 'Newsreader', serif;
+    font-variation-settings: "opsz" 24;
+  }
+  .meta-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--paper-deep);
+  }
+  .meta-row > div {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .meta-row strong { display: block; font-weight: 500; color: var(--ink); margin-bottom: 4px; font-size: 12px; }
+  .meta-row span { color: #5C4630; }
+
+  /* Brand sections */
+  .brand-section {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 4rem clamp(1rem, 4vw, 3rem);
+    border-bottom: 1px solid var(--paper-deep);
+  }
+  .brand-head {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 2rem;
+    align-items: end;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--ink);
+  }
+  .brand-num {
+    font-family: 'Fraunces', serif;
+    font-size: 3.5rem;
+    font-weight: 300;
+    line-height: 0.9;
+    font-variation-settings: "opsz" 144;
+  }
+  .brand-title h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.4rem;
+  }
+  .brand-title .domain {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #5C4630;
+  }
+  .brand-direction {
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-size: 1.05rem;
+    text-align: right;
+    max-width: 28ch;
+    color: #5C4630;
+  }
+
+  /* Swatch row */
+  .swatch-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 2rem;
+  }
+  .swatch {
+    width: 80px;
+    aspect-ratio: 4/5;
+    display: flex;
+    align-items: end;
+    padding: 8px;
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+  .swatch.dark { color: #1A1410; }
+
+  /* Spec line */
+  .spec-line {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 1rem;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--paper-deep);
+    font-size: 14px;
+  }
+  .spec-line dt {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #5C4630;
+  }
+  .spec-line dd {
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  /* Page grid */
+  .page-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .page-card {
+    display: block;
+    text-decoration: none;
+    color: var(--ink);
+    background: var(--paper-soft);
+    border: 1px solid var(--paper-deep);
+    padding: 0;
+    transition: transform 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+  }
+  .page-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px -10px rgba(0,0,0,0.2);
+  }
+  .page-card .top {
+    padding: 16px;
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+  }
+  .page-card .bottom {
+    padding: 1rem 1.2rem 1.2rem;
+  }
+  .page-card h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 1.2rem;
+    line-height: 1.1;
+    margin-bottom: 0.4rem;
+  }
+  .page-card p {
+    font-size: 13px;
+    color: #5C4630;
+    font-style: italic;
+  }
+
+  .gb-grid .page-card .top { background: var(--gb-plum); }
+  .nu-grid .page-card .top { background: var(--nu-forest); }
+  .gg-grid .page-card .top { background: var(--gg-walnut); }
+  .hb-grid .page-card .top { background: var(--hb-moss); }
+
+  /* Hub section gets a darker bg to signal "parent in the IA" */
+  .hub-section {
+    background: var(--ink);
+    color: var(--paper);
+    max-width: none;
+    border-bottom: 6px solid var(--hb-amber);
+  }
+  .hub-section .brand-head { border-bottom-color: var(--paper); }
+  .hub-section .brand-title h2 { color: var(--paper); }
+  .hub-section .brand-direction { color: var(--paper-deep); }
+  .hub-section .brand-title .domain { color: var(--hb-amber); }
+  .hub-section .spec-line { border-bottom-color: rgba(244,239,227,0.15); }
+  .hub-section .spec-line dt { color: var(--hb-amber); }
+  .hub-section .spec-line dd { color: var(--paper); }
+  .hub-section .page-card { background: rgba(244,239,227,0.04); border-color: rgba(244,239,227,0.12); }
+  .hub-section .page-card h3 { color: var(--paper); }
+  .hub-section .page-card p { color: var(--paper-deep); }
+  .hub-section details.preview { background: var(--paper); }
+  .hub-section details.preview > summary { background: var(--ink); color: var(--paper); border-bottom-color: var(--hb-amber); }
+
+  /* Live preview frame */
+  details.preview {
+    margin-top: 2rem;
+    background: #fff;
+    border: 1px solid var(--paper-deep);
+  }
+  details.preview > summary {
+    cursor: pointer;
+    padding: 1rem 1.2rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: var(--paper-soft);
+    border-bottom: 1px solid var(--paper-deep);
+  }
+  details.preview iframe {
+    width: 100%;
+    height: 700px;
+    border: 0;
+    display: block;
+  }
+
+  /* Cross-brand grid */
+  .cross-section {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 4rem clamp(1rem, 4vw, 3rem);
+    margin-top: 3rem;
+  }
+  .cross-section > div { max-width: 1300px; margin: 0 auto; }
+  .cross-section h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 1.5rem;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+  }
+  .cross-section p { color: #C9BFA0; font-size: 1.1rem; max-width: 65ch; }
+
+  .footer {
+    text-align: center;
+    padding: 3rem 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #5C4630;
+  }
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <div class="eyebrow">Wireframe Showcase · May 16, 2026 · v0.1</div>
+  <h1><em>Gather at the Grove —</em><br>four sister sites,<br>sixteen wireframes.</h1>
+  <p class="lead">
+    Static HTML+CSS design studies for the village: the hub
+    (<code style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85em;">gatheringatthegrove.com</code>)
+    plus the three retail-facing properties — Goldberry Grove Farm,
+    At The Grove Nursery, and GGG Woodworking. The hub is the parent
+    in the IA — blog-forward, community-rooted — and links into the
+    three shops with each brand's accent color signalling the handoff.
+    Each site commits to a distinct aesthetic category so they never
+    read as recolored templates.
+  </p>
+
+  <div class="meta-row">
+    <div><strong>4 brands</strong><span>1 hub + 3 storefronts</span></div>
+    <div><strong>16 pages</strong><span>Home · Blog · Shops/Product · About</span></div>
+    <div><strong>4 type pairs</strong><span>No font shared across sites</span></div>
+    <div><strong>4 palettes</strong><span>Moss / Plum / Forest / Walnut</span></div>
+    <div><strong>0 frameworks</strong><span>HTML+CSS only · ~30KB ea.</span></div>
+  </div>
+</header>
+
+<!-- ─── Gather at the Grove (the parent / hub) ─── -->
+<section class="brand-section hub-section">
+  <div style="max-width: 1300px; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 3rem);">
+    <div class="brand-head">
+      <div class="brand-num" style="color: var(--hb-amber);">00</div>
+      <div class="brand-title">
+        <h2><em>Gather at the Grove</em> — the village hub</h2>
+        <div class="domain">gatheringatthegrove.com · The parent / community brand</div>
+      </div>
+      <div class="brand-direction">Editorial / Contemplative · Ghost-blog DNA · Aerial property hero</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+      <div>
+        <div class="swatch-row">
+          <div class="swatch" style="background: var(--hb-moss);">Moss<br/>2E4530</div>
+          <div class="swatch" style="background: var(--hb-amber);">Amber<br/>B1864A</div>
+          <div class="swatch" style="background: var(--hb-ink);">Ink<br/>1A1410</div>
+          <div class="swatch dark" style="background: var(--hb-paper);">Paper<br/>F4EFE3</div>
+          <div class="swatch dark" style="background: #B7B9A6;">Fog<br/>B7B9A6</div>
+        </div>
+
+        <p style="margin-bottom: 1.5rem; color: var(--paper-deep);">The village landing — slower, more contemplative, blog-forward. Pulls editorial DNA from the existing <code style="font-family: 'IBM Plex Mono', monospace; font-size: 0.9em; color: var(--hb-amber);">gatheringatthegrove.com</code> Ghost site and adds a cinematic hero that today shows Appalachian ridgelines and tomorrow will swap to a rotating aerial of the actual property. Each portal card on the home page uses its destination brand's accent color so the click-through feels color-consistent, not jarring.</p>
+
+        <div style="background: rgba(177, 134, 74, 0.1); border-left: 3px solid var(--hb-amber); padding: 1rem 1.2rem; margin-bottom: 1rem; font-size: 0.95rem;">
+          <strong style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.2em; color: var(--hb-amber); display: block; margin-bottom: 6px; text-transform: uppercase;">Hero asset strategy</strong>
+          <span style="color: var(--paper-deep); font-style: italic;">Hero element is a <code style="font-family: 'IBM Plex Mono', monospace;">&lt;video poster="..."&gt;</code> wrapper from day one. Today the poster (Appalachian ridge) renders alone. When the aerial footage exists, dropping in the video <code style="font-family: 'IBM Plex Mono', monospace;">src</code> is a one-line change with no layout shift.</span>
+        </div>
+      </div>
+      <div>
+        <dl>
+          <div class="spec-line"><dt>Role in IA</dt><dd>Parent · sits above the three storefronts</dd></div>
+          <div class="spec-line"><dt>Display type</dt><dd>Fraunces · SOFT 50-100, italic accents</dd></div>
+          <div class="spec-line"><dt>Body type</dt><dd>Newsreader · variable · opsz 24-72</dd></div>
+          <div class="spec-line"><dt>Mono</dt><dd>IBM Plex Mono · lat/lon, metadata</dd></div>
+          <div class="spec-line"><dt>Grid logic</dt><dd>Cinematic hero, manifesto, 3 portal cards, journal</dd></div>
+          <div class="spec-line"><dt>Voice</dt><dd>The three of us, collectively, contemplative</dd></div>
+          <div class="spec-line"><dt>Audience</dt><dd>Curious newcomers, blog readers, future visitors</dd></div>
+          <div class="spec-line"><dt>Sibling-strip</dt><dd>Persistent top-of-page nav linking all 4 sites</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="page-grid hb-grid">
+      <a href="hub/index.html" class="page-card">
+        <div class="top"><span>01 · Home</span><span>—</span></div>
+        <div class="bottom"><h3>The Village</h3><p>Cinematic hero, manifesto, 3 portal cards, journal preview, almanac</p></div>
+      </a>
+      <a href="hub/blog.html" class="page-card">
+        <div class="top"><span>02 · Journal</span><span>—</span></div>
+        <div class="bottom"><h3>The Journal</h3><p>Long-form article layout, drop cap, recent posts grid</p></div>
+      </a>
+      <a href="hub/portals.html" class="page-card">
+        <div class="top"><span>03 · Portals</span><span>—</span></div>
+        <div class="bottom"><h3>The Three Shops</h3><p>Deep-dive into each sub-brand · accent colors signal the handoff</p></div>
+      </a>
+      <a href="hub/about.html" class="page-card">
+        <div class="top"><span>04 · About</span><span>—</span></div>
+        <div class="bottom"><h3>About the Village</h3><p>The land, the four pillars, the family, visit info</p></div>
+      </a>
+    </div>
+
+    <details class="preview">
+      <summary>▼ Live preview — Hub home page (click to expand)</summary>
+      <iframe src="hub/index.html" loading="lazy"></iframe>
+    </details>
+  </div>
+</section>
+
+<!-- ─── Goldberry Grove ─── -->
+<section class="brand-section">
+  <div class="brand-head">
+    <div class="brand-num">01</div>
+    <div class="brand-title">
+      <h2><em>Goldberry Grove Farm</em></h2>
+      <div class="domain">goldberrygrove.farm · The matriarch brand</div>
+    </div>
+    <div class="brand-direction">Heritage Editorial / Folk Modernism</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+    <div>
+      <div class="swatch-row">
+        <div class="swatch" style="background: var(--gb-plum);">Plum<br/>5A2A4B</div>
+        <div class="swatch" style="background: var(--gb-gold);">Gold<br/>C49A3F</div>
+        <div class="swatch" style="background: var(--gb-sage);">Sage<br/>7B8556</div>
+        <div class="swatch" style="background: var(--gb-brown);">Brown<br/>5C4630</div>
+        <div class="swatch dark" style="background: var(--gb-cream);">Cream<br/>F4ECD8</div>
+      </div>
+
+      <p style="margin-bottom: 1.5rem;">A heritage cookbook crossed with a small-press literary magazine. Plum lives in the headlines, gold appears only as hairline rules and metadata, sage exists for italics, and cream does the heavy lifting in the background. Asymmetric magazine grids, drop caps, hand-set sections. The look is intentional precision in service of warmth — never preciousness.</p>
+    </div>
+    <div>
+      <dl>
+        <div class="spec-line"><dt>Display type</dt><dd>Fraunces · variable · SOFT 30-100, WONK on</dd></div>
+        <div class="spec-line"><dt>Body type</dt><dd>Newsreader · variable · opsz 24-72</dd></div>
+        <div class="spec-line"><dt>Mono</dt><dd>JetBrains Mono · for metadata only</dd></div>
+        <div class="spec-line"><dt>Grid logic</dt><dd>Asymmetric magazine, plum drop caps</dd></div>
+        <div class="spec-line"><dt>Voice</dt><dd>Three generations, first-person, dated</dd></div>
+        <div class="spec-line"><dt>Audience</dt><dd>Mail-order shoppers, locals, gift buyers</dd></div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="page-grid gb-grid">
+    <a href="goldberry/index.html" class="page-card">
+      <div class="top"><span>01 · Home</span><span>—</span></div>
+      <div class="bottom"><h3>Agroforestry Hero</h3><p>Hero, manifesto, 5-strata diagram, product grid, story strip</p></div>
+    </a>
+    <a href="goldberry/blog.html" class="page-card">
+      <div class="top"><span>02 · Blog</span><span>—</span></div>
+      <div class="bottom"><h3>Field Notes &amp; Almanacs</h3><p>Editorial layout, harvest journal, ecological notes</p></div>
+    </a>
+    <a href="goldberry/product.html" class="page-card">
+      <div class="top"><span>03 · Product</span><span>—</span></div>
+      <div class="bottom"><h3>Shagbark Hickory Syrup</h3><p>Single-origin product, harvest provenance, batch detail</p></div>
+    </a>
+    <a href="goldberry/about.html" class="page-card">
+      <div class="top"><span>04 · About</span><span>—</span></div>
+      <div class="bottom"><h3>Our Story</h3><p>Josh &amp; Abigail Dunbar · first-gen · seven-year timeline</p></div>
+    </a>
+  </div>
+
+  <details class="preview">
+    <summary>▼ Live preview — Home page (click to expand)</summary>
+    <iframe src="goldberry/index.html" loading="lazy"></iframe>
+  </details>
+</section>
+
+<!-- ─── At The Grove Nursery ─── -->
+<section class="brand-section">
+  <div class="brand-head">
+    <div class="brand-num">02</div>
+    <div class="brand-title">
+      <h2><em>At The Grove Nursery</em></h2>
+      <div class="domain">atthegrovenursery.com · The catalog</div>
+    </div>
+    <div class="brand-direction">Documentary Field-Guide</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+    <div>
+      <div class="swatch-row">
+        <div class="swatch" style="background: var(--nu-forest);">Forest<br/>1F3F2B</div>
+        <div class="swatch" style="background: var(--nu-orange);">Orange<br/>D5641A</div>
+        <div class="swatch" style="background: var(--nu-leaf);">Leaf<br/>8AAB6E</div>
+        <div class="swatch dark" style="background: var(--nu-parch);">Parch.<br/>F2EBD9</div>
+      </div>
+
+      <p style="margin-bottom: 1.5rem;">A USDA pomology atlas mashed with a modern outdoor brand. The site has to do real work — 82 varieties, zone filtering, bare-root shipping windows — so the design embraces information density rather than fighting it. Forest does the navigation, orange does the calls-to-action and accents, parchment does the background. Inspired by raintreenursery.com, elevated three notches.</p>
+    </div>
+    <div>
+      <dl>
+        <div class="spec-line"><dt>Display type</dt><dd>Newsreader · variable · opsz 144, italic accents</dd></div>
+        <div class="spec-line"><dt>Body type</dt><dd>Bricolage Grotesque · contemporary humanist</dd></div>
+        <div class="spec-line"><dt>Mono</dt><dd>IBM Plex Mono · field-notes &amp; specs</dd></div>
+        <div class="spec-line"><dt>Grid logic</dt><dd>Dense product cards, panoramic hero, sidebars</dd></div>
+        <div class="spec-line"><dt>Voice</dt><dd>Expert-friendly, USDA-rigorous, opinion-having</dd></div>
+        <div class="spec-line"><dt>Audience</dt><dd>Cold-climate fruit-tree shoppers, zone 3-7</dd></div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="page-grid nu-grid">
+    <a href="nursery/index.html" class="page-card">
+      <div class="top"><span>01 · Home</span><span>—</span></div>
+      <div class="bottom"><h3>The Catalog</h3><p>Panoramic hero, zone search, featured varietals</p></div>
+    </a>
+    <a href="nursery/blog.html" class="page-card">
+      <div class="top"><span>02 · Blog</span><span>—</span></div>
+      <div class="bottom"><h3>The Field Guide</h3><p>Filterable categories, planting &amp; pruning long reads</p></div>
+    </a>
+    <a href="nursery/product.html" class="page-card">
+      <div class="top"><span>03 · Product</span><span>—</span></div>
+      <div class="bottom"><h3>Honeycrisp Apple</h3><p>Horticultural data table, pollinator pairing</p></div>
+    </a>
+    <a href="nursery/about.html" class="page-card">
+      <div class="top"><span>04 · About</span><span>—</span></div>
+      <div class="bottom"><h3>About</h3><p>Twenty-two year timeline, propagation stats</p></div>
+    </a>
+  </div>
+
+  <details class="preview">
+    <summary>▼ Live preview — Home page (click to expand)</summary>
+    <iframe src="nursery/index.html" loading="lazy"></iframe>
+  </details>
+</section>
+
+<!-- ─── GGG Woodworking ─── -->
+<section class="brand-section">
+  <div class="brand-head">
+    <div class="brand-num">03</div>
+    <div class="brand-title">
+      <h2><em>GGG Woodworking</em></h2>
+      <div class="domain">woodworkingeorge.com · The workshop</div>
+    </div>
+    <div class="brand-direction">Craftsman-Brutalist Catalog</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+    <div>
+      <div class="swatch-row">
+        <div class="swatch" style="background: var(--gg-walnut);">Walnut<br/>3A2418</div>
+        <div class="swatch" style="background: var(--gg-cherry);">Cherry<br/>7A2E1A</div>
+        <div class="swatch" style="background: var(--gg-amber);">Amber<br/>B17839</div>
+        <div class="swatch dark" style="background: var(--gg-bone);">Bone<br/>EFE6D3</div>
+      </div>
+
+      <p style="margin-bottom: 1.5rem;">Wendell Castle × Heath Ceramics × a Wallpaper magazine furniture spread. The display type is heavy compressed Antonio at maximum weight — but the typography is held in check by literal information density (slab numbers, lead times, tree-of-origin timelines). The aesthetic is the *opposite* of cottage — it's industrial, opinionated, and treats provenance as a spec sheet.</p>
+    </div>
+    <div>
+      <dl>
+        <div class="spec-line"><dt>Display type</dt><dd>Antonio · compressed industrial · 700 wt</dd></div>
+        <div class="spec-line"><dt>Body type</dt><dd>Vollkorn · variable · italics carry voice</dd></div>
+        <div class="spec-line"><dt>Mono</dt><dd>IBM Plex Mono · slab numbers, lead times</dd></div>
+        <div class="spec-line"><dt>Grid logic</dt><dd>Catalog spec grid, full-bleed bench shots</dd></div>
+        <div class="spec-line"><dt>Voice</dt><dd>First-person George, technically-precise, terse</dd></div>
+        <div class="spec-line"><dt>Audience</dt><dd>Furniture commissioners, design-literate</dd></div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="page-grid gg-grid">
+    <a href="ggg/index.html" class="page-card">
+      <div class="top"><span>01 · Home</span><span>—</span></div>
+      <div class="bottom"><h3>The Catalog</h3><p>Slab hero, spec strip, catalog, wood library</p></div>
+    </a>
+    <a href="ggg/blog.html" class="page-card">
+      <div class="top"><span>02 · Journal</span><span>—</span></div>
+      <div class="bottom"><h3>The Shop Journal</h3><p>Drying schedules, joinery essays, bench builds</p></div>
+    </a>
+    <a href="ggg/product.html" class="page-card">
+      <div class="top"><span>03 · Product</span><span>—</span></div>
+      <div class="bottom"><h3>Lower Hollow Walnut Table</h3><p>Provenance card · ~1916 self-seeded · 2022 derecho timeline</p></div>
+    </a>
+    <a href="ggg/about.html" class="page-card">
+      <div class="top"><span>04 · About</span><span>—</span></div>
+      <div class="bottom"><h3>The Workshop</h3><p>Methods, pacing note, visit invitation</p></div>
+    </a>
+  </div>
+
+  <details class="preview">
+    <summary>▼ Live preview — Home page (click to expand)</summary>
+    <iframe src="ggg/index.html" loading="lazy"></iframe>
+  </details>
+</section>
+
+<section class="cross-section">
+  <div>
+    <h2>One village, four sites,<br>four typographic worlds.</h2>
+    <p style="margin-bottom: 1.2rem;">Four sister brands with overlapping audiences are at constant risk of looking like the same template recolored. The protection is to commit to <em style="color: var(--gg-amber); font-style: italic;">different aesthetic categories</em> — editorial-contemplative (hub), editorial-heritage (Goldberry), documentary-field-guide (nursery), brutalist-catalog (GGG) — not just different palettes.</p>
+    <p style="margin-bottom: 1.2rem;">A visitor moving between any two of these sites reads them as siblings (shared design seriousness, shared lineage in the footer, the persistent sibling-strip nav at the top) rather than as recolored siblings. That's the goal: family resemblance without uniformity.</p>
+    <p style="margin-bottom: 1.2rem;"><strong style="color: var(--hb-amber);">The cross-site cohesion bar</strong> — the thin black sibling-strip at the very top of the hub site, listing all four properties — is the anti-jarring move. The same strip will retrofit onto the three storefronts so the navigation frame is identical across all four sites even though the content beneath is dramatically different. (Storefront retrofit is a follow-up edit to the 12 storefront HTML files.)</p>
+    <p>The font pairs were chosen so no typeface appears in two of the four sites. The palettes share a parchment-family neutral but otherwise diverge in saturation and temperature. The grid logic is fundamentally different on each — cinematic hero, magazine asymmetry, documentary panorama, catalog grid. A user could not mistake one site's home page for another's.</p>
+  </div>
+</section>
+
+<div class="footer">
+  Wireframes · /grove-sites/wireframes/ · v0.1 · 2026-05-16
+</div>
+
+</body>
+</html>
