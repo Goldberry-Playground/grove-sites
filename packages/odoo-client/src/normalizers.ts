@@ -23,6 +23,7 @@ import type {
 export function normalizeProductListItem(raw: ApiProductListItem): Product {
   return {
     id: raw.id,
+    slug: raw.slug,
     name: raw.name,
     sku: raw.default_code || null,
     description: null,
@@ -41,6 +42,7 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
 export function normalizeProductDetail(raw: ApiProductDetail): Product {
   return {
     id: raw.id,
+    slug: raw.slug,
     name: raw.name,
     sku: raw.default_code || null,
     description: raw.description_sale || null,

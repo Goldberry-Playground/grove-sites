@@ -14,6 +14,7 @@ export interface TenantConfig {
 export interface ApiProductListItem {
   id: number;
   name: string;
+  slug: string;
   list_price: number;
   default_code: string | false;
   website_published: boolean;
@@ -84,6 +85,7 @@ export interface ApiCartResponse {
 
 export interface Product {
   id: number;
+  slug: string;
   name: string;
   sku: string | null;
   description: string | null;

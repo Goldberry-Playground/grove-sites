@@ -15,6 +15,7 @@ import type {
 export const honeycrispListItem: ApiProductListItem = {
   id: 2,
   name: "Honeycrisp Apple Tree",
+  slug: "honeycrisp-apple-tree",
   list_price: 38.0,
   default_code: "TREE-HONEYCRISP",
   website_published: true,
@@ -35,6 +36,7 @@ export const productListResponse: ApiProductListResponse = {
 export const honeycrispDetail: ApiProductDetail = {
   id: 2,
   name: "Honeycrisp Apple Tree",
+  slug: "honeycrisp-apple-tree",
   list_price: 38.0,
   default_code: "TREE-HONEYCRISP",
   website_published: true,
