@@ -96,12 +96,17 @@ jobs:
           docker rm -f goldberry-smoke || true
           exit $fail
 
+      # Blocking as of 2026-05-19. Same rationale as the pnpm audit gate in
+      # ci.yml — soft-fail period drifted and missed a real backlog. If noisy,
+      # raise severity to CRITICAL only, or add a Trivy ignore file
+      # (.trivyignore) documenting accepted vulnerabilities with expiry dates.
+      # Do not flip exit-code back to "0".
       - name: Scan image for high CVEs
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
           severity: HIGH,CRITICAL
-          exit-code: "0" # TODO 2026-Q3: re-evaluate; flip to "1" after triage
+          exit-code: "1"
           format: table
 
       - name: Log in to GHCR

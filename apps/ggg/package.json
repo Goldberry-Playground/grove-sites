@@ -16,7 +16,7 @@
     "@grove/ghost-client": "workspace:*",
     "@grove/odoo-client": "workspace:*",
     "@grove/ui": "workspace:*",
-    "next": "^15.2.0",
+    "next": "^15.5.18",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1"

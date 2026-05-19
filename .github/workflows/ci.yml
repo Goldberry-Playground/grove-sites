@@ -133,10 +133,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fails on high/critical CVEs. Tune the level if it's too noisy.
+      # Blocking as of 2026-05-19. The soft-fail period drifted — a manual audit
+      # surfaced 6 HIGH Next.js CVEs (15.5.14 → ≥15.5.18) that this gate would
+      # have caught if it had been blocking. If noisy, fix the noise (raise
+      # --audit-level=critical, or add a documented allowlist file) — do not
+      # re-soften this gate.
       - name: pnpm audit
         run: pnpm audit --audit-level=high
-        continue-on-error: true # TODO 2026-Q3: re-evaluate; flip to false after triage
 
   secrets-scan:
     name: Secret scan
