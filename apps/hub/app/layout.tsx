@@ -1,34 +1,46 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { tenantConfig } from "../tenant.config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: tenantConfig.name,
-  description: tenantConfig.description,
+  title: {
+    template: "%s — Gather at the Grove",
+    default: "Gather at the Grove — Appalachian agroforestry village",
+  },
+  description:
+    "A federated marketplace for Appalachian agroforestry — three sister farms on one West Virginia hillside, plus the journal about why this matters.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className="min-h-screen bg-background text-foreground font-sans antialiased"
-        data-tenant={tenantConfig.tenantId}
-      >
-        <header className="border-b border-primary/10 px-6 py-4">
-          <nav className="mx-auto flex max-w-6xl items-center justify-between">
-            <Link href="/" className="text-xl font-bold font-display text-primary">
-              {tenantConfig.name}
-            </Link>
+      <body>
+        <header className="hub-header">
+          <Link href="/" className="hub-header__brand">
+            Gather at the Grove
+          </Link>
+          <nav className="hub-header__nav">
+            <Link href="/marketplace">Marketplace</Link>
+            <Link href="/journal">Journal</Link>
+            <Link href="/about">About</Link>
           </nav>
         </header>
-        <main>{children}</main>
-        <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-center text-sm text-foreground/60">
-          <p>&copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.</p>
+
+        {children}
+
+        <footer className="hub-footer">
+          <div>
+            <strong>Gather at the Grove</strong>
+            <p>A federated village of independent Appalachian agroforestry makers.</p>
+          </div>
+          <nav>
+            <Link href="/marketplace">Marketplace</Link>
+            <Link href="/journal">Journal</Link>
+            <Link href="/about">About</Link>
+          </nav>
+          <p className="hub-footer__small">
+            © 2026 Gather at the Grove · The hub never takes a cut.
+          </p>
         </footer>
       </body>
     </html>

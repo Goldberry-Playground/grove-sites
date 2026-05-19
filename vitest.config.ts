@@ -16,6 +16,8 @@ export default defineConfig({
       "packages/*/src/**/*.{test,spec}.{ts,tsx}",
       "apps/*/lib/**/*.{test,spec}.{ts,tsx}",
       "apps/*/app/**/*.{test,spec}.{ts,tsx}",
+      "apps/*/data/**/*.{test,spec}.{ts,tsx}",
+      "apps/*/components/**/*.{test,spec}.{ts,tsx}",
     ],
     exclude: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
     coverage: {
@@ -37,6 +39,10 @@ export default defineConfig({
       "@grove/analytics": path.resolve(__dirname, "packages/analytics/src"),
       "@grove/checkout/server": path.resolve(__dirname, "packages/checkout/src/server.ts"),
       "@grove/checkout": path.resolve(__dirname, "packages/checkout/src"),
+      // `server-only` is a Next.js build-time marker (it throws when loaded in
+      // a Client Component bundle). In Node-based tests, alias it to a no-op
+      // so server modules can be imported without exploding.
+      "server-only": path.resolve(__dirname, "vitest.server-only-stub.ts"),
     },
   },
 });

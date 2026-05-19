@@ -1,58 +1,75 @@
-import { Button } from "@grove/ui";
+import Link from "next/link";
+import { VendorCard } from "../components/VendorCard";
+import { ProductCard } from "../components/ProductCard";
+import { fetchFeaturedProducts } from "../lib/marketplace";
+import { marketplace } from "../data/marketplace";
 
-const tenantSites = [
-  {
-    name: "Goldberry Grove Farm",
-    description: "Farm-fresh produce, artisan goods, and seasonal offerings.",
-    href: "https://goldberrygrove.farm",
-    color: "bg-amber-50 border-amber-200",
-  },
-  {
-    name: "Gathering Grove Gardens",
-    description: "Community garden plots, workshops, and growing resources.",
-    href: "https://gatheringgrovegardens.com",
-    color: "bg-sky-50 border-sky-200",
-  },
-  {
-    name: "The Grove Nursery",
-    description: "Native plants, trees, and garden supplies for every season.",
-    href: "https://thegrovenursery.com",
-    color: "bg-pink-50 border-pink-200",
-  },
-];
+export const revalidate = 600;
 
-export default function HubPage() {
+export default async function HomePage() {
+  const featured = await fetchFeaturedProducts();
+
   return (
-    <div className="mx-auto max-w-5xl px-6 py-16">
-      <section className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-display font-bold text-primary mb-4">
-          Gathering at the Grove
+    <main className="hub-home">
+      <section className="hub-home__hero">
+        <span className="eyebrow">— Gather at the Grove · Appalachian agroforestry village —</span>
+        <h1>
+          A village of small farms, small workshops, and the writing about why
+          this still matters.
         </h1>
-        <p className="text-lg text-foreground/70 max-w-2xl mx-auto">
-          A community of growers, makers, and neighbors. Explore our family of
-          sites and find your place in the grove.
+        <p className="hub-home__lead">
+          Three independent Appalachian businesses on one West Virginia hillside. We
+          share the land, the journal, and a longer view of what regional economies
+          can be. We don&apos;t share a cart — every checkout is the maker&apos;s own.
         </p>
+        <div className="hub-home__cta">
+          <Link href="/marketplace" className="btn-primary">
+            Browse the village
+          </Link>
+          <Link href="/journal" className="btn-secondary">
+            Read the journal
+          </Link>
+        </div>
       </section>
 
-      <section className="grid gap-8 md:grid-cols-3">
-        {tenantSites.map((site) => (
-          <a
-            key={site.name}
-            href={site.href}
-            className={`rounded-xl border-2 p-6 transition-shadow hover:shadow-lg ${site.color}`}
-          >
-            <h2 className="text-xl font-display font-semibold mb-2">
-              {site.name}
-            </h2>
-            <p className="text-sm text-foreground/60 mb-4">
-              {site.description}
-            </p>
-            <Button variant="ghost" size="sm">
-              Visit site &rarr;
-            </Button>
-          </a>
-        ))}
+      <section className="hub-home__vendors">
+        <header>
+          <span className="eyebrow">— The three shops —</span>
+          <h2>Who&apos;s in the village.</h2>
+        </header>
+        <div className="hub-home__vendor-grid">
+          {marketplace.vendors.map((v) => (
+            <VendorCard key={v.slug} vendor={v} />
+          ))}
+        </div>
       </section>
-    </div>
+
+      <section className="hub-home__featured">
+        <header>
+          <span className="eyebrow">— This week from the village —</span>
+          <h2>Featured products.</h2>
+          <Link href="/marketplace">See the full marketplace →</Link>
+        </header>
+        <div className="marketplace__grid">
+          {featured.map((f) => (
+            <ProductCard
+              key={`${f.vendor.slug}-${f.product.slug}`}
+              product={{ product: f.product, vendor: f.vendor }}
+              editorialNote={f.editorialNote}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="hub-home__manifesto">
+        <span className="eyebrow">— The thesis —</span>
+        <blockquote>
+          &ldquo;A village marketplace doesn&apos;t take a cut. It points you at each maker&apos;s
+          own till, then gets out of the way. We&apos;re building the platform we wish
+          had existed when we started.&rdquo;
+        </blockquote>
+        <Link href="/about">Read more →</Link>
+      </section>
+    </main>
   );
 }
