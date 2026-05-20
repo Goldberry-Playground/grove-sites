@@ -54,6 +54,13 @@ RUN pnpm --filter @grove/nursery build
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 
+# Strip npm/npx/corepack from the runtime image — we run `node server.js` only.
+# This removes the bundled vulnerable picomatch in /usr/local/lib/node_modules/npm/
+# (CVE-2026-33671 and similar future bundled-CLI CVEs).
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx \
+    && (rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg || true)
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3001
