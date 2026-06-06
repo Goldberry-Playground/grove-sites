@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
-import { ghost } from "../../lib/clients";
+import { ghost } from "../../lib/ghost";
 import { tenantConfig } from "../../tenant.config";
 
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
