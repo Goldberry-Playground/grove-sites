@@ -1,13 +1,15 @@
-name: Docker — Goldberry
+name: Docker — Frontends
 
-# Build, smoke-test, and (on main) publish the Goldberry frontend image.
-# Sprint 3 will mirror this workflow for apps/ggg and apps/nursery.
+# Build, smoke-test, and (on main) publish each of the 4 frontend images.
+# Matrix-build across hub + goldberry + ggg + nursery — local validation
+# uses `make all-up` which builds the same 4 images via docker-compose.frontends.yml,
+# so this keeps CI in lockstep with the canonical local-dev path.
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - "apps/goldberry/**"
+      - "apps/**"
       - "packages/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -17,7 +19,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/goldberry/**"
+      - "apps/**"
       - "packages/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -26,20 +28,62 @@ on:
       - ".github/workflows/docker.yml"
 
 concurrency:
-  group: docker-goldberry-${{ github.ref }}
+  group: docker-frontends-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  IMAGE_NAME: ghcr.io/goldberry-playground/grove-goldberry
 
 jobs:
   build-and-smoke-test:
-    name: Build + smoke test
+    name: ${{ matrix.app }} — build + smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false  # one app's failure shouldn't cancel the other 3
+      matrix:
+        include:
+          # Storefronts — internal port 3001, commerce routes
+          - app: goldberry
+            internal_port: 3001
+            image_name: ghcr.io/goldberry-playground/grove-goldberry
+            smoke_routes: "/ /cart /checkout"
+            env_extra: |
+              -e TENANT_ID=goldberry
+              -e ODOO_URL=http://127.0.0.1:1
+              -e ODOO_API_KEY=smoke-test
+              -e GHOST_URL=http://127.0.0.1:1
+              -e GHOST_CONTENT_KEY=smoke-test
+          - app: ggg
+            internal_port: 3001
+            image_name: ghcr.io/goldberry-playground/grove-ggg
+            smoke_routes: "/ /cart /checkout"
+            env_extra: |
+              -e TENANT_ID=ggg
+              -e ODOO_URL=http://127.0.0.1:1
+              -e ODOO_API_KEY=smoke-test
+              -e GHOST_URL=http://127.0.0.1:1
+              -e GHOST_CONTENT_KEY=smoke-test
+          - app: nursery
+            internal_port: 3001
+            image_name: ghcr.io/goldberry-playground/grove-nursery
+            smoke_routes: "/ /cart /checkout"
+            env_extra: |
+              -e TENANT_ID=nursery
+              -e ODOO_URL=http://127.0.0.1:1
+              -e ODOO_API_KEY=smoke-test
+              -e GHOST_URL=http://127.0.0.1:1
+              -e GHOST_CONTENT_KEY=smoke-test
+          # Hub — internal port 3000, marketplace routes (no /cart — hub has no cart)
+          - app: hub
+            internal_port: 3000
+            image_name: ghcr.io/goldberry-playground/grove-hub
+            smoke_routes: "/ /journal"
+            env_extra: |
+              -e GROVE_ODOO_URL=http://127.0.0.1:1
+              -e HUB_GHOST_URL=http://127.0.0.1:1
+              -e HUB_GHOST_CONTENT_API_KEY=smoke-test
+              -e GROVE_REVALIDATE_SECRET=smoke-test-revalidate-secret
     env:
       TEST_TAG: test-${{ github.run_id }}
     steps:
@@ -53,29 +97,36 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/goldberry/Dockerfile
+          file: apps/${{ matrix.app }}/Dockerfile
           load: true
-          tags: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
-          cache-from: type=gha,scope=goldberry
-          cache-to: type=gha,scope=goldberry,mode=max
+          tags: ${{ matrix.image_name }}:${{ env.TEST_TAG }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,scope=${{ matrix.app }},mode=max
 
       # Run the container with placeholder backend URLs. Server Components catch
-      # fetch errors and render the empty state; the homepage and /cart, /checkout
-      # routes don't depend on backend reachability — perfect for smoke testing.
+      # fetch errors and render the empty state; the routes in `smoke_routes`
+      # don't depend on backend reachability — perfect for smoke testing.
       - name: Smoke test container
         env:
-          IMAGE: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
+          # Defense-in-depth: ALL matrix values reach the shell via env vars,
+          # never via ${{ }} interpolation in `run:`. Today matrix.app etc. are
+          # hardcoded in the workflow above, so this is precautionary — but if
+          # the matrix is ever made dynamic from a less-trusted source (PR
+          # title, dispatch payload, etc.), this pattern prevents shell injection.
+          APP: ${{ matrix.app }}
+          IMAGE: ${{ matrix.image_name }}:${{ env.TEST_TAG }}
+          INTERNAL_PORT: ${{ matrix.internal_port }}
+          SMOKE_ROUTES: ${{ matrix.smoke_routes }}
+          ENV_EXTRA: ${{ matrix.env_extra }}
         run: |
-          docker run -d --name goldberry-smoke \
-            -p 3001:3001 \
-            -e ODOO_URL=http://127.0.0.1:1 \
-            -e GHOST_URL=http://127.0.0.1:1 \
-            -e GHOST_CONTENT_KEY=smoke-test \
-            -e TENANT_ID=goldberry \
+          # shellcheck disable=SC2086
+          docker run -d --name "${APP}-smoke" \
+            -p "${INTERNAL_PORT}:${INTERNAL_PORT}" \
+            $ENV_EXTRA \
             "$IMAGE"
 
           for i in $(seq 1 30); do
-            if curl -fsS -o /dev/null http://localhost:3001/ ; then
+            if curl -fsS -o /dev/null "http://localhost:${INTERNAL_PORT}/" ; then
               echo "Container responding after ${i} polls"
               break
             fi
@@ -83,8 +134,8 @@ jobs:
           done
 
           fail=0
-          for path in / /cart /checkout; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001${path}")
+          for path in $SMOKE_ROUTES; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${INTERNAL_PORT}${path}")
             echo "  ${path}  ->  ${code}"
             case "$code" in
               2*) ;;
@@ -92,8 +143,8 @@ jobs:
             esac
           done
 
-          docker logs goldberry-smoke
-          docker rm -f goldberry-smoke || true
+          docker logs "${APP}-smoke"
+          docker rm -f "${APP}-smoke" || true
           exit $fail
 
       # Blocking as of 2026-05-19. Same rationale as the pnpm audit gate in
@@ -104,7 +155,7 @@ jobs:
       - name: Scan image for high CVEs
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_NAME }}:${{ env.TEST_TAG }}
+          image-ref: ${{ matrix.image_name }}:${{ env.TEST_TAG }}
           severity: HIGH,CRITICAL
           exit-code: "1"
           format: table
@@ -120,7 +171,7 @@ jobs:
       - name: Tag and push
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          IMAGE: ${{ env.IMAGE_NAME }}
+          IMAGE: ${{ matrix.image_name }}
           TAG: ${{ env.TEST_TAG }}
           SHA: ${{ github.sha }}
         run: |
