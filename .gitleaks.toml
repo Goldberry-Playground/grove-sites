@@ -1,0 +1,37 @@
+# gitleaks config for grove-sites.
+#
+# Extends the upstream default rule set with project-specific allowlists.
+# Anything matched here will be IGNORED by `gitleaks detect` and `gitleaks
+# protect` — keep this surface narrow.
+#
+# Verified with gitleaks 8.30.1.
+
+[extend]
+# Build on top of the default rule set rather than replacing it.
+useDefault = true
+
+[allowlist]
+description = "Grove false positives — test fixtures and known-non-secret patterns"
+
+# Test fixtures: Vitest convention puts mock API responses in __fixtures__
+# directories. These contain hardcoded UUIDs / mock tokens that look like
+# real secrets to gitleaks' generic-api-key rule but are never sent to a
+# real backend. Confirmed false positive surfaced on 2026-06-07 scan:
+#   packages/odoo-client/src/__fixtures__/api-responses.ts:118
+#     access_token: "d009e9e9-ae45-48a7-80dd-64d92a6641a2"
+# This UUID is part of orderCreateResponse — the fake order returned by
+# the mock Odoo client during Vitest runs.
+paths = [
+  '''.*/__fixtures__/.*''',
+  '''.*\.fixture\.[tj]sx?$''',
+  '''.*/__mocks__/.*''',
+]
+
+# Doc-example secrets — README/MIGRATION/ADR files sometimes show what an
+# env var looks like (e.g. `GHOST_CONTENT_KEY=abc123...`) as illustration.
+# Only the example/template files; never `.env` itself.
+regexes = [
+  '''GHOST_CONTENT_KEY=<32-char hex>''',
+  '''ADMIN_PASSWD=<.*>''',
+  '''<your-.*-here>''',
+]
