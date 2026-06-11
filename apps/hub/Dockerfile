@@ -59,6 +59,11 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && (rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg || true)
 
+# Pull current Alpine security patches on top of node:22-alpine, so HIGH CVEs
+# fixed upstream (e.g. CVE-2026-45447 in libcrypto3/libssl3) stop blocking the
+# Trivy gate in .github/workflows/docker.yml.
+RUN apk upgrade --no-cache
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
