@@ -52,12 +52,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Only run when:
-    #   - PR was closed (any reason), OR
-    #   - the `qa` label was removed from an open PR, OR
-    #   - manual dispatch
+    #   - PR was closed AND it currently has the `qa` label (preview is active), OR
+    #   - the `qa` label was removed from an open PR (operator stopped paying), OR
+    #   - manual dispatch (escape hatch)
+    #
+    # The `qa` label gate on the `closed` case prevents the workflow from
+    # running on every closed PR — without it, PRs that were never labeled
+    # `qa` (the common case) would invoke `terraform destroy` against an
+    # empty state, fail at the credentials step if secrets aren't set, and
+    # produce a noisy red ✗ check on the PR.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.action == 'closed' ||
+      (github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'qa')) ||
       (github.event.action == 'unlabeled' && github.event.label.name == 'qa')
 
     steps:
