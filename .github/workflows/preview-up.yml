@@ -1,0 +1,294 @@
+name: preview-up
+
+###############################################################################
+# Grove Preview — bring up a per-PR full-stack preview droplet.
+#
+# Trigger: PR labeled `qa` (cost gate — only label-when-needed previews
+#   spin up a $0.033/hr droplet) OR new commit pushed to an already-labeled
+#   PR (synchronize event re-checks the label).
+#
+# Flow:
+#   1. build-images — build all 4 frontend images at the PR's HEAD SHA,
+#                     push to ghcr as :pr-N-<sha8> tags
+#   2. terraform-apply — checkout odoocker, run terraform apply against
+#                        the preview/ env in odoocker (PR #32). Creates
+#                        a droplet, DNS, firewall; cloud-init brings the
+#                        full Compose stack up + restores sanitized snapshot
+#   3. comment + notify — write/update the "Grove preview is live" PR
+#                         comment with per-tenant URLs; ping #grove-ops Discord
+#
+# Static-secret interim: workflow uses secrets.DIGITALOCEAN_TOKEN +
+# spaces creds in the documented pattern. OIDC retrofit per Asana task
+# gid 1215643675066258 (due 2026-06-27) replaces these.
+#
+# Companion: preview-down.yml destroys the droplet on PR close/unlabel.
+# Asana task: gid 1215643866638350 (due 2026-06-19 — Hub deadline).
+###############################################################################
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+  # Manual escape hatch — useful when the label was already applied but the
+  # workflow needs a re-trigger (e.g., the labeled event raced with the
+  # secret being added).
+  workflow_dispatch: {}
+
+# Cancel in-flight runs when a new commit lands on the same PR. Avoids
+# wasting build time on superseded commits and avoids racing terraform
+# state on the same backend key.
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read       # checkout
+  packages: write      # push to ghcr.io
+  pull-requests: write # post the URLs comment
+
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+  PR_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  build-images:
+    name: Build 4 frontend images at PR SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Label gate — only run when `qa` label is present. `synchronize` fires
+    # on every push to a PR; we only want to keep building if `qa` is set.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && (
+        (github.event.action == 'labeled' && github.event.label.name == 'qa') ||
+        (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'qa')) ||
+        (github.event.action == 'reopened' && contains(github.event.pull_request.labels.*.name, 'qa'))
+      ))
+
+    outputs:
+      image_tag: ${{ steps.tag.outputs.value }}
+      snapshot_date: ${{ steps.snapshot.outputs.date }}
+
+    strategy:
+      fail-fast: false # one frontend failing shouldn't kill the others mid-build
+      matrix:
+        app: [hub, goldberry, ggg, nursery]
+
+    steps:
+      - name: Checkout PR SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_SHA }}
+
+      - id: tag
+        name: Compute per-PR image tag
+        run: echo "value=pr-${PR_NUMBER}-${PR_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push grove-${{ matrix.app }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          push: true
+          tags: ghcr.io/goldberry-playground/grove-${{ matrix.app }}:${{ steps.tag.outputs.value }}
+          cache-from: type=gha,scope=preview-${{ matrix.app }}
+          cache-to: type=gha,scope=preview-${{ matrix.app }},mode=max
+
+      - id: snapshot
+        name: Read snapshot heartbeat (only on the `hub` leg to avoid 4x duplicate read)
+        if: matrix.app == 'hub'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
+        run: |
+          # heartbeat.txt is written nightly by the M1 sanitization pipeline
+          # (odoocker/scripts/preview/sanitize-and-upload.sh). It contains
+          # the date of the most recent successful sanitized snapshot.
+          date=$(aws --endpoint-url https://nyc3.digitaloceanspaces.com \
+            s3 cp s3://grove-preview-data/heartbeat.txt - 2>/dev/null | tr -d '\n')
+          if [[ -z "$date" ]]; then
+            echo "::error::heartbeat.txt missing or empty in grove-preview-data — has the sanitize cron run?"
+            exit 1
+          fi
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+
+  terraform-apply:
+    name: Provision preview droplet via odoocker's preview/ TF env
+    needs: build-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    outputs:
+      preview_urls_json: ${{ steps.tf.outputs.preview_urls_json }}
+      droplet_ip: ${{ steps.tf.outputs.droplet_ip }}
+
+    steps:
+      - name: Checkout odoocker (for the preview/ TF env + module)
+        uses: actions/checkout@v4
+        with:
+          repository: Goldberry-Playground/odoocker-goldberrygrove
+          path: odoocker
+          # GITHUB_TOKEN auto-grants read on org repos; no PAT needed.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6"
+
+      - id: tf
+        name: terraform init + apply
+        working-directory: odoocker/infra/terraform/environments/preview
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_spaces_access_key: ${{ secrets.DO_SPACES_ACCESS_KEY }}
+          TF_VAR_spaces_secret_key: ${{ secrets.DO_SPACES_SECRET_KEY }}
+          # Spaces creds also needed for the S3 backend.
+          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
+          TF_VAR_pr_number: ${{ env.PR_NUMBER }}
+          TF_VAR_pr_branch: ${{ env.PR_BRANCH }}
+          TF_VAR_snapshot_date: ${{ needs.build-images.outputs.snapshot_date }}
+          TF_VAR_ssh_key_fingerprint: ${{ secrets.PREVIEW_SSH_KEY_ID }}
+          TF_VAR_admin_ip_cidr: ${{ secrets.ADMIN_IP_CIDR }}
+        run: |
+          tag="${{ needs.build-images.outputs.image_tag }}"
+
+          # Generate per-run tfvars overlay — image tags + Ghost keys.
+          # auto.tfvars.json is loaded automatically by terraform.
+          cat > terraform.auto.tfvars.json <<JSON
+          {
+            "frontend_image_tags": {
+              "hub":       "${tag}",
+              "goldberry": "${tag}",
+              "ggg":       "${tag}",
+              "nursery":   "${tag}"
+            },
+            "odoo_image_tag": "latest",
+            "ghost_content_keys": {
+              "goldberry": "${{ secrets.GHOST_KEY_GOLDBERRY }}",
+              "ggg":       "${{ secrets.GHOST_KEY_GGG }}",
+              "nursery":   "${{ secrets.GHOST_KEY_NURSERY }}"
+            }
+          }
+          JSON
+
+          # Per-PR backend key — different PRs don't collide on state.
+          cat > backend.hcl <<HCL
+          bucket                      = "grove-tf-state"
+          key                         = "preview/pr-${PR_NUMBER}.tfstate"
+          region                      = "us-east-1"
+          endpoint                    = "https://nyc3.digitaloceanspaces.com"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          force_path_style            = true
+          HCL
+
+          terraform init -backend-config=backend.hcl -input=false
+          terraform apply -auto-approve -input=false
+
+          terraform output -json preview_urls > /tmp/urls.json
+          echo "preview_urls_json=$(cat /tmp/urls.json)" >> "$GITHUB_OUTPUT"
+          echo "droplet_ip=$(terraform output -raw droplet_ip)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment URLs on PR (idempotent — updates existing if present)
+        uses: actions/github-script@v7
+        env:
+          URLS: ${{ steps.tf.outputs.preview_urls_json }}
+          DROPLET_IP: ${{ steps.tf.outputs.droplet_ip }}
+        with:
+          script: |
+            const urls = JSON.parse(process.env.URLS);
+            const ip = process.env.DROPLET_IP;
+            const marker = '<!-- grove-preview-bot -->';
+            const body = [
+              marker,
+              '## 🌱 Grove preview environment',
+              '',
+              'This PR has a live preview at the URLs below.',
+              'Cost ~$0.033/hr · droplet `' + ip + '` · close PR to destroy it.',
+              '',
+              '| Tenant | URL |',
+              '|---|---|',
+              ...Object.entries(urls).map(([k, v]) => '| **' + k + '** | ' + v + ' |'),
+              '',
+              '<sub>noindex headers are set; URLs are unguessable but treat as public.',
+              'Last updated: ' + new Date().toISOString() + ' · workflow run ' +
+                `<${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}|#${context.runNumber}></sub>`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Post Discord notification
+        if: always()
+        env:
+          DISCORD_OPS_WEBHOOK_URL: ${{ secrets.DISCORD_OPS_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          URLS: ${{ steps.tf.outputs.preview_urls_json }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Same Discord pattern as sandbox-reaper / terraform-drift (PR #25
+          # in odoocker). jq -n + curl, no third-party action.
+          if [ "$STATUS" = "success" ]; then
+            COLOR=5763719; ICON="🌱"; TITLE="Preview up for PR #${PR_NUMBER}"
+            FIELDS="$(jq -n --arg urls "$URLS" '$urls | fromjson | to_entries | map({name: .key, value: .value, inline: false})')"
+          else
+            COLOR=15158332; ICON="🚨"; TITLE="Preview FAILED for PR #${PR_NUMBER}"
+            FIELDS='[{"name":"See logs","value":"Workflow run","inline":false}]'
+          fi
+          PAYLOAD=$(jq -n \
+            --arg title "$ICON $TITLE" \
+            --arg pr_url "$PR_URL" \
+            --arg pr_title "$PR_TITLE" \
+            --arg run_url "$RUN_URL" \
+            --argjson color "$COLOR" \
+            --argjson fields "$FIELDS" \
+            '{
+              username: "🌱 Grove Preview",
+              embeds: [{
+                title: $title,
+                description: $pr_title,
+                url: $pr_url,
+                color: $color,
+                fields: $fields,
+                footer: { text: "Workflow run: \($run_url)" }
+              }]
+            }')
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "$DISCORD_OPS_WEBHOOK_URL" || \
+            echo "::warning::Discord webhook failed — preview is still live, just no notification"

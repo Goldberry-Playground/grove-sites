@@ -1,0 +1,186 @@
+name: preview-down
+
+###############################################################################
+# Grove Preview — tear down a per-PR preview droplet.
+#
+# Trigger: PR closed (merged OR closed-without-merge) OR `qa` label removed.
+#   - PR closed: standard cleanup; the preview's purpose is over.
+#   - Label removed: operator deliberately stopped paying for this preview
+#                    (e.g., PR is going to sit open for a while as a draft).
+#
+# Flow:
+#   1. Checkout odoocker
+#   2. terraform init against the per-PR backend key
+#   3. terraform destroy
+#   4. Post a "preview destroyed" comment on the PR
+#
+# Failure-safe: if the preview wasn't actually up (no state in the bucket),
+# `terraform init` succeeds against an empty state and destroy is a no-op.
+# This means the workflow can be re-triggered safely if a previous run
+# crashed mid-teardown.
+#
+# Companion: preview-up.yml; preview-sweep.yml (M3 follow-up — periodic
+# safety net that destroys droplets whose tag indicates they're orphaned
+# from closed PRs).
+###############################################################################
+
+on:
+  pull_request:
+    types: [closed, unlabeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to tear down (manual escape hatch)"
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+
+# Single-flight per PR — guards against the `closed` event racing the
+# operator manually triggering a workflow_dispatch for the same PR.
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    name: terraform destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only run when:
+    #   - PR was closed (any reason), OR
+    #   - the `qa` label was removed from an open PR, OR
+    #   - manual dispatch
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action == 'closed' ||
+      (github.event.action == 'unlabeled' && github.event.label.name == 'qa')
+
+    steps:
+      - name: Checkout odoocker
+        uses: actions/checkout@v4
+        with:
+          repository: Goldberry-Playground/odoocker-goldberrygrove
+          path: odoocker
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6"
+
+      - name: terraform init + destroy
+        working-directory: odoocker/infra/terraform/environments/preview
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_spaces_access_key: ${{ secrets.DO_SPACES_ACCESS_KEY }}
+          TF_VAR_spaces_secret_key: ${{ secrets.DO_SPACES_SECRET_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
+          TF_VAR_pr_number: ${{ env.PR_NUMBER }}
+          # The remaining vars don't matter for `destroy` but TF requires them
+          # to be set because validation runs before plan/destroy. Stub safe.
+          TF_VAR_pr_branch: "destroyed"
+          TF_VAR_snapshot_date: "2026-01-01"
+          TF_VAR_ssh_key_fingerprint: ${{ secrets.PREVIEW_SSH_KEY_ID }}
+          TF_VAR_admin_ip_cidr: ${{ secrets.ADMIN_IP_CIDR }}
+        run: |
+          cat > terraform.auto.tfvars.json <<JSON
+          {
+            "frontend_image_tags": {
+              "hub": "destroyed", "goldberry": "destroyed",
+              "ggg": "destroyed", "nursery": "destroyed"
+            },
+            "odoo_image_tag": "destroyed",
+            "ghost_content_keys": {
+              "goldberry": "destroyed", "ggg": "destroyed", "nursery": "destroyed"
+            }
+          }
+          JSON
+
+          cat > backend.hcl <<HCL
+          bucket                      = "grove-tf-state"
+          key                         = "preview/pr-${PR_NUMBER}.tfstate"
+          region                      = "us-east-1"
+          endpoint                    = "https://nyc3.digitaloceanspaces.com"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          force_path_style            = true
+          HCL
+
+          terraform init -backend-config=backend.hcl -input=false
+
+          # If state is empty (no preview was ever applied for this PR),
+          # destroy succeeds as a no-op. Otherwise it tears down the droplet,
+          # firewall, DNS records.
+          terraform destroy -auto-approve -input=false
+
+      - name: Comment on PR — preview destroyed
+        if: always() && github.event_name != 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- grove-preview-bot -->';
+            const torn = '<!-- grove-preview-torn-down -->';
+            const status = '${{ job.status }}';
+
+            // Strikethrough the live URLs comment so reviewers know the
+            // preview is gone, and add a small "destroyed" note below.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing && !existing.body.includes(torn)) {
+              const updated = existing.body
+                .replace('## 🌱 Grove preview environment',
+                         '## ~~🌱 Grove preview environment~~ (destroyed)')
+                + `\n\n${torn}\n<sub>Destroyed ${new Date().toISOString()} via preview-down.yml — status: ${status}</sub>`;
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: updated,
+              });
+            }
+
+      - name: Post Discord notification
+        if: always()
+        env:
+          DISCORD_OPS_WEBHOOK_URL: ${{ secrets.DISCORD_OPS_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          PR_TITLE: ${{ github.event.pull_request.title || 'manual dispatch' }}
+          PR_URL: ${{ github.event.pull_request.html_url || '' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$STATUS" = "success" ]; then
+            COLOR=10070709; ICON="🪦"; TITLE="Preview destroyed for PR #${PR_NUMBER}"
+          else
+            COLOR=15158332; ICON="🚨"; TITLE="Preview destroy FAILED for PR #${PR_NUMBER}"
+          fi
+          PAYLOAD=$(jq -n \
+            --arg title "$ICON $TITLE" \
+            --arg pr_url "$PR_URL" \
+            --arg pr_title "$PR_TITLE" \
+            --arg run_url "$RUN_URL" \
+            --argjson color "$COLOR" \
+            '{
+              username: "🪦 Grove Preview",
+              embeds: [{
+                title: $title,
+                description: $pr_title,
+                url: ($pr_url // null),
+                color: $color,
+                footer: { text: "Workflow run: \($run_url)" }
+              }]
+            }')
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "$DISCORD_OPS_WEBHOOK_URL" || \
+            echo "::warning::Discord webhook failed — preview was destroyed regardless"
