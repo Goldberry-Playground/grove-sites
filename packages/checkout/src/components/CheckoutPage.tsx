@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@grove/ui";
 import { useCart } from "../cart-store";
 
@@ -25,6 +25,7 @@ function formatPrice(amount: number): string {
 export function CheckoutPage() {
   const router = useRouter();
   const { items, hydrated, subtotal, clear } = useCart();
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const [contact, setContact] = useState({ name: "", email: "", phone: "" });
   const [shipping, setShipping] = useState({
@@ -74,6 +75,7 @@ export function CheckoutPage() {
 
   const taxEstimate = subtotal * TAX_RATE_ESTIMATE;
   const total = subtotal + taxEstimate;
+  const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,193 +113,248 @@ export function CheckoutPage() {
     }
   }
 
+  // Submit by clicking the top-banner CTA — keeps the bold checkout action
+  // visible at all times without forcing users to scroll to the right-rail
+  // Place Order button.
+  function submitFromTop() {
+    formRef.current?.requestSubmit();
+  }
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="text-3xl font-display font-bold text-primary mb-8">
-        Checkout
-      </h1>
-
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-      >
-        <div className="lg:col-span-2 space-y-8">
-          {/* Contact */}
-          <fieldset className="rounded-lg border border-primary/10 p-6">
-            <legend className="px-2 text-lg font-semibold">Contact</legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-              <Input
-                label="Full name"
-                required
-                value={contact.name}
-                onChange={(v) => setContact({ ...contact, name: v })}
-                autoComplete="name"
-              />
-              <Input
-                label="Email"
-                type="email"
-                required
-                value={contact.email}
-                onChange={(v) => setContact({ ...contact, email: v })}
-                autoComplete="email"
-              />
-              <Input
-                label="Phone"
-                type="tel"
-                value={contact.phone}
-                onChange={(v) => setContact({ ...contact, phone: v })}
-                autoComplete="tel"
-                className="sm:col-span-2"
-              />
+    <>
+      {/* Bold sticky checkout banner — total + place order, always visible. */}
+      <div className="sticky top-0 z-40 bg-primary text-primary-foreground shadow-lg">
+        <div className="mx-auto max-w-6xl px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] opacity-70">
+              {totalQuantity} {totalQuantity === 1 ? "item" : "items"} · ready to ship
             </div>
-          </fieldset>
-
-          {/* Shipping */}
-          <fieldset className="rounded-lg border border-primary/10 p-6">
-            <legend className="px-2 text-lg font-semibold">
-              Shipping Address
-            </legend>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-              <Input
-                label="Street"
-                required
-                value={shipping.street}
-                onChange={(v) => setShipping({ ...shipping, street: v })}
-                autoComplete="address-line1"
-                className="sm:col-span-2"
-              />
-              <Input
-                label="Apt / Suite (optional)"
-                value={shipping.street2}
-                onChange={(v) => setShipping({ ...shipping, street2: v })}
-                autoComplete="address-line2"
-                className="sm:col-span-2"
-              />
-              <Input
-                label="City"
-                required
-                value={shipping.city}
-                onChange={(v) => setShipping({ ...shipping, city: v })}
-                autoComplete="address-level2"
-              />
-              <Input
-                label="State"
-                required
-                value={shipping.state}
-                onChange={(v) =>
-                  setShipping({ ...shipping, state: v.toUpperCase() })
-                }
-                autoComplete="address-level1"
-                maxLength={2}
-              />
-              <Input
-                label="ZIP"
-                required
-                value={shipping.zip}
-                onChange={(v) => setShipping({ ...shipping, zip: v })}
-                autoComplete="postal-code"
-              />
-              <Input
-                label="Country"
-                required
-                value={shipping.country}
-                onChange={(v) =>
-                  setShipping({ ...shipping, country: v.toUpperCase() })
-                }
-                autoComplete="country"
-                maxLength={2}
-              />
+            <div className="text-2xl font-display font-bold leading-tight">
+              {formatPrice(total)}
+              <span className="text-xs font-normal opacity-70 ml-2">
+                with est. tax
+              </span>
             </div>
-          </fieldset>
-
-          {/* Payment */}
-          <fieldset className="rounded-lg border border-primary/10 p-6">
-            <legend className="px-2 text-lg font-semibold">
-              Payment Method
-            </legend>
-            <div className="space-y-2 mt-2">
-              {PAYMENT_METHODS.map((method) => (
-                <label
-                  key={method.value}
-                  className="flex items-center gap-3 rounded border border-primary/10 px-4 py-3 cursor-pointer hover:border-primary/30 transition-colors"
-                >
-                  <input
-                    type="radio"
-                    name="payment"
-                    value={method.value}
-                    checked={paymentMethod === method.value}
-                    onChange={() => setPaymentMethod(method.value)}
-                  />
-                  <span className="text-sm">{method.label}</span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-foreground/50 mt-3">
-              Payment is collected after order confirmation. We&apos;ll contact
-              you with details.
-            </p>
-          </fieldset>
-        </div>
-
-        {/* Order summary */}
-        <aside className="rounded-lg border border-primary/10 p-6 h-fit lg:sticky lg:top-6">
-          <h2 className="text-lg font-semibold mb-4">Your Order</h2>
-
-          <ul className="space-y-2 text-sm mb-4">
-            {items.map((item) => (
-              <li key={item.variantId} className="flex justify-between gap-4">
-                <span className="flex-1">
-                  {item.name}
-                  <span className="text-foreground/50"> × {item.quantity}</span>
-                </span>
-                <span>{formatPrice(item.price * item.quantity)}</span>
-              </li>
-            ))}
-          </ul>
-
-          <dl className="space-y-2 text-sm border-t border-primary/10 pt-3">
-            <div className="flex justify-between">
-              <dt className="text-foreground/70">Subtotal</dt>
-              <dd>{formatPrice(subtotal)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-foreground/70">Tax (estimated)</dt>
-              <dd>{formatPrice(taxEstimate)}</dd>
-            </div>
-            <div className="flex justify-between border-t border-primary/10 pt-3 mt-3 font-semibold text-base">
-              <dt>Total</dt>
-              <dd>{formatPrice(total)}</dd>
-            </div>
-          </dl>
-
-          {error && (
-            <p
-              role="alert"
-              className="mt-4 rounded bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-800"
-            >
-              {error}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="w-full mt-6"
+          </div>
+          <button
+            type="button"
+            onClick={submitFromTop}
             disabled={submitting}
+            className="shrink-0 bg-accent text-primary-foreground font-display font-bold uppercase tracking-wider text-sm px-8 py-4 rounded transition-transform hover:scale-105 hover:bg-accent/90 disabled:opacity-60 disabled:hover:scale-100 shadow-md"
           >
-            {submitting ? "Placing Order..." : "Place Order"}
-          </Button>
+            {submitting ? "Placing Order..." : "Place Order →"}
+          </button>
+        </div>
+      </div>
 
-          <Link
-            href="/cart"
-            className="mt-3 block text-center text-sm text-foreground/60 hover:text-primary transition-colors"
-          >
-            Back to Cart
-          </Link>
-        </aside>
-      </form>
-    </div>
+      {/* Trust strip */}
+      <div className="bg-secondary/30 border-y border-primary/10">
+        <div className="mx-auto max-w-6xl px-6 py-3 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-foreground/70 font-mono uppercase tracking-wider">
+          <span className="flex items-center gap-2">
+            <span aria-hidden>✦</span> Secure · we never store card data
+          </span>
+          <span className="flex items-center gap-2">
+            <span aria-hidden>◐</span> Email confirmation before charge
+          </span>
+          <span className="flex items-center gap-2">
+            <span aria-hidden>✓</span> Satisfaction or refund
+          </span>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        <h1 className="text-3xl font-display font-bold text-primary mb-8">
+          Checkout
+        </h1>
+
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+        >
+          <div className="lg:col-span-2 space-y-8">
+            {/* Contact */}
+            <fieldset className="rounded-lg border border-primary/10 p-6">
+              <legend className="px-2 text-lg font-display font-bold">
+                Contact
+              </legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                <Input
+                  label="Full name"
+                  required
+                  value={contact.name}
+                  onChange={(v) => setContact({ ...contact, name: v })}
+                  autoComplete="name"
+                />
+                <Input
+                  label="Email"
+                  type="email"
+                  required
+                  value={contact.email}
+                  onChange={(v) => setContact({ ...contact, email: v })}
+                  autoComplete="email"
+                />
+                <Input
+                  label="Phone"
+                  type="tel"
+                  value={contact.phone}
+                  onChange={(v) => setContact({ ...contact, phone: v })}
+                  autoComplete="tel"
+                  className="sm:col-span-2"
+                />
+              </div>
+            </fieldset>
+
+            {/* Shipping */}
+            <fieldset className="rounded-lg border border-primary/10 p-6">
+              <legend className="px-2 text-lg font-display font-bold">
+                Shipping Address
+              </legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                <Input
+                  label="Street"
+                  required
+                  value={shipping.street}
+                  onChange={(v) => setShipping({ ...shipping, street: v })}
+                  autoComplete="address-line1"
+                  className="sm:col-span-2"
+                />
+                <Input
+                  label="Apt / Suite (optional)"
+                  value={shipping.street2}
+                  onChange={(v) => setShipping({ ...shipping, street2: v })}
+                  autoComplete="address-line2"
+                  className="sm:col-span-2"
+                />
+                <Input
+                  label="City"
+                  required
+                  value={shipping.city}
+                  onChange={(v) => setShipping({ ...shipping, city: v })}
+                  autoComplete="address-level2"
+                />
+                <Input
+                  label="State"
+                  required
+                  value={shipping.state}
+                  onChange={(v) =>
+                    setShipping({ ...shipping, state: v.toUpperCase() })
+                  }
+                  autoComplete="address-level1"
+                  maxLength={2}
+                />
+                <Input
+                  label="ZIP"
+                  required
+                  value={shipping.zip}
+                  onChange={(v) => setShipping({ ...shipping, zip: v })}
+                  autoComplete="postal-code"
+                />
+                <Input
+                  label="Country"
+                  required
+                  value={shipping.country}
+                  onChange={(v) =>
+                    setShipping({ ...shipping, country: v.toUpperCase() })
+                  }
+                  autoComplete="country"
+                  maxLength={2}
+                />
+              </div>
+            </fieldset>
+
+            {/* Payment */}
+            <fieldset className="rounded-lg border border-primary/10 p-6">
+              <legend className="px-2 text-lg font-display font-bold">
+                Payment Method
+              </legend>
+              <div className="space-y-2 mt-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <label
+                    key={method.value}
+                    className="flex items-center gap-3 rounded border border-primary/10 px-4 py-3 cursor-pointer hover:border-primary/30 transition-colors"
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value={method.value}
+                      checked={paymentMethod === method.value}
+                      onChange={() => setPaymentMethod(method.value)}
+                    />
+                    <span className="text-sm">{method.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-foreground/50 mt-3">
+                Payment is collected after order confirmation. We&apos;ll contact
+                you with details.
+              </p>
+            </fieldset>
+          </div>
+
+          {/* Order summary */}
+          <aside className="rounded-lg border-2 border-primary/30 p-6 h-fit lg:sticky lg:top-32 bg-secondary/10 shadow-sm">
+            <h2 className="text-lg font-display font-bold mb-4">Your Order</h2>
+
+            <ul className="space-y-2 text-sm mb-4">
+              {items.map((item) => (
+                <li key={item.variantId} className="flex justify-between gap-4">
+                  <span className="flex-1">
+                    {item.name}
+                    <span className="text-foreground/50"> × {item.quantity}</span>
+                  </span>
+                  <span>{formatPrice(item.price * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+
+            <dl className="space-y-2 text-sm border-t border-primary/10 pt-3">
+              <div className="flex justify-between">
+                <dt className="text-foreground/70">Subtotal</dt>
+                <dd>{formatPrice(subtotal)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-foreground/70">Tax (estimated)</dt>
+                <dd>{formatPrice(taxEstimate)}</dd>
+              </div>
+              <div className="flex justify-between border-t-2 border-primary/20 pt-3 mt-3 font-display font-bold text-xl text-primary">
+                <dt>Total</dt>
+                <dd>{formatPrice(total)}</dd>
+              </div>
+            </dl>
+
+            {error && (
+              <p
+                role="alert"
+                className="mt-4 rounded bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-800"
+              >
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full mt-6 bg-primary text-primary-foreground font-display font-bold uppercase tracking-wider text-base py-4 rounded transition-transform hover:scale-[1.02] hover:bg-primary/90 disabled:opacity-60 disabled:hover:scale-100 shadow-md"
+            >
+              {submitting ? "Placing Order..." : "Place Order →"}
+            </button>
+
+            <p className="mt-4 text-xs text-center text-foreground/60 leading-relaxed">
+              You will not be charged today. We confirm every order by email
+              before processing payment.
+            </p>
+
+            <Link
+              href="/cart"
+              className="mt-3 block text-center text-sm text-foreground/60 hover:text-primary transition-colors"
+            >
+              Back to Cart
+            </Link>
+          </aside>
+        </form>
+      </div>
+    </>
   );
 }
 

@@ -14,5 +14,7 @@ export {
 } from "./cart-reducer";
 export { CartNavLink } from "./components/CartNavLink";
 export { AddToCartButton } from "./components/AddToCartButton";
+export { MiniCartDrawer } from "./components/MiniCartDrawer";
+export { StickyAddToCartBar } from "./components/StickyAddToCartBar";
 export { CartPage } from "./components/CartPage";
 export { CheckoutPage } from "./components/CheckoutPage";
