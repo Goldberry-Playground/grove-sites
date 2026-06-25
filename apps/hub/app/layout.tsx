@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import "./globals.css";
+import { siblingSitesForHost } from "@grove/ui";
 import { SiblingStrip } from "./sibling-strip";
 
 export const metadata: Metadata = {
@@ -12,7 +14,16 @@ export const metadata: Metadata = {
     "A federated marketplace for Appalachian agroforestry — three sister farms on one West Virginia hillside, plus the journal about why this matters.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Resolve cross-tenant URLs once at the server. Same image runs in prod,
+  // QA, and previews -- the request's Host header decides which URL set to
+  // use. See packages/ui/src/sibling-sites.ts for the resolution logic.
+  const host = (await headers()).get("host");
+  const sites = siblingSitesForHost(host);
+  // Cross-tenant siblings for the footer: all 4 sites minus the hub itself
+  // (the hub is implicit on this page; the footer's "Marketplace / Journal /
+  // About" links above already cover navigation within the hub).
+  const otherSites = sites.filter((s) => s.name !== "Gather at the Grove");
   return (
     <html lang="en">
       <head>
@@ -24,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <SiblingStrip currentSiteName="Gather at the Grove" />
+        <SiblingStrip currentSiteName="Gather at the Grove" sites={sites} />
         <header className="hub-header">
           <Link href="/" className="hub-header__brand">
             <em>Gather</em> at the Grove
@@ -47,9 +58,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/marketplace">Marketplace</Link>
             <Link href="/journal">Journal</Link>
             <Link href="/about">About</Link>
-            <a href="https://goldberrygrove.farm">Goldberry Grove Farm</a>
-            <a href="https://woodworkingeorge.com">GGG Woodworking</a>
-            <a href="https://atthegrovenursery.com">At The Grove Nursery</a>
+            {otherSites.map((site) => (
+              <a key={site.name} href={site.href}>{site.name}</a>
+            ))}
           </nav>
           <p className="hub-footer__small">
             © 2026 Gather at the Grove · The hub never takes a cut.

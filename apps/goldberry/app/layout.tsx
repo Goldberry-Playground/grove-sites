@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
+import { siblingSitesForHost } from "@grove/ui";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
@@ -11,11 +13,15 @@ export const metadata: Metadata = {
   description: tenantConfig.description,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // See packages/ui/src/sibling-sites.ts -- cross-tenant URLs follow the
+  // request's hostname so prod, QA, and previews each link to their own envs.
+  const host = (await headers()).get("host");
+  const sites = siblingSitesForHost(host);
   return (
     <html lang="en">
       <head>
@@ -38,7 +44,7 @@ export default function RootLayout({
         {/* Sibling strip — cross-village nav. Markup mirrors ggg, hub, and
             nursery so the four sites render the same size pill row across
             every viewport. Per-site brand color tokens live in globals.css. */}
-        <SiblingStrip currentSiteName="Goldberry Grove Farm" />
+        <SiblingStrip currentSiteName="Goldberry Grove Farm" sites={sites} />
         <Providers>
           {/* Persistent header — typographic wordmark (transparent PNG of
               just the GOLDBERRY Grove lettering) on the left, primary nav

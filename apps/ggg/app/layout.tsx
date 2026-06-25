@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
+import { siblingSitesForHost } from "@grove/ui";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
@@ -12,11 +14,13 @@ export const metadata: Metadata = {
   description: tenantConfig.description,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const host = (await headers()).get("host");
+  const sites = siblingSitesForHost(host);
   return (
     <html lang="en">
       <head>
@@ -36,7 +40,7 @@ export default function RootLayout({
           antialiased"
         data-tenant={tenantConfig.tenantId}
       >
-        <SiblingStrip currentSiteName="GGG Woodworking" />
+        <SiblingStrip currentSiteName="GGG Woodworking" sites={sites} />
         <Providers>
           <header className="border-b border-primary/10 px-6 py-4">
             <nav
