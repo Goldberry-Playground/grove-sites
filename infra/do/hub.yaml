@@ -1,0 +1,89 @@
+# DigitalOcean App Platform spec — Hub portal (gatheringatthegrove.com).
+#
+# Apply with:
+#   doctl apps create --spec infra/do/hub.yaml
+# Or update an existing app:
+#   doctl apps update <APP_ID> --spec infra/do/hub.yaml
+# Validate locally:
+#   doctl apps spec validate infra/do/hub.yaml
+#
+# Build model: DO clones the GitHub repo, runs `docker build` against
+# apps/hub/Dockerfile with the monorepo root as context, and deploys the
+# resulting image. Auto-redeploys on push to main when only hub-relevant
+# paths change.
+
+name: grove-hub
+region: nyc
+
+services:
+  - name: hub
+    # Dockerfile + build context.
+    # source_dir is the build context (monorepo root). dockerfile_path is
+    # relative to that root.
+    source_dir: /
+    dockerfile_path: apps/hub/Dockerfile
+
+    github:
+      repo: Goldberry-Playground/grove-sites
+      branch: main
+      deploy_on_push: true
+
+    # The container listens on PORT=3000 (set by the hub Dockerfile).
+    http_port: 3000
+
+    # Smallest size that comfortably runs Next 15. Bump to 1vcpu-1gb if
+    # cold-start memory pressure shows up after launch.
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    instance_count: 1
+
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+    routes:
+      - path: /
+
+    envs:
+      # The hub fans out to every vendor's grove_headless API. V0: all three
+      # tenants share one Odoo, so this is a single URL.
+      - key: GROVE_ODOO_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://odoo.gatheringatthegrove.com
+
+      # Ghost — village journal CMS.
+      - key: HUB_GHOST_URL
+        scope: RUN_AND_BUILD_TIME
+        value: https://ghost.gatheringatthegrove.com
+
+      - key: HUB_GHOST_CONTENT_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        # Set this in the DO UI: Settings → grove-hub → hub → Environment
+        # Variables. The placeholder is rejected at runtime by ghost-client.
+        value: REPLACE_ME
+
+      - key: GROVE_REVALIDATE_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        # Generate with: openssl rand -hex 32
+        value: REPLACE_ME
+
+      - key: NEXT_TELEMETRY_DISABLED
+        scope: RUN_AND_BUILD_TIME
+        value: "1"
+
+domains:
+  - domain: gatheringatthegrove.com
+    type: PRIMARY
+    zone: gatheringatthegrove.com
+  - domain: www.gatheringatthegrove.com
+    type: ALIAS
+    zone: gatheringatthegrove.com
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
