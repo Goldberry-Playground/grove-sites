@@ -89,12 +89,20 @@ body::before {
   color: var(--fog);
   text-decoration: none;
   position: relative;
-  padding: 4px 0;
-  transition: color 0.2s;
+  padding: 6px 14px;
+  border: 1px solid var(--fog);
+  border-radius: 999px;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
 }
-.sibling-strip a:hover { color: var(--paper); }
+.sibling-strip a:hover {
+  color: var(--ink);
+  background: var(--amber);
+  border-color: var(--amber);
+}
 .sibling-strip a.here {
-  color: var(--amber);
+  color: var(--ink);
+  background: var(--amber);
+  border-color: var(--amber);
 }
 .sibling-strip a.here::before {
   content: '◐  ';

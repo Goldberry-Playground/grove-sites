@@ -23,7 +23,7 @@
 <header class="site-header">
   <nav class="nav-left">
     <a href="index.html">Home</a>
-    <a href="#">Shop</a>
+    <a href="shop.html">Shop</a>
     <a href="blog.html" class="active">Field Notes</a>
   </nav>
   <div class="brand">
@@ -33,7 +33,7 @@
   <nav class="nav-right">
     <a href="about.html">Our Story</a>
     <a href="#">Visit</a>
-    <a href="#">Cart (0)</a>
+    <a href="#" class="cart-link" data-cart-open>Cart (<span data-cart-count>0</span>)</a>
   </nav>
 </header>
 
@@ -52,7 +52,7 @@
     <div>
       <div class="blog-meta">Almanac · September 14, 2026</div>
       <h2>The hickory harvest came in two weeks ahead of the almanac</h2>
-      <p>It's the earliest harvest we've recorded in twenty-three years of keeping the journal. The Italian plums, the damsons, even the late-set Stanleys — all ready inside a single nine-day window. We re-wrote the preserves schedule overnight, called the bee-keeper to ask if she'd noticed anything similar, and started boiling.</p>
+      <p>It's the earliest harvest we've recorded in the years of keeping the journal. The Italian plums, the damsons, even the late-set Stanleys — all ready inside a single nine-day window. We re-wrote the preserves schedule overnight, called the bee-keeper to ask if she'd noticed anything similar, and started boiling.</p>
       <a href="#" class="btn btn-gold">Read the entry →</a>
     </div>
   </article>
@@ -147,6 +147,33 @@
     <div>Set in Fraunces &amp; Newsreader</div>
   </div>
 </footer>
+
+<!-- Cart drawer (shared markup across all goldberry pages) -->
+<aside class="cart-drawer" data-cart-drawer aria-label="Shopping cart" aria-hidden="true">
+  <div class="cart-backdrop" data-cart-close></div>
+  <div class="cart-panel">
+    <header class="cart-head">
+      <h2 class="cart-title">Your basket</h2>
+      <button class="cart-close" data-cart-close aria-label="Close cart">×</button>
+    </header>
+    <div class="cart-body" data-cart-items></div>
+    <div class="cart-empty" data-cart-empty>
+      <p>Your basket is empty.</p>
+      <p style="opacity: 0.7; margin-top: 0.6rem;">Add a syrup, a log, a jar of something foraged.</p>
+      <a href="shop.html" class="btn btn-gold" style="margin-top: 1.4rem;">Browse the shop</a>
+    </div>
+    <footer class="cart-foot" data-cart-foot>
+      <div class="cart-subtotal">
+        <span>Subtotal</span>
+        <span data-cart-subtotal>$0.00</span>
+      </div>
+      <p class="cart-note">Shipping calculated at checkout · flat $9 US</p>
+      <button class="btn btn-gold cart-checkout">Checkout →</button>
+    </footer>
+  </div>
+</aside>
+
+<script src="cart.js" defer></script>
 
 </body>
 </html>

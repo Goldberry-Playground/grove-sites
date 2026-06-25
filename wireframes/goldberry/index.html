@@ -23,23 +23,22 @@
 <header class="site-header">
   <nav class="nav-left">
     <a href="index.html" class="active">Home</a>
-    <a href="#">Shop</a>
+    <a href="shop.html">Shop</a>
     <a href="blog.html">Field Notes</a>
   </nav>
   <div class="brand">
     Goldberry Grove
-    <small>Est. 2018 · Appalachian WV</small>
+    <small>Est. 2024 · Appalachian WV</small>
   </div>
   <nav class="nav-right">
     <a href="about.html">Our Story</a>
     <a href="#">Visit</a>
-    <a href="#">Cart (0)</a>
+    <a href="#" class="cart-link" data-cart-open>Cart (<span data-cart-count>0</span>)</a>
   </nav>
 </header>
 
 <section class="hero">
   <div>
-    <span class="hero-eyebrow">Volume vii · Harvest 2026</span>
     <h1 class="hero-title">
       Nuts, mushrooms,<br>
       <em>native fruit,</em><br>
@@ -53,7 +52,7 @@
       — and the small-batch foods we render from what the land already wants to grow.
     </p>
     <div style="margin-top: 2rem; display: flex; gap: 1rem;">
-      <a href="#" class="btn">The Shop</a>
+      <a href="shop.html" class="btn">The Shop</a>
       <a href="about.html" class="btn btn-gold">Our Method</a>
     </div>
   </div>
@@ -78,7 +77,7 @@
   <div class="manifesto-grid">
     <h2>What we mean<br>when we say<br>“<em>agroforestry</em>.”</h2>
     <div class="manifesto-body">
-      <p>We farm seventy acres in the Appalachian foothills above the New River Gorge — and the central word in that sentence is <em>forest</em>. The shagbark hickories, black walnuts, oaks and cherries on this hillside were here before us. Our work is to read what the land already does well and farm <em>with</em> it, not on top of it.</p>
+      <p>We farm twenty acres in the Appalachian foothills above the New River Gorge — and the central word in that sentence is <em>forest</em>. The shagbark hickories, black walnuts, oaks and cherries on this hillside were here before us. Our work is to read what the land already does well and farm <em>with</em> it, not on top of it.</p>
       <p>That looks like five layers stacked into one acre: a high canopy of hickory and walnut for nuts and timber; a sub-canopy of pawpaw, persimmon and serviceberry; a shrub layer of elderberry, hazelnut and currant; an herbaceous layer of medicinal and culinary perennials; and shiitake-inoculated hardwood logs in the cool understory shade. (Apprentice readers, see the Savanna Institute on multi-strata food systems — we draw heavily from their work.)</p>
       <p>What you find on the shop page is what we render, dry, press, infuse, or pack from that layered system. Quantities are small. Reorders are rare. Each batch is dated, signed, and shipped from a barn that smells of hickory smoke or walnut hull or a slow rendering of pawpaw, depending on the week.</p>
     </div>
@@ -177,7 +176,7 @@
         <text x="20" y="355" font-family="JetBrains Mono, monospace" font-size="10" fill="#C49A3F" letter-spacing="1">SOIL · ROOT ZONE · ribbon-thin O-horizon → 18&prime;&prime; A → C</text>
 
         <!-- Goldberry mark -->
-        <text x="540" y="375" font-family="Fraunces, serif" font-style="italic" font-size="12" fill="#C49A3F" text-anchor="end">— Goldberry · 70 acres</text>
+        <text x="540" y="375" font-family="Fraunces, serif" font-style="italic" font-size="12" fill="#C49A3F" text-anchor="end">— Goldberry · 20 acres</text>
       </svg>
     </div>
   </div>
@@ -229,7 +228,7 @@
   </div>
 
   <div style="margin-top: 3rem; text-align: center;">
-    <a href="#" class="btn btn-gold">See the full shop →</a>
+    <a href="shop.html" class="btn btn-gold">See the full shop →</a>
   </div>
 </section>
 
@@ -283,6 +282,33 @@
     <div>Set in Fraunces &amp; Newsreader</div>
   </div>
 </footer>
+
+<!-- Cart drawer (shared markup across all goldberry pages) -->
+<aside class="cart-drawer" data-cart-drawer aria-label="Shopping cart" aria-hidden="true">
+  <div class="cart-backdrop" data-cart-close></div>
+  <div class="cart-panel">
+    <header class="cart-head">
+      <h2 class="cart-title">Your basket</h2>
+      <button class="cart-close" data-cart-close aria-label="Close cart">×</button>
+    </header>
+    <div class="cart-body" data-cart-items></div>
+    <div class="cart-empty" data-cart-empty>
+      <p>Your basket is empty.</p>
+      <p style="opacity: 0.7; margin-top: 0.6rem;">Add a syrup, a log, a jar of something foraged.</p>
+      <a href="shop.html" class="btn btn-gold" style="margin-top: 1.4rem;">Browse the shop</a>
+    </div>
+    <footer class="cart-foot" data-cart-foot>
+      <div class="cart-subtotal">
+        <span>Subtotal</span>
+        <span data-cart-subtotal>$0.00</span>
+      </div>
+      <p class="cart-note">Shipping calculated at checkout · flat $9 US</p>
+      <button class="btn btn-gold cart-checkout">Checkout →</button>
+    </footer>
+  </div>
+</aside>
+
+<script src="cart.js" defer></script>
 
 </body>
 </html>
