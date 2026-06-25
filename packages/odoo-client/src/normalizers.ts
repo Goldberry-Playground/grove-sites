@@ -33,6 +33,10 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     imageUrl: raw.image_url,
     categoryId: null,
     categoryName: null,
+    // TODO(odoo): populate from raw.product_tag_ids once grove_headless exposes
+    // it. Currently the list endpoint doesn't return tags — they come from
+    // mock-products until the backend is wired.
+    tags: [],
     available: raw.website_published,
     featured: raw.grove_featured,
     variants: [],
@@ -52,6 +56,8 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     imageUrl: raw.image_url,
     categoryId: raw.categ_id ? raw.categ_id.id : null,
     categoryName: raw.categ_id ? raw.categ_id.name : null,
+    // TODO(odoo): populate from raw.product_tag_ids once grove_headless exposes it.
+    tags: [],
     // qty_available is only present when the Odoo `stock` module is installed.
     // Fall back to the parent product's website_published flag so the page
     // still distinguishes "out of stock" from "we don't track stock at all".

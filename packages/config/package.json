@@ -4,8 +4,7 @@
   "private": true,
   "exports": {
     "./eslint": "./src/eslint.ts",
-    "./typescript": "./src/typescript.json",
-    "./tailwind": "./src/tailwind.ts"
+    "./typescript": "./src/typescript.json"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
