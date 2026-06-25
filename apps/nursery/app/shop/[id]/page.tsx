@@ -1,8 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Product } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
+import { getMockProductById } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
+import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
 
@@ -18,18 +21,33 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  let product;
+  let product: Product | null = null;
   try {
     product = await odoo.products.get(productId);
   } catch {
-    notFound();
+    // Odoo unreachable — fall back to mock catalog. Remove when Odoo is live.
+    product = getMockProductById(productId);
   }
+
+  if (!product) notFound();
 
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   // Build the absolute image URL only when the product actually has an image
   // path; otherwise leave it empty so we don't store a bare host in the cart
   // (which would fail next/image remotePatterns and 404 on render).
-  const fullImageUrl = product.imageUrl ? `${odooBase}${product.imageUrl}` : "";
+  //   - Absolute URLs (http/https) pass through.
+  //   - Local /products/ and /hero/ paths point at /public assets served by
+  //     Next directly — pass through.
+  //   - Anything else is treated as an Odoo image path (e.g. /web/image/...)
+  //     and prefixed with the Odoo base URL.
+  const fullImageUrl = !product.imageUrl
+    ? ""
+    : product.imageUrl.startsWith("http")
+      ? product.imageUrl
+      : product.imageUrl.startsWith("/products/") ||
+          product.imageUrl.startsWith("/hero/")
+        ? product.imageUrl
+        : `${odooBase}${product.imageUrl}`;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
@@ -134,26 +152,44 @@ export default async function ProductDetailPage({
             </div>
           )}
 
-          <AddToCartButton
-            variantId={
-              product.variants.length > 0 ? product.variants[0].id : product.id
-            }
-            templateId={product.id}
-            name={
-              product.variants.length > 0
-                ? product.variants[0].name
-                : product.name
-            }
-            price={
-              product.variants.length > 0
-                ? product.variants[0].price
-                : product.price
-            }
-            imageUrl={fullImageUrl}
-            disabled={!product.available}
-          />
+          <div data-add-to-cart-anchor>
+            <AddToCartButton
+              variantId={
+                product.variants.length > 0 ? product.variants[0].id : product.id
+              }
+              templateId={product.id}
+              name={
+                product.variants.length > 0
+                  ? product.variants[0].name
+                  : product.name
+              }
+              price={
+                product.variants.length > 0
+                  ? product.variants[0].price
+                  : product.price
+              }
+              imageUrl={fullImageUrl}
+              disabled={!product.available}
+            />
+          </div>
         </div>
       </div>
+      {/* Mobile sticky add-to-cart bar — appears once the inline button
+          scrolls out of view. Hidden on >= sm via CSS in the component. */}
+      <StickyAddToCartBar
+        variantId={
+          product.variants.length > 0 ? product.variants[0].id : product.id
+        }
+        templateId={product.id}
+        name={
+          product.variants.length > 0 ? product.variants[0].name : product.name
+        }
+        price={
+          product.variants.length > 0 ? product.variants[0].price : product.price
+        }
+        imageUrl={fullImageUrl}
+        disabled={!product.available}
+      />
     </div>
   );
 }

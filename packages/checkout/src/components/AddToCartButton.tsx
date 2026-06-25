@@ -23,7 +23,7 @@ export function AddToCartButton({
 }: AddToCartButtonProps) {
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState<"idle" | "added">("idle");
-  const { add } = useCart();
+  const { add, openDrawer } = useCart();
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clear any pending feedback timer if the component unmounts mid-flash —
@@ -36,6 +36,12 @@ export function AddToCartButton({
 
   function handleAddToCart() {
     add({ variantId, templateId, name, price, imageUrl }, quantity);
+    // Open the mini-cart drawer to confirm the add — this gives the user
+    // a clear visual signal of what landed in their cart + cart total +
+    // a one-click path to checkout. The "Added!" button flash stays as a
+    // secondary signal in case the drawer is dismissed by reduced-motion
+    // or the user's pointer is already over the button.
+    openDrawer(variantId);
     setFeedback("added");
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     feedbackTimer.current = setTimeout(() => setFeedback("idle"), 1800);

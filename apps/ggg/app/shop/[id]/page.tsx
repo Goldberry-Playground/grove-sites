@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { odoo } from "../../../lib/clients";
+import { getMockProductById } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
+import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +20,15 @@ export default async function ProductDetailPage({
     notFound();
   }
 
+  // Try Odoo first; fall back to mockProducts so the storefront stays
+  // demoable when Odoo is unreachable (parity with goldberry + nursery).
   let product;
   try {
     product = await odoo.products.get(productId);
   } catch {
-    notFound();
+    product = getMockProductById(productId);
   }
+  if (!product) notFound();
 
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   // Build the absolute image URL only when the product actually has an image
@@ -134,26 +139,42 @@ export default async function ProductDetailPage({
             </div>
           )}
 
-          <AddToCartButton
-            variantId={
-              product.variants.length > 0 ? product.variants[0].id : product.id
-            }
-            templateId={product.id}
-            name={
-              product.variants.length > 0
-                ? product.variants[0].name
-                : product.name
-            }
-            price={
-              product.variants.length > 0
-                ? product.variants[0].price
-                : product.price
-            }
-            imageUrl={fullImageUrl}
-            disabled={!product.available}
-          />
+          <div data-add-to-cart-anchor>
+            <AddToCartButton
+              variantId={
+                product.variants.length > 0 ? product.variants[0].id : product.id
+              }
+              templateId={product.id}
+              name={
+                product.variants.length > 0
+                  ? product.variants[0].name
+                  : product.name
+              }
+              price={
+                product.variants.length > 0
+                  ? product.variants[0].price
+                  : product.price
+              }
+              imageUrl={fullImageUrl}
+              disabled={!product.available}
+            />
+          </div>
         </div>
       </div>
+      <StickyAddToCartBar
+        variantId={
+          product.variants.length > 0 ? product.variants[0].id : product.id
+        }
+        templateId={product.id}
+        name={
+          product.variants.length > 0 ? product.variants[0].name : product.name
+        }
+        price={
+          product.variants.length > 0 ? product.variants[0].price : product.price
+        }
+        imageUrl={fullImageUrl}
+        disabled={!product.available}
+      />
     </div>
   );
 }

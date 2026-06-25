@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Shop — Goldberry Grove Farm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,30..100,0..1;1,9..144,300..700,30..100,0..1&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="wf-banner">
+  Wireframe Preview · Goldberry Grove ·
+  <a href="../index.html">← All Wireframes</a> ·
+  <a href="index.html" style="opacity: 0.6">Home</a> ·
+  <a href="shop.html">The Shop</a> ·
+  <a href="blog.html" style="opacity: 0.6">Field Notes</a> ·
+  <a href="product.html" style="opacity: 0.6">Shagbark Hickory Syrup</a> ·
+  <a href="about.html" style="opacity: 0.6">About</a>
+</div>
+
+<header class="site-header">
+  <nav class="nav-left">
+    <a href="index.html">Home</a>
+    <a href="shop.html" class="active">Shop</a>
+    <a href="blog.html">Field Notes</a>
+  </nav>
+  <div class="brand">
+    Goldberry Grove
+    <small>Est. 2024 · Appalachian WV</small>
+  </div>
+  <nav class="nav-right">
+    <a href="about.html">Our Story</a>
+    <a href="#">Visit</a>
+    <a href="#" class="cart-link" data-cart-open>Cart (<span data-cart-count>0</span>)</a>
+  </nav>
+</header>
+
+<section class="shop-hero">
+  <div>
+    <span class="shop-eyebrow">No. 02 — The Full Shop</span>
+    <h1 class="shop-title">From the canopy &amp; the understory.</h1>
+    <p class="shop-lead">
+      Every item below was rendered, dried, pressed, infused, or packed from the twenty acres
+      above the New River Gorge. Quantities are small; reorders are rare. Each batch is dated,
+      signed, and shipped from a barn that smells of hickory smoke, walnut hull, or a slow
+      rendering of pawpaw — depending on the week.
+    </p>
+  </div>
+</section>
+
+<section class="products">
+  <div class="section-head">
+    <h2 class="section-title">Eight selections · Spring 2026</h2>
+    <span class="section-num">Updated weekly · Fri</span>
+  </div>
+
+  <div class="product-grid">
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 01</span>
+          <img src="https://images.unsplash.com/photo-1604066867775-43f48e3957d8?w=600&auto=format&fit=crop&q=80" alt="Shagbark hickory syrup, amber" />
+        </div>
+        <div class="product-cat">Syrup · Hand-tapped</div>
+        <div class="product-name">Shagbark Hickory Syrup</div>
+        <div class="product-price">$28 — 8oz bottle</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="hickory-syrup"
+              data-name="Shagbark Hickory Syrup"
+              data-price="28"
+              data-variant="8oz bottle"
+              data-img="https://images.unsplash.com/photo-1604066867775-43f48e3957d8?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 02</span>
+          <img src="https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop&q=80" alt="Shiitake on a hardwood log" />
+        </div>
+        <div class="product-cat">Mushroom · Live spawn</div>
+        <div class="product-name">Shiitake Hardwood Log Kit</div>
+        <div class="product-price">$54 — 24&Prime; oak log, pre-inoculated</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="shiitake-log"
+              data-name="Shiitake Hardwood Log Kit"
+              data-price="54"
+              data-variant="24&quot; pre-inoculated oak"
+              data-img="https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 03</span>
+          <img src="https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&auto=format&fit=crop&q=80" alt="Dried foraged mushrooms" />
+        </div>
+        <div class="product-cat">Dried · Wild &amp; cultivated</div>
+        <div class="product-name">Forest-Floor Mushroom Mélange</div>
+        <div class="product-price">$22 — 2oz pouch</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="mushroom-melange"
+              data-name="Forest-Floor Mushroom Mélange"
+              data-price="22"
+              data-variant="2oz pouch"
+              data-img="https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 04</span>
+          <img src="https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?w=600&auto=format&fit=crop&q=80" alt="Black walnut nutmeats" />
+        </div>
+        <div class="product-cat">Nutmeat · Hand-cracked</div>
+        <div class="product-name">Black Walnut Halves</div>
+        <div class="product-price">$18 — 6oz jar</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="walnut-halves"
+              data-name="Black Walnut Halves"
+              data-price="18"
+              data-variant="6oz jar"
+              data-img="https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 05</span>
+          <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop&q=80" alt="Pawpaw preserves" />
+        </div>
+        <div class="product-cat">Preserves · Native fruit</div>
+        <div class="product-name">Pawpaw Butter</div>
+        <div class="product-price">$16 — 4oz jar</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="pawpaw-butter"
+              data-name="Pawpaw Butter"
+              data-price="16"
+              data-variant="4oz jar"
+              data-img="https://images.unsplash.com/photo-1542838132-92c53300491e?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 06</span>
+          <img src="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=600&auto=format&fit=crop&q=80" alt="Elderberry syrup, dark amber" />
+        </div>
+        <div class="product-cat">Syrup · Wild-harvested</div>
+        <div class="product-name">Elderberry Syrup</div>
+        <div class="product-price">$24 — 4oz bottle</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="elderberry-syrup"
+              data-name="Elderberry Syrup"
+              data-price="24"
+              data-variant="4oz bottle"
+              data-img="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 07</span>
+          <img src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=600&auto=format&fit=crop&q=80" alt="Persimmon vinegar" />
+        </div>
+        <div class="product-cat">Vinegar · Slow-fermented</div>
+        <div class="product-name">Persimmon Vinegar</div>
+        <div class="product-price">$20 — 6oz bottle</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="persimmon-vinegar"
+              data-name="Persimmon Vinegar"
+              data-price="20"
+              data-variant="6oz bottle"
+              data-img="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+    <div class="product-card">
+      <a href="product.html" class="product-card-link">
+        <div class="product-img">
+          <span class="product-num">№ 08</span>
+          <img src="https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80" alt="Wild ramp salt" />
+        </div>
+        <div class="product-cat">Finishing salt · Foraged</div>
+        <div class="product-name">Wild Ramp Salt</div>
+        <div class="product-price">$14 — 2oz tin</div>
+      </a>
+      <button class="product-add"
+              data-add-cart
+              data-id="ramp-salt"
+              data-name="Wild Ramp Salt"
+              data-price="14"
+              data-variant="2oz tin"
+              data-img="https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=200&auto=format&fit=crop&q=80">
+        + Add to cart
+      </button>
+    </div>
+
+  </div>
+
+  <div class="shop-note">
+    <p>Shipping flat-rate $9 anywhere in the continental US. Orders placed by Thursday noon ship the same week — we pack on Fridays.</p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">Goldberry Grove</div>
+      <p style="max-width: 36ch; color: var(--cream-deep); font-size: 14px;">A first-generation Appalachian agroforestry farm above the New River Gorge in West Virginia. Mail-order April through December. Visit anytime by appointment.</p>
+    </div>
+    <div>
+      <h4>Shop</h4>
+      <ul>
+        <li><a href="shop.html">Syrups &amp; nuts</a></li>
+        <li><a href="shop.html">Mushrooms · live &amp; dried</a></li>
+        <li><a href="shop.html">Pawpaw &amp; native fruit</a></li>
+        <li><a href="shop.html">Heritage seed</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>The Farm</h4>
+      <ul>
+        <li><a href="about.html">Our story</a></li>
+        <li><a href="blog.html">Field notes</a></li>
+        <li><a href="#">Visit / events</a></li>
+        <li><a href="#">Tour the food forest</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Sister Sites</h4>
+      <ul>
+        <li><a href="../nursery/index.html">At The Grove Nursery</a></li>
+        <li><a href="../ggg/index.html">GGG Woodworking</a></li>
+        <li><a href="../hub/index.html">Gather at the Grove</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© 2026 Goldberry Grove Farm · West Virginia</div>
+    <div>Set in Fraunces &amp; Newsreader</div>
+  </div>
+</footer>
+
+<!-- Cart drawer (shared markup across all goldberry pages) -->
+<aside class="cart-drawer" data-cart-drawer aria-label="Shopping cart" aria-hidden="true">
+  <div class="cart-backdrop" data-cart-close></div>
+  <div class="cart-panel">
+    <header class="cart-head">
+      <h2 class="cart-title">Your basket</h2>
+      <button class="cart-close" data-cart-close aria-label="Close cart">×</button>
+    </header>
+    <div class="cart-body" data-cart-items>
+      <!-- Lines rendered by cart.js -->
+    </div>
+    <div class="cart-empty" data-cart-empty>
+      <p>Your basket is empty.</p>
+      <p style="opacity: 0.7; margin-top: 0.6rem;">Add a syrup, a log, a jar of something foraged.</p>
+      <a href="shop.html" class="btn btn-gold" style="margin-top: 1.4rem;">Browse the shop</a>
+    </div>
+    <footer class="cart-foot" data-cart-foot>
+      <div class="cart-subtotal">
+        <span>Subtotal</span>
+        <span data-cart-subtotal>$0.00</span>
+      </div>
+      <p class="cart-note">Shipping calculated at checkout · flat $9 US</p>
+      <button class="btn btn-gold cart-checkout">Checkout →</button>
+    </footer>
+  </div>
+</aside>
+
+<script src="cart.js" defer></script>
+
+</body>
+</html>

@@ -68,11 +68,11 @@ export const marketplace: Marketplace = {
       slug: "goldberry",
       name: "Goldberry Grove Farm",
       tagline:
-        "First-generation Appalachian agroforestry — nuts, mushrooms, native fruit.",
+        "Regenerative agroforestry rooted in the chestnut — Appalachian land, Korean heritage.",
       story: [
-        "Goldberry Grove is a seventy-acre Appalachian agroforestry farm in the New River Gorge foothills of West Virginia, founded in 2018 by Josh and Abigail Dunbar.",
+        "Goldberry Grove is a twenty-acre regenerative agroforestry orchard and tree nursery in Nicholas County, West Virginia, founded in December 2024 by Abigail and Josh Dunbar — two years in, still in the first chapter.",
         "",
-        "We farm with a five-strata food-forest design (canopy hickory and walnut, sub-canopy pawpaw and persimmon, shrub elderberry and hazel, herbaceous medicinals and shiitake-inoculated hardwood logs, ground cover). Every product in our catalog comes from this hillside or its immediate edge.",
+        "The chestnut is the anchor: an agroforestry keystone and a family story through Abigail's Korean heritage. We farm with JADAM and Korean Natural Farming principles — fermented soil amendments, no GMO stock, naturally grown trees in air-pruning beds. Chestnut and hazelnut canopy, pawpaw and pear sub-canopy, elderberry and hazel shrubs, ramps and medicinals on the forest floor, shiitake on hardwood logs alongside. Every product in our catalog comes from this hillside or its immediate edge.",
       ].join("\n"),
       brandColor: "#5A2A4B",
       homepageUrl: "https://goldberrygrove.farm",
@@ -86,7 +86,7 @@ export const marketplace: Marketplace = {
       story: [
         "At The Grove Nursery propagates cold-climate fruit trees, berries, and edible perennials on the same Goldberry Grove hillside.",
         "",
-        "Founded in 2019. Every tree we ship was grafted in our beds, lined out for two years, and lifted bare-root in February. Zones 5–7. We don't sell anything we didn't grow.",
+        "Every tree we ship was grafted in our beds, lined out for two years, and lifted bare-root in February. Zones 5–7. We don't sell anything we didn't grow.",
       ].join("\n"),
       brandColor: "#1F3F2B",
       homepageUrl: "https://atthegrovenursery.com",
@@ -98,7 +98,7 @@ export const marketplace: Marketplace = {
       tagline:
         "Furniture from the trees of the land — walnut, cherry, white oak.",
       story: [
-        "GGG Woodworking is a one-bench shop in the old hay barn at Goldberry Grove, founded in 2021.",
+        "GGG Woodworking is a one-bench shop in the old hay barn at Goldberry Grove.",
         "",
         "We mill from felled-on-site timber, air-dry it four to six years, and bench-build one piece at a time. Twelve pieces a year, sometimes thirteen, never twenty.",
       ].join("\n"),

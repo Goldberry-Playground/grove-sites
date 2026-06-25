@@ -12,3 +12,6 @@ dist/
 .sandcastle/logs/
 .sandcastle/worktrees/
 .sandcastle/review-notes-*.md
+
+# Local Claude Code agent config — not shared.
+.claude/

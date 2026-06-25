@@ -95,6 +95,21 @@ export interface Product {
   imageUrl: string;
   categoryId: number | null;
   categoryName: string | null;
+  /**
+   * Cross-cutting category tags (e.g. "apple", "bare-root", "cold-strat").
+   * Lets a product belong to multiple categories — distinct from the single
+   * `categoryId`/`categoryName` (the Odoo product.category, plant-type only).
+   *
+   * Sourced from Odoo's `product.template.product_tag_ids` field once the
+   * grove_headless module exposes it. Until then the value comes from
+   * mock-products.ts (per-tenant). Filter logic lives in each app's
+   * data/categories.ts — slug → tag matcher → optional Odoo tag IDs.
+   *
+   * Optional so per-tenant mockProducts don't have to specify it everywhere;
+   * the nursery uses it for filtering, the other tenants (goldberry, ggg, hub)
+   * can ignore it until they need cross-cutting categorization too.
+   */
+  tags?: string[];
   available: boolean;
   featured: boolean;
   variants: ProductVariant[];

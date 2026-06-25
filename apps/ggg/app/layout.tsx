@@ -3,6 +3,8 @@ import Link from "next/link";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
+import { NavLink } from "./nav-link";
+import { SiblingStrip } from "./sibling-strip";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,26 +19,42 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=IBM+Plex+Mono:wght@400&display=swap"
+        />
+      </head>
       <body
-        className="min-h-screen bg-background text-foreground font-sans antialiased"
+        className="min-h-screen bg-background text-foreground font-sans
+          antialiased"
         data-tenant={tenantConfig.tenantId}
       >
+        <SiblingStrip currentSiteName="GGG Woodworking" />
         <Providers>
           <header className="border-b border-primary/10 px-6 py-4">
-            <nav className="mx-auto flex max-w-6xl items-center justify-between">
-              <Link href="/" className="text-xl font-bold font-display text-primary">
+            <nav
+              className="mx-auto flex max-w-6xl items-center
+                justify-between"
+            >
+              <Link
+                href="/"
+                className="text-xl font-bold font-display text-primary"
+              >
                 {tenantConfig.name}
               </Link>
               <ul className="flex gap-6 text-sm font-medium">
                 <li>
-                  <Link href="/shop" className="hover:text-primary transition-colors">
-                    Shop
-                  </Link>
+                  <NavLink href="/shop">Shop</NavLink>
                 </li>
                 <li>
-                  <Link href="/blog" className="hover:text-primary transition-colors">
-                    Blog
-                  </Link>
+                  <NavLink href="/blog">Blog</NavLink>
                 </li>
                 <li>
                   <CartNavLink />
@@ -45,8 +63,38 @@ export default function RootLayout({
             </nav>
           </header>
           <main>{children}</main>
-          <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-center text-sm text-foreground/60">
-            <p>&copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.</p>
+          <footer className="site-footer">
+            <div className="footer-inner">
+              <div className="footer-brand">
+                <span className="footer-logo">
+                  {tenantConfig.name}
+                </span>
+                <p className="footer-tagline">
+                  Handcrafted hardwood furniture · Appalachian WV
+                </p>
+              </div>
+              <div className="footer-col">
+                <strong>Workshop</strong>
+                <span>By appointment only</span>
+                <span>Greenbrier Valley, WV</span>
+              </div>
+              <div className="footer-col">
+                <strong>Materials</strong>
+                <span>Black walnut · Cherry</span>
+                <span>White oak · Ash</span>
+              </div>
+              <div className="footer-col">
+                <strong>Lead times</strong>
+                <span>Small pieces: 4–8 weeks</span>
+                <span>Furniture: 10–16 weeks</span>
+              </div>
+            </div>
+            <div className="footer-copy">
+              <p>
+                &copy; {new Date().getFullYear()}{" "}
+                {tenantConfig.name}. All rights reserved.
+              </p>
+            </div>
           </footer>
         </Providers>
       </body>

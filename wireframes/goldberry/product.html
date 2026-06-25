@@ -23,23 +23,23 @@
 <header class="site-header">
   <nav class="nav-left">
     <a href="index.html">Home</a>
-    <a href="#" class="active">Shop</a>
+    <a href="shop.html" class="active">Shop</a>
     <a href="blog.html">Field Notes</a>
   </nav>
   <div class="brand">
     Goldberry Grove
-    <small>Est. 2018 · Appalachian WV</small>
+    <small>Est. 2024 · Appalachian WV</small>
   </div>
   <nav class="nav-right">
     <a href="about.html">Our Story</a>
     <a href="#">Visit</a>
-    <a href="#">Cart (1)</a>
+    <a href="#" class="cart-link" data-cart-open>Cart (<span data-cart-count>0</span>)</a>
   </nav>
 </header>
 
 <div style="padding: 1.5rem var(--grid) 0; max-width: 1280px; margin: 0 auto;">
   <nav style="font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--brown);">
-    <a href="index.html" style="color: var(--brown); text-decoration: none;">Home</a> / <a href="#" style="color: var(--brown); text-decoration: none;">Syrups</a> / <span style="color: var(--plum);">Shagbark Hickory Syrup</span>
+    <a href="index.html" style="color: var(--brown); text-decoration: none;">Home</a> / <a href="shop.html" style="color: var(--brown); text-decoration: none;">Shop</a> / <span style="color: var(--plum);">Shagbark Hickory Syrup</span>
   </nav>
 </div>
 
@@ -81,8 +81,16 @@
     </dl>
 
     <div class="pd-actions">
-      <a href="#" class="btn">Add to cart — $28</a>
-      <a href="#" class="btn btn-gold">Gift wrap (+$6)</a>
+      <button class="btn"
+              data-add-cart
+              data-id="hickory-syrup"
+              data-name="Shagbark Hickory Syrup"
+              data-price="28"
+              data-variant="8oz bottle"
+              data-img="https://images.unsplash.com/photo-1604066867775-43f48e3957d8?w=200&auto=format&fit=crop&q=80">
+        Add to cart — $28
+      </button>
+      <a href="shop.html" class="btn btn-gold">← Back to shop</a>
     </div>
 
     <div style="margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--gold); font-size: 14px; color: var(--brown);">
@@ -177,6 +185,33 @@
     <div>Set in Fraunces &amp; Newsreader</div>
   </div>
 </footer>
+
+<!-- Cart drawer (shared markup across all goldberry pages) -->
+<aside class="cart-drawer" data-cart-drawer aria-label="Shopping cart" aria-hidden="true">
+  <div class="cart-backdrop" data-cart-close></div>
+  <div class="cart-panel">
+    <header class="cart-head">
+      <h2 class="cart-title">Your basket</h2>
+      <button class="cart-close" data-cart-close aria-label="Close cart">×</button>
+    </header>
+    <div class="cart-body" data-cart-items></div>
+    <div class="cart-empty" data-cart-empty>
+      <p>Your basket is empty.</p>
+      <p style="opacity: 0.7; margin-top: 0.6rem;">Add a syrup, a log, a jar of something foraged.</p>
+      <a href="shop.html" class="btn btn-gold" style="margin-top: 1.4rem;">Browse the shop</a>
+    </div>
+    <footer class="cart-foot" data-cart-foot>
+      <div class="cart-subtotal">
+        <span>Subtotal</span>
+        <span data-cart-subtotal>$0.00</span>
+      </div>
+      <p class="cart-note">Shipping calculated at checkout · flat $9 US</p>
+      <button class="btn btn-gold cart-checkout">Checkout →</button>
+    </footer>
+  </div>
+</aside>
+
+<script src="cart.js" defer></script>
 
 </body>
 </html>

@@ -39,6 +39,16 @@ type CartContextValue = {
   clear: () => void;
   totalQuantity: number;
   subtotal: number;
+  // ── Mini-cart drawer state ─────────────────────────────────────────
+  // When AddToCartButton fires `add()`, it then calls `openDrawer()` to
+  // confirm visually. The MiniCartDrawer component subscribes to
+  // `drawerOpen` to mount/unmount itself. `lastAddedVariantId` lets the
+  // drawer highlight the item that was just added vs. items already in
+  // the cart from earlier in the session.
+  drawerOpen: boolean;
+  openDrawer: (justAddedVariantId?: number) => void;
+  closeDrawer: () => void;
+  lastAddedVariantId: number | null;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -57,6 +67,8 @@ function loadFromStorage(): CartItem[] {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [lastAddedVariantId, setLastAddedVariantId] = useState<number | null>(null);
 
   useEffect(() => {
     setItems(loadFromStorage());
@@ -85,6 +97,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => setItems([]), []);
 
+  const openDrawer = useCallback((justAddedVariantId?: number) => {
+    if (justAddedVariantId !== undefined) {
+      setLastAddedVariantId(justAddedVariantId);
+    }
+    setDrawerOpen(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    // Keep lastAddedVariantId set after close so re-opening still highlights
+    // the most recent add — cleared only when a different item is added.
+  }, []);
+
   const totalQuantity = useMemo(() => calculateTotalQuantity(items), [items]);
   const subtotal = useMemo(() => calculateSubtotal(items), [items]);
 
@@ -98,8 +123,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clear,
       totalQuantity,
       subtotal,
+      drawerOpen,
+      openDrawer,
+      closeDrawer,
+      lastAddedVariantId,
     }),
-    [items, hydrated, add, setQuantity, remove, clear, totalQuantity, subtotal]
+    [items, hydrated, add, setQuantity, remove, clear, totalQuantity, subtotal,
+     drawerOpen, openDrawer, closeDrawer, lastAddedVariantId]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

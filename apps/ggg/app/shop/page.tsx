@@ -3,78 +3,141 @@ import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
+import { mockProducts } from "../../data/mock-products";
 
 // Render on every request so the page reflects current Odoo state.
 // (Build-time render can't reach Odoo when building inside Docker; ISR will
 // be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
 export const dynamic = "force-dynamic";
 
+function resolveImageUrl(imageUrl: string): string {
+  if (!imageUrl) return "";
+  if (imageUrl.startsWith("http")) return imageUrl;
+  return `${process.env.ODOO_URL ?? "http://localhost:8069"}${imageUrl}`;
+}
+
 export default async function ShopPage() {
   let products: Product[] = [];
-  let error: string | null = null;
+  let usingMockData = false;
 
   try {
     const result = await odoo.products.list({ limit: 40 });
     products = result.products;
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Failed to load products";
+  } catch {
+    // Odoo unreachable — fall back to seed data so the storefront is
+    // still demoable. Remove this branch when Odoo is consistently up.
+    products = mockProducts;
+    usingMockData = true;
   }
 
-  return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="text-3xl font-display font-bold text-primary mb-8">
-        {tenantConfig.copy.shopHeading}
-      </h1>
+  if (products.length === 0) {
+    products = mockProducts;
+    usingMockData = true;
+  }
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-8 text-red-800 text-sm">
-          Unable to load products. The shop will be available once the Odoo
-          backend is configured.
+  const categories = [
+    ...new Set(
+      products.map((p) => p.categoryName).filter(Boolean),
+    ),
+  ];
+
+  return (
+    <div className="timber-shop">
+      {/* Lodge header */}
+      <div className="timber-header">
+        <span className="notch-tl" aria-hidden="true" />
+        <span className="notch-br" aria-hidden="true" />
+        <div className="cross-beam" aria-hidden="true" />
+        <h1>
+          The <em>Workshop</em>
+        </h1>
+        <p className="header-sub">
+          Handcrafted in West Virginia · {products.length} pieces
+        </p>
+      </div>
+
+      {/* Beam divider */}
+      <div className="beam-divider" aria-hidden="true" />
+
+      {/* Demo filler notice — hidden once Odoo backend is live */}
+      {usingMockData && (
+        <div className="timber-notice">
+          Demo catalog · These products are placeholders until the
+          Odoo backend is live.
         </div>
       )}
 
-      {products.length === 0 && !error && (
-        <p className="text-foreground/60 mb-8">
-          No products available yet. Check back soon!
-        </p>
+      {/* Category shelf */}
+      {categories.length > 1 && (
+        <div className="timber-shelf">
+          <span className="timber-shelf-tag active">All</span>
+          {categories.map((cat) => (
+            <span key={cat} className="timber-shelf-tag">
+              {cat}
+            </span>
+          ))}
+        </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Timber product grid */}
+      <div className="timber-grid">
         {products.map((product) => (
           <Link
             key={product.id}
             href={`/shop/${product.id}`}
-            className="rounded-lg border border-primary/10 p-4 hover:border-primary/30 transition-colors block"
+            className="timber-card"
           >
-            <div className="relative h-48 bg-secondary/20 rounded mb-4 overflow-hidden">
+            {/* Dovetail corners */}
+            <span className="dovetail-tl" aria-hidden="true" />
+            <span className="dovetail-br" aria-hidden="true" />
+
+            {/* Iron nails */}
+            <span className="nail nail-tl" aria-hidden="true" />
+            <span className="nail nail-tr" aria-hidden="true" />
+            <span className="nail nail-bl" aria-hidden="true" />
+            <span className="nail nail-br" aria-hidden="true" />
+
+            <div className="timber-card-img">
               {product.imageUrl && (
                 <Image
-                  src={`${process.env.ODOO_URL ?? "http://localhost:8069"}${product.imageUrl}`}
+                  src={resolveImageUrl(product.imageUrl)}
                   alt={product.name}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes="(max-width: 640px) 100vw,
+                         (max-width: 1024px) 50vw, 33vw"
                 />
               )}
-            </div>
-            <h2 className="font-semibold text-foreground mb-1">
-              {product.name}
-            </h2>
-            <div className="flex items-center justify-between">
-              <span className="text-primary font-bold">
-                ${product.price.toFixed(2)}
-              </span>
               {product.featured && (
-                <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded">
-                  Featured
-                </span>
+                <span className="timber-badge">Featured</span>
               )}
             </div>
-            {product.sku && (
-              <p className="text-xs text-foreground/40 mt-1">
-                SKU: {product.sku}
-              </p>
-            )}
+
+            <div className="timber-card-body">
+              {product.categoryName && (
+                <span className="timber-card-category">
+                  {product.categoryName}
+                </span>
+              )}
+              <h2 className="timber-card-name">{product.name}</h2>
+              {product.description && (
+                <p className="timber-card-desc">
+                  {product.description}
+                </p>
+              )}
+              <span className="timber-card-action">
+                View Details
+              </span>
+            </div>
+
+            <div className="timber-card-foot">
+              <span className="timber-card-price">
+                ${product.price.toFixed(2)}
+              </span>
+              <span className="timber-card-sku">
+                {product.available ? "Available" : "Sold out"}
+              </span>
+            </div>
           </Link>
         ))}
       </div>
