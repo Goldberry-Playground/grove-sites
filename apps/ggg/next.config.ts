@@ -42,6 +42,13 @@ const nextConfig: NextConfig = {
         hostname: "erp.gatheringatthegrove.com",
         pathname: "/web/image/**",
       },
+      // Demo / placeholder catalog images while Odoo is still being set up.
+      // Remove this entry once the mock-products module is deleted.
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        pathname: "/**",
+      },
     ],
   },
 };

@@ -1,13 +1,26 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@grove/ui": ["../../packages/ui/src"],
-      "@grove/analytics": ["../../packages/analytics/src"],
-      "@grove/config/*": ["../../packages/config/src/*"]
-    }
+      "@/*": [
+        "./src/*"
+      ],
+      "@grove/ui": [
+        "../../packages/ui/src"
+      ],
+      "@grove/analytics": [
+        "../../packages/analytics/src"
+      ],
+      "@grove/config/*": [
+        "../../packages/config/src/*"
+      ]
+    },
+    "jsx": "preserve"
   },
   "include": [
     "next-env.d.ts",
@@ -15,5 +28,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "e2e"]
+  "exclude": [
+    "node_modules",
+    "e2e"
+  ]
 }

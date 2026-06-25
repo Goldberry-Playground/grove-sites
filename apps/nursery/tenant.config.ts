@@ -14,13 +14,14 @@ export const tenantConfig = {
     blogHeading: "In the Beds",
   },
   colors: {
-    primary: "#2f5d3a",
-    primaryForeground: "#ffffff",
-    secondary: "#c4d4a0",
-    secondaryForeground: "#1f3a26",
-    accent: "#c2604a",
-    background: "#f7f4ec",
-    foreground: "#1a2e22",
+    // Wireframe palette — forest × orange × leaf × parchment.
+    primary: "#1F3F2B",            // forest
+    primaryForeground: "#F2EBD9",  // parchment
+    secondary: "#8AAB6E",          // leaf
+    secondaryForeground: "#1F3F2B",
+    accent: "#D5641A",             // orange
+    background: "#F2EBD9",         // parchment
+    foreground: "#1A2A1F",         // deep forest
   },
   /** Exact Origin values accepted on state-changing BFF POSTs. Keep in
    *  sync with prod hostnames + the dev port from package.json. */

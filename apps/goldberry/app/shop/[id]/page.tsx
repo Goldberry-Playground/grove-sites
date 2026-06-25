@@ -1,8 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Product } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
+import { getMockProductById, isDataUri } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
+import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
 
@@ -18,18 +21,34 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  let product;
+  let product: Product | null = null;
   try {
     product = await odoo.products.get(productId);
   } catch {
-    notFound();
+    // Odoo unreachable — fall back to mock catalog. Remove when Odoo is live.
+    product = getMockProductById(productId);
   }
+
+  if (!product) notFound();
 
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   // Build the absolute image URL only when the product actually has an image
   // path; otherwise leave it empty so we don't store a bare host in the cart
   // (which would fail next/image remotePatterns and 404 on render).
-  const fullImageUrl = product.imageUrl ? `${odooBase}${product.imageUrl}` : "";
+  // The mock catalog uses three URL shapes:
+  //   - `data:image/svg+xml;...` inline SVG (typographic placeholder cards)
+  //   - `/photos/...`            local public/ asset
+  //   - `https://...`            external host (Unsplash, etc.)
+  // Odoo products are paths under /web/image/... so they get prefixed with
+  // ODOO_URL. Everything else passes through unchanged.
+  const fullImageUrl = !product.imageUrl
+    ? ""
+    : product.imageUrl.startsWith("http") ||
+        product.imageUrl.startsWith("data:") ||
+        product.imageUrl.startsWith("/")
+      ? product.imageUrl
+      : `${odooBase}${product.imageUrl}`;
+  const usePlainImg = isDataUri(fullImageUrl);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
@@ -43,7 +62,7 @@ export default async function ProductDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
         {/* Product Image */}
         <div className="relative aspect-square bg-secondary/20 rounded-lg overflow-hidden">
-          {fullImageUrl && (
+          {fullImageUrl && !usePlainImg && (
             <Image
               src={fullImageUrl}
               alt={product.name}
@@ -51,6 +70,16 @@ export default async function ProductDetailPage({
               className="object-cover"
               sizes="(max-width: 768px) 100vw, 50vw"
               priority
+            />
+          )}
+          {fullImageUrl && usePlainImg && (
+            // Inline SVG data URI — bypass next/image to avoid optimizer
+            // remotePatterns + so the cart receives a `data:` src directly.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={fullImageUrl}
+              alt={product.name}
+              className="absolute inset-0 w-full h-full object-cover"
             />
           )}
           {product.featured && (
@@ -134,26 +163,45 @@ export default async function ProductDetailPage({
             </div>
           )}
 
-          <AddToCartButton
-            variantId={
-              product.variants.length > 0 ? product.variants[0].id : product.id
-            }
-            templateId={product.id}
-            name={
-              product.variants.length > 0
-                ? product.variants[0].name
-                : product.name
-            }
-            price={
-              product.variants.length > 0
-                ? product.variants[0].price
-                : product.price
-            }
-            imageUrl={fullImageUrl}
-            disabled={!product.available}
-          />
+          <div data-add-to-cart-anchor>
+            <AddToCartButton
+              variantId={
+                product.variants.length > 0 ? product.variants[0].id : product.id
+              }
+              templateId={product.id}
+              name={
+                product.variants.length > 0
+                  ? product.variants[0].name
+                  : product.name
+              }
+              price={
+                product.variants.length > 0
+                  ? product.variants[0].price
+                  : product.price
+              }
+              // Cart line items render through next/image which doesn't accept
+              // inline data: URIs; pass an empty string in that case so the
+              // cart shows the neutral placeholder tile instead of erroring.
+              imageUrl={usePlainImg ? "" : fullImageUrl}
+              disabled={!product.available}
+            />
+          </div>
         </div>
       </div>
+      <StickyAddToCartBar
+        variantId={
+          product.variants.length > 0 ? product.variants[0].id : product.id
+        }
+        templateId={product.id}
+        name={
+          product.variants.length > 0 ? product.variants[0].name : product.name
+        }
+        price={
+          product.variants.length > 0 ? product.variants[0].price : product.price
+        }
+        imageUrl={usePlainImg ? "" : fullImageUrl}
+        disabled={!product.available}
+      />
     </div>
   );
 }

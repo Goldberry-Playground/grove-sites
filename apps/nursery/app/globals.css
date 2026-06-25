@@ -1,18 +1,29 @@
 @import "tailwindcss";
 
-@theme {
-  /* At The Grove Nursery tenant tokens — garden palette: evergreen, sage, terra cotta */
-  --color-primary: #2f5d3a;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #c4d4a0;
-  --color-secondary-foreground: #1f3a26;
-  --color-accent: #c2604a;
-  --color-background: #f7f4ec;
-  --color-foreground: #1a2e22;
+/* Tailwind v4 doesn't auto-scan files outside the app workspace. Tell it
+   to also scan shared package source so classes used only in @grove/checkout
+   components (MiniCartDrawer, StickyAddToCartBar, etc.) actually compile. */
+@source "../../../packages/checkout/src/**/*.{ts,tsx}";
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
 
-  /* Garden voice — humanist serif rather than Goldberry's elegant Playfair */
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Lora", Georgia, serif;
+/* ─────────────────────────────────────────────
+   At The Grove Nursery — Garden / Natural
+   Forest × Orange × Leaf × Parchment
+   Ported from wireframes/nursery/styles.css
+   ───────────────────────────────────────────── */
+
+@theme {
+  --color-primary: #1F3F2B;             /* forest */
+  --color-primary-foreground: #F2EBD9;  /* parchment */
+  --color-secondary: #8AAB6E;           /* leaf */
+  --color-secondary-foreground: #1F3F2B;
+  --color-accent: #D5641A;              /* orange */
+  --color-background: #F2EBD9;          /* parchment */
+  --color-foreground: #1A2A1F;          /* deep forest */
+
+  --font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 :root {
@@ -20,4 +31,687 @@
   --grove-color-primary-foreground: var(--color-primary-foreground);
   --grove-color-secondary: var(--color-secondary);
   --grove-color-secondary-foreground: var(--color-secondary-foreground);
+
+  --forest: #1F3F2B;
+  --forest-deep: #142A1C;
+  --orange: #D5641A;
+  --orange-deep: #A84B0F;
+  --leaf: #8AAB6E;
+  --leaf-deep: #688248;
+  --parch: #F2EBD9;
+  --parch-soft: #F9F3E2;
+  --parch-deep: #DFD5B9;
+  --ink: #1A2A1F;
+
+  --grid: clamp(1rem, 4vw, 2.5rem);
+}
+
+body {
+  font-optical-sizing: auto;
+  line-height: 1.65;
+  background-image:
+    radial-gradient(ellipse at top, var(--parch-soft), transparent 60%),
+    radial-gradient(ellipse at bottom right, rgba(31, 63, 43, 0.06), transparent 50%);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.4;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.12 0 0 0 0 0.18 0 0 0 0 0.11 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+}
+h1 em, h2 em, h3 em {
+  font-style: italic;
+  color: var(--orange);
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+}
+
+/* ─────────────────────────────────────────────
+   Sibling-strip — cross-brand cohesion bar.
+   Forest-deep band + orange accent so it reads as part of Nursery's identity
+   while keeping the network shape shared with the other three sites.
+   ───────────────────────────────────────────── */
+.sibling-strip {
+  background: var(--forest-deep);
+  color: var(--parch);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  position: relative; /* for the mobile dropdown's absolute positioning */
+}
+.sibling-strip__list {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 16px var(--grid);
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  list-style: none;
+}
+.sibling-strip__list li { margin: 0; }
+.sibling-strip a,
+.sibling-strip .here {
+  color: rgba(242, 235, 217, 0.78);
+  text-decoration: none;
+  position: relative;
+  padding: 9px 20px;
+  border: 1px solid rgba(242, 235, 217, 0.45);
+  border-radius: 999px;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+.sibling-strip a:hover,
+.sibling-strip a:focus-visible {
+  color: var(--forest-deep);
+  background: var(--orange);
+  border-color: var(--orange);
+  outline: none;
+}
+.sibling-strip .here {
+  color: var(--forest-deep);
+  background: var(--orange);
+  border-color: var(--orange);
+}
+.sibling-strip .here::before {
+  content: '◐  ';
+  letter-spacing: 0;
+}
+
+/* Mobile-only toggle button — hidden on desktop, shown at <=720px. */
+.sibling-strip__toggle {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.sibling-strip__toggle .here {
+  /* The "here" pill inside the toggle keeps its highlighted styling so the
+     collapsed state still reads as the active site. */
+  display: inline-block;
+}
+.sibling-strip__caret {
+  display: inline-block;
+  font-size: 0.85em;
+  line-height: 1;
+  transition: transform 0.2s ease;
+  color: rgba(242, 235, 217, 0.78);
+}
+.sibling-strip.is-open .sibling-strip__caret {
+  transform: rotate(180deg);
+}
+
+/* Mobile breakpoint: collapse the strip into a single toggle pill. The other
+   three sites slide down as an absolute-positioned dropdown when expanded. */
+@media (max-width: 720px) {
+  .sibling-strip__list {
+    /* By default on mobile the list is hidden behind the toggle. The toggle
+       button shows just the current-site pill + caret, saving vertical space.
+       When .is-open is set, the list reveals as a dropdown panel. */
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--forest-deep);
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 12px var(--grid);
+    z-index: 50;
+    border-top: 1px solid rgba(242, 235, 217, 0.18);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+  }
+  .sibling-strip__list li { display: block; }
+  .sibling-strip__list a,
+  .sibling-strip__list .here {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+  .sibling-strip.is-open .sibling-strip__list { display: flex; }
+  .sibling-strip__toggle {
+    display: inline-flex;
+    padding: 12px var(--grid);
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ─── Aliases for wireframe-named tokens used by ported sections ─── */
+:root {
+  --parchment: var(--parch);
+  --parchment-soft: var(--parch-soft);
+  --parchment-deep: var(--parch-deep);
+  --moss: #355A45;
+  --ink-soft: #2D3A30;
+  --rust: var(--orange-deep);
+}
+
+/* ─────────────────────────────────────────────
+   Wireframe homepage sections (port).
+   Cat-bar · Pano-hero · Qsearch · Section grid · With-sidebar · Split-band.
+   ───────────────────────────────────────────── */
+
+/* Sub-header / category bar */
+.cat-bar {
+  background: var(--forest-deep);
+  color: var(--parchment-deep);
+  padding: 10px clamp(1rem, 3vw, 2rem);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  gap: 2rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--moss);
+}
+.cat-bar a {
+  color: var(--parchment-deep);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.cat-bar a:hover,
+.cat-bar a:focus-visible {
+  color: var(--orange);
+  outline: none;
+}
+/* Active category — shown when the current page's ?cat= matches this pill.
+   The orange underline + saturated color makes the active filter unmistakable
+   when QA testers click around and verify the grid reflects the selection. */
+.cat-bar a.is-active {
+  color: var(--orange);
+  border-bottom-color: var(--orange);
+}
+
+/* Category description lede on /shop?cat=<slug> — sits between heading and grid. */
+.section-lede {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  font-style: italic;
+  color: var(--forest);
+  max-width: 60ch;
+  line-height: 1.55;
+  margin: -0.8rem 0 1.6rem 0;
+}
+
+/* Empty state — shown when a category filter returns no products. Honest "we
+   don't have any yet" beats a blank grid for QA confidence and user trust. */
+.shop-empty {
+  padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 3vw, 2rem);
+  text-align: center;
+  border: 1px dashed rgba(31, 63, 43, 0.25);
+  border-radius: 8px;
+  background: rgba(242, 235, 217, 0.4);
+  font-family: var(--font-display);
+  color: var(--forest);
+  margin: 1rem 0 2rem;
+}
+.shop-empty em {
+  font-style: italic;
+  color: var(--orange);
+  font-weight: 600;
+}
+.shop-empty__link {
+  color: var(--orange);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.shop-empty__link:hover { color: var(--orange-deep); }
+
+/* Panoramic hero */
+.pano-hero {
+  position: relative;
+  height: 80vh;
+  min-height: 540px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  color: var(--parchment);
+}
+.pano-hero::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(17,35,24,0.2) 0%, transparent 30%, transparent 50%, rgba(17,35,24,0.85) 100%),
+    linear-gradient(to right, rgba(17,35,24,0.5) 0%, transparent 40%);
+}
+.pano-content {
+  position: relative;
+  z-index: 1;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 4vw, 3rem);
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 3rem;
+  align-items: end;
+}
+.pano-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.pano-eyebrow::before { content: '◐'; font-size: 14px; }
+.pano-hero h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 6vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-variation-settings: "opsz" 144;
+  color: var(--parchment);
+}
+.pano-hero h1 em { font-style: italic; color: var(--orange); }
+.pano-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+}
+.pano-stat {
+  border-top: 1px solid var(--orange);
+  padding-top: 0.8rem;
+}
+.pano-stat .num {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--parchment);
+  font-variation-settings: "opsz" 144;
+}
+.pano-stat .label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--leaf);
+  margin-top: 6px;
+}
+
+/* Quick-search filter row */
+.qsearch {
+  background: var(--forest-deep);
+  color: var(--parchment);
+  padding: clamp(1.5rem, 3vw, 2rem) clamp(1rem, 3vw, 2rem);
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr 1fr auto;
+  gap: 1rem;
+  align-items: end;
+  border-bottom: 1px solid var(--moss);
+}
+.qsearch label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--leaf);
+  margin-bottom: 6px;
+}
+.qsearch select, .qsearch input {
+  background: var(--forest);
+  color: var(--parchment);
+  border: 1px solid var(--moss);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  width: 100%;
+}
+.qsearch h3 {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.4rem;
+  white-space: nowrap;
+  color: var(--orange);
+}
+.qsearch button {
+  background: var(--orange);
+  color: var(--forest-deep);
+  border: 0;
+  padding: 12px 22px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Featured varietals section */
+.section {
+  padding: clamp(3rem, 6vw, 5rem) clamp(1rem, 3vw, 2rem);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--forest);
+}
+.section-header h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  color: var(--forest-deep);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 144;
+}
+.section-header em { font-style: italic; color: var(--orange-deep); }
+.section-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--orange-deep);
+}
+.var-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+/* Anchor card — give the homepage's first featured variety editorial weight.
+   On desktop (≥1100px) it spans two grid columns with a taller image so it
+   reads as the "lede" of the bare-root window, breaking the uniform 3-col
+   templated feel. The shop /shop page keeps the simple uniform grid since
+   the catalog has no editorial hierarchy. */
+@media (min-width: 1100px) {
+  .var-grid > .var-card.is-anchor {
+    grid-column: span 2;
+  }
+  .var-grid > .var-card.is-anchor .var-img {
+    aspect-ratio: 16/9;
+  }
+  .var-grid > .var-card.is-anchor .var-info {
+    padding: 1.6rem 1.8rem;
+  }
+  .var-grid > .var-card.is-anchor .var-name {
+    font-size: 1.7rem;
+  }
+  .var-grid > .var-card.is-anchor .var-price {
+    font-size: 1.5rem;
+  }
+}
+.var-card {
+  background: var(--parchment-soft);
+  border: 1px solid var(--parchment-deep);
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--ink);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  animation: card-enter 0.5s ease both;
+}
+.var-card:hover,
+.var-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -8px rgba(31, 63, 43, 0.22);
+  border-color: var(--leaf);
+  outline: none;
+}
+.var-img {
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  position: relative;
+  background: var(--forest);
+}
+/* Subtle bottom gradient on the image — lifts the badge contrast and creates
+   a visual seam between photo and info block, without darkening the photo. */
+.var-img::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 35%;
+  background: linear-gradient(to bottom, transparent, rgba(20, 42, 28, 0.18));
+  pointer-events: none;
+}
+/* Support both plain <img> and Next.js <Image fill> (absolute-positioned) */
+.var-img img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+.var-card:hover .var-img img { transform: scale(1.04); }
+
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.var-badge {
+  position: absolute;
+  top: 10px; left: 10px;
+  background: var(--orange);
+  color: var(--forest-deep);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.var-badge.cold { background: var(--leaf); color: var(--forest-deep); }
+.var-info { padding: 1.2rem; flex: 1; display: flex; flex-direction: column; }
+.var-latin {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--moss);
+  margin-bottom: 4px;
+  font-variation-settings: "opsz" 24;
+}
+.var-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  color: var(--forest-deep);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.8rem;
+  font-variation-settings: "opsz" 96;
+}
+.var-specs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin-bottom: 1rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.var-specs strong { color: var(--forest-deep); }
+.var-foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--parchment-deep);
+}
+.var-price {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  color: var(--rust);
+  letter-spacing: -0.01em;
+}
+.var-stock {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+
+/* With-sidebar layout (field notes) */
+.with-sidebar {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 3rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: clamp(3rem, 6vw, 5rem) clamp(1rem, 3vw, 2rem);
+}
+.field-notes {
+  background: var(--forest);
+  color: var(--parchment);
+  padding: 2rem;
+  border-left: 4px solid var(--orange);
+  position: sticky;
+  top: 100px;
+  align-self: start;
+}
+.field-notes-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.field-notes-eyebrow::before { content: '✦'; }
+.field-notes h3 {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  line-height: 1.15;
+  color: var(--parchment);
+}
+.field-notes p {
+  font-size: 14px;
+  margin-bottom: 1rem;
+  color: var(--parchment-deep);
+}
+.field-notes ul {
+  list-style: none;
+  font-size: 13px;
+  border-top: 1px solid var(--moss);
+  padding-top: 1rem;
+}
+.field-notes li {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  color: var(--parchment-deep);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.field-notes li strong { color: var(--orange); }
+
+/* Cinematic split band */
+.split-band {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--forest);
+  color: var(--parchment);
+}
+.split-band > div { padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 3vw, 2.5rem); }
+.split-img {
+  background-size: cover; background-position: center;
+  min-height: 420px;
+  padding: 0 !important;
+}
+.split-band h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+  font-style: italic;
+  color: var(--orange);
+  line-height: 1;
+  margin-bottom: 1.5rem;
+}
+.split-band p { margin-bottom: 1rem; max-width: 50ch; color: var(--parchment-deep); }
+
+/* Button variants for nursery */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: var(--orange);
+  color: var(--forest-deep);
+  border: 2px solid var(--orange);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.btn:hover { background: transparent; color: var(--orange); }
+.btn-outline { background: transparent; color: var(--orange); }
+.btn-outline:hover { background: var(--orange); color: var(--forest-deep); }
+.btn-forest { background: var(--forest); color: var(--parchment); border-color: var(--forest); }
+.btn-forest:hover { background: transparent; color: var(--forest); }
+
+@media (max-width: 900px) {
+  .pano-content,
+  .qsearch,
+  .with-sidebar,
+  .split-band {
+    grid-template-columns: 1fr;
+  }
+  .qsearch h3, .qsearch button { white-space: normal; }
+  .field-notes { position: static; }
+}
+
+/* Mobile-tight refinements (≤480px, covers 390px iPhone width).
+   Goal: cards still feel premium, tap targets stay ≥44px, no text crowding. */
+@media (max-width: 480px) {
+  .var-grid { gap: 1rem; }
+  .var-info { padding: 1rem; }
+  .var-name { font-size: 1.15rem; }
+  .var-price { font-size: 1.15rem; }
+  /* Browse-all CTA, "Read planting guide", etc — tap targets ≥44px tall. */
+  .btn { padding: 13px 20px; }
+  .pano-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .pano-stat .num { font-size: 1.8rem; }
+  /* Anchor card collapses back to a normal card on mobile — it's a desktop
+     hierarchy device, not a mobile one. */
+  .var-grid > .var-card.is-anchor {
+    grid-column: auto;
+  }
 }

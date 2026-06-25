@@ -13,13 +13,14 @@ export const tenantConfig = {
     blogHeading: "Notes from the Bench",
   },
   colors: {
-    primary: "#3f2a1d",
-    primaryForeground: "#ffffff",
-    secondary: "#d4c4a8",
-    secondaryForeground: "#2a1d12",
-    accent: "#a0522d",
-    background: "#faf6f0",
-    foreground: "#1f1611",
+    // Wireframe palette — walnut × cherry × amber × bone.
+    primary: "#3A2418",            // walnut
+    primaryForeground: "#EFE6D3",  // bone
+    secondary: "#7A2E1A",          // cherry
+    secondaryForeground: "#EFE6D3",
+    accent: "#B17839",             // amber
+    background: "#EFE6D3",         // bone
+    foreground: "#1F1611",         // deep walnut
   },
   /** Exact Origin values accepted on state-changing BFF POSTs. Keep in
    *  sync with prod hostnames + the dev port from package.json. */
