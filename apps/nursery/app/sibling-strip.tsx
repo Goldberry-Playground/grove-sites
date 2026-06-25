@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import type { Site } from "@grove/ui";
 
 // Cross-village sibling-strip — persistent nav across the four sister sites.
 // At desktop, renders as a horizontal pill row (all 4 sites visible).
 // At mobile (max-width: 720px), collapses to a single toggle pill showing the
 // current site; tap to reveal the other three. Tap outside or Escape to close.
-// Markup is identical across all four apps; the only per-app difference is
-// `currentSiteName`, which controls which pill renders as `.here`.
+// Markup is identical across all four apps; the only per-app differences are
+// `currentSiteName` (which controls which pill renders as `.here`) and `sites`
+// (passed by the parent server component so URLs match the current env --
+// prod URLs on prod, QA URLs on qa.gatheringatthegrove.com, etc.). See
+// `siblingSitesForHost` in @grove/ui for the resolution logic.
 
-const SITES: Array<{ name: string; href: string }> = [
-  { name: "Gather at the Grove", href: "https://gatheringatthegrove.com" },
-  { name: "Goldberry Grove Farm", href: "https://goldberrygrove.farm" },
-  { name: "At The Grove Nursery", href: "https://atthegrovenursery.com" },
-  { name: "GGG Woodworking", href: "https://woodworkingeorge.com" },
-];
-
-export function SiblingStrip({ currentSiteName }: { currentSiteName: string }) {
+export function SiblingStrip({
+  currentSiteName,
+  sites,
+}: {
+  currentSiteName: string;
+  sites: Site[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -57,7 +60,7 @@ export function SiblingStrip({ currentSiteName }: { currentSiteName: string }) {
         </span>
       </button>
       <ul id="sibling-strip-list" className="sibling-strip__list">
-        {SITES.map((site) => {
+        {sites.map((site) => {
           const isCurrent = site.name === currentSiteName;
           return (
             <li key={site.name}>
