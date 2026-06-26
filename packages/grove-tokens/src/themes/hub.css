@@ -1,20 +1,19 @@
-/* Gathering at the Grove (hub) theme — gatheringatthegrove.com (apps/hub).
- * Authority: vault Marketing/Gathering at the Grove. The hub is connective tissue:
- * neutral surface that frames the three sub-brands (vendor cards take each
- * sub-brand's accent). It has no documented palette of its own yet.
- *
- * TODO(brand): define the hub's own neutral surface tokens with Josh — the values
- * below are a provisional warm-cream baseline so it renders, NOT a ratified palette. */
+/* Gather at the Grove (hub) theme — gatheringatthegrove.com (apps/hub).
+ * Authority: vault Marketing/Gathering at the Grove (ratified 2026-06-26).
+ * The hub REFLECTS all three storefronts and blends them: a warm-paper canvas +
+ * deep-earth text, anchored by the shared wood/earth thread (GGG + Goldberry),
+ * Goldberry's Harvest Gold as secondary, and the grove green (Nursery/Goldberry)
+ * demoted to accent. Each storefront's own accent still surfaces on its vendor card. */
 :root,
 [data-grove-theme="hub"] {
-  --grove-color-primary: #3d3023;            /* provisional neutral bark */
-  --grove-color-primary-foreground: #fbf6ea;
-  --grove-color-secondary: #c9b896;          /* provisional warm tan */
-  --grove-color-secondary-foreground: #3d3023;
-  --grove-color-accent: #617333;             /* provisional grove green */
-  --grove-color-background: #fbf6ea;          /* warm cream */
-  --grove-color-foreground: #2a2118;
-  --grove-color-plum: #5a2a4b;                /* sibling-strip cohesion accent */
+  --grove-color-primary: #5c3a1f;            /* warm bark — GGG walnut × Goldberry chestnut */
+  --grove-color-primary-foreground: #fff7e6; /* cream */
+  --grove-color-secondary: #edd682;          /* Harvest Gold (Goldberry) */
+  --grove-color-secondary-foreground: #5c3a1f;
+  --grove-color-accent: #617333;             /* grove green (Nursery / Goldberry) */
+  --grove-color-background: #f4ecd8;          /* warm parchment — mean of the three papers */
+  --grove-color-foreground: #2a2318;          /* deep earth */
+  --grove-color-plum: #5a2a4b;                /* cross-brand sibling-strip cohesion */
 
   --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
   --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
