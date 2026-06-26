@@ -1,35 +1,47 @@
-/* Grove design-system token CONTRACT.
+/* Grove design-system token CONTRACT (semantic roles).
  *
- * These are the semantic token NAMES every @grove/ui component styles against.
- * A brand theme file (./themes/<brand>.css) reassigns the values; components
- * never reference a raw hex or a per-brand --color-* — only these --grove-*.
+ * Every @grove/ui component styles against these --grove-* roles ONLY — never a
+ * raw hex or a per-app token name. A brand theme (./themes/<brand>.css) assigns
+ * the values; the four brands' bespoke palettes (--chestnut-reserve / --walnut /
+ * --forest …) all collapse onto these roles. See TOKEN-MAP.md for the mapping
+ * every component lift follows.
  *
- * Defaults below are a neutral, warm-cream Grove-family baseline so a component
- * renders sensibly even before a theme is applied (e.g. an un-themed preview).
- * Mirrors the --grove-color-* aliases already present in the apps' globals.css.
+ * Defaults below are a neutral warm-cream Grove baseline so a component renders
+ * sensibly before a theme is applied.
  */
 :root {
-  /* Color */
-  --grove-color-primary: #3d2810;
-  --grove-color-primary-foreground: #fff7e6;
-  --grove-color-secondary: #edd682;
+  /* ── Brand color roles ── */
+  --grove-color-primary: #3d2810;            /* dark anchor: headings, dark surfaces */
+  --grove-color-primary-deep: #2a1c0b;       /* darker primary (borders, hovers) */
+  --grove-color-primary-foreground: #fff7e6; /* text/icons on primary */
+  --grove-color-secondary: #edd682;          /* secondary anchor / warm highlight */
   --grove-color-secondary-foreground: #3d2810;
-  --grove-color-accent: #617333;
-  --grove-color-background: #fff7e6;
-  --grove-color-foreground: #3d2810;
-  /* Cross-brand cohesion accent (sibling-strip) — Goldberry plum, shared. */
-  --grove-color-plum: #5a2a4b;
+  --grove-color-accent: #617333;             /* the brand's accent hue (CTAs, pops) */
 
-  /* Type */
+  /* ── Neutral text + surface roles ── */
+  --grove-color-ink: #3d2810;                /* body text */
+  --grove-color-ink-soft: #5a4632;           /* muted/secondary text */
+  --grove-color-paper: #fff7e6;              /* page background / card body */
+  --grove-color-paper-deep: #efe3c2;         /* sunk surface / divider */
+  --grove-color-paper-soft: #fbf4dd;         /* raised surface / hover bg */
+
+  /* ── Cross-brand cohesion (constant across all four) ── */
+  --grove-color-plum: #5a2a4b;               /* sibling-strip band */
+  --grove-color-plum-deep: #3d1a33;
+  --grove-color-gold: #edd682;               /* sibling-strip hover/active */
+
+  /* ── Type ── */
   --grove-font-display: Georgia, "Times New Roman", serif;
-  --grove-font-sans: system-ui, -apple-system, sans-serif;
+  --grove-font-body: system-ui, -apple-system, sans-serif;
+  --grove-font-sans: var(--grove-font-body);  /* alias: some components used --font-sans */
   --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Shape / space (extracted defaults; refine in Phase 0 audit) */
-  --grove-radius-sm: 0.25rem;
-  --grove-radius-md: 0.5rem;
-  --grove-radius-lg: 1rem;
+  /* ── Layout / shape (--grid is identical across all four apps) ── */
+  --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
   --grove-space-sm: 0.5rem;
   --grove-space-md: 1rem;
   --grove-space-lg: 2rem;
+  --grove-radius-sm: 0.25rem;
+  --grove-radius-md: 0.5rem;
+  --grove-radius-lg: 1rem;
 }

@@ -1,21 +1,29 @@
-/* Gather at the Grove (hub) theme — gatheringatthegrove.com (apps/hub).
- * Authority: vault Marketing/Gathering at the Grove (ratified 2026-06-26).
- * The hub REFLECTS all three storefronts and blends them: a warm-paper canvas +
- * deep-earth text, anchored by the shared wood/earth thread (GGG + Goldberry),
- * Goldberry's Harvest Gold as secondary, and the grove green (Nursery/Goldberry)
- * demoted to accent. Each storefront's own accent still surfaces on its vendor card. */
+/* Gather at the Grove (hub) theme — gatheringatthegrove.com (vault Marketing/Gathering at the Grove).
+ * The family blend: warm-bark primary, Harvest Gold secondary, grove-green accent,
+ * on warm parchment. Reflects all three storefronts. */
 :root,
 [data-grove-theme="hub"] {
   --grove-color-primary: #5c3a1f;            /* warm bark — GGG walnut × Goldberry chestnut */
-  --grove-color-primary-foreground: #fff7e6; /* cream */
+  --grove-color-primary-deep: #3d2810;
+  --grove-color-primary-foreground: #fff7e6;
   --grove-color-secondary: #edd682;          /* Harvest Gold (Goldberry) */
   --grove-color-secondary-foreground: #5c3a1f;
   --grove-color-accent: #617333;             /* grove green (Nursery / Goldberry) */
-  --grove-color-background: #f4ecd8;          /* warm parchment — mean of the three papers */
-  --grove-color-foreground: #2a2318;          /* deep earth */
-  --grove-color-plum: #5a2a4b;                /* cross-brand sibling-strip cohesion */
+
+  --grove-color-ink: #1a1410;
+  --grove-color-ink-soft: #2d241b;
+  --grove-color-paper: #f4ecd8;              /* warm parchment — mean of the three papers */
+  --grove-color-paper-deep: #ddd3bb;
+  --grove-color-paper-soft: #fbf7ec;
+
+  --grove-color-plum: #5a2a4b;
+  --grove-color-plum-deep: #3d1a33;
+  --grove-color-gold: #edd682;
 
   --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-body: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-sans: var(--grove-font-body);
   --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
 }

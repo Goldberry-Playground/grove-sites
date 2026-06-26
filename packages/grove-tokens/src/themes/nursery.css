@@ -1,18 +1,28 @@
-/* At the Grove Nursery theme — At The Grove Nursery, LLC (atthegrovenursery.com).
- * Authority: vault Marketing/At the Grove Nursery (palette from apps/nursery/app/globals.css;
- * voice/positioning drafted, pending ratification). Living-canopy register. */
+/* At the Grove Nursery theme — atthegrovenursery.com (vault Marketing/At the Grove Nursery).
+ * Values from apps/nursery/app/globals.css. Living-canopy register. */
 :root,
 [data-grove-theme="nursery"] {
   --grove-color-primary: #1f3f2b;            /* forest */
+  --grove-color-primary-deep: #142a1c;       /* forest-deep */
   --grove-color-primary-foreground: #f2ebd9; /* parchment */
   --grove-color-secondary: #8aab6e;          /* leaf */
   --grove-color-secondary-foreground: #1f3f2b;
   --grove-color-accent: #d5641a;             /* orange (marigold) */
-  --grove-color-background: #f2ebd9;          /* parchment */
-  --grove-color-foreground: #1a2a1f;          /* deep forest */
+
+  --grove-color-ink: #1a2a1f;
+  --grove-color-ink-soft: #2d3a30;           /* ink-soft */
+  --grove-color-paper: #f2ebd9;              /* parchment */
+  --grove-color-paper-deep: #dfd5b9;         /* parch-deep */
+  --grove-color-paper-soft: #f9f3e2;         /* parch-soft */
+
   --grove-color-plum: #5a2a4b;
+  --grove-color-plum-deep: #3d1a33;
+  --grove-color-gold: #edd682;
 
   --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-body: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-sans: var(--grove-font-body);
   --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
 }

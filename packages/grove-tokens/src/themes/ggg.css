@@ -1,18 +1,28 @@
-/* GGG Woodworking theme — George George George Woodworking, LLC (woodworkingeorge.com).
- * Authority: vault Marketing/GGG Woodworking (palette from apps/ggg/app/globals.css;
- * voice/positioning drafted, pending ratification). Hardwood-shop register. */
+/* GGG Woodworking theme — woodworkingeorge.com (vault Marketing/GGG Woodworking).
+ * Values from apps/ggg/app/globals.css. Hardwood-shop register. */
 :root,
 [data-grove-theme="ggg"] {
   --grove-color-primary: #3a2418;            /* walnut */
+  --grove-color-primary-deep: #1f1611;       /* walnut-deep */
   --grove-color-primary-foreground: #efe6d3; /* bone */
   --grove-color-secondary: #7a2e1a;          /* cherry */
   --grove-color-secondary-foreground: #efe6d3;
   --grove-color-accent: #b17839;             /* amber */
-  --grove-color-background: #efe6d3;          /* bone */
-  --grove-color-foreground: #1f1611;          /* deep walnut */
+
+  --grove-color-ink: #1f1611;
+  --grove-color-ink-soft: #6a4a38;           /* walnut-light */
+  --grove-color-paper: #efe6d3;              /* bone */
+  --grove-color-paper-deep: #d8cdb4;         /* bone-deep */
+  --grove-color-paper-soft: #f8f1df;         /* bone-soft */
+
   --grove-color-plum: #5a2a4b;
+  --grove-color-plum-deep: #3d1a33;
+  --grove-color-gold: #edd682;
 
   --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-body: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-sans: var(--grove-font-body);
   --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
 }
