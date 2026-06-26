@@ -1,0 +1,54 @@
+@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+/* Grove design-system token CONTRACT.
+ *
+ * These are the semantic token NAMES every @grove/ui component styles against.
+ * A brand theme file (./themes/<brand>.css) reassigns the values; components
+ * never reference a raw hex or a per-brand --color-* — only these --grove-*.
+ *
+ * Defaults below are a neutral, warm-cream Grove-family baseline so a component
+ * renders sensibly even before a theme is applied (e.g. an un-themed preview).
+ * Mirrors the --grove-color-* aliases already present in the apps' globals.css.
+ */
+:root {
+  /* Color */
+  --grove-color-primary: #3d2810;
+  --grove-color-primary-foreground: #fff7e6;
+  --grove-color-secondary: #edd682;
+  --grove-color-secondary-foreground: #3d2810;
+  --grove-color-accent: #617333;
+  --grove-color-background: #fff7e6;
+  --grove-color-foreground: #3d2810;
+  /* Cross-brand cohesion accent (sibling-strip) — Goldberry plum, shared. */
+  --grove-color-plum: #5a2a4b;
+
+  /* Type */
+  --grove-font-display: Georgia, "Times New Roman", serif;
+  --grove-font-sans: system-ui, -apple-system, sans-serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Shape / space (extracted defaults; refine in Phase 0 audit) */
+  --grove-radius-sm: 0.25rem;
+  --grove-radius-md: 0.5rem;
+  --grove-radius-lg: 1rem;
+  --grove-space-sm: 0.5rem;
+  --grove-space-md: 1rem;
+  --grove-space-lg: 2rem;
+}
+/* Goldberry Grove theme — brand-guide-backed (Feb 2026 PDF).
+ * Authority: vault Marketing/Brand Colors. Values mirror apps/goldberry/app/globals.css.
+ * Chestnut Reserve is #7F4F1D (the printed guide's #617333 is a documented typo). */
+:root,
+[data-grove-theme="goldberry"] {
+  --grove-color-primary: #7f4f1d;            /* Chestnut Reserve */
+  --grove-color-primary-foreground: #fff7e6; /* Ivory Mist */
+  --grove-color-secondary: #edd682;          /* Harvest Gold */
+  --grove-color-secondary-foreground: #7f4f1d;
+  --grove-color-accent: #617333;             /* Forest Command */
+  --grove-color-background: #fff7e6;          /* Ivory Mist */
+  --grove-color-foreground: #3d2810;          /* deep chestnut */
+  --grove-color-plum: #5a2a4b;                /* retained non-guide accent */
+
+  --grove-font-display: "Baskerville Classico", "Libre Baskerville", Baskerville, "Bookman Old Style", Georgia, serif;
+  --grove-font-sans: "Baskerville Classico", "Libre Baskerville", Baskerville, "Bookman Old Style", Georgia, serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}

@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+/* Grove design-system token CONTRACT.
+ *
+ * These are the semantic token NAMES every @grove/ui component styles against.
+ * A brand theme file (./themes/<brand>.css) reassigns the values; components
+ * never reference a raw hex or a per-brand --color-* — only these --grove-*.
+ *
+ * Defaults below are a neutral, warm-cream Grove-family baseline so a component
+ * renders sensibly even before a theme is applied (e.g. an un-themed preview).
+ * Mirrors the --grove-color-* aliases already present in the apps' globals.css.
+ */
+:root {
+  /* Color */
+  --grove-color-primary: #3d2810;
+  --grove-color-primary-foreground: #fff7e6;
+  --grove-color-secondary: #edd682;
+  --grove-color-secondary-foreground: #3d2810;
+  --grove-color-accent: #617333;
+  --grove-color-background: #fff7e6;
+  --grove-color-foreground: #3d2810;
+  /* Cross-brand cohesion accent (sibling-strip) — Goldberry plum, shared. */
+  --grove-color-plum: #5a2a4b;
+
+  /* Type */
+  --grove-font-display: Georgia, "Times New Roman", serif;
+  --grove-font-sans: system-ui, -apple-system, sans-serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Shape / space (extracted defaults; refine in Phase 0 audit) */
+  --grove-radius-sm: 0.25rem;
+  --grove-radius-md: 0.5rem;
+  --grove-radius-lg: 1rem;
+  --grove-space-sm: 0.5rem;
+  --grove-space-md: 1rem;
+  --grove-space-lg: 2rem;
+}
+/* Gather at the Grove (hub) theme — gatheringatthegrove.com (apps/hub).
+ * Authority: vault Marketing/Gathering at the Grove (ratified 2026-06-26).
+ * The hub REFLECTS all three storefronts and blends them: a warm-paper canvas +
+ * deep-earth text, anchored by the shared wood/earth thread (GGG + Goldberry),
+ * Goldberry's Harvest Gold as secondary, and the grove green (Nursery/Goldberry)
+ * demoted to accent. Each storefront's own accent still surfaces on its vendor card. */
+:root,
+[data-grove-theme="hub"] {
+  --grove-color-primary: #5c3a1f;            /* warm bark — GGG walnut × Goldberry chestnut */
+  --grove-color-primary-foreground: #fff7e6; /* cream */
+  --grove-color-secondary: #edd682;          /* Harvest Gold (Goldberry) */
+  --grove-color-secondary-foreground: #5c3a1f;
+  --grove-color-accent: #617333;             /* grove green (Nursery / Goldberry) */
+  --grove-color-background: #f4ecd8;          /* warm parchment — mean of the three papers */
+  --grove-color-foreground: #2a2318;          /* deep earth */
+  --grove-color-plum: #5a2a4b;                /* cross-brand sibling-strip cohesion */
+
+  --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
