@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { siblingSitesForHost } from "@grove/ui";
+import { siblingSitesForHost, GroveProviders } from "@grove/ui";
+import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
-import { SiblingStrip } from "./sibling-strip";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -44,6 +44,7 @@ export default async function RootLayout({
         {/* Sibling strip — cross-village nav. Markup mirrors ggg, hub, and
             nursery so the four sites render the same size pill row across
             every viewport. Per-site brand color tokens live in globals.css. */}
+        <GroveProviders>
         <SiblingStrip currentSiteName="Goldberry Grove Farm" sites={sites} />
         <Providers>
           {/* Persistent header — typographic wordmark (transparent PNG of
@@ -125,6 +126,7 @@ export default async function RootLayout({
             </div>
           </footer>
         </Providers>
+        </GroveProviders>
       </body>
     </html>
   );

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { siblingSitesForHost } from "@grove/ui";
+import { siblingSitesForHost, GroveProviders } from "@grove/ui";
+import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
-import { SiblingStrip } from "./sibling-strip";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -40,6 +40,7 @@ export default async function RootLayout({
           antialiased"
         data-tenant={tenantConfig.tenantId}
       >
+        <GroveProviders>
         <SiblingStrip currentSiteName="GGG Woodworking" sites={sites} />
         <Providers>
           <header className="border-b border-primary/10 px-6 py-4">
@@ -101,6 +102,7 @@ export default async function RootLayout({
             </div>
           </footer>
         </Providers>
+        </GroveProviders>
       </body>
     </html>
   );

@@ -62,6 +62,9 @@ importers:
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@grove/ui-kit':
+        specifier: workspace:*
+        version: link:../../packages/grove-ui
       next:
         specifier: ^15.5.18
         version: 15.5.18(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -132,6 +135,9 @@ importers:
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@grove/ui-kit':
+        specifier: workspace:*
+        version: link:../../packages/grove-ui
       next:
         specifier: ^15.5.18
         version: 15.5.18(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -199,6 +205,9 @@ importers:
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@grove/ui-kit':
+        specifier: workspace:*
+        version: link:../../packages/grove-ui
       next:
         specifier: ^15.5.18
         version: 15.5.18(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -272,6 +281,9 @@ importers:
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@grove/ui-kit':
+        specifier: workspace:*
+        version: link:../../packages/grove-ui
       next:
         specifier: ^15.5.18
         version: 15.5.18(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -416,6 +428,12 @@ importers:
 
   packages/ui:
     dependencies:
+      '@grove/ui-kit':
+        specifier: workspace:*
+        version: link:../grove-ui
+      next:
+        specifier: ^15.0.0
+        version: 15.5.18(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react:
         specifier: ^19.0.0
         version: 19.2.4
@@ -3846,7 +3864,7 @@ snapshots:
 
   '@img/sharp-wasm32@0.34.5':
     dependencies:
-      '@emnapi/runtime': 1.9.1
+      '@emnapi/runtime': 1.10.0
     optional: true
 
   '@img/sharp-win32-arm64@0.34.5':
@@ -5785,7 +5803,7 @@ snapshots:
 
   postcss@8.4.31:
     dependencies:
-      nanoid: 3.3.11
+      nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
 

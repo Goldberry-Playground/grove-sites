@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavLink as UiNavLink } from "@grove/ui-kit";
 
 export function NavLink({
   href,
@@ -15,15 +15,8 @@ export function NavLink({
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <Link
-      href={href}
-      className={`transition-colors ${
-        isActive
-          ? "text-primary font-semibold"
-          : "text-foreground/70 hover:text-primary"
-      }`}
-    >
+    <UiNavLink href={href} isActive={isActive}>
       {children}
-    </Link>
+    </UiNavLink>
   );
 }
