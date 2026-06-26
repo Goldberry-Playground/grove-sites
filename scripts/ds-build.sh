@@ -29,7 +29,12 @@ CFG=".design-sync/config.${BRAND}.json"
 # Google-Fonts @import (must lead the file) + token contract + brand theme + every
 # lifted component's CSS (tokens defined first so the component var()s resolve).
 FONTS='@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");'
-{ echo "$FONTS"; cat packages/grove-tokens/src/contract.css "$THEME" packages/grove-ui/src/*/*.css; } > "packages/grove-ui/ds-theme.${BRAND}.css"
+# Optional per-brand self-hosted @font-face (e.g. goldberry's licensed Baskerville
+# Classico, data-URI embedded). Concatenated only when that brand has one.
+THEME_FILES=(packages/grove-tokens/src/contract.css "$THEME")
+[ -f "packages/grove-ui/brand-fonts/${BRAND}.css" ] && THEME_FILES+=("packages/grove-ui/brand-fonts/${BRAND}.css")
+THEME_FILES+=(packages/grove-ui/src/*/*.css)
+{ echo "$FONTS"; cat "${THEME_FILES[@]}"; } > "packages/grove-ui/ds-theme.${BRAND}.css"
 
 echo "» building @grove/ui-kit (tsup)…"
 pnpm -F @grove/ui-kit build >/dev/null

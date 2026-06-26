@@ -1,0 +1,13 @@
+/* Baskerville Classico (Omnibus Type / Franko Luin) — Goldberry's licensed display
+   serif. The design-sync converter rewrites this url() into the bundle's fonts/ dir
+   and uploads the file, so the Claude Design project renders the real font instead
+   of a substitute. url() is relative to ds-theme.goldberry.css (packages/grove-ui/).
+   Regular weight only — semibold display headings faux-bold via font-synthesis.
+   Only concatenated for the goldberry bundle (other brands use Fraunces/Newsreader). */
+@font-face {
+  font-family: "Baskerville Classico";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("brand-fonts/BaskervilleClassico-Regular.ttf") format("truetype");
+}
