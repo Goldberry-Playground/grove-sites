@@ -1,0 +1,14 @@
+{
+  "name": "@grove/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Grove design-system token contract (--grove-*) + per-brand themes. Consumed by @grove/ui and the four storefronts; the four themes drive the four Claude Design projects.",
+  "exports": {
+    "./contract.css": "./src/contract.css",
+    "./themes/goldberry.css": "./src/themes/goldberry.css",
+    "./themes/ggg.css": "./src/themes/ggg.css",
+    "./themes/nursery.css": "./src/themes/nursery.css",
+    "./themes/hub.css": "./src/themes/hub.css"
+  },
+  "files": ["src"]
+}

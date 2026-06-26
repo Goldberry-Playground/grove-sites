@@ -1,0 +1,18 @@
+/* At the Grove Nursery theme — At The Grove Nursery, LLC (atthegrovenursery.com).
+ * Authority: vault Marketing/At the Grove Nursery (palette from apps/nursery/app/globals.css;
+ * voice/positioning drafted, pending ratification). Living-canopy register. */
+:root,
+[data-grove-theme="nursery"] {
+  --grove-color-primary: #1f3f2b;            /* forest */
+  --grove-color-primary-foreground: #f2ebd9; /* parchment */
+  --grove-color-secondary: #8aab6e;          /* leaf */
+  --grove-color-secondary-foreground: #1f3f2b;
+  --grove-color-accent: #d5641a;             /* orange (marigold) */
+  --grove-color-background: #f2ebd9;          /* parchment */
+  --grove-color-foreground: #1a2a1f;          /* deep forest */
+  --grove-color-plum: #5a2a4b;
+
+  --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}

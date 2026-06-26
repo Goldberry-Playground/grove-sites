@@ -1,0 +1,18 @@
+/* GGG Woodworking theme — George George George Woodworking, LLC (woodworkingeorge.com).
+ * Authority: vault Marketing/GGG Woodworking (palette from apps/ggg/app/globals.css;
+ * voice/positioning drafted, pending ratification). Hardwood-shop register. */
+:root,
+[data-grove-theme="ggg"] {
+  --grove-color-primary: #3a2418;            /* walnut */
+  --grove-color-primary-foreground: #efe6d3; /* bone */
+  --grove-color-secondary: #7a2e1a;          /* cherry */
+  --grove-color-secondary-foreground: #efe6d3;
+  --grove-color-accent: #b17839;             /* amber */
+  --grove-color-background: #efe6d3;          /* bone */
+  --grove-color-foreground: #1f1611;          /* deep walnut */
+  --grove-color-plum: #5a2a4b;
+
+  --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}

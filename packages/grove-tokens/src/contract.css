@@ -1,0 +1,35 @@
+/* Grove design-system token CONTRACT.
+ *
+ * These are the semantic token NAMES every @grove/ui component styles against.
+ * A brand theme file (./themes/<brand>.css) reassigns the values; components
+ * never reference a raw hex or a per-brand --color-* — only these --grove-*.
+ *
+ * Defaults below are a neutral, warm-cream Grove-family baseline so a component
+ * renders sensibly even before a theme is applied (e.g. an un-themed preview).
+ * Mirrors the --grove-color-* aliases already present in the apps' globals.css.
+ */
+:root {
+  /* Color */
+  --grove-color-primary: #3d2810;
+  --grove-color-primary-foreground: #fff7e6;
+  --grove-color-secondary: #edd682;
+  --grove-color-secondary-foreground: #3d2810;
+  --grove-color-accent: #617333;
+  --grove-color-background: #fff7e6;
+  --grove-color-foreground: #3d2810;
+  /* Cross-brand cohesion accent (sibling-strip) — Goldberry plum, shared. */
+  --grove-color-plum: #5a2a4b;
+
+  /* Type */
+  --grove-font-display: Georgia, "Times New Roman", serif;
+  --grove-font-sans: system-ui, -apple-system, sans-serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Shape / space (extracted defaults; refine in Phase 0 audit) */
+  --grove-radius-sm: 0.25rem;
+  --grove-radius-md: 0.5rem;
+  --grove-radius-lg: 1rem;
+  --grove-space-sm: 0.5rem;
+  --grove-space-md: 1rem;
+  --grove-space-lg: 2rem;
+}

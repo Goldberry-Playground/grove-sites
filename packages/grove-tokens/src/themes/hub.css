@@ -1,0 +1,22 @@
+/* Gathering at the Grove (hub) theme — gatheringatthegrove.com (apps/hub).
+ * Authority: vault Marketing/Gathering at the Grove. The hub is connective tissue:
+ * neutral surface that frames the three sub-brands (vendor cards take each
+ * sub-brand's accent). It has no documented palette of its own yet.
+ *
+ * TODO(brand): define the hub's own neutral surface tokens with Josh — the values
+ * below are a provisional warm-cream baseline so it renders, NOT a ratified palette. */
+:root,
+[data-grove-theme="hub"] {
+  --grove-color-primary: #3d3023;            /* provisional neutral bark */
+  --grove-color-primary-foreground: #fbf6ea;
+  --grove-color-secondary: #c9b896;          /* provisional warm tan */
+  --grove-color-secondary-foreground: #3d3023;
+  --grove-color-accent: #617333;             /* provisional grove green */
+  --grove-color-background: #fbf6ea;          /* warm cream */
+  --grove-color-foreground: #2a2118;
+  --grove-color-plum: #5a2a4b;                /* sibling-strip cohesion accent */
+
+  --grove-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --grove-font-sans: "Newsreader", "Cardo", Georgia, serif;
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
