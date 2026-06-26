@@ -26,9 +26,10 @@ CFG=".design-sync/config.${BRAND}.json"
 [ -f "$CFG" ] || { echo "✗ no config at $CFG"; exit 1; }
 [ -d .ds-sync ] || { echo "✗ .ds-sync not staged — see .design-sync/NOTES.md (the cp -r line)"; exit 1; }
 
-# Google-Fonts @import (must lead the file) + token contract + the brand theme.
+# Google-Fonts @import (must lead the file) + token contract + brand theme + every
+# lifted component's CSS (tokens defined first so the component var()s resolve).
 FONTS='@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");'
-{ echo "$FONTS"; cat packages/grove-tokens/src/contract.css "$THEME"; } > "packages/grove-ui/ds-theme.${BRAND}.css"
+{ echo "$FONTS"; cat packages/grove-tokens/src/contract.css "$THEME" packages/grove-ui/src/*/*.css; } > "packages/grove-ui/ds-theme.${BRAND}.css"
 
 echo "» building @grove/ui-kit (tsup)…"
 pnpm -F @grove/ui-kit build >/dev/null

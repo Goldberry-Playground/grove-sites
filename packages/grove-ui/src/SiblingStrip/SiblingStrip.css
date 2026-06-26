@@ -1,0 +1,109 @@
+/* SiblingStrip — cross-village nav band. Lifted from apps/*/app/globals.css
+ * (byte-identical across all four apps; only the band bg/color tokens diverged
+ * per brand, now collapsed onto --grove-* roles per TOKEN-MAP.md).
+ *
+ * Alpha-modulated brand colors are expressed via color-mix against a --grove-*
+ * role so no raw hex/rgba survives. The light divider and dark shadow/backdrop
+ * scrims have no dedicated brand role — see the report.
+ */
+
+.sibling-strip {
+  background: var(--grove-color-plum-deep);
+  color: var(--grove-color-paper);
+  font-family: var(--grove-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  position: relative; /* for the mobile dropdown's absolute positioning */
+}
+
+.sibling-strip__list {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 16px var(--grove-space-grid);
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  list-style: none;
+}
+.sibling-strip__list li { margin: 0; }
+.sibling-strip a,
+.sibling-strip .here {
+  color: color-mix(in srgb, var(--grove-color-paper) 78%, transparent);
+  text-decoration: none;
+  position: relative;
+  padding: 9px 20px;
+  border: 1px solid color-mix(in srgb, var(--grove-color-paper) 45%, transparent);
+  border-radius: 999px;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+.sibling-strip a:hover {
+  color: var(--grove-color-plum-deep);
+  background: var(--grove-color-gold);
+  border-color: var(--grove-color-gold);
+}
+.sibling-strip .here {
+  color: var(--grove-color-plum-deep);
+  background: var(--grove-color-gold);
+  border-color: var(--grove-color-gold);
+}
+.sibling-strip .here::before {
+  content: '◐  ';
+  letter-spacing: 0;
+}
+
+/* Mobile-only toggle button — hidden on desktop, shown at <=720px. */
+.sibling-strip__toggle {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.sibling-strip__toggle .here { display: inline-block; }
+.sibling-strip__caret {
+  display: inline-block;
+  font-size: 0.85em;
+  line-height: 1;
+  transition: transform 0.2s ease;
+  opacity: 0.78;
+}
+.sibling-strip.is-open .sibling-strip__caret { transform: rotate(180deg); }
+
+@media (max-width: 720px) {
+  .sibling-strip__list {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--grove-color-plum-deep);
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 12px var(--grove-space-grid);
+    z-index: 50;
+    border-top: 1px solid color-mix(in srgb, var(--grove-color-paper) 18%, transparent);
+    box-shadow: 0 12px 24px color-mix(in srgb, var(--grove-color-primary-deep) 25%, transparent);
+  }
+  .sibling-strip__list li { display: block; }
+  .sibling-strip__list a,
+  .sibling-strip__list .here {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+  .sibling-strip.is-open .sibling-strip__list { display: flex; }
+  .sibling-strip__toggle {
+    display: inline-flex;
+    padding: 12px var(--grove-space-grid);
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -1,0 +1,22 @@
+/* NavLink — primary-nav link with active state. Lifted from apps/ggg +
+ * apps/nursery, where it was expressed as Tailwind utilities
+ * (`text-primary font-semibold` active / `text-foreground/70 hover:text-primary`
+ * idle, plus `transition-colors`). Those utilities resolved to the app theme
+ * tokens --color-primary and --color-foreground, mapped here to --grove-* roles
+ * per TOKEN-MAP.md (--color-primary → --grove-color-primary,
+ * --color-foreground → --grove-color-ink). The idle 70% opacity (`/70`) is kept
+ * via color-mix against the ink role.
+ */
+
+.grove-nav-link {
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.grove-nav-link:hover {
+  color: var(--grove-color-primary);
+}
+.grove-nav-link.is-active {
+  color: var(--grove-color-primary);
+  font-weight: 600;
+}

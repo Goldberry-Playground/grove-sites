@@ -8,3 +8,15 @@
  * so every component's CSS must be reachable from here.
  */
 @import "@grove/tokens/contract.css";
+
+/* Lifted component CSS (token-mapped; see TOKEN-MAP.md). */
+@import "./SiblingStrip/SiblingStrip.css";
+@import "./NavLink/NavLink.css";
+@import "./CartNavLink/CartNavLink.css";
+@import "./ProductCard/ProductCard.css";
+@import "./VendorCard/VendorCard.css";
+@import "./BuyAtVendorForm/BuyAtVendorForm.css";
+@import "./JournalProductEmbed/JournalProductEmbed.css";
+@import "./HeroSlideshow/HeroSlideshow.css";
+@import "./ShopSubHeader/ShopSubHeader.css";
+@import "./CategoryBar/CategoryBar.css";

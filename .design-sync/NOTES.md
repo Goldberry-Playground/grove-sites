@@ -13,12 +13,30 @@ Four Claude Design projects, one per brand — SAME @grove/ui-kit bundle, differ
 `packages/grove-ui/ds-theme.<brand>.css` = Google-Fonts @import + grove-tokens contract + that brand's theme, concatenated. REGENERATE if grove-tokens change (see the loop in the commit that added these).
 
 ## Build per brand (Node 22 — `fnm use 22`)
-    node .ds-sync/package-build.mjs --config .design-sync/config.<brand>.json \
-      --node-modules packages/grove-ui/node_modules --entry ./packages/grove-ui/dist/index.js --out ./ds-bundle
-    node .ds-sync/package-validate.mjs ./ds-bundle --no-render-check
+Use the reusable script (regen theme + tsup + converter + validate in one):
+    ./scripts/ds-build.sh <brand>            # goldberry | ggg | nursery | hub
+    ./scripts/ds-build.sh <brand> --render   # also playwright/chromium render-check
 
-## Re-sync risks / TODO (path A)
-- Renders were NOT machine-verified (no chromium; --no-render-check). Install playwright+chromium before path A to verify previews.
-- Button ships a FLOOR CARD (preview unauthored). Author .design-sync/previews/Button.tsx (+ the lifted components) on path A.
-- Fonts load at runtime via Google-Fonts @import ([FONT_REMOTE]); brand serif "Baskerville Classico" is paid → web fallback Libre Baskerville is used.
-- ds-theme.<brand>.css duplicates grove-tokens content — regenerate on token change.
+## Known-benign render warnings
+- **ProductCard / VendorCard → `[RENDER_THIN]` (0px height):** false positive. Both
+  pass the per-vendor accent down via a `display:contents` wrapper (since the injected
+  Link seam takes no `style`), which generates no box → measured height 0. Screenshots
+  confirm both render fully (`ds-bundle/_screenshots/general__{ProductCard,VendorCard}.png`).
+  Benign — not a layout bug.
+
+## Status (path A — done)
+- 11 components authored + render-verified (chromium): Button + SiblingStrip, NavLink,
+  CartNavLink, ProductCard, VendorCard, BuyAtVendorForm, JournalProductEmbed,
+  HeroSlideshow, ShopSubHeader, CategoryBar. All previews render cleanly.
+- Component CSS is token-mapped (`packages/grove-tokens/TOKEN-MAP.md`) and concatenated
+  into `ds-theme.<brand>.css` by `ds-build.sh` (also @imported in `src/styles.css`).
+
+## Remaining / TODO
+- Fonts load at runtime via Google-Fonts @import ([FONT_REMOTE]); brand serif "Baskerville
+  Classico" is paid → web fallback Libre Baskerville is used.
+- ds-theme.<brand>.css duplicates grove-tokens content — regenerate on token change (ds-build.sh does this).
+- **App-swaps NOT done** — apps still use their local component copies. Swapping them to
+  `@grove/ui-kit` (with GroveLinkProvider + prop-supplied data) is a separate step; the
+  per-component call sites are listed in the fleet commit message.
+- Checkout components (cart-coupled: AddToCartButton, StickyAddToCartBar, MiniCartDrawer,
+  CartPage, CheckoutPage) NOT yet lifted — need cart-state decoupling (props/callbacks).
