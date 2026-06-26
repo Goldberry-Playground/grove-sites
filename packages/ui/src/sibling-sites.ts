@@ -37,7 +37,14 @@ const PROD_SITES: Site[] = [
 ];
 
 const QA_SITES: Site[] = [
-  { name: "Gather at the Grove", href: "https://qa.gatheringatthegrove.com" },
+  // Hub uses `hub.qa.*` (a wildcard-covered subdomain) instead of the apex
+  // `qa.gatheringatthegrove.com`. The wildcard cert (`*.qa.gatheringatthegrove.com`)
+  // doesn't cover the apex per RFC 6125, and provisioning a separate apex
+  // cert hit LE's 5/week-per-identifier-set rate limit on 2026-06-26.
+  // Routing hub via `hub.qa.*` uses the wildcard cert -- consistent with
+  // the other 3 tenant URLs below. Mirrors the DNS + Caddyfile config in
+  // odoocker's QA env.
+  { name: "Gather at the Grove", href: "https://hub.qa.gatheringatthegrove.com" },
   { name: "Goldberry Grove Farm", href: "https://goldberry.qa.gatheringatthegrove.com" },
   { name: "At The Grove Nursery", href: "https://nursery.qa.gatheringatthegrove.com" },
   { name: "GGG Woodworking", href: "https://ggg.qa.gatheringatthegrove.com" },
