@@ -15,6 +15,8 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   position: relative; /* for the mobile dropdown's absolute positioning */
+  isolation: isolate; /* establish own stacking context… */
+  z-index: 60;        /* …and sit above the hero's context */
 }
 
 .sibling-strip__list {
@@ -33,10 +35,14 @@
   color: color-mix(in srgb, var(--grove-color-paper) 78%, transparent);
   text-decoration: none;
   position: relative;
-  padding: 9px 20px;
+  padding: 12px 20px;
   border: 1px solid color-mix(in srgb, var(--grove-color-paper) 45%, transparent);
   border-radius: 999px;
   transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+.sibling-strip a:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
 }
 .sibling-strip a:hover {
   color: var(--grove-color-plum-deep);
@@ -88,7 +94,7 @@
     flex-direction: column;
     gap: 0.5rem;
     padding: 12px var(--grove-space-grid);
-    z-index: 50;
+    z-index: 1; /* was 50; now relative to the isolated strip */
     border-top: 1px solid color-mix(in srgb, var(--grove-color-paper) 18%, transparent);
     box-shadow: 0 12px 24px color-mix(in srgb, var(--grove-color-primary-deep) 25%, transparent);
   }

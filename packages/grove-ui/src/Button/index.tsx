@@ -47,7 +47,7 @@ export function Button({
 
   return (
     <button
-      className={className}
+      className={["grove-btn", className].filter(Boolean).join(" ")}
       style={{
         fontFamily: "var(--grove-font-sans)",
         borderRadius: "var(--grove-radius-md)",

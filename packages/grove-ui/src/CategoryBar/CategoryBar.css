@@ -4,7 +4,7 @@
   color: var(--grove-color-paper-deep);
   padding: 10px clamp(1rem, 3vw, 2rem);
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   display: flex;
@@ -16,16 +16,19 @@
   color: var(--grove-color-paper-deep);
   text-decoration: none;
   white-space: nowrap;
-  padding: 4px 0;
+  padding: 11px 0;
   border-bottom: 2px solid transparent;
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .cat-bar a:hover,
 .cat-bar a:focus-visible {
-  color: var(--grove-color-accent);
-  outline: none;
+  color: var(--grove-color-gold);
+}
+.cat-bar a:focus-visible {
+  outline: 2px solid var(--grove-color-gold);
+  outline-offset: 2px;
 }
 .cat-bar a.is-active {
-  color: var(--grove-color-accent);
-  border-bottom-color: var(--grove-color-accent);
+  color: var(--grove-color-gold);
+  border-bottom-color: var(--grove-color-gold);
 }

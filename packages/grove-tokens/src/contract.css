@@ -45,3 +45,16 @@
   --grove-radius-md: 0.5rem;
   --grove-radius-lg: 1rem;
 }
+
+/* ── Global a11y utility: visually-hidden text for screen readers (ships in every bundle) ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -12,6 +12,12 @@ export interface HeroSlide {
   tag: string;
   /** The pipe-delimited word inside `tag` to render emphasized (accent-colored). */
   tagEmphasis: string;
+  /**
+   * Optional text alternative describing the slide's image. When present it is
+   * rendered into a visually-hidden caption so screen readers can announce the
+   * slide's purpose (WCAG 1.1.1). Omit for purely decorative slides.
+   */
+  alt?: string;
 }
 
 export interface HeroSlideshowProps {
@@ -23,6 +29,15 @@ export interface HeroSlideshowProps {
   fadeMs?: number;
 }
 
+/** Whether the user has requested reduced motion (SSR-safe). */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 /**
  * Auto-advancing crossfade hero slideshow. Presentational: slides arrive via a
  * typed prop, styling comes from `HeroSlideshow.css` (all `--grove-*` tokens).
@@ -30,17 +45,21 @@ export interface HeroSlideshowProps {
  */
 export function HeroSlideshow({ slides, holdMs = 5000, fadeMs = 1200 }: HeroSlideshowProps) {
   const [active, setActive] = useState(0);
+  // Default-paused for reduced-motion users; everyone else auto-advances (§3, WCAG 2.2.2 / 2.3.1).
+  const [paused, setPaused] = useState<boolean>(prefersReducedMotion);
 
   useEffect(() => {
-    if (slides.length <= 1) return;
+    if (paused || slides.length <= 1) return; // gate the timer on `paused`
     const interval = holdMs + fadeMs;
     const timer = setInterval(() => {
       setActive((prev) => (prev + 1) % slides.length);
     }, interval);
     return () => clearInterval(timer);
-  }, [slides.length, holdMs, fadeMs]);
+  }, [paused, slides.length, holdMs, fadeMs]);
 
   if (slides.length === 0) return null;
+
+  const activeSlide = slides[active];
 
   return (
     <div className="hero-slideshow" aria-live="off">
@@ -56,20 +75,36 @@ export function HeroSlideshow({ slides, holdMs = 5000, fadeMs = 1200 }: HeroSlid
       {/* Gradient overlay for readability */}
       <div className="hero-slide-overlay" aria-hidden="true" />
 
+      {/* Visually-hidden caption — gives the active slide a text alternative (§5, WCAG 1.1.1). */}
+      {activeSlide?.alt ? <p className="sr-only">{activeSlide.alt}</p> : null}
+
       {/* Slab tag — updates with the active slide */}
       <div className="hero-tag" key={active}>
-        {renderTag(slides[active])}
+        {renderTag(activeSlide)}
       </div>
 
-      {/* Slide indicator pips */}
-      <div className="hero-pips" aria-hidden="true">
+      {/* Pause/play control (§3) */}
+      {slides.length > 1 ? (
+        <button
+          type="button"
+          className="hero-playpause"
+          aria-label={paused ? "Play slideshow" : "Pause slideshow"}
+          aria-pressed={paused}
+          onClick={() => setPaused((p) => !p)}
+        />
+      ) : null}
+
+      {/* Slide indicator dots — exposed to AT as a tablist (§4, WCAG 1.3.1 / 4.1.2) */}
+      <div className="hero-pips" role="tablist" aria-label="Choose slide">
         {slides.map((_, i) => (
           <button
             key={i}
             type="button"
+            role="tab"
+            aria-selected={i === active}
+            aria-label={`Slide ${i + 1} of ${slides.length}`}
             className={`hero-pip ${i === active ? "active" : ""}`}
             onClick={() => setActive(i)}
-            aria-label={`Go to slide ${i + 1}`}
           />
         ))}
       </div>

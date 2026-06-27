@@ -16,6 +16,10 @@
 .grove-nav-link:hover {
   color: var(--grove-color-primary);
 }
+.grove-nav-link:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
+}
 .grove-nav-link.is-active {
   color: var(--grove-color-primary);
   font-weight: 600;

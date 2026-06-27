@@ -18,7 +18,12 @@ export function CartNavLink({ count = 0, href = "/cart" }: CartNavLinkProps) {
   return (
     <Link href={href} className="grove-cart-nav-link">
       Cart
-      {count > 0 && <span className="grove-cart-nav-link__badge">{count}</span>}
+      {count > 0 && (
+        <span className="grove-cart-nav-link__badge">
+          {count}
+          <span className="sr-only"> items in cart</span>
+        </span>
+      )}
     </Link>
   );
 }

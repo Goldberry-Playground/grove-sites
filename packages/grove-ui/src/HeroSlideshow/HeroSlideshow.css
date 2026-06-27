@@ -12,7 +12,11 @@
   background-position: center;
   opacity: 0;
   transition: opacity 1.2s ease;
-  will-change: opacity;
+  transform: translateZ(0); /* own GPU layer */
+}
+.hero-slide.active,
+.hero-slide.is-leaving {
+  will-change: opacity; /* only mark the moving slides */
 }
 .hero-slide.active {
   opacity: 1;
@@ -41,16 +45,22 @@
   bottom: 24px;
   left: 24px;
   z-index: 3;
-  background: color-mix(in srgb, var(--grove-color-ink) 88%, transparent);
-  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--grove-color-ink) 94%, transparent);
   color: var(--grove-color-paper);
   padding: 12px 16px;
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.72rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   border-left: 3px solid var(--grove-color-accent);
   animation: tag-enter 0.4s ease both;
+}
+/* Opt the blur back in only on browsers that composite it cleanly (not iOS Safari). */
+@supports (backdrop-filter: blur(6px)) and (not (-webkit-touch-callout: none)) {
+  .hero-tag {
+    backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--grove-color-ink) 88%, transparent);
+  }
 }
 .hero-tag em {
   font-style: normal;
@@ -78,6 +88,7 @@
   gap: 8px;
 }
 .hero-pip {
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -87,6 +98,12 @@
   transition: background 0.3s, transform 0.3s;
   padding: 0;
 }
+/* Keep the 8px visual but inflate the tap target to ~44px. */
+.hero-pip::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+}
 .hero-pip.active {
   background: var(--grove-color-accent);
   border-color: var(--grove-color-accent);
@@ -94,4 +111,52 @@
 }
 .hero-pip:hover:not(.active) {
   background: color-mix(in srgb, var(--grove-color-paper) 40%, transparent);
+}
+
+/* Play/pause control */
+.hero-playpause {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--grove-color-paper);
+  background: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+  color: var(--grove-color-paper);
+  cursor: pointer;
+}
+.hero-playpause::before {
+  content: "";
+  width: 0;
+  height: 0;
+  /* Play triangle (shown while paused) */
+  border-style: solid;
+  border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent currentColor;
+  margin-left: 2px;
+}
+.hero-playpause[aria-pressed="false"]::before {
+  /* Pause bars (shown while playing) */
+  width: 10px;
+  height: 12px;
+  border: 0;
+  margin-left: 0;
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 3px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 0 / 3px 100% no-repeat;
+}
+
+/* §1c — reduced motion: also satisfies §3 default-paused behaviour */
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide {
+    transition: none;
+  }
+  .hero-tag {
+    animation: none;
+  }
 }

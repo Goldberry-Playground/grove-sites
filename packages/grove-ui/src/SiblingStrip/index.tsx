@@ -38,16 +38,14 @@ export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    function onPointer(e: MouseEvent | TouchEvent) {
+    function onPointer(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("touchstart", onPointer);
+    document.addEventListener("pointerdown", onPointer); // replaces mousedown + touchstart
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("touchstart", onPointer);
+      document.removeEventListener("pointerdown", onPointer);
     };
   }, [open]);
 
@@ -59,7 +57,6 @@ export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
         className="sibling-strip__toggle"
         aria-expanded={open}
         aria-controls="sibling-strip-list"
-        aria-haspopup="true"
         aria-label={`${currentSiteName} — tap to switch sites`}
         onClick={() => setOpen((o) => !o)}
       >

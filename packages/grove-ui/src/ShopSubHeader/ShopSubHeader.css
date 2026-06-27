@@ -1,10 +1,10 @@
 /* ─── Shop sub-header ─── */
 .about-eyebrow {
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.72rem;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--grove-color-accent);
+  color: var(--grove-color-primary);
   display: block;
   margin-bottom: 1.2rem;
 }
@@ -67,7 +67,7 @@
   align-items: center;
   gap: 0.4rem;
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.72rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--grove-color-primary);
@@ -83,6 +83,10 @@
   background: var(--grove-color-secondary);
   border-color: var(--grove-color-gold);
   color: var(--grove-color-primary-deep);
+}
+.shop-subheader__pill:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
 }
 .shop-subheader__pill.is-active {
   background: var(--grove-color-primary);
