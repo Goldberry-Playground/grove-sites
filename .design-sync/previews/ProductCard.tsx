@@ -1,21 +1,23 @@
 import { ProductCard } from "@grove/ui-kit";
+import { SAMPLE_PRODUCT_APPLE, SAMPLE_PRODUCT_GRAPE } from "./_sample-images";
 
 // Authored preview cards (each export = one labeled card). Real JSX, real props.
+// Imagery is self-contained (owned, optimized, base64) — no remote/CDN dependency.
 
-const heirloomTomatoes = {
-  name: "Brandywine Heirloom Tomatoes",
+const honeycrispApples = {
+  name: "Honeycrisp Apples",
   priceFormatted: "$6.50",
-  imageUrl: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=600",
-  href: "/marketplace/goldberry/brandywine-heirloom-tomatoes",
+  imageUrl: SAMPLE_PRODUCT_APPLE,
+  href: "/marketplace/goldberry/honeycrisp-apples",
   vendorName: "Goldberry Grove Farm",
 };
 
-const walnutBoard = {
-  name: "Live-Edge Black Walnut Serving Board",
-  priceFormatted: "$148.00",
-  imageUrl: "https://images.unsplash.com/photo-1606744888344-493238951221?w=600",
-  href: "/marketplace/ggg/live-edge-walnut-board",
-  vendorName: "George George George Woodworking",
+const concordGrapes = {
+  name: "Concord Grapes",
+  priceFormatted: "$8.00",
+  imageUrl: SAMPLE_PRODUCT_GRAPE,
+  href: "/marketplace/goldberry/concord-grapes",
+  vendorName: "Goldberry Grove Farm",
 };
 
 const fernStarter = {
@@ -26,17 +28,17 @@ const fernStarter = {
   vendorName: "At The Grove Nursery",
 };
 
-export const Default = () => <ProductCard product={heirloomTomatoes} />;
+export const Default = () => <ProductCard product={honeycrispApples} />;
 
 export const WithAccent = () => (
-  <ProductCard product={walnutBoard} accentColor="#3A2418" />
+  <ProductCard product={concordGrapes} accentColor="#5A2A4B" />
 );
 
 export const WithEditorialNote = () => (
   <ProductCard
-    product={heirloomTomatoes}
-    accentColor="#5A2A4B"
-    editorialNote="The tomato that ruins you for grocery-store ones forever."
+    product={honeycrispApples}
+    accentColor="#7F4F1D"
+    editorialNote="Crisp, honey-sweet, and grown in the Grove's oldest orchard rows."
   />
 );
 

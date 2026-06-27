@@ -1,22 +1,28 @@
 import { HeroSlideshow, type HeroSlide } from "@grove/ui-kit";
+import {
+  SAMPLE_HERO_FARM,
+  SAMPLE_HERO_NURSERY,
+  SAMPLE_PRODUCT_GRAPE,
+} from "./_sample-images";
 
 // Authored preview cards (each export = one labeled card). Real JSX, real props.
+// Imagery is self-contained (owned, optimized, base64) — no remote/CDN dependency.
 
 const SLIDES: HeroSlide[] = [
   {
-    url: "https://images.unsplash.com/photo-1736506159893-22cca29b8018?w=1800&auto=format&fit=crop&q=80",
-    tag: 'Slab № 0418 · |Black walnut| · 11ft × 38" × 2.25" · Air-dried 2yr',
-    tagEmphasis: "Black walnut",
+    url: SAMPLE_HERO_FARM,
+    tag: "The Grove · |40 acres| of regenerative agroforestry · Summersville, WV",
+    tagEmphasis: "40 acres",
   },
   {
-    url: "https://images.unsplash.com/photo-1589318549101-41a51f4ede6b?w=1800&auto=format&fit=crop&q=80",
-    tag: "Board lot № 0612 · |Black cherry| · 6 boards × 8ft · Air-dried 1yr",
-    tagEmphasis: "Black cherry",
+    url: SAMPLE_HERO_NURSERY,
+    tag: "|Pollinator season| · native bees working the orchard rows",
+    tagEmphasis: "Pollinator season",
   },
   {
-    url: "https://images.unsplash.com/photo-1667689815944-9f72c0f59e74?w=1800&auto=format&fit=crop&q=80",
-    tag: "WoodMizer LT40 · |Portable sawmill| · Milling on-site at the Grove",
-    tagEmphasis: "Portable sawmill",
+    url: SAMPLE_PRODUCT_GRAPE,
+    tag: "|Concord grapes| · trellis-grown · ready late September",
+    tagEmphasis: "Concord grapes",
   },
 ];
 
