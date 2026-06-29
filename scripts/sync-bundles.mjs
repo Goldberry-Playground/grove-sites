@@ -18,16 +18,20 @@ if (!existsSync(SRC)) {
   process.exit(1);
 }
 
+// Validate ALL brand source dirs exist BEFORE touching DEST so a partial dist-bundles/
+// never wipes a good public/bundles and leaves the portal serving a broken/empty set.
+for (const brand of BRANDS) {
+  if (!existsSync(join(SRC, brand))) {
+    console.error(`✗ dist-bundles/${brand}/ missing — rebuild with \`pnpm build:design-bundles\`.`);
+    process.exit(1);
+  }
+}
+
 rmSync(DEST, { recursive: true, force: true });
 mkdirSync(DEST, { recursive: true });
 
 for (const brand of BRANDS) {
-  const from = join(SRC, brand);
-  if (!existsSync(from)) {
-    console.error(`✗ dist-bundles/${brand}/ missing — rebuild with \`pnpm build:design-bundles\`.`);
-    process.exit(1);
-  }
-  cpSync(from, join(DEST, brand), { recursive: true });
+  cpSync(join(SRC, brand), join(DEST, brand), { recursive: true });
 }
 
 console.log(`✓ synced ${BRANDS.length} brand bundles → apps/qa-portal/public/bundles/`);
