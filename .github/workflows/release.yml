@@ -126,8 +126,17 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          # GH Actions strips trailing newlines from secrets; OpenSSH requires
+          # the key end with one. Use printf '%s\n' instead of echo to
+          # preserve the trailing newline reliably across key formats. Same
+          # pattern odoocker's qa-deploy.yml uses (audit fix 2026-06-29).
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          # Sanity-check the key is well-formed (catches secret-mangling)
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error::SSH private key is malformed after writing. Check the secret value in repo Settings → Environments."
+            exit 1
+          fi
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
           ssh "$SSH_USER@$SSH_HOST" \
@@ -179,8 +188,17 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          # GH Actions strips trailing newlines from secrets; OpenSSH requires
+          # the key end with one. Use printf '%s\n' instead of echo to
+          # preserve the trailing newline reliably across key formats. Same
+          # pattern odoocker's qa-deploy.yml uses (audit fix 2026-06-29).
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          # Sanity-check the key is well-formed (catches secret-mangling)
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error::SSH private key is malformed after writing. Check the secret value in repo Settings → Environments."
+            exit 1
+          fi
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
           ssh "$SSH_USER@$SSH_HOST" \
             "docker pull $IMAGE \
