@@ -46,6 +46,19 @@
   --grove-radius-md: 0.5rem;
   --grove-radius-lg: 1rem;
 }
+
+/* ── Global a11y utility: visually-hidden text for screen readers (ships in every bundle) ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 /* Gather at the Grove (hub) theme — gatheringatthegrove.com (vault Marketing/Gathering at the Grove).
  * The family blend: warm-bark primary, Harvest Gold secondary, grove-green accent,
  * on warm parchment. Reflects all three storefronts. */
@@ -75,10 +88,14 @@
 
   --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
 }
+.grove-btn:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
+}
 .btn-buy {
   padding: 14px 26px;
   font-family: var(--grove-font-mono);
-  font-size: 12px;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--grove-color-paper);
@@ -133,7 +150,7 @@
   color: var(--grove-color-paper-deep);
   padding: 10px clamp(1rem, 3vw, 2rem);
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   display: flex;
@@ -145,18 +162,21 @@
   color: var(--grove-color-paper-deep);
   text-decoration: none;
   white-space: nowrap;
-  padding: 4px 0;
+  padding: 11px 0;
   border-bottom: 2px solid transparent;
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .cat-bar a:hover,
 .cat-bar a:focus-visible {
-  color: var(--grove-color-accent);
-  outline: none;
+  color: var(--grove-color-gold);
+}
+.cat-bar a:focus-visible {
+  outline: 2px solid var(--grove-color-gold);
+  outline-offset: 2px;
 }
 .cat-bar a.is-active {
-  color: var(--grove-color-accent);
-  border-bottom-color: var(--grove-color-accent);
+  color: var(--grove-color-gold);
+  border-bottom-color: var(--grove-color-gold);
 }
 /* ─── Hero slideshow ─── */
 .hero-slideshow {
@@ -172,7 +192,11 @@
   background-position: center;
   opacity: 0;
   transition: opacity 1.2s ease;
-  will-change: opacity;
+  transform: translateZ(0); /* own GPU layer */
+}
+.hero-slide.active,
+.hero-slide.is-leaving {
+  will-change: opacity; /* only mark the moving slides */
 }
 .hero-slide.active {
   opacity: 1;
@@ -201,16 +225,22 @@
   bottom: 24px;
   left: 24px;
   z-index: 3;
-  background: color-mix(in srgb, var(--grove-color-ink) 88%, transparent);
-  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--grove-color-ink) 94%, transparent);
   color: var(--grove-color-paper);
   padding: 12px 16px;
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.72rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   border-left: 3px solid var(--grove-color-accent);
   animation: tag-enter 0.4s ease both;
+}
+/* Opt the blur back in only on browsers that composite it cleanly (not iOS Safari). */
+@supports (backdrop-filter: blur(6px)) and (not (-webkit-touch-callout: none)) {
+  .hero-tag {
+    backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--grove-color-ink) 88%, transparent);
+  }
 }
 .hero-tag em {
   font-style: normal;
@@ -238,6 +268,7 @@
   gap: 8px;
 }
 .hero-pip {
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -247,6 +278,12 @@
   transition: background 0.3s, transform 0.3s;
   padding: 0;
 }
+/* Keep the 8px visual but inflate the tap target to ~44px. */
+.hero-pip::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+}
 .hero-pip.active {
   background: var(--grove-color-accent);
   border-color: var(--grove-color-accent);
@@ -254,6 +291,54 @@
 }
 .hero-pip:hover:not(.active) {
   background: color-mix(in srgb, var(--grove-color-paper) 40%, transparent);
+}
+
+/* Play/pause control */
+.hero-playpause {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--grove-color-paper);
+  background: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+  color: var(--grove-color-paper);
+  cursor: pointer;
+}
+.hero-playpause::before {
+  content: "";
+  width: 0;
+  height: 0;
+  /* Play triangle (shown while paused) */
+  border-style: solid;
+  border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent currentColor;
+  margin-left: 2px;
+}
+.hero-playpause[aria-pressed="false"]::before {
+  /* Pause bars (shown while playing) */
+  width: 10px;
+  height: 12px;
+  border: 0;
+  margin-left: 0;
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 3px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 0 / 3px 100% no-repeat;
+}
+
+/* §1c — reduced motion: also satisfies §3 default-paused behaviour */
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide {
+    transition: none;
+  }
+  .hero-tag {
+    animation: none;
+  }
 }
 .journal-product-embed {
   padding: 1.2rem;
@@ -286,6 +371,10 @@
 }
 .grove-nav-link:hover {
   color: var(--grove-color-primary);
+}
+.grove-nav-link:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
 }
 .grove-nav-link.is-active {
   color: var(--grove-color-primary);
@@ -344,10 +433,10 @@
 /* ─── Shop sub-header ─── */
 .about-eyebrow {
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.72rem;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--grove-color-accent);
+  color: var(--grove-color-primary);
   display: block;
   margin-bottom: 1.2rem;
 }
@@ -410,7 +499,7 @@
   align-items: center;
   gap: 0.4rem;
   font-family: var(--grove-font-mono);
-  font-size: 11px;
+  font-size: 0.72rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--grove-color-primary);
@@ -426,6 +515,10 @@
   background: var(--grove-color-secondary);
   border-color: var(--grove-color-gold);
   color: var(--grove-color-primary-deep);
+}
+.shop-subheader__pill:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
 }
 .shop-subheader__pill.is-active {
   background: var(--grove-color-primary);
@@ -470,6 +563,8 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   position: relative; /* for the mobile dropdown's absolute positioning */
+  isolation: isolate; /* establish own stacking context… */
+  z-index: 60;        /* …and sit above the hero's context */
 }
 
 .sibling-strip__list {
@@ -488,10 +583,14 @@
   color: color-mix(in srgb, var(--grove-color-paper) 78%, transparent);
   text-decoration: none;
   position: relative;
-  padding: 9px 20px;
+  padding: 12px 20px;
   border: 1px solid color-mix(in srgb, var(--grove-color-paper) 45%, transparent);
   border-radius: 999px;
   transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+.sibling-strip a:focus-visible {
+  outline: 2px solid var(--grove-color-accent);
+  outline-offset: 2px;
 }
 .sibling-strip a:hover {
   color: var(--grove-color-plum-deep);
@@ -543,7 +642,7 @@
     flex-direction: column;
     gap: 0.5rem;
     padding: 12px var(--grove-space-grid);
-    z-index: 50;
+    z-index: 1; /* was 50; now relative to the isolated strip */
     border-top: 1px solid color-mix(in srgb, var(--grove-color-paper) 18%, transparent);
     box-shadow: 0 12px 24px color-mix(in srgb, var(--grove-color-primary-deep) 25%, transparent);
   }
