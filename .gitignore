@@ -21,3 +21,4 @@ dist/
 dist-bundles/
 ds-bundle/
 .design-sync/.cache/
+apps/qa-portal/public/bundles/
