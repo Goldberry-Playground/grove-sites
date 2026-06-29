@@ -77,7 +77,7 @@ jobs:
             -e GHOST_CONTENT_KEY=verify \
             "$IMAGE"
 
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS -o /dev/null http://localhost:3001/ ; then
               echo "Container responding"
               break
@@ -139,6 +139,9 @@ jobs:
           fi
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
+          # $IMAGE is intentionally expanded on the runner before the remote
+          # command is sent, so the host pulls the exact tag built this run.
+          # shellcheck disable=SC2029
           ssh "$SSH_USER@$SSH_HOST" \
             "docker pull $IMAGE \
               && docker stop grove-goldberry || true \
@@ -200,6 +203,9 @@ jobs:
             exit 1
           fi
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          # $IMAGE is intentionally expanded on the runner before the remote
+          # command is sent, so the host pulls the exact tag built this run.
+          # shellcheck disable=SC2029
           ssh "$SSH_USER@$SSH_HOST" \
             "docker pull $IMAGE \
               && docker stop grove-goldberry || true \
