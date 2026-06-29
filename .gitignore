@@ -16,7 +16,8 @@ dist/
 # Local Claude Code agent config — not shared.
 .claude/
 
-# design-sync staged scripts + output
-.ds-sync/
+# design-sync converter is a committed build tool; only its installed deps are ignored
+.ds-sync/node_modules/
+dist-bundles/
 ds-bundle/
 .design-sync/.cache/
