@@ -77,7 +77,7 @@ jobs:
             -e GHOST_CONTENT_KEY=verify \
             "$IMAGE"
 
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS -o /dev/null http://localhost:3001/ ; then
               echo "Container responding"
               break
@@ -126,10 +126,22 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          # GH Actions strips trailing newlines from secrets; OpenSSH requires
+          # the key end with one. Use printf '%s\n' instead of echo to
+          # preserve the trailing newline reliably across key formats. Same
+          # pattern odoocker's qa-deploy.yml uses (audit fix 2026-06-29).
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          # Sanity-check the key is well-formed (catches secret-mangling)
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error::SSH private key is malformed after writing. Check the secret value in repo Settings → Environments."
+            exit 1
+          fi
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
+          # $IMAGE is intentionally expanded on the runner before the remote
+          # command is sent, so the host pulls the exact tag built this run.
+          # shellcheck disable=SC2029
           ssh "$SSH_USER@$SSH_HOST" \
             "docker pull $IMAGE \
               && docker stop grove-goldberry || true \
@@ -179,9 +191,21 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          # GH Actions strips trailing newlines from secrets; OpenSSH requires
+          # the key end with one. Use printf '%s\n' instead of echo to
+          # preserve the trailing newline reliably across key formats. Same
+          # pattern odoocker's qa-deploy.yml uses (audit fix 2026-06-29).
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          # Sanity-check the key is well-formed (catches secret-mangling)
+          if ! ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null 2>&1; then
+            echo "::error::SSH private key is malformed after writing. Check the secret value in repo Settings → Environments."
+            exit 1
+          fi
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          # $IMAGE is intentionally expanded on the runner before the remote
+          # command is sent, so the host pulls the exact tag built this run.
+          # shellcheck disable=SC2029
           ssh "$SSH_USER@$SSH_HOST" \
             "docker pull $IMAGE \
               && docker stop grove-goldberry || true \
