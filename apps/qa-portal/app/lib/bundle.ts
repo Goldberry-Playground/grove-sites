@@ -17,7 +17,5 @@ export function listComponents(brand: Brand, baseDir: string = PUBLIC_BUNDLES): 
     .sort();
 }
 
-/** Public URL of a component's self-contained preview HTML (relative asset loads resolve here). */
-export function previewSrc(brand: Brand, component: string): string {
-  return `/bundles/${brand}/components/general/${component}/${component}.html`;
-}
+// Re-export so existing imports from this module keep working.
+export { previewSrc } from "./preview-src";
