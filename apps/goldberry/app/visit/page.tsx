@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { assetPath } from "@grove/ui";
 
 export const metadata: Metadata = {
   title: "Come See Us — Goldberry Grove",
@@ -12,7 +13,7 @@ export default function VisitPage() {
     <article className="visit-page">
       <section
         className="visit-hero"
-        style={{ ["--visit-hero-image" as string]: "url('/photos/farm-aerial.webp')" }}
+        style={{ ["--visit-hero-image" as string]: `url('${assetPath("goldberry", "photos/farm-aerial.webp")}')` }}
       >
         <div className="visit-hero__inner">
           <div className="visit-hero__eyebrow">Come See Us</div>

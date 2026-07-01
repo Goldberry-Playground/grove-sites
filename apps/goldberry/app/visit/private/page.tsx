@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { assetPath } from "@grove/ui";
 
 export const metadata: Metadata = {
   title: "Book a Private Event — Goldberry Grove",
@@ -14,7 +15,7 @@ export default function PrivatePage() {
         className="visit-hero"
         style={{
           ["--visit-hero-image" as string]:
-            "url('/photos/farm-activities/activity-04.webp')",
+            `url('${assetPath("goldberry", "photos/farm-activities/activity-04.webp")}')`,
         }}
       >
         <div className="visit-hero__inner">

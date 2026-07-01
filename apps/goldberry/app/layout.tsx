@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { siblingSitesForHost } from "@grove/ui";
+import { assetPath, siblingSitesForHost } from "@grove/ui";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
@@ -56,7 +56,7 @@ export default async function RootLayout({
             <div className="brand-header__inner brand-header__inner--wordmark">
               <Link href="/" className="brand-header__wordmark" aria-label="Goldberry Grove — home">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/photos/logo-wordmark.png" alt="Goldberry Grove" />
+                <img src={assetPath("goldberry", "photos/logo-wordmark.png")} alt="Goldberry Grove" />
               </Link>
               <nav className="brand-header__nav" aria-label="Primary">
                 <div className="nav-item has-dropdown">
@@ -115,7 +115,7 @@ export default async function RootLayout({
                   already inside this SVG so no separate text. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/photos/logo-bw.svg"
+                src={assetPath("goldberry", "photos/logo-bw.svg")}
                 alt="Goldberry Grove"
                 className="brand-footer__logo"
               />

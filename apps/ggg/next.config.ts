@@ -49,6 +49,19 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
         pathname: "/**",
       },
+      // Grove assets CDN — future-proofed even though ggg has no public
+      // assets today. Cloudflare vanity host is canonical; raw DO CDN
+      // hostname is kept for direct fetches during migration probing.
+      {
+        protocol: "https",
+        hostname: "assets.gatheringatthegrove.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "grove-assets.nyc3.cdn.digitaloceanspaces.com",
+        pathname: "/**",
+      },
     ],
   },
 };
