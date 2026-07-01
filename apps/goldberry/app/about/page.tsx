@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { assetPath } from "@grove/ui";
 
 export const metadata: Metadata = {
   title: "Our Story — Goldberry Grove",
@@ -13,7 +14,7 @@ export default function StoryPage() {
       <section className="story-hero">
         <div
           className="story-hero__img"
-          style={{ backgroundImage: "url('/photos/founders-family.webp')" }}
+          style={{ backgroundImage: `url('${assetPath("goldberry", "photos/founders-family.webp")}')` }}
           aria-label="The Dunbar family at Goldberry Grove"
         />
         <div className="story-hero__copy">
@@ -101,7 +102,7 @@ export default function StoryPage() {
         <div className="story-crew__inner">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/photos/farm-activities/activity-10.webp"
+            src={assetPath("goldberry", "photos/farm-activities/activity-10.webp")}
             alt="Wesley, one of the farmhands at Goldberry Grove"
           />
           <div>

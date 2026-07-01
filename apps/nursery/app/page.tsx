@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { assetPath } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
 
 // At The Grove Nursery homepage — port of wireframes/nursery/index.html.
@@ -20,7 +21,7 @@ export default async function HomePage() {
         // dandelion-covered grass. Sourced from Wikimedia Commons
         // (Apple_orchard_Moscow_State_University_05.JPG, CC BY-SA 3.0),
         // compressed to webp @ 1800w.
-        style={{ backgroundImage: "url('/hero/spring-orchard.webp')" }}
+        style={{ backgroundImage: `url('${assetPath("nursery", "hero/spring-orchard.webp")}')` }}
         role="img"
         aria-label="A spring apple orchard with rows of trees in full white bloom over grass dotted with yellow dandelions."
       >
@@ -108,7 +109,7 @@ export default async function HomePage() {
               <span className="var-badge">★ Editor's pick</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/products/honeycrisp-apple.webp"
+                src={assetPath("nursery", "products/honeycrisp-apple.webp")}
                 alt="A single ripe red-and-yellow Honeycrisp apple, stem intact, on a white studio background."
                 loading="lazy"
               />
@@ -134,7 +135,7 @@ export default async function HomePage() {
               <span className="var-badge cold">Cold-hardy Z3</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/products/bartlett-pear.webp"
+                src={assetPath("nursery", "products/bartlett-pear.webp")}
                 alt="A close-packed pile of harvested green Bartlett pears, several with their brown stems still attached."
                 loading="lazy"
               />
@@ -160,7 +161,7 @@ export default async function HomePage() {
               <span className="var-badge">Heirloom</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/products/montmorency-sour-cherry.webp"
+                src={assetPath("nursery", "products/montmorency-sour-cherry.webp")}
                 alt="Two bright-red Montmorency sour cherries hanging from a slender stem against blurred green tree foliage."
                 loading="lazy"
               />
@@ -186,7 +187,7 @@ export default async function HomePage() {
               <span className="var-badge cold">Native</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/products/black-walnut-northern.webp"
+                src={assetPath("nursery", "products/black-walnut-northern.webp")}
                 alt="A mature Black Walnut tree in a park with thick furrowed bark and a wide spreading canopy of yellow-green compound leaves in early autumn."
                 loading="lazy"
               />
@@ -212,7 +213,7 @@ export default async function HomePage() {
               <span className="var-badge">★ Editor's pick</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/products/damson-plum.webp"
+                src={assetPath("nursery", "products/damson-plum.webp")}
                 alt="A cluster of deep blue-purple Damson plums with a soft bloom, hanging on the branch among bright green leaves."
                 loading="lazy"
               />
@@ -238,7 +239,7 @@ export default async function HomePage() {
               <span className="var-badge cold">Cold-hardy Z3</span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/products/concord-grape.webp"
+                src={assetPath("nursery", "products/concord-grape.webp")}
                 alt="Dusty-blue Concord grape clusters with morning dew on the vine, surrounded by autumn-yellow grape leaves."
                 loading="lazy"
               />
@@ -311,7 +312,7 @@ export default async function HomePage() {
           // Verified content: honeybee perched on a pale-pink apple blossom in
           // direct sun. Sourced from Wikimedia Commons (Honey_bee_on_apple_
           // blossom_Sandy_Bedfordshire.jpg by Orangeaurochs, CC BY 2.0).
-          style={{ backgroundImage: "url('/hero/pollination.webp')" }}
+          style={{ backgroundImage: `url('${assetPath("nursery", "hero/pollination.webp")}')` }}
           role="img"
           aria-label="A honeybee resting in the center of a pale-pink apple blossom, with another open blossom in the foreground."
         />

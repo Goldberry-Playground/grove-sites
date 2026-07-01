@@ -48,6 +48,13 @@ COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# NEXT_PUBLIC_* vars must be present at build time — Next inlines them into
+# the client bundle. Unset defaults to empty so assetPath() falls back to
+# /public/ paths (local dev + tests). QA/prod builds pass this via compose.
+ARG NEXT_PUBLIC_ASSETS_URL=""
+ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL
+
 RUN pnpm --filter @grove/goldberry build
 
 # ── 3. minimal runtime image ─────────────────────────────────────────────
