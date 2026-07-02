@@ -102,6 +102,18 @@ jobs:
           tags: ${{ matrix.image_name }}:${{ env.TEST_TAG }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,scope=${{ matrix.app }},mode=max
+          # Bake the assets CDN base into the client bundle (NEXT_PUBLIC_*
+          # inlines at build time -- runtime env can't change it). Raw DO CDN
+          # hostname, NOT assets.gatheringatthegrove.com: the Cloudflare
+          # vanity host 403s because its proxied CNAME preserves the original
+          # Host header and the DO CDN (no custom_domain since odoocker#152)
+          # doesn't recognize it. Flip to the vanity host once the assets
+          # subdomain is delegated to DO DNS (odoocker task, tracked).
+          # All 4 apps' next.config.ts already allow both hostnames in
+          # images.remotePatterns. Local `pnpm dev` keeps the /public/
+          # fallback (env unset there).
+          build-args: |
+            NEXT_PUBLIC_ASSETS_URL=https://grove-assets.nyc3.cdn.digitaloceanspaces.com
 
       # Run the container with placeholder backend URLs. Server Components catch
       # fetch errors and render the empty state; the routes in `smoke_routes`
