@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@grove/ui";
 import type { OdooClient } from "@grove/odoo-client";
+import { PurchaseTracker } from "./PurchaseTracker";
 
 function formatPrice(amount: number, currency: string): string {
   return amount.toLocaleString("en-US", {
@@ -40,8 +41,17 @@ export function createOrderSuccessPage({ odoo }: { odoo: OdooClient }) {
       notFound();
     }
 
+    const itemCount = order.lines.reduce((n, line) => n + line.quantity, 0);
+
     return (
       <div className="mx-auto max-w-4xl px-6 py-12">
+        {/* Fires the `purchase` funnel event once, client-side (hashes the order
+            id + POSTs from the browser — can't run in this Server Component). */}
+        <PurchaseTracker
+          orderName={order.name}
+          itemCount={itemCount}
+          total={order.amountTotal}
+        />
         <div className="rounded-lg border border-primary/10 p-8 text-center mb-8">
           <h1 className="text-3xl font-display font-bold text-primary mb-3">
             Order Confirmed

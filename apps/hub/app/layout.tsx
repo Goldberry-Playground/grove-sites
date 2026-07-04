@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import "./globals.css";
+import { AnalyticsProvider } from "@grove/analytics";
 import { siblingSitesForHost } from "@grove/ui";
 import { SiblingStrip } from "./sibling-strip";
 
@@ -35,6 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
+        <AnalyticsProvider />
         <SiblingStrip currentSiteName="Gather at the Grove" sites={sites} />
         <header className="hub-header">
           <Link href="/" className="hub-header__brand">

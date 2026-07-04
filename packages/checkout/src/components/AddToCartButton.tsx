@@ -1,5 +1,6 @@
 "use client";
 
+import { trackAddToCart } from "@grove/analytics";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@grove/ui";
 import { useCart } from "../cart-store";
@@ -36,6 +37,7 @@ export function AddToCartButton({
 
   function handleAddToCart() {
     add({ variantId, templateId, name, price, imageUrl }, quantity);
+    trackAddToCart({ variantId, price, quantity });
     // Open the mini-cart drawer to confirm the add — this gives the user
     // a clear visual signal of what landed in their cart + cart total +
     // a one-click path to checkout. The "Added!" button flash stays as a

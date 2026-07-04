@@ -1,5 +1,6 @@
 "use client";
 
+import { trackBeginCheckout } from "@grove/analytics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -81,6 +82,7 @@ export function CheckoutPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    trackBeginCheckout({ itemCount: totalQuantity, subtotal });
 
     try {
       const response = await fetch("/api/checkout", {
