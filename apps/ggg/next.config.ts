@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     "@grove/ghost-client",
     "@grove/analytics",
     "@grove/config",
+    "@grove/otel",
   ],
   images: {
     remotePatterns: [
