@@ -26,6 +26,7 @@ COPY packages/odoo-client/package.json packages/odoo-client/
 COPY packages/ghost-client/package.json packages/ghost-client/
 COPY packages/config/package.json packages/config/
 COPY packages/analytics/package.json packages/analytics/
+COPY packages/otel/package.json packages/otel/
 
 RUN pnpm install --frozen-lockfile
 
@@ -43,6 +44,7 @@ COPY --from=deps /workspace/packages/odoo-client/node_modules ./packages/odoo-cl
 COPY --from=deps /workspace/packages/ghost-client/node_modules ./packages/ghost-client/node_modules
 COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_modules
 COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics/node_modules
+COPY --from=deps /workspace/packages/otel/node_modules ./packages/otel/node_modules
 
 # Then copy the rest of the source.
 COPY . .
