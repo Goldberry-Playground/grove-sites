@@ -13,6 +13,7 @@
     "lint": "echo 'lint placeholder'"
   },
   "dependencies": {
+    "@grove/analytics": "workspace:*",
     "@grove/odoo-client": "workspace:*",
     "@grove/ui": "workspace:*",
     "server-only": "^0.0.1"
