@@ -10,11 +10,12 @@ shared so goldberry/ggg light up when they have products.
 |---|----------|--------|
 | 1 | Bareroot before October | **Visible + preorderable** (not hidden/disabled) |
 | 2 | Per-format pricing | **Supported** — `price_extra` on Format attribute values; bareroot typically cheaper; numbers entered in Odoo per product (default $0 delta until set) |
-| 3 | Shipping eligibility | **Both formats ship**; cost differences via weight/zone rates (weights per variant to be filled in Odoo) |
+| 3 | Fulfillment | **Both formats ship** (weight/zone rates; variant weights to fill in Odoo) AND **local pickup is always offered for everything**. Pickup at checkout shows business hours -- Tuesday-Saturday, 10am-7pm -- plus "can't make those hours? call us after placing your order" |
 | 4 | Payment phasing | **UI first, Stripe next phase.** Until Stripe lands, preorders create orders and the $10 deposit is collected manually (Square/emailed invoice) |
 | 5 | Deposit model | **$10 flat per order** containing preorders, **applied toward the total** (not a fee). Balance captured off-session at confirmed shipping (Stripe phase) |
 | 6 | Preorder caps | **Per bareroot variant** — the forecasted quantity set in Odoo IS the cap; 0 = preorders closed for that cultivar. Opening preorders = typing a number |
 | 7 | Stock display | **Exact counts** ("2 in stock"); sold-out variants stay visible as "Sold out" — a sold-out potted cultivar still cross-sells its bareroot preorder |
+| 8b | Order alerts | **Discord notification on every storefront order** (ship-now and preorder), fired server-side at order creation -- webhook URL via droplet env, non-blocking so checkout never fails on Discord |
 | 8 | Mixed carts | **One cart, one checkout, one confirmation** for the customer; the order-create API splits server-side into an in-stock order + a Preorder-tagged order (deterministic at creation — never a cleanup script) |
 
 ## Customer experience
@@ -49,6 +50,9 @@ shared so goldberry/ggg light up when they have products.
   deposit if any preorder lines; "due at shipping" = preorder balance.
 - Confirmation page/email: one confirmation, two sections, both Odoo order
   references.
+- **Fulfillment choice** (per order): Ship or Local pickup. Pickup shows
+  "Pickup hours: Tuesday-Saturday, 10am-7pm" and "Can't make those hours?
+  Call us after placing your order." Pickup skips shipping cost.
 
 ## Backend (grove_headless)
 
