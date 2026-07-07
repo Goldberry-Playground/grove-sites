@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
   ],
   images: {
     remotePatterns: [
+      // Level 3 QA Odoo -- product photos on the qa.* storefronts
+      {
+        protocol: "https",
+        hostname: "odoo.qa.gatheringatthegrove.com",
+        pathname: "/web/image/**",
+      },
       {
         protocol: "http",
         hostname: "localhost",

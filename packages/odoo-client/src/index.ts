@@ -15,3 +15,4 @@ export type {
   OrderDetail,
 } from "./types";
 export { createOdooClient } from "./client";
+export { resolveOdooImageUrl } from "./images";

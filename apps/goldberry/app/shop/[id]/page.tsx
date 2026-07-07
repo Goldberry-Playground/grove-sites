@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
+import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
 import { getMockProductById, isDataUri } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
@@ -41,13 +42,7 @@ export default async function ProductDetailPage({
   //   - `https://...`            external host (Unsplash, etc.)
   // Odoo products are paths under /web/image/... so they get prefixed with
   // ODOO_URL. Everything else passes through unchanged.
-  const fullImageUrl = !product.imageUrl
-    ? ""
-    : product.imageUrl.startsWith("http") ||
-        product.imageUrl.startsWith("data:") ||
-        product.imageUrl.startsWith("/")
-      ? product.imageUrl
-      : `${odooBase}${product.imageUrl}`;
+  const fullImageUrl = resolveOdooImageUrl(product.imageUrl, odooBase);
   const usePlainImg = isDataUri(fullImageUrl);
 
   return (
