@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
@@ -10,13 +11,8 @@ import { mockProducts } from "../../data/mock-products";
 // be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
 export const dynamic = "force-dynamic";
 
-function resolveImageUrl(imageUrl: string): string {
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("http")) return imageUrl;
-  return `${process.env.ODOO_URL ?? "http://localhost:8069"}${imageUrl}`;
-}
-
 export default async function ShopPage() {
+  const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   let products: Product[] = [];
   let usingMockData = false;
 
@@ -100,7 +96,7 @@ export default async function ShopPage() {
             <div className="timber-card-img">
               {product.imageUrl && (
                 <Image
-                  src={resolveImageUrl(product.imageUrl)}
+                  src={resolveOdooImageUrl(product.imageUrl, odooBase)}
                   alt={product.name}
                   fill
                   className="object-cover"
