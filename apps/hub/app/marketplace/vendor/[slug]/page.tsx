@@ -47,7 +47,9 @@ export default async function VendorProfilePage({
 
       <section className="vendor-profile__catalog">
         <h2>What {vendor.name} is making</h2>
-        {products.length === 0 ? (
+        {vendor.comingSoon ? (
+          <p className="vendor-profile__coming-soon">{vendor.comingSoon}</p>
+        ) : products.length === 0 ? (
           <p className="vendor-profile__empty">
             {vendor.name}'s catalog is currently unreachable. Visit them directly →{" "}
             <a href={vendor.homepageUrl}>{vendor.homepageUrl}</a>

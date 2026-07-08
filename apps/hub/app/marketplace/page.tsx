@@ -79,28 +79,47 @@ export default async function MarketplacePage({
         </div>
       </section>
 
-      {byVendor.map(({ vendor, products }) => (
-        <section
-          key={vendor.slug}
-          className="marketplace__vendor-section"
-          style={{ borderTopColor: vendor.brandColor }}
-        >
-          <header className="marketplace__vendor-head">
-            <h2 style={{ color: vendor.brandColor }}>{vendor.name}</h2>
-            <Link
-              href={`/marketplace/vendor/${vendor.slug}`}
-              style={{ color: vendor.brandColor }}
-            >
-              See all {products.length} from {vendor.name} →
-            </Link>
-          </header>
-          <div className="marketplace__grid">
-            {products.slice(0, 4).map((p) => (
-              <ProductCard key={p.product.slug} product={p} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {byVendor.map(({ vendor, products }) =>
+        vendor.comingSoon ? (
+          <section
+            key={vendor.slug}
+            className="marketplace__vendor-section marketplace__vendor-section--soon"
+            style={{ borderTopColor: vendor.brandColor }}
+          >
+            <header className="marketplace__vendor-head">
+              <h2 style={{ color: vendor.brandColor }}>{vendor.name}</h2>
+              <Link
+                href={`/marketplace/vendor/${vendor.slug}`}
+                style={{ color: vendor.brandColor }}
+              >
+                Meet the maker →
+              </Link>
+            </header>
+            <p className="marketplace__coming-soon">{vendor.comingSoon}</p>
+          </section>
+        ) : (
+          <section
+            key={vendor.slug}
+            className="marketplace__vendor-section"
+            style={{ borderTopColor: vendor.brandColor }}
+          >
+            <header className="marketplace__vendor-head">
+              <h2 style={{ color: vendor.brandColor }}>{vendor.name}</h2>
+              <Link
+                href={`/marketplace/vendor/${vendor.slug}`}
+                style={{ color: vendor.brandColor }}
+              >
+                See all {products.length} from {vendor.name} →
+              </Link>
+            </header>
+            <div className="marketplace__grid">
+              {products.slice(0, 4).map((p) => (
+                <ProductCard key={p.product.slug} product={p} />
+              ))}
+            </div>
+          </section>
+        ),
+      )}
     </main>
   );
 }

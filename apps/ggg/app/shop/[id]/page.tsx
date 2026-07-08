@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
-import { getMockProductById } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
 import { StickyAddToCartBar } from "@grove/checkout";
 
@@ -21,13 +20,14 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  // Try Odoo first; fall back to mockProducts so the storefront stays
-  // demoable when Odoo is unreachable (parity with goldberry + nursery).
+  // No mock fallback here: GGG's shop is in coming-soon state (no
+  // inventory), so an unknown or unreachable product is a 404 — demo
+  // pieces must never render as buyable.
   let product;
   try {
     product = await odoo.products.get(productId);
   } catch {
-    product = getMockProductById(productId);
+    product = null;
   }
   if (!product) notFound();
 

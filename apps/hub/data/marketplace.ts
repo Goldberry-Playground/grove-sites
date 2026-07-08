@@ -36,6 +36,13 @@ export type Vendor = {
    *  Defaults to: `${homepageUrl}/shop/cart/update?product_id={productId}&add_qty=1`
    *  Override only if vendor's Odoo lives at a different domain than homepage. */
   checkoutTemplate?: string;
+
+  /** Pre-launch state. When set, the hub renders this line instead of a
+   *  product grid and never calls the vendor's Odoo. Must be EXPLICIT —
+   *  never inferred from an empty catalog, because "zero products" and
+   *  "vendor's Odoo is unreachable" are indistinguishable at fetch time
+   *  and an outage must not read as "coming soon". */
+  comingSoon?: string;
 };
 
 /** Curated for the marketplace home + journal embeds. Order matters. */
@@ -105,24 +112,26 @@ export const marketplace: Marketplace = {
       brandColor: "#3A2418",
       homepageUrl: "https://woodworkingeorge.com",
       odoo: { apiUrl: ODOO_API_URL, tenantSlug: "ggg" },
+      comingSoon:
+        "The workshop is warming up, first pieces will fall in place this October 2026.",
     },
   ],
 
   featured: [
+    // Real catalog (2026-07-08): the two Goldberry sticker SKUs. Slugs must
+    // match each product's grove_slug in Odoo after entry — a mismatched ref
+    // is silently dropped by fetchFeaturedProducts, so verify on the page
+    // once the products exist. (Demo-seed refs removed; GGG is comingSoon
+    // and must not be featured until inventory exists.)
     {
-      ref: { vendor: "goldberry", productSlug: "shagbark-hickory-syrup" },
+      ref: { vendor: "goldberry", productSlug: "samoyed-goldberry-grove-stickers" },
       editorialNote:
-        "Single-origin syrup rendered from on-site shagbark bark. Caramel up front, wood smoke on the finish.",
+        "The farm dog, immortalized in vinyl. Rides on water bottles, toolboxes, and truck glass.",
     },
     {
-      ref: { vendor: "goldberry", productSlug: "shiitake-hardwood-log-kit" },
+      ref: { vendor: "goldberry", productSlug: "cryptid-support-forests-stickers" },
       editorialNote:
-        "Pre-inoculated oak log. Drill, plug, wait nine months. Eat for the next four years.",
-    },
-    {
-      ref: { vendor: "ggg", productSlug: "the-lower-hollow-walnut-table" },
-      editorialNote:
-        "Live-edge slab from a hundred-and-eight-year-old native black walnut, felled by the 2022 derecho.",
+        "Cryptids support forests. So do sticker buyers — this one plants the habit.",
     },
   ],
 
