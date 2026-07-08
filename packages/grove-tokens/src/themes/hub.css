@@ -1,6 +1,8 @@
 /* Gather at the Grove (hub) theme — gatheringatthegrove.com (vault Marketing/Gathering at the Grove).
  * The family blend: warm-bark primary, Harvest Gold secondary, grove-green accent,
- * on warm parchment. Reflects all three storefronts. */
+ * on warm parchment. Reflects all three storefronts.
+ * Logos: @grove/brand (assets/gather — unity-circle/three-trees mark, 2026-07-05);
+ * use logo-on-light on paper surfaces, *-reversed on primary-deep/ink surfaces. */
 :root,
 [data-grove-theme="hub"] {
   --grove-color-primary: #5c3a1f;            /* warm bark — GGG walnut × Goldberry chestnut */
