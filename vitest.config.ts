@@ -34,6 +34,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@grove/brand": path.resolve(__dirname, "packages/grove-brand/src"),
       "@grove/odoo-client": path.resolve(__dirname, "packages/odoo-client/src"),
       "@grove/ghost-client": path.resolve(__dirname, "packages/ghost-client/src"),
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),
