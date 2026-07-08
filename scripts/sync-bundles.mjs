@@ -14,6 +14,13 @@ const SRC = join(ROOT, "dist-bundles");
 const DEST = join(ROOT, "apps", "qa-portal", "public", "bundles");
 
 if (!existsSync(SRC)) {
+  // Bundles are a local dev artifact (gitignored, chromium-built). In CI the
+  // portal builds with an empty gallery (listComponents handles the missing
+  // dir); locally the hard-fail tells the dev what to run.
+  if (process.env.CI) {
+    console.warn("⚠ dist-bundles/ missing — CI proceeds with empty bundles.");
+    process.exit(0);
+  }
   console.error("✗ dist-bundles/ missing — run `pnpm build:design-bundles` first.");
   process.exit(1);
 }
