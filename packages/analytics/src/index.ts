@@ -2,30 +2,23 @@
 
 import { useEffect } from "react";
 
+import { emit, pageview } from "./sinks";
+
+export { AnalyticsProvider } from "./provider";
+export { trackAddToCart, trackBeginCheckout, trackPurchase } from "./events";
+export type { AnalyticsConfig, AnalyticsProps, AnalyticsSink } from "./types";
+
 /**
- * Track a page view. Call in a layout or page component.
- * Currently a no-op placeholder — will integrate with Plausible or similar.
+ * Track a page view imperatively. Most pages don't need this —
+ * `AnalyticsProvider` fires a page view on every route change automatically.
  */
-export function usePageView(path?: string) {
+export function usePageView(path?: string): void {
   useEffect(() => {
-    const pagePath = path ?? window.location.pathname;
-    // Placeholder: send to analytics provider
-    if (process.env.NODE_ENV === "development") {
-      console.warn(`[grove/analytics] pageview: ${pagePath}`);
-    }
+    pageview(path ?? window.location.pathname);
   }, [path]);
 }
 
-/**
- * Track a custom event.
- * Currently a no-op placeholder — will integrate with Plausible or similar.
- */
-export function trackEvent(
-  name: string,
-  props?: Record<string, string | number | boolean>
-) {
-  if (process.env.NODE_ENV === "development") {
-    console.warn(`[grove/analytics] event: ${name}`, props);
-  }
-  // Placeholder: send to analytics provider
+/** Track a custom event. Props must be a flat, PII-free record. */
+export function trackEvent(name: string, props?: Record<string, string | number | boolean>): void {
+  emit(name, props);
 }

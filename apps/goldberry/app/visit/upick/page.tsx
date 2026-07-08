@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { assetPath } from "@grove/ui";
 
 export const metadata: Metadata = {
   title: "U-Pick at Goldberry Grove",
@@ -14,7 +15,7 @@ export default function UPickPage() {
         className="visit-hero"
         style={{
           ["--visit-hero-image" as string]:
-            "url('/photos/farm-activities/activity-09.webp')",
+            `url('${assetPath("goldberry", "photos/farm-activities/activity-09.webp")}')`,
         }}
       >
         <div className="visit-hero__inner">

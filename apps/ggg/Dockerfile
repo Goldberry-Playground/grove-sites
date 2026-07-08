@@ -26,6 +26,7 @@ COPY packages/odoo-client/package.json packages/odoo-client/
 COPY packages/ghost-client/package.json packages/ghost-client/
 COPY packages/config/package.json packages/config/
 COPY packages/analytics/package.json packages/analytics/
+COPY packages/otel/package.json packages/otel/
 
 RUN pnpm install --frozen-lockfile
 
@@ -43,11 +44,19 @@ COPY --from=deps /workspace/packages/odoo-client/node_modules ./packages/odoo-cl
 COPY --from=deps /workspace/packages/ghost-client/node_modules ./packages/ghost-client/node_modules
 COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_modules
 COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics/node_modules
+COPY --from=deps /workspace/packages/otel/node_modules ./packages/otel/node_modules
 
 # Then copy the rest of the source.
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# NEXT_PUBLIC_* vars must be present at build time — Next inlines them into
+# the client bundle. Unset defaults to empty so assetPath() falls back to
+# /public/ paths (local dev + tests). QA/prod builds pass this via compose.
+ARG NEXT_PUBLIC_ASSETS_URL=""
+ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL
+
 RUN pnpm --filter @grove/ggg build
 
 # ── 3. minimal runtime image ─────────────────────────────────────────────

@@ -13,9 +13,7 @@
   "files": ["dist", "src/styles.css"],
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "dev": "tsup --watch"
   },
   "peerDependencies": {
     "react": "^19",

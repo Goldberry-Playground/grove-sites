@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
+import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
 import { getMockProductById } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
@@ -40,14 +41,7 @@ export default async function ProductDetailPage({
   //     Next directly — pass through.
   //   - Anything else is treated as an Odoo image path (e.g. /web/image/...)
   //     and prefixed with the Odoo base URL.
-  const fullImageUrl = !product.imageUrl
-    ? ""
-    : product.imageUrl.startsWith("http")
-      ? product.imageUrl
-      : product.imageUrl.startsWith("/products/") ||
-          product.imageUrl.startsWith("/hero/")
-        ? product.imageUrl
-        : `${odooBase}${product.imageUrl}`;
+  const fullImageUrl = resolveOdooImageUrl(product.imageUrl, odooBase);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">

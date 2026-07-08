@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { assetPath } from "@grove/ui";
 
 // Goldberry Grove homepage. Corrected positioning per project owner (2026-05-29):
 // the farm is an EDUCATIONAL HUB on native + regenerative agroforestry. NOT a
@@ -66,10 +67,10 @@ export default function HomePage() {
             loop
             playsInline
             aria-hidden="true"
-            poster="/video/drone-poster.webp"
+            poster={assetPath("goldberry", "video/drone-poster.webp")}
           >
-            <source src="/video/drone-loop.webm" type="video/webm" />
-            <source src="/video/drone-loop.mp4" type="video/mp4" />
+            <source src={assetPath("goldberry", "video/drone-loop.webm")} type="video/webm" />
+            <source src={assetPath("goldberry", "video/drone-loop.mp4")} type="video/mp4" />
           </video>
           <div className="manifesto-video__veil" />
         </div>
@@ -181,7 +182,7 @@ export default function HomePage() {
                 key={num}
                 className="family-slide"
                 style={{
-                  backgroundImage: `url('/photos/farm-activities/activity-${num}.webp')`,
+                  backgroundImage: `url('${assetPath("goldberry", `photos/farm-activities/activity-${num}.webp`)}')`,
                   animationDelay: `${i * 5}s`,
                 }}
                 role="img"
@@ -343,7 +344,7 @@ export default function HomePage() {
         <article className="story-strip-card">
           <div
             className="story-img"
-            style={{ backgroundImage: "url('/photos/farm-aerial.webp')" }}
+            style={{ backgroundImage: `url('${assetPath("goldberry", "photos/farm-aerial.webp")}')` }}
           />
           <div className="story-body">
             <div className="story-strip-meta">

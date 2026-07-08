@@ -30,8 +30,14 @@ on:
     types: [labeled, synchronize, reopened]
   # Manual escape hatch — useful when the label was already applied but the
   # workflow needs a re-trigger (e.g., the labeled event raced with the
-  # secret being added).
-  workflow_dispatch: {}
+  # secret being added). Passing pr_number scopes the concurrency group to
+  # that PR so a manual re-trigger cancels the PR's in-flight auto run.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to re-trigger the preview for'
+        required: false
+        type: string
 
 # Cancel in-flight runs when a new commit lands on the same PR. Avoids
 # wasting build time on superseded commits and avoids racing terraform

@@ -11,7 +11,7 @@
 #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY   (DO Spaces keys)
 #
 # Usage:  infisical run -- ./scripts/upload-brand-assets.sh
-# After upload, refs resolve as ${NEXT_PUBLIC_ASSET_BASE}/brand/gather/<name>.<ext>
+# After upload, refs resolve as ${NEXT_PUBLIC_ASSETS_URL}/brand/gather/<name>.<ext>
 set -euo pipefail
 
 REGION="${SPACES_REGION:-nyc3}"
@@ -34,4 +34,4 @@ aws s3 sync "$STAGE" "s3://${BUCKET}/brand/" \
   --acl public-read \
   --cache-control "public, max-age=31536000, immutable"
 
-echo "Uploaded. Refs resolve under \${NEXT_PUBLIC_ASSET_BASE}/brand/…"
+echo "Uploaded. Refs resolve under \${NEXT_PUBLIC_ASSETS_URL}/brand/…"

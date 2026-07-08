@@ -6,7 +6,9 @@
  *   package under `assets/`, and are also copied to each consuming app's
  *   `public/brand/` for zero-config serving.
  * - Raster renders (PNG, responsive sizes) live on DO Spaces + CDN and
- *   resolve against NEXT_PUBLIC_ASSET_BASE. Never hardcode a CDN host.
+ *   resolve against NEXT_PUBLIC_ASSETS_URL (the repo-wide assets base var,
+ *   grove-sites PR #30 — ADR-009's draft called it NEXT_PUBLIC_ASSET_BASE).
+ *   Never hardcode a CDN host.
  * - A missing/renamed asset should be a type error, not a 404 — always go
  *   through the typed getters below.
  *
@@ -17,7 +19,7 @@ export type BrandId = "goldberry" | "ggg" | "nursery" | "hub";
 
 /** CDN base for binary renders. Empty string → app-local `/brand/...` fallback. */
 export function assetBase(): string {
-  return (process.env.NEXT_PUBLIC_ASSET_BASE ?? "").replace(/\/+$/, "");
+  return (process.env.NEXT_PUBLIC_ASSETS_URL ?? "").replace(/\/+$/, "");
 }
 
 /* ------------------------------------------------------------------ */
@@ -46,13 +48,13 @@ export function gatherLogoName(variant: GatherLogoVariant): string {
 
 /**
  * SVG path for the hub logo. Served app-locally from `public/brand/gather/`
- * (the SVGs are in git), or from the CDN when NEXT_PUBLIC_ASSET_BASE is set.
+ * (the SVGs are in git), or from the CDN when NEXT_PUBLIC_ASSETS_URL is set.
  */
 export function gatherLogoSvg(variant: GatherLogoVariant): string {
   return `${assetBase()}/brand/gather/${gatherLogoName(variant)}.svg`;
 }
 
-/** 1600px PNG render on the DO Spaces CDN (requires NEXT_PUBLIC_ASSET_BASE). */
+/** 1600px PNG render on the DO Spaces CDN (requires NEXT_PUBLIC_ASSETS_URL). */
 export function gatherLogoPng(variant: GatherLogoVariant): string {
   return `${assetBase()}/brand/gather/${gatherLogoName(variant)}.png`;
 }

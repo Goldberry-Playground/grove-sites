@@ -42,17 +42,24 @@ Multi-tenant frontend monorepo for the **Gathering at the Grove** ecosystem — 
 │                                                                 │
 │  ┌──────────────────────┐  ┌──────────────────────┐            │
 │  │  @grove/hub           │  │  @grove/goldberry     │            │
-│  │  :3000 — Hub Portal   │  │  :3001 — Farm Store   │            │
-│  │                       │  │  /shop  /blog         │            │
+│  │  :3000 — Marketplace  │  │  :3001 — Farm Store   │            │
+│  │  /marketplace /journal│  │  /shop  /blog         │            │
+│  └──────┬────────────────┘  └──┬──────────┬─────────┘            │
+│  ┌──────────────────────┐  ┌──────────────────────┐            │
+│  │  @grove/ggg           │  │  @grove/nursery       │            │
+│  │  :3002 — Woodworking  │  │  :3003 — Nursery      │            │
+│  │  /shop  /blog         │  │  /shop  /blog         │            │
 │  └──────┬────────────────┘  └──┬──────────┬─────────┘            │
 │         │                      │          │                      │
 │  ┌──────┴──────────────────────┴──────────┴─────────┐            │
 │  │              Shared Packages                      │            │
 │  │  @grove/ui          Component library             │            │
+│  │  @grove/checkout    Shared cart + checkout flow   │            │
 │  │  @grove/odoo-client  Odoo REST API client         │            │
 │  │  @grove/ghost-client Ghost Content API client     │            │
+│  │  @grove/analytics   RUM dual-writer (OO+Plausible)│            │
+│  │  @grove/otel        Server-side OTel tracing      │            │
 │  │  @grove/config       ESLint / TS / Tailwind       │            │
-│  │  @grove/analytics    Event tracking               │            │
 │  └──────────┬─────────────────────┬──────────────────┘            │
 └─────────────┼─────────────────────┼──────────────────────────────┘
               │                     │
@@ -86,68 +93,64 @@ Each Next.js app acts as a **BFF (Backend-for-Frontend)** — server-to-server c
 ```
 grove-sites/
 ├── apps/
-│   ├── hub/                        # Hub portal — gatheringatthegrove.com
+│   ├── hub/                        # Marketplace hub — gatheringatthegrove.com (:3000)
 │   │   ├── app/
-│   │   │   ├── layout.tsx          # Root layout with tenant theming
-│   │   │   ├── page.tsx            # Landing page linking to tenant sites
-│   │   │   └── globals.css         # Hub color tokens
+│   │   │   ├── marketplace/        # Federated product grid, vendor + product pages
+│   │   │   ├── journal/            # Village journal (Ghost editorial)
+│   │   │   ├── about/              # About the Grove
+│   │   │   └── api/                # BFF: /api/marketplace/products, /api/revalidate
+│   │   ├── components/             # BuyAtVendorForm, ProductCard, VendorCard, …
+│   │   ├── data/marketplace.ts     # Vendor registry + vendor checkout URL builder
+│   │   ├── lib/                    # Federated product fetchers (per-vendor Odoo clients)
+│   │   ├── instrumentation.ts      # Registers @grove/otel server tracing
 │   │   ├── tenant.config.ts        # Hub tenant identity and colors
+│   │   ├── Dockerfile              # Standalone Next.js production image
 │   │   ├── .env.local.example      # Env template
 │   │   ├── next.config.ts
 │   │   └── package.json
-│   └── goldberry/                  # Goldberry Grove Farm — goldberrygrove.farm
-│       ├── app/
-│       │   ├── layout.tsx          # Root layout with nav (Shop, Blog, Cart)
-│       │   ├── page.tsx            # Home page
-│       │   ├── providers.tsx       # Client-side context providers (CartProvider)
-│       │   ├── cart-nav-link.tsx   # Cart link with live item count badge
-│       │   ├── shop/page.tsx       # Shop listing (Odoo products)
-│       │   ├── shop/[id]/          # Product detail + Add-to-Cart button
-│       │   ├── cart/page.tsx       # Cart review (qty edit, remove)
-│       │   ├── checkout/page.tsx   # Checkout form (contact, shipping, payment)
-│       │   ├── checkout/success/[id]/page.tsx  # Order confirmation (token-gated)
-│       │   ├── api/cart/route.ts   # BFF: server-side cart proxy
-│       │   ├── api/checkout/route.ts # BFF: order creation against Odoo
-│       │   ├── blog/page.tsx       # Blog listing (Ghost posts)
-│       │   └── globals.css         # Goldberry color tokens
-│       ├── lib/
-│       │   ├── clients.ts          # Odoo + Ghost client instances
-│       │   └── cart-store.tsx      # React Context cart with localStorage persistence
-│       ├── tenant.config.ts        # Goldberry identity, colors, backend URLs
-│       ├── Dockerfile              # Standalone Next.js production image
-│       ├── .env.local.example      # Env template
-│       ├── next.config.ts
-│       └── package.json
+│   ├── goldberry/                  # Goldberry Grove Farm — goldberrygrove.farm (:3001)
+│   │   ├── app/
+│   │   │   ├── layout.tsx          # Root layout with nav (Shop, Blog, Cart)
+│   │   │   ├── page.tsx            # Home page
+│   │   │   ├── providers.tsx       # Client-side context providers (CartProvider)
+│   │   │   ├── shop/               # Shop listing + product detail (Odoo products)
+│   │   │   ├── cart/               # Cart review (qty edit, remove)
+│   │   │   ├── checkout/           # Checkout form + token-gated order confirmation
+│   │   │   ├── api/                # BFF: cart proxy + order creation against Odoo
+│   │   │   ├── blog/               # Blog listing (Ghost posts)
+│   │   │   ├── about/ visit/       # Farm story + visiting pages
+│   │   │   └── globals.css         # Goldberry color tokens
+│   │   ├── instrumentation.ts      # Registers @grove/otel server tracing
+│   │   ├── tenant.config.ts        # Goldberry identity, colors, backend URLs
+│   │   ├── Dockerfile              # Standalone Next.js production image
+│   │   ├── .env.local.example      # Env template
+│   │   ├── next.config.ts
+│   │   └── package.json
+│   ├── ggg/                        # GGG Woodworking — woodworkingeorge.com (:3002)
+│   │   └── …                       # Same storefront shape as goldberry (shop, cart, checkout, blog)
+│   └── nursery/                    # At The Grove Nursery — atthegrovenursery.com (:3003)
+│       └── …                       # Same storefront shape as goldberry (shop, cart, checkout, blog)
 ├── packages/
-│   ├── ui/                         # Shared React component library
-│   │   └── src/
-│   │       ├── index.ts            # Exports: Button, ButtonProps
-│   │       └── button.tsx          # Themeable button (CSS custom properties)
-│   ├── odoo-client/                # Typed Odoo 19 REST API client
-│   │   └── src/
-│   │       ├── index.ts            # Exports: createOdooClient, types
-│   │       ├── client.ts           # REST client — products, cart, orders
-│   │       └── types.ts            # TenantConfig, Product, Cart, Order
-│   ├── ghost-client/               # Typed Ghost Content API client
-│   │   └── src/
-│   │       ├── index.ts            # Exports: createGhostClient, types
-│   │       ├── client.ts           # REST client — posts, pages, authors
-│   │       └── types.ts            # GhostConfig, Post, Page, Author, Tag
-│   ├── config/                     # Shared tooling configuration
-│   │   └── src/
-│   │       ├── eslint.ts           # Flat ESLint config for Next.js + TS
-│   │       ├── tailwind.ts         # Design tokens: color palettes, fonts
-│   │       └── typescript.json     # Base tsconfig
-│   └── analytics/                  # Analytics hooks (placeholder)
-│       └── src/
-│           └── index.ts            # usePageView, trackEvent
+│   ├── ui/                         # Shared React component library + assetPath() CDN helper
+│   ├── checkout/                   # Shared cart + checkout flow: CartProvider, cart reducer,
+│   │                               #   Cart/Checkout components, BFF route factories (./server)
+│   ├── odoo-client/                # Typed Odoo 19 REST API client — products, cart, orders
+│   ├── ghost-client/               # Typed Ghost Content API client — posts, pages, authors
+│   ├── analytics/                  # RUM dual-writer: OpenObserve RUM + Plausible sinks,
+│   │                               #   AnalyticsProvider, e-commerce events, web vitals
+│   ├── otel/                       # Server-side OpenTelemetry tracing (@vercel/otel),
+│   │                               #   wired via each app's instrumentation.ts
+│   └── config/                     # Shared tooling: ESLint flat config, base tsconfig,
+│                                   #   Tailwind design tokens
+├── infra/
+│   └── do/                         # DO App Platform specs, one per app — see infra/do/README.md
 ├── turbo.json                      # Turborepo pipeline configuration
 ├── pnpm-workspace.yaml             # Workspace: apps/* + packages/*
 ├── tsconfig.json                   # Root TypeScript config
 ├── .npmrc                          # shamefully-hoist=false
 └── .github/
-    └── workflows/
-        └── ci.yml                  # Lint + type-check on push/PR to main
+    └── workflows/                  # CI, docker matrix builds, previews, release, scans
+                                    #   (see CI/CD section)
 ```
 
 ## Getting Started
@@ -173,18 +176,18 @@ corepack enable
 # 3. Install all dependencies
 pnpm install
 
-# 4. Set up environment variables for Goldberry
+# 4. Set up environment variables for each app you plan to run
 cp apps/goldberry/.env.local.example apps/goldberry/.env.local
-# Edit apps/goldberry/.env.local with your Odoo and Ghost credentials
-
-# 5. Set up environment variables for Hub (optional)
+cp apps/ggg/.env.local.example apps/ggg/.env.local
+cp apps/nursery/.env.local.example apps/nursery/.env.local
 cp apps/hub/.env.local.example apps/hub/.env.local
+# Edit each .env.local with your Odoo and Ghost credentials
 
-# 6. Start all apps in development mode
+# 5. Start all apps in development mode
 pnpm dev
 ```
 
-The hub runs at **http://localhost:3000** and Goldberry at **http://localhost:3001**.
+The apps run at **http://localhost:3000** (hub), **:3001** (goldberry), **:3002** (ggg), and **:3003** (nursery).
 
 ### Running Individual Apps
 
@@ -204,23 +207,40 @@ pnpm --filter @grove/odoo-client type-check
 
 ## Environment Variables
 
-### `apps/goldberry/.env.local`
+### Storefront apps (`apps/goldberry`, `apps/ggg`, `apps/nursery`)
+
+Each storefront's `.env.local` follows the same shape (see the per-app `.env.local.example` for tenant-specific values):
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `TENANT_ID` | No | per app | Tenant identifier sent as `X-Grove-Tenant` header (company scoping in `grove_headless`) |
+| `NEXT_PUBLIC_TENANT_ID` | No | per app | Same value, exposed to the client — scopes the localStorage cart key per tenant |
 | `ODOO_URL` | Yes | `http://localhost:8069` | Odoo instance URL for the REST API |
-| `ODOO_API_KEY` | Yes | — | Odoo API key for `Authorization: Bearer` header. Generate in Odoo: **Settings > Users > [user] > API Keys** |
-| `TENANT_ID` | No | `goldberry` | Tenant identifier sent as `X-Grove-Tenant` header |
-| `GHOST_URL` | Yes | `http://localhost:2368` | Ghost CMS instance URL |
-| `GHOST_CONTENT_KEY` | Yes | — | Ghost Content API key. Find in Ghost Admin: **Settings > Integrations > [integration] > Content API Key** |
+| `ODOO_API_KEY` | No | — | Optional — public storefront endpoints (products, cart, orders) use `auth=public`. Only needed for authenticated endpoints |
+| `GHOST_URL` | Yes | `http://localhost:2368/2369/2370` | Ghost CMS instance URL (one instance per tenant: goldberry 2368, ggg 2369, nursery 2370) |
+| `GHOST_CONTENT_KEY` | Yes | — | Ghost Content API key. Generate via `make ghost-setup-<tenant>` in the odoocker stack |
 
 ### `apps/hub/.env.local`
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TENANT_ID` | No | `hub` | Tenant identifier |
+| `GROVE_ODOO_URL` | Yes | `http://localhost:8069` | Where each vendor's `grove_headless` API lives (V0: all three storefronts share one Odoo) |
+| `HUB_GHOST_URL` | Yes | `http://localhost:2368` | Ghost instance for the hub's village journal |
+| `HUB_GHOST_CONTENT_API_KEY` | Yes | — | Ghost Content API key for the journal |
+| `GROVE_REVALIDATE_SECRET` | Yes | — | Shared secret for `/api/revalidate` (generate: `openssl rand -hex 32`) |
 
-The hub app has no backend integrations — it's a static directory page.
+### Shared observability vars (all four apps)
+
+Every `.env.local.example` also carries the `@grove/analytics` and `@grove/otel` configuration — off by default in local dev:
+
+| Variable | Side | Description |
+|----------|------|-------------|
+| `NEXT_PUBLIC_RUM_ENABLED` / `NEXT_PUBLIC_RUM_ENV` | Client | Master switch for the analytics dual-writer (Do-Not-Track always honored) |
+| `NEXT_PUBLIC_OO_RUM_*` (`SITE`, `CLIENT_TOKEN`, `APP_ID`, `SERVICE`, `ORG`, `INSECURE`) | Client | OpenObserve RUM sink — enabled only when `SITE` + `CLIENT_TOKEN` are both set |
+| `NEXT_PUBLIC_PLAUSIBLE_HOST` / `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | Client | Self-hosted Plausible sink — enabled only when both are set |
+| `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` | Server only | `@grove/otel` OTLP export to OpenObserve. Never `NEXT_PUBLIC_*` — the basic-auth header must not reach the browser. Blank endpoint = no-op |
+
+`NEXT_PUBLIC_ASSETS_URL` (unset locally) points `@grove/ui`'s `assetPath()` helper at the CDN in QA/prod; when unset, assets are served from each app's `/public`.
 
 ## Available Scripts
 
@@ -228,10 +248,11 @@ The hub app has no backend integrations — it's a static directory page.
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start all apps in parallel (hub :3000, goldberry :3001) |
+| `pnpm dev` | Start all apps in parallel (hub :3000, goldberry :3001, ggg :3002, nursery :3003) |
 | `pnpm build` | Build all apps and packages |
 | `pnpm lint` | Lint all workspaces |
 | `pnpm type-check` | Type-check all workspaces |
+| `pnpm test` | Run unit tests (Vitest) — also `test:watch`, `test:ui`, `test:coverage` |
 | `pnpm clean` | Remove build artifacts (.next, dist) |
 
 ### Per App
@@ -254,21 +275,35 @@ pnpm --filter @grove/ui type-check
 
 ## Apps
 
-### `@grove/hub` — Hub Portal
+### `@grove/hub` — Marketplace Hub
 
 - **Domain:** gatheringatthegrove.com
 - **Port:** 3000
-- **Purpose:** Central landing page for the Gathering at the Grove community. Links visitors to each tenant's website.
-- **Dependencies:** `@grove/ui`, `@grove/config`, `@grove/analytics`
+- **Purpose:** Village marketplace for the Gathering at the Grove community. Federates product discovery across the vendor storefronts — server-side fetches against each vendor's `grove_headless` API — and hands purchases off to the vendor: the Buy CTA is a plain form POST (`BuyAtVendorForm`) straight into the vendor's own Odoo checkout, so the hub never touches payment (and stays out of PCI scope). Also hosts the village journal (Ghost editorial).
+- **Routes:** `/` (home), `/marketplace`, `/marketplace/vendor/[slug]`, `/marketplace/[vendor]/[productSlug]`, `/journal`, `/about`
+- **BFF API routes:** `/api/marketplace/products`, `/api/revalidate`
+- **Dependencies:** `@grove/ui`, `@grove/odoo-client`, `@grove/ghost-client`, `@grove/config`, `@grove/analytics`, `@grove/otel`
 
 ### `@grove/goldberry` — Goldberry Grove Farm
 
 - **Domain:** goldberrygrove.farm
 - **Port:** 3001
 - **Purpose:** Farm storefront with shop, cart, checkout, order confirmation, and blog.
-- **Routes:** `/` (home), `/shop`, `/shop/[id]`, `/cart`, `/checkout`, `/checkout/success/[id]`, `/blog`
+- **Routes:** `/` (home), `/shop`, `/shop/[id]`, `/cart`, `/checkout`, `/checkout/success/[id]`, `/blog`, `/about`, `/visit`
 - **BFF API routes:** `/api/cart`, `/api/checkout` (server-to-server calls into Odoo)
-- **Dependencies:** `@grove/ui`, `@grove/odoo-client`, `@grove/ghost-client`, `@grove/config`, `@grove/analytics`
+- **Dependencies:** `@grove/ui`, `@grove/checkout`, `@grove/odoo-client`, `@grove/ghost-client`, `@grove/config`, `@grove/analytics`, `@grove/otel`
+
+### `@grove/ggg` — GGG Woodworking
+
+- **Domain:** woodworkingeorge.com
+- **Port:** 3002
+- **Purpose:** Woodworking storefront — same shop/cart/checkout/blog shape as goldberry, built on the shared `@grove/checkout` flow.
+
+### `@grove/nursery` — At The Grove Nursery
+
+- **Domain:** atthegrovenursery.com
+- **Port:** 3003
+- **Purpose:** Nursery storefront — same shop/cart/checkout/blog shape as goldberry, built on the shared `@grove/checkout` flow.
 
 ## Packages
 
@@ -283,6 +318,22 @@ import { Button } from "@grove/ui";
 // Sizes: "sm" | "md" | "lg"
 <Button variant="primary" size="md">Shop Now</Button>
 ```
+
+Also exports `assetPath(tenant, subpath)` — resolves tenant-scoped assets against `NEXT_PUBLIC_ASSETS_URL` (CDN) in QA/prod, falling back to `/public` locally.
+
+### `@grove/checkout`
+
+Shared cart + checkout flow used by all three storefronts. The client entry exports the cart store (`CartProvider`, `useCart`), pure cart-reducer functions, and the shop UI (`AddToCartButton`, `MiniCartDrawer`, `CartNavLink`, `CartPage`, `CheckoutPage`). Server-only route factories live behind `@grove/checkout/server` so backend credentials can't leak into client bundles:
+
+```typescript
+// apps/<tenant>/app/api/cart/route.ts
+import { createCartRoute } from "@grove/checkout/server";
+
+// apps/<tenant>/app/api/checkout/route.ts
+import { createCheckoutRoute } from "@grove/checkout/server";
+```
+
+Carts persist in localStorage, keyed per tenant (`NEXT_PUBLIC_TENANT_ID`) so goldberry/ggg/nursery carts never bleed into each other.
 
 ### `@grove/odoo-client`
 
@@ -329,7 +380,7 @@ Shared tooling configuration:
 
 ### `@grove/analytics`
 
-Client-side analytics hooks. Currently a placeholder that logs to console in development.
+Client-side RUM **dual-writer**: every event fans out to two sinks — OpenObserve RUM and self-hosted Plausible — each independently enabled by its own env vars. Gated behind `NEXT_PUBLIC_RUM_ENABLED` (off in local dev) and always honors Do-Not-Track. Ships an `AnalyticsProvider` that fires page views on route changes, e-commerce events (`trackAddToCart`, `trackBeginCheckout`, `trackPurchase`), and web-vitals reporting.
 
 ```typescript
 import { usePageView, trackEvent } from "@grove/analytics";
@@ -337,6 +388,10 @@ import { usePageView, trackEvent } from "@grove/analytics";
 usePageView("/shop");
 trackEvent("add_to_cart", { productId: 1 });
 ```
+
+### `@grove/otel`
+
+Server-side OpenTelemetry tracing built on `@vercel/otel`. Each app's `instrumentation.ts` calls `registerGroveOtel()`; `fetch` auto-instrumentation gives every BFF→Odoo/Ghost call a child span, exported over OTLP to OpenObserve where it correlates with Beyla's Odoo spans. No-op unless `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is set, so it's silent in local dev. Configured exclusively through server-side `OTEL_*` env vars — never `NEXT_PUBLIC_*`.
 
 ## Multi-Tenant Architecture
 
@@ -363,18 +418,26 @@ The layout reads `tenantConfig` to set metadata, navigation, and a `data-tenant`
 
 ## CI/CD
 
-GitHub Actions workflow runs on every push and PR to `main`:
+GitHub Actions workflows in `.github/workflows/`:
 
-1. Checkout
-2. Setup pnpm (via `pnpm/action-setup@v4`)
-3. Setup Node.js 22 with pnpm cache
-4. `pnpm install --frozen-lockfile`
-5. `pnpm lint` across all workspaces
-6. `pnpm type-check` across all workspaces
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `ci.yml` | push / PR to `main` | Rejects tracked `.env` files; `pnpm lint` + `pnpm type-check` + `pnpm test` (Vitest); production build with standalone-output verification; `pnpm audit --audit-level=high` (blocking); secret scan via trufflehog (`--only-verified`) |
+| `docker.yml` | push / PR to `main` | Matrix build of all 4 frontend images (`grove-hub`, `grove-goldberry`, `grove-ggg`, `grove-nursery`), smoke test each container, Trivy image scan, publish to GHCR on `main` |
+| `preview-up.yml` / `preview-down.yml` | PR labeled `qa` / PR closed or unlabeled | Per-PR full-stack preview droplet: builds images at the PR HEAD, terraform-applies the odoocker `preview/` env, comments per-tenant URLs on the PR; teardown on close |
+| `do-spec-validate.yml` | push / PR | `doctl apps spec validate` for every `infra/do/*.yaml` |
+| `release.yml` | `workflow_dispatch` or `v*.*.*` tag | Deploy Goldberry to sandbox / production |
+| `actionlint.yml` | push / PR | Lints the workflow files themselves |
+| `dependency-review.yml` | PR | GitHub dependency review |
+| `claude.yml` / `claude-code-review.yml` | PR / comments | Claude Code assistant + automated PR review |
 
 ## Deployment
 
-### Production Build
+### QA / Production — DigitalOcean App Platform
+
+Per ADR-007 ("Level 3", in the odoocker repo's `docs/ADR/`), the QA and production frontends deploy to **DO App Platform** — one App per business, so each site owns its domain, billing line, and rollout cadence. The App Platform spec files live in this repo under [`infra/do/`](infra/do/README.md) (`hub.yaml`, `goldberry.yaml`, `ggg.yaml`, `nursery.yaml`); each wires GitHub → Dockerfile build → App Platform with auto-redeploy on push to `main`. See `infra/do/README.md` for create/update/secrets/DNS runbooks.
+
+### Production Build (manual)
 
 ```bash
 # Build all apps
@@ -385,9 +448,9 @@ pnpm --filter @grove/hub start
 pnpm --filter @grove/goldberry start
 ```
 
-### Infrastructure
+### Local dev backend
 
-The production infrastructure (nginx reverse proxy, Docker Compose) lives in the [odoocker-goldberrygrove](https://github.com/Goldberry-Playground/odoocker-goldberrygrove) repository.
+The backend stack the frontends talk to in local dev (Odoo, PostgreSQL, Ghost, Docker Compose) lives in the [odoocker-goldberrygrove](https://github.com/Goldberry-Playground/odoocker-goldberrygrove) repository.
 
 ## Troubleshooting
 
@@ -512,7 +575,7 @@ pnpm --filter @grove/odoo-client type-check
 
 1. Create a feature branch from `main`
 2. Follow conventions: TypeScript strict, Server Components by default, `@grove/*` package imports
-3. Run `pnpm lint && pnpm type-check` before pushing
+3. Run `pnpm lint && pnpm type-check && pnpm test` before pushing
 4. Open a PR — CI must pass before merge
 
 ## Roadmap

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import {
   mockProducts,
@@ -12,14 +13,6 @@ import {
 // (Build-time render can't reach Odoo when building inside Docker; ISR will
 // be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
 export const dynamic = "force-dynamic";
-
-function resolveImageUrl(imageUrl: string): string {
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("http") || imageUrl.startsWith("data:") || imageUrl.startsWith("/")) {
-    return imageUrl;
-  }
-  return `${process.env.ODOO_URL ?? "http://localhost:8069"}${imageUrl}`;
-}
 
 /** Pick the products that belong to the selected category slug. The mock
  *  catalog uses categoryId; SHOP_CATEGORIES is the list-page filter source
@@ -36,6 +29,7 @@ export default async function ShopPage({
 }: {
   searchParams: Promise<{ cat?: string }>;
 }) {
+  const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   const params = await searchParams;
   const activeCat = (params.cat ?? "all").toLowerCase();
 
@@ -75,7 +69,7 @@ export default async function ShopPage({
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {visible.map((product) => {
-            const src = resolveImageUrl(product.imageUrl);
+            const src = resolveOdooImageUrl(product.imageUrl, odooBase);
             const dataUri = isDataUri(src);
             return (
               <Link

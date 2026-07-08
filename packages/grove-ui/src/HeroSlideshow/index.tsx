@@ -75,7 +75,8 @@ export function HeroSlideshow({ slides, holdMs = 5000, fadeMs = 1200 }: HeroSlid
       {/* Gradient overlay for readability */}
       <div className="hero-slide-overlay" aria-hidden="true" />
 
-      {/* Visually-hidden caption — gives the active slide a text alternative (§5, WCAG 1.1.1). */}
+      {/* Visually-hidden caption — text alternative for the active slide
+          (§5, WCAG 1.1.1). */}
       {activeSlide?.alt ? <p className="sr-only">{activeSlide.alt}</p> : null}
 
       {/* Slab tag — updates with the active slide */}

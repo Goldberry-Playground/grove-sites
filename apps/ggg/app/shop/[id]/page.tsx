@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
 import { getMockProductById } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
@@ -34,7 +35,7 @@ export default async function ProductDetailPage({
   // Build the absolute image URL only when the product actually has an image
   // path; otherwise leave it empty so we don't store a bare host in the cart
   // (which would fail next/image remotePatterns and 404 on render).
-  const fullImageUrl = product.imageUrl ? `${odooBase}${product.imageUrl}` : "";
+  const fullImageUrl = resolveOdooImageUrl(product.imageUrl, odooBase);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">

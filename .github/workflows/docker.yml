@@ -102,6 +102,19 @@ jobs:
           tags: ${{ matrix.image_name }}:${{ env.TEST_TAG }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,scope=${{ matrix.app }},mode=max
+          # Bake the assets CDN base into the client bundle (NEXT_PUBLIC_*
+          # inlines at build time -- runtime env can't change it). Vanity
+          # host live as of 2026-07-04: a Cloudflare Worker on the assets.*
+          # route rewrites the hostname to the raw DO CDN endpoint on the
+          # origin fetch (see odoocker infra/terraform/environments/assets/
+          # for the full why -- proxied-CNAME, DO-delegation, and apex-A
+          # approaches all dead-ended). The raw CDN hostname
+          # (grove-assets.nyc3.cdn.digitaloceanspaces.com) remains valid as
+          # an instant-rollback value if the Worker ever misbehaves. All 4
+          # apps' next.config.ts allow both hostnames in remotePatterns.
+          # Local `pnpm dev` keeps the /public/ fallback (env unset there).
+          build-args: |
+            NEXT_PUBLIC_ASSETS_URL=https://assets.gatheringatthegrove.com
 
       # Run the container with placeholder backend URLs. Server Components catch
       # fetch errors and render the empty state; the routes in `smoke_routes`

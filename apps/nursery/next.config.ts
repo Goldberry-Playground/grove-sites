@@ -16,9 +16,16 @@ const nextConfig: NextConfig = {
     "@grove/ghost-client",
     "@grove/analytics",
     "@grove/config",
+    "@grove/otel",
   ],
   images: {
     remotePatterns: [
+      // Level 3 QA Odoo -- product photos on the qa.* storefronts
+      {
+        protocol: "https",
+        hostname: "odoo.qa.gatheringatthegrove.com",
+        pathname: "/web/image/**",
+      },
       {
         protocol: "http",
         hostname: "localhost",
@@ -47,6 +54,19 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "images.unsplash.com",
+        pathname: "/**",
+      },
+      // Grove assets CDN — hero images, brand imagery, backgrounds.
+      // Cloudflare-fronted vanity host is the canonical URL; the raw DO CDN
+      // hostname is here for direct fetches during migration probing.
+      {
+        protocol: "https",
+        hostname: "assets.gatheringatthegrove.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "grove-assets.nyc3.cdn.digitaloceanspaces.com",
         pathname: "/**",
       },
     ],

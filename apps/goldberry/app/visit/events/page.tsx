@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { assetPath } from "@grove/ui";
 
 export const metadata: Metadata = {
   title: "Public Events — Goldberry Grove",
@@ -14,7 +15,7 @@ export default function EventsPage() {
         className="visit-hero"
         style={{
           ["--visit-hero-image" as string]:
-            "url('/photos/learning-from-locals.webp')",
+            `url('${assetPath("goldberry", "photos/learning-from-locals.webp")}')`,
         }}
       >
         <div className="visit-hero__inner">

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
@@ -12,24 +13,12 @@ import { filterByCategory, findCategory } from "../../data/categories";
 // be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
 export const dynamic = "force-dynamic";
 
-function resolveImageUrl(imageUrl: string): string {
-  if (!imageUrl) return "";
-  // Absolute URLs (http/https) pass through unchanged.
-  if (imageUrl.startsWith("http")) return imageUrl;
-  // Local static assets in /public (e.g. mock-product webp files) — return
-  // as-is so Next serves them directly without trying to proxy through Odoo.
-  if (imageUrl.startsWith("/products/") || imageUrl.startsWith("/hero/")) {
-    return imageUrl;
-  }
-  // Anything else is treated as an Odoo image path (e.g. /web/image/...).
-  return `${process.env.ODOO_URL ?? "http://localhost:8069"}${imageUrl}`;
-}
-
 interface ShopPageProps {
   searchParams: Promise<{ cat?: string }>;
 }
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
+  const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   // Next.js 15 — searchParams is a Promise in async server components.
   const { cat: catSlug } = await searchParams;
 
@@ -115,7 +104,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                 <div className="var-img">
                   {product.imageUrl && (
                     <Image
-                      src={resolveImageUrl(product.imageUrl)}
+                      src={resolveOdooImageUrl(product.imageUrl, odooBase)}
                       alt={product.name}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
