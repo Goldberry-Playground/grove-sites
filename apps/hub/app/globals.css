@@ -643,6 +643,20 @@ a { color: inherit; text-decoration: none; }
   background: var(--paper-deep);
   font-style: italic;
 }
+/* Pre-launch vendor (explicit comingSoon flag — not an outage state) */
+.vendor-profile__coming-soon,
+.marketplace__coming-soon {
+  padding: 2rem;
+  background: var(--paper-deep);
+  border-left: 3px solid var(--vendor-color, var(--ink));
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+.marketplace__vendor-section--soon .marketplace__coming-soon {
+  margin-top: 1rem;
+}
 
 /* ─────── Journal (Ghost-blog DNA) ─────── */
 .journal {

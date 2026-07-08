@@ -42,6 +42,9 @@ export async function fetchProductByVendorSlug(
 export async function fetchVendorProducts(vendorSlug: string): Promise<HubProduct[]> {
   const vendor = findVendor(vendorSlug);
   if (!vendor) return [];
+  // Pre-launch vendors have no catalog to fetch; callers render
+  // vendor.comingSoon instead of a grid.
+  if (vendor.comingSoon) return [];
 
   try {
     const result = await clientForVendor(vendor).products.list({ limit: 100 });
