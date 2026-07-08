@@ -10,4 +10,11 @@ export default defineConfig({
   external: ["react", "react-dom"],
   clean: true,
   sourcemap: false,
+  // tsup strips per-file "use client" directives when bundling to a single
+  // entry, so server layouts importing the kit pulled createContext into a
+  // Server Component (first caught by CI's Production build — local dev
+  // never ran a fresh build). The banner marks the whole bundle as a client
+  // boundary, which is correct: every component in the kit is presentational
+  // client code, and Server Components may freely render client components.
+  banner: { js: '"use client";' },
 });
