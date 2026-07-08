@@ -6,6 +6,7 @@ Canonical brand-asset manifest — **ADR-009 Tier 4** (`odoocker/docs/ADR/`, vau
 
 - `assets/gather/*.svg` — Gather at the Grove logo system (first draft 2026-07-05, vault `Marketing/Gathering at the Grove`). SVGs are small, stable, structural → they belong in git. Type is outlined (Fraunces converted to paths), so no font dependency.
 - `src/index.ts` — typed getters. A missing/renamed asset is a type error, not a 404.
+- `src/ingest/` (`@grove/brand/ingest`) — the **typed brand-entry path** for the AgenticOS `#assets` logo lane: the `KNOWN_BRANDS`/`KNOWN_CLASSES` taxonomy (reconciled with the caption parser), a per-brand entry model, and `createAssetBrand({ repo, pr })` implementing the `AssetBrand.proposeBrandEntry(...) → { prUrl }` seam GOL-92 injects. Entries land under `registry/<brand>.json`.
 
 Raster renders (1600px PNG) are **not** committed — they live on DO Spaces + CDN and resolve via `NEXT_PUBLIC_ASSET_BASE` (per-env, via the Grove Secrets Pipeline / Infisical).
 
