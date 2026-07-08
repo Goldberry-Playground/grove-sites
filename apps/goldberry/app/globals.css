@@ -144,6 +144,8 @@ h1 em, h2 em, h3 em, h4 em {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   position: relative; /* for the mobile dropdown's absolute positioning */
+  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
+  z-index: 60;
 }
 /* Inner wrapper — matches the structural rule in apps/ggg, apps/hub,
    and apps/nursery so the four sister sites render the strip at the

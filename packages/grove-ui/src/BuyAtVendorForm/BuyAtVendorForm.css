@@ -1,0 +1,17 @@
+.btn-buy {
+  padding: 14px 26px;
+  font-family: var(--grove-font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--grove-color-paper);
+  background: var(--grove-color-ink);
+  border: 1px solid var(--grove-color-ink);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.btn-buy:hover {
+  background: var(--grove-color-accent);
+  border-color: var(--grove-color-accent);
+  color: var(--grove-color-ink);
+}

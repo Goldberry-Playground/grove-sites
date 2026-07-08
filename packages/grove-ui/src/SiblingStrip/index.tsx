@@ -1,26 +1,35 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
-import type { Site } from "@grove/ui";
+import { useEffect, useRef, useState } from "react";
+import { useGroveLink } from "../link-context";
 
-// Cross-village sibling-strip — persistent nav across the four sister sites.
-// At desktop, renders as a horizontal pill row (all 4 sites visible).
-// At mobile (max-width: 720px), collapses to a single toggle pill showing the
-// current site; tap to reveal the other three. Tap outside or Escape to close.
-// Markup is identical across all four apps; the only per-app differences are
-// `currentSiteName` (which controls which pill renders as `.here`) and `sites`
-// (passed by the parent server component so URLs match the current env --
-// prod URLs on prod, QA URLs on qa.gatheringatthegrove.com, etc.). See
-// `siblingSitesForHost` in @grove/ui for the resolution logic.
+/** One sister site in the cross-village strip. */
+export type SiblingSite = {
+  /** Display name; also matches against `currentSiteName` to mark the active pill. */
+  name: string;
+  /** Absolute URL to the sibling site (env-resolved by the app). */
+  href: string;
+};
 
-export function SiblingStrip({
-  currentSiteName,
-  sites,
-}: {
+export type SiblingStripProps = {
+  /** Name of the site currently being viewed — its pill renders as `.here`. */
   currentSiteName: string;
-  sites: Site[];
-}) {
+  /** All four sister sites, in render order. */
+  sites: SiblingSite[];
+};
+
+/**
+ * Cross-village sibling-strip — persistent nav across the four sister sites.
+ * Desktop: a horizontal pill row (all sites visible). Mobile (max-width 720px):
+ * collapses to a single toggle pill showing the current site; tap to reveal the
+ * others, tap outside or Escape to close.
+ *
+ * Portable: no `next/*`. The active site's pill links home via the injected
+ * Grove Link; the others are plain `<a>` cross-origin links. Styled against
+ * `--grove-*` roles (see SiblingStrip.css).
+ */
+export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
+  const Link = useGroveLink();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -29,16 +38,14 @@ export function SiblingStrip({
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    function onPointer(e: MouseEvent | TouchEvent) {
+    function onPointer(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("touchstart", onPointer);
+    document.addEventListener("pointerdown", onPointer); // replaces mousedown + touchstart
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("touchstart", onPointer);
+      document.removeEventListener("pointerdown", onPointer);
     };
   }, [open]);
 
@@ -50,7 +57,6 @@ export function SiblingStrip({
         className="sibling-strip__toggle"
         aria-expanded={open}
         aria-controls="sibling-strip-list"
-        aria-haspopup="true"
         aria-label={`${currentSiteName} — tap to switch sites`}
         onClick={() => setOpen((o) => !o)}
       >

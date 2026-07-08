@@ -1,0 +1,28 @@
+/* Goldberry Grove theme — brand-guide-backed (vault Marketing/Brand Colors).
+ * Values mirror apps/goldberry/app/globals.css. Chestnut Reserve is #7F4F1D. */
+:root,
+[data-grove-theme="goldberry"] {
+  --grove-color-primary: #7f4f1d;            /* Chestnut Reserve */
+  --grove-color-primary-deep: #5a3712;
+  --grove-color-primary-foreground: #fff7e6; /* Ivory Mist */
+  --grove-color-secondary: #edd682;          /* Harvest Gold */
+  --grove-color-secondary-foreground: #7f4f1d;
+  --grove-color-accent: #617333;             /* Forest Command */
+
+  --grove-color-ink: #3d2810;
+  --grove-color-ink-soft: #5a3712;
+  --grove-color-paper: #fff7e6;              /* Ivory Mist */
+  --grove-color-paper-deep: #efe3c2;
+  --grove-color-paper-soft: #fbf4dd;
+
+  --grove-color-plum: #5a2a4b;
+  --grove-color-plum-deep: #3d1a33;
+  --grove-color-gold: #edd682;
+
+  --grove-font-display: "Baskerville Classico", "Libre Baskerville", Baskerville, "Bookman Old Style", Georgia, serif;
+  --grove-font-body: "Baskerville Classico", "Libre Baskerville", Baskerville, "Bookman Old Style", Georgia, serif;
+  --grove-font-sans: var(--grove-font-body);
+  --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
+}

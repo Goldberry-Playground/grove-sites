@@ -11,7 +11,11 @@
     "type-check": "tsc --noEmit",
     "lint": "echo 'lint placeholder'"
   },
+  "dependencies": {
+    "@grove/ui-kit": "workspace:*"
+  },
   "peerDependencies": {
+    "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

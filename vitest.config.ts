@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 // Root vitest config — apps and packages can extend this.
@@ -9,6 +10,7 @@ import path from "node:path";
 // pure-function tests that make up the bulk of the suite.
 
 export default defineConfig({
+  plugins: [react()],
   test: {
     globals: true,
     environment: "node",
