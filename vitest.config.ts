@@ -37,6 +37,7 @@ export default defineConfig({
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),
       "@grove/config": path.resolve(__dirname, "packages/config/src"),
       "@grove/analytics": path.resolve(__dirname, "packages/analytics/src"),
+      "@grove/assets": path.resolve(__dirname, "packages/assets/src"),
       "@grove/checkout/server": path.resolve(__dirname, "packages/checkout/src/server.ts"),
       "@grove/checkout": path.resolve(__dirname, "packages/checkout/src"),
       // `server-only` is a Next.js build-time marker (it throws when loaded in
