@@ -80,6 +80,22 @@ describe("render / parse round-trip", () => {
     expect(parseRegistry("goldberry", text)).toEqual(reg);
   });
 
+  it("round-trips an entry with a blank caption", () => {
+    // A logo can be ingested without a human caption; the empty string must
+    // survive render → parse (regression: coerceEntry once rejected empty caption).
+    const reg = upsertBrandEntry(emptyRegistry("goldberry"), entry({ caption: "" })).registry;
+    const text = renderRegistry(reg);
+    expect(parseRegistry("goldberry", text)).toEqual(reg);
+  });
+
+  it("still rejects a non-string caption", () => {
+    const bad = JSON.stringify({
+      brand: "goldberry",
+      assets: [{ ...entry(), caption: 123 }],
+    });
+    expect(() => parseRegistry("goldberry", bad)).toThrow(/caption must be a string/);
+  });
+
   it("is stable regardless of insertion order", () => {
     const a = upsertBrandEntry(
       upsertBrandEntry(emptyRegistry("goldberry"), entry({ slug: "b" })).registry,

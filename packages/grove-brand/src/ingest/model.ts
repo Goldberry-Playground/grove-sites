@@ -137,6 +137,17 @@ function coerceEntry(brand: Brand, value: unknown, index: number): BrandEntry {
     }
     return v;
   };
+  // `caption` is the one field that may be empty: a logo can be ingested without
+  // a human caption, and `BrandEntry`/`renderRegistry` already permit `""`. It
+  // must still be present and a string so a written file round-trips back
+  // through `parseRegistry` — only the non-empty constraint is relaxed.
+  const optionalStr = (field: string): string => {
+    const v = e[field];
+    if (typeof v !== "string") {
+      throw new Error(`registry "${brand}" asset[${index}].${field} must be a string`);
+    }
+    return v;
+  };
   const entryBrand = str("brand");
   if (!isKnownBrand(entryBrand) || entryBrand !== brand) {
     throw new Error(`registry "${brand}" asset[${index}].brand "${entryBrand}" is invalid`);
@@ -151,7 +162,7 @@ function coerceEntry(brand: Brand, value: unknown, index: number): BrandEntry {
     slug: str("slug"),
     key: str("key"),
     cdnUrl: str("cdnUrl"),
-    caption: str("caption"),
+    caption: optionalStr("caption"),
     updatedAt: str("updatedAt"),
   };
 }
