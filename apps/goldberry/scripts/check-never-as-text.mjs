@@ -64,21 +64,19 @@ function scan(file) {
   const src = readFileSync(file, "utf8");
   const rel = relative(APP_ROOT, file);
   const hits = [];
-  let selectorBuf = "";
   // Extremely small tokenizer: we only need to know which selector block a
   // declaration sits in. Selector text is everything since the last `}` or
-  // `{`, up to the next `{`.
+  // `{`, up to the next `{`. `stack` is the single source of truth for the
+  // current selector (its top entry).
   const parts = src.split(/([{}])/);
   let pending = "";
   const stack = [];
   for (const part of parts) {
     if (part === "{") {
-      selectorBuf = pending.trim().replace(/\s+/g, " ");
-      stack.push(selectorBuf);
+      stack.push(pending.trim().replace(/\s+/g, " "));
       pending = "";
     } else if (part === "}") {
       stack.pop();
-      selectorBuf = stack[stack.length - 1] || "";
       pending = "";
     } else {
       pending = part;
