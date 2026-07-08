@@ -144,6 +144,8 @@ h1 em, h2 em, h3 em, h4 em {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   position: relative; /* for the mobile dropdown's absolute positioning */
+  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
+  z-index: 60;
 }
 /* Inner wrapper — matches the structural rule in apps/ggg, apps/hub,
    and apps/nursery so the four sister sites render the strip at the
@@ -748,6 +750,14 @@ h1 em, h2 em, h3 em, h4 em {
 .nav-dropdown a:focus-visible em {
   color: var(--chestnut-reserve);
 }
+/* Keyboard focus needs a real ≥3:1 indicator (WCAG 1.4.11). The gold bg flip
+   alone is ~1.13:1 vs ivory-deep; the icon/border cues are non-color but weak.
+   Chestnut inset outline = 6.48:1 vs ivory and high-contrast on the gold item.
+   Inset (-2px) so it can't clip against neighbouring items. See GOL-111. */
+.nav-dropdown a:focus-visible {
+  outline: 2px solid var(--chestnut-reserve);
+  outline-offset: -2px;
+}
 
 .brand-header__cart {
   display: inline-flex;
@@ -1010,7 +1020,10 @@ h1 em, h2 em, h3 em, h4 em {
   border-color: var(--harvest-gold);
 }
 .come-see-us__card:focus-visible {
-  outline: 2px solid var(--harvest-gold);
+  /* Chestnut Reserve = 6.48:1 vs the ivory page bg; the outline-offset:4px
+     ring sits on the page, so it must clear 3:1 (WCAG 1.4.11) on ivory, not
+     on the card. Harvest Gold was 1.35:1 — invisible. See GOL-111. */
+  outline: 2px solid var(--chestnut-reserve);
   outline-offset: 4px;
   transform: translateY(-4px);
   box-shadow: 0 12px 28px -16px rgba(127, 79, 29, 0.32);
@@ -1679,7 +1692,10 @@ h1 em, h2 em, h3 em, h4 em {
   box-shadow: 0 8px 28px rgba(64, 41, 16, 0.12);
 }
 .grows-card:focus-visible {
-  outline: 2px solid var(--harvest-gold);
+  /* Chestnut Reserve = 6.48:1 vs the ivory page bg; ring sits on the page via
+     outline-offset:4px, so it must clear 3:1 there. Harvest Gold failed at
+     1.35:1. See GOL-111. */
+  outline: 2px solid var(--chestnut-reserve);
   outline-offset: 4px;
   transform: translateY(-3px);
   border-color: var(--harvest-gold);

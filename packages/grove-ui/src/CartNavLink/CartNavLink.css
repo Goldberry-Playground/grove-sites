@@ -1,0 +1,35 @@
+/* CartNavLink — cart link with an item-count badge. Lifted from apps/goldberry,
+ * where it was expressed as Tailwind utilities:
+ *   link:  hover:text-primary transition-colors inline-flex items-center gap-1.5
+ *   badge: inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5
+ *          rounded-full bg-primary text-white text-xs font-medium
+ * Those resolved to the app theme tokens, mapped here to --grove-* roles per
+ * TOKEN-MAP.md: bg-primary → --grove-color-primary, and the badge's `text-white`
+ * (text sitting ON the primary badge) → --grove-color-primary-foreground.
+ */
+
+.grove-cart-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.15s ease;
+}
+.grove-cart-nav-link:hover {
+  color: var(--grove-color-primary);
+}
+
+.grove-cart-nav-link__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}

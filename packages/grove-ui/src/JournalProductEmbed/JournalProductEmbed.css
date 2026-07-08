@@ -1,0 +1,14 @@
+.journal-product-embed {
+  padding: 1.2rem;
+  background: var(--grove-color-paper-soft);
+  border-left: 3px solid var(--grove-color-accent);
+  margin: 1.8rem 0;
+}
+.journal-product-embed__caption {
+  font-family: var(--grove-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--grove-color-accent);
+  margin-bottom: 0.5rem;
+}

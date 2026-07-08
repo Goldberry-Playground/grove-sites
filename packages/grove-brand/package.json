@@ -1,0 +1,14 @@
+{
+  "name": "@grove/brand",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Canonical brand-asset manifest (ADR-009 Tier 4). SVG logos live here in git; raster renders resolve against NEXT_PUBLIC_ASSET_BASE on the DO Spaces CDN. Consumed by the four apps and @grove/ui-kit.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ingest": "./src/ingest/index.ts",
+    "./assets/*": "./assets/*"
+  },
+  "files": ["src", "assets", "registry"]
+}

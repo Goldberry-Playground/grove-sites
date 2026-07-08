@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 // Root vitest config — apps and packages can extend this.
@@ -9,6 +10,7 @@ import path from "node:path";
 // pure-function tests that make up the bulk of the suite.
 
 export default defineConfig({
+  plugins: [react()],
   test: {
     globals: true,
     environment: "node",
@@ -32,6 +34,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@grove/brand": path.resolve(__dirname, "packages/grove-brand/src"),
       "@grove/odoo-client": path.resolve(__dirname, "packages/odoo-client/src"),
       "@grove/ghost-client": path.resolve(__dirname, "packages/ghost-client/src"),
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),

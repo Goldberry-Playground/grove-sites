@@ -1,45 +1,21 @@
-import Image from "next/image";
 import Link from "next/link";
-import type { Product } from "@grove/odoo-client";
-import { resolveOdooImageUrl } from "@grove/odoo-client";
-import { odoo } from "../../lib/clients";
-import { tenantConfig } from "../../tenant.config";
-import { mockProducts } from "../../data/mock-products";
+import type { Metadata } from "next";
 
-// Render on every request so the page reflects current Odoo state.
-// (Build-time render can't reach Odoo when building inside Docker; ISR will
-// be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "The Workshop — opening October 2026",
+  description:
+    "GGG Woodworking's first pieces arrive October 2026. Milled on-site, air-dried four to six years, bench-built one at a time.",
+};
 
-export default async function ShopPage() {
-  const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
-  let products: Product[] = [];
-  let usingMockData = false;
-
-  try {
-    const result = await odoo.products.list({ limit: 40 });
-    products = result.products;
-  } catch {
-    // Odoo unreachable — fall back to seed data so the storefront is
-    // still demoable. Remove this branch when Odoo is consistently up.
-    products = mockProducts;
-    usingMockData = true;
-  }
-
-  if (products.length === 0) {
-    products = mockProducts;
-    usingMockData = true;
-  }
-
-  const categories = [
-    ...new Set(
-      products.map((p) => p.categoryName).filter(Boolean),
-    ),
-  ];
-
+// Coming-soon state: GGG has no inventory yet. This page is intentionally
+// static and makes NO Odoo calls — the previous catalog + mock-product
+// fallback rendered fake demo pieces, which reads worse than honesty.
+// Flip back to the catalog page (git history) when the first run is entered
+// in Odoo and the hub vendor's `comingSoon` flag is removed.
+export default function ShopPage() {
   return (
     <div className="timber-shop">
-      {/* Lodge header */}
+      {/* Lodge header — same frame the catalog page used */}
       <div className="timber-header">
         <span className="notch-tl" aria-hidden="true" />
         <span className="notch-br" aria-hidden="true" />
@@ -47,96 +23,26 @@ export default async function ShopPage() {
         <h1>
           The <em>Workshop</em>
         </h1>
-        <p className="header-sub">
-          Handcrafted in West Virginia · {products.length} pieces
-        </p>
+        <p className="header-sub">Handcrafted in West Virginia</p>
       </div>
 
-      {/* Beam divider */}
       <div className="beam-divider" aria-hidden="true" />
 
-      {/* Demo filler notice — hidden once Odoo backend is live */}
-      {usingMockData && (
-        <div className="timber-notice">
-          Demo catalog · These products are placeholders until the
-          Odoo backend is live.
-        </div>
-      )}
-
-      {/* Category shelf */}
-      {categories.length > 1 && (
-        <div className="timber-shelf">
-          <span className="timber-shelf-tag active">All</span>
-          {categories.map((cat) => (
-            <span key={cat} className="timber-shelf-tag">
-              {cat}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Timber product grid */}
-      <div className="timber-grid">
-        {products.map((product) => (
-          <Link
-            key={product.id}
-            href={`/shop/${product.id}`}
-            className="timber-card"
-          >
-            {/* Dovetail corners */}
-            <span className="dovetail-tl" aria-hidden="true" />
-            <span className="dovetail-br" aria-hidden="true" />
-
-            {/* Iron nails */}
-            <span className="nail nail-tl" aria-hidden="true" />
-            <span className="nail nail-tr" aria-hidden="true" />
-            <span className="nail nail-bl" aria-hidden="true" />
-            <span className="nail nail-br" aria-hidden="true" />
-
-            <div className="timber-card-img">
-              {product.imageUrl && (
-                <Image
-                  src={resolveOdooImageUrl(product.imageUrl, odooBase)}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 640px) 100vw,
-                         (max-width: 1024px) 50vw, 33vw"
-                />
-              )}
-              {product.featured && (
-                <span className="timber-badge">Featured</span>
-              )}
-            </div>
-
-            <div className="timber-card-body">
-              {product.categoryName && (
-                <span className="timber-card-category">
-                  {product.categoryName}
-                </span>
-              )}
-              <h2 className="timber-card-name">{product.name}</h2>
-              {product.description && (
-                <p className="timber-card-desc">
-                  {product.description}
-                </p>
-              )}
-              <span className="timber-card-action">
-                View Details
-              </span>
-            </div>
-
-            <div className="timber-card-foot">
-              <span className="timber-card-price">
-                ${product.price.toFixed(2)}
-              </span>
-              <span className="timber-card-sku">
-                {product.available ? "Available" : "Sold out"}
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
+      <section className="timber-coming-soon">
+        <p className="timber-coming-soon__lede">
+          The workshop is warming up, first pieces will fall in place this
+          October 2026.
+        </p>
+        <p className="timber-coming-soon__body">
+          We mill from timber felled on this land, air-dry it four to six
+          years, and bench-build one piece at a time. The first run is curing
+          now — walnut, cherry, and white oak.
+        </p>
+        <nav className="timber-coming-soon__links" aria-label="While you wait">
+          <Link href="/blog">Follow the build in the journal →</Link>
+          <Link href="/">Back to the homestead →</Link>
+        </nav>
+      </section>
     </div>
   );
 }

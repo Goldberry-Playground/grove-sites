@@ -84,6 +84,8 @@ h1 em, h2 em, h3 em {
    ───────────────────────────────────────────── */
 .sibling-strip {
   position: relative;
+  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
+  z-index: 60;
   background: var(--walnut-deep);
   color: var(--bone);
   font-family: var(--font-mono);
@@ -220,10 +222,11 @@ h1 em, h2 em, h3 em {
   background-position: center;
   opacity: 0;
   transition: opacity 1.2s ease;
-  will-change: opacity;
+  transform: translateZ(0);
 }
 .hero-slide.active {
   opacity: 1;
+  will-change: opacity;
 }
 .hero-slide-overlay {
   position: absolute;
@@ -235,14 +238,22 @@ h1 em, h2 em, h3 em {
   pointer-events: none;
 }
 
+/* a11y (audit P0 §1): default-off backdrop-filter fixes the iPhone hero crossfade
+   tearing; opt the blur back in only where it composites cleanly (not iOS Safari). */
+@supports (backdrop-filter: blur(6px)) and (not (-webkit-touch-callout: none)) {
+  .hero-tag { backdrop-filter: blur(6px); background: rgba(31, 22, 17, 0.88); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide { transition: none; }
+}
+
 /* Slab tag (absolute inside slideshow) */
 .hero-tag {
   position: absolute;
   bottom: 24px;
   left: 24px;
   z-index: 3;
-  background: rgba(31, 22, 17, 0.88);
-  backdrop-filter: blur(6px);
+  background: rgba(31, 22, 17, 0.94);
   color: var(--parchment);
   padding: 12px 16px;
   font-family: var(--font-mono);
@@ -959,6 +970,29 @@ h1 em, h2 em, h3 em {
 }
 .timber-notice::before { content: '⌂'; margin-right: 0.8rem; font-size: 14px; }
 
+/* ─── Coming soon (the workshop sign, before the doors open) ─── */
+.timber-coming-soon {
+  max-width: 640px; margin: 3rem auto 5rem; padding: 2.5rem 2rem;
+  background: linear-gradient(170deg, var(--plank-light), var(--plank));
+  border: 2px solid var(--timber); border-left: 6px solid var(--timber);
+  text-align: center;
+}
+.timber-coming-soon__lede {
+  font-family: var(--font-display, serif); font-size: 1.5rem; line-height: 1.4;
+  color: var(--timber-dark); margin-bottom: 1.25rem;
+}
+.timber-coming-soon__body {
+  font-size: 0.95rem; line-height: 1.6; color: var(--walnut-light);
+  margin-bottom: 1.75rem;
+}
+.timber-coming-soon__links {
+  display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.timber-coming-soon__links a { color: var(--timber-dark); }
+.timber-coming-soon__links a:hover { color: var(--cherry, var(--timber)); }
+
 /* ─── Category shelf ─── */
 .timber-shelf {
   display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 2rem;
@@ -985,3 +1019,13 @@ h1 em, h2 em, h3 em {
   .timber-grid { grid-template-columns: 1fr; }
   .timber-header .cross-beam { display: none; }
 }
+
+/* NavLink (lifted to @grove/ui-kit) — ports the original Tailwind treatment
+   (text-foreground/70 idle, text-primary hover/active, transition-colors). */
+.grove-nav-link {
+  color: color-mix(in srgb, var(--color-foreground) 70%, transparent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.grove-nav-link:hover { color: var(--color-primary); }
+.grove-nav-link.is-active { color: var(--color-primary); font-weight: 600; }

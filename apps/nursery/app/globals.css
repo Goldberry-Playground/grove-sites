@@ -90,6 +90,8 @@ h1 em, h2 em, h3 em {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   position: relative; /* for the mobile dropdown's absolute positioning */
+  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
+  z-index: 60;
 }
 .sibling-strip__list {
   max-width: 1300px;
@@ -715,3 +717,13 @@ h1 em, h2 em, h3 em {
     grid-column: auto;
   }
 }
+
+/* NavLink (lifted to @grove/ui-kit) — ports the original Tailwind treatment
+   (text-foreground/70 idle, text-primary hover/active, transition-colors). */
+.grove-nav-link {
+  color: color-mix(in srgb, var(--color-foreground) 70%, transparent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.grove-nav-link:hover { color: var(--color-primary); }
+.grove-nav-link.is-active { color: var(--color-primary); font-weight: 600; }

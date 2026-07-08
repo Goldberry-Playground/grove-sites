@@ -1,0 +1,13 @@
+{
+  "pkg": "@grove/ui-kit",
+  "globalName": "GroveUI",
+  "shape": "package",
+  "buildCmd": "pnpm -F @grove/ui-kit build",
+  "projectId": "3fde251b-68f7-4b88-b4eb-4ebb6eb2e767",
+  "cssEntry": "ds-theme.nursery.css",
+  "componentSrcMap": {
+    "Button": "packages/grove-ui/src/Button/index.tsx",
+    "GroveLinkProvider": null,
+    "GroveImageProvider": null
+  }
+}

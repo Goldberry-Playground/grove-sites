@@ -1,0 +1,23 @@
+/* @grove/ui stylesheet entry.
+ * Imports the token contract; per-component CSS is appended/imported here as
+ * components are lifted. A brand theme (@grove/tokens/themes/<brand>.css) is
+ * layered on top by the consumer (app, Storybook, or a Claude Design project)
+ * to reassign the --grove-* values.
+ *
+ * /design-sync consumes ONLY this file's transitive @import closure for styling,
+ * so every component's CSS must be reachable from here.
+ */
+@import "@grove/tokens/contract.css";
+
+/* Lifted component CSS (token-mapped; see TOKEN-MAP.md). */
+@import "./SiblingStrip/SiblingStrip.css";
+@import "./NavLink/NavLink.css";
+@import "./CartNavLink/CartNavLink.css";
+@import "./ProductCard/ProductCard.css";
+@import "./VendorCard/VendorCard.css";
+@import "./BuyAtVendorForm/BuyAtVendorForm.css";
+@import "./JournalProductEmbed/JournalProductEmbed.css";
+@import "./HeroSlideshow/HeroSlideshow.css";
+@import "./ShopSubHeader/ShopSubHeader.css";
+@import "./CategoryBar/CategoryBar.css";
+@import "./Button/Button.css";
