@@ -39,6 +39,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
+          # Allow @claude mentions from our own automation bot
+          # (`agenticos-developer[bot]`). Default action behaviour blocks
+          # non-human actors; scoped to our bot only, not `*` (GOL-120).
+          allowed_bots: 'agenticos-developer'
+
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
             actions: read
