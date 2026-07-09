@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* GOL-139 — the CategoryBar now renders from @grove/ui-kit, which ships its own
+   token-mapped CSS against the --grove-* contract. Consume that bundle here
+   instead of the local copy. Order matters: ui-kit/styles.css pulls in the
+   contract DEFAULTS, then the nursery theme reassigns the --grove-* roles to
+   this brand's palette, so it MUST import last. (Local chrome CSS below still
+   wins by cascade order; that converges separately under the nursery slice.) */
+@import "@grove/ui-kit/styles.css";
+@import "@grove/tokens/themes/nursery.css";
+
 /* Tailwind v4 doesn't auto-scan files outside the app workspace. Tell it
    to also scan shared package source so classes used only in @grove/checkout
    components (MiniCartDrawer, StickyAddToCartBar, etc.) actually compile. */
@@ -212,40 +221,11 @@ h1 em, h2 em, h3 em {
    Cat-bar · Pano-hero · Qsearch · Section grid · With-sidebar · Split-band.
    ───────────────────────────────────────────── */
 
-/* Sub-header / category bar */
-.cat-bar {
-  background: var(--forest-deep);
-  color: var(--parchment-deep);
-  padding: 10px clamp(1rem, 3vw, 2rem);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  display: flex;
-  gap: 2rem;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--moss);
-}
-.cat-bar a {
-  color: var(--parchment-deep);
-  text-decoration: none;
-  white-space: nowrap;
-  padding: 4px 0;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.cat-bar a:hover,
-.cat-bar a:focus-visible {
-  color: var(--orange);
-  outline: none;
-}
-/* Active category — shown when the current page's ?cat= matches this pill.
-   The orange underline + saturated color makes the active filter unmistakable
-   when QA testers click around and verify the grid reflects the selection. */
-.cat-bar a.is-active {
-  color: var(--orange);
-  border-bottom-color: var(--orange);
-}
+/* Sub-header / category bar — .cat-bar* CSS lifted to @grove/ui-kit (GOL-139).
+   Brand-visible convergence flagged for QA: the ui-kit version renders the active
+   /hover pill in --grove-color-gold (cross-brand cohesion, per GOL-113) rather
+   than nursery's local orange, uses the orange accent for the bottom divider,
+   and adds the GOL-108 focus ring + taller (44px) tap targets. */
 
 /* Category description lede on /shop?cat=<slug> — sits between heading and grid. */
 .section-lede {
