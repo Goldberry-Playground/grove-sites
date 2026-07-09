@@ -39,4 +39,11 @@ Use the reusable script (regen theme + tsup + converter + validate in one):
   `@grove/ui-kit` (with GroveLinkProvider + prop-supplied data) is a separate step; the
   per-component call sites are listed in the fleet commit message.
 - Checkout components (cart-coupled: AddToCartButton, StickyAddToCartBar, MiniCartDrawer,
-  CartPage, CheckoutPage) NOT yet lifted — need cart-state decoupling (props/callbacks).
+  CartPage, CheckoutPage) **LIFTED (GOL-115)** — decoupled from the cart store via a
+  props/callbacks contract (`packages/grove-ui/src/cart-contract.ts`: `GroveCartLineItem`,
+  `onAddToCart`/`onSetQuantity`/`onRemove`/`onPlaceOrder`, `open`/`loading`). Token-mapped
+  to `--grove-*` incl. the status roles (`--grove-color-error-*`) for checkout/validation.
+  `@grove/checkout` keeps the store + ships thin connected wrappers (same public API), so
+  app call sites are unchanged. Previews: `.design-sync/previews/{AddToCartButton,
+  StickyAddToCartBar,MiniCartDrawer,CartPage,CheckoutPage}.tsx`. Stacked on the GOL-109
+  token-scale branch (needs the status tokens); merge after GOL-109 lands on main.

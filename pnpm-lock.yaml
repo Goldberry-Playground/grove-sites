@@ -459,6 +459,9 @@ importers:
       '@grove/ui':
         specifier: workspace:*
         version: link:../ui
+      '@grove/ui-kit':
+        specifier: workspace:*
+        version: link:../grove-ui
       next:
         specifier: ^15.5.18
         version: 15.5.18(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
