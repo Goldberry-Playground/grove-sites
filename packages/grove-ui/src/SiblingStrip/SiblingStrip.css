@@ -1,4 +1,4 @@
-/* SiblingStrip — cross-village nav band. Lifted from apps/*/app/globals.css
+/* SiblingStrip — cross-village nav band. Lifted from each app's app/globals.css
  * (byte-identical across all four apps; only the band bg/color tokens diverged
  * per brand, now collapsed onto --grove-* roles per TOKEN-MAP.md).
  *
