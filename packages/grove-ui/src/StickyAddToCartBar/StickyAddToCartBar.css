@@ -1,5 +1,5 @@
 /* StickyAddToCartBar — mobile-only sticky purchase bar.
- * Lifted from apps/*/shop Tailwind:
+ * Lifted from apps/<app>/shop Tailwind:
  *   fixed left/right/bottom z-[900] sm:hidden bg-background border-t border-primary/20
  *   shadow-[0_-8px_24px…]; button bg-primary text-primary-foreground; badge bg-accent.
  * Mapped to --grove-* per TOKEN-MAP.md. The `sm:hidden` (hide ≥640px) becomes a

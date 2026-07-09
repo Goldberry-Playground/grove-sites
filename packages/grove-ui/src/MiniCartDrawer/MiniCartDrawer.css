@@ -1,5 +1,5 @@
 /* MiniCartDrawer — slide-in cart confirmation.
- * Lifted from apps/*/layout Tailwind; mapped to --grove-* per TOKEN-MAP.md.
+ * Lifted from apps/<app>/layout Tailwind; mapped to --grove-* per TOKEN-MAP.md.
  *   overlay: fixed inset-0 z-[1000] bg-black/45 backdrop-blur justify-end
  *   panel:   bg-background max-w-md h-full; mobile: bottom-sheet rounded-t-2xl
  *   accents: border-secondary/40 bg-secondary/10 (just-added), text-accent tag

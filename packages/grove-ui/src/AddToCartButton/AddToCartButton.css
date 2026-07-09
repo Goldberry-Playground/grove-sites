@@ -1,5 +1,5 @@
 /* AddToCartButton — quantity stepper + primary add action.
- * Lifted from apps/*/shop where it was Tailwind utilities on the app theme:
+ * Lifted from apps/<app>/shop where it was Tailwind utilities on the app theme:
  *   wrap:    flex items-center gap-4
  *   stepper: flex items-center border border-primary/20 rounded
  *   step:    px-3 py-2 text-foreground/60 hover:text-foreground

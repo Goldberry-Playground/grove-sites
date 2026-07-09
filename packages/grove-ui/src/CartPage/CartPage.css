@@ -1,5 +1,5 @@
 /* CartPage — full cart with sticky checkout banner, trust strip, line items,
- * and order summary. Lifted from apps/*/cart Tailwind; mapped to --grove-* per
+ * and order summary. Lifted from apps/<app>/cart Tailwind; mapped to --grove-* per
  * TOKEN-MAP.md. The remove action's old `hover:text-red-600` (color-only) is now
  * the accessible error role AND stays labelled text — never color alone.
  */

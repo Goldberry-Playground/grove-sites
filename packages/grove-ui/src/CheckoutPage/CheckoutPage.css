@@ -1,5 +1,5 @@
 /* CheckoutPage — contact/shipping/payment form + order summary with a sticky
- * place-order banner. Lifted from apps/*/checkout Tailwind; mapped to --grove-*
+ * place-order banner. Lifted from apps/<app>/checkout Tailwind; mapped to --grove-*
  * per TOKEN-MAP.md. Validation/error surfaces use the status tokens
  * (--grove-color-error-*), and the error message pairs an icon + text so it
  * never signals by color alone.
