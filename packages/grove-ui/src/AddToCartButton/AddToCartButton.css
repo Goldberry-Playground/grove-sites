@@ -1,0 +1,46 @@
+/* AddToCartButton — quantity stepper + primary add action.
+ * Lifted from apps/*/shop where it was Tailwind utilities on the app theme:
+ *   wrap:    flex items-center gap-4
+ *   stepper: flex items-center border border-primary/20 rounded
+ *   step:    px-3 py-2 text-foreground/60 hover:text-foreground
+ * Mapped to --grove-* roles per TOKEN-MAP.md (primary → --grove-color-primary,
+ * foreground → --grove-color-ink). The primary button itself is the shared
+ * <Button variant="primary">, already token-mapped.
+ */
+
+.grove-atc {
+  display: flex;
+  align-items: center;
+  gap: var(--grove-space-4, 1rem);
+}
+
+.grove-atc__stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-radius: var(--grove-radius-sm);
+}
+
+.grove-atc__step {
+  padding: var(--grove-space-2, 0.5rem) var(--grove-space-3, 0.75rem);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-atc__step:hover {
+  color: var(--grove-color-ink);
+}
+
+.grove-atc__qty {
+  padding: var(--grove-space-2, 0.5rem) var(--grove-space-3, 0.75rem);
+  min-width: 2rem;
+  text-align: center;
+  font-family: var(--grove-font-sans);
+  font-size: var(--grove-text-sm, 0.875rem);
+  font-weight: var(--grove-font-weight-medium, 500);
+  color: var(--grove-color-ink);
+}
