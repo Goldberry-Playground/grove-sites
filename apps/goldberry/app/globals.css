@@ -768,6 +768,34 @@ h1 em, h2 em, h3 em, h4 em {
 .brand-header__cart a { color: inherit !important; }
 .brand-header__cart:hover { background: var(--forest-command); }
 
+/* CartNavLink (lifted to @grove/ui-kit) — ports the original Tailwind treatment
+   (inline-flex + gap idle; badge = primary pill with on-primary text). Nested in
+   .brand-header__cart, so the link color is governed by that pill above. The
+   "N items in cart" text uses Tailwind's .sr-only utility so the count stays
+   screen-reader-labeled without showing beside the badge. */
+.grove-cart-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.15s ease;
+}
+.grove-cart-nav-link:hover { color: var(--color-primary); }
+.grove-cart-nav-link__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 @media (max-width: 720px) {
   .brand-header__inner--nav-only { padding-top: 1.2rem; padding-bottom: 1.2rem; }
   .brand-header__nav { font-size: 12px; gap: 1rem; flex-wrap: wrap; justify-content: center; }
