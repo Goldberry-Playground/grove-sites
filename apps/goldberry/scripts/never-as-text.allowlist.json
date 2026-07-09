@@ -1,0 +1,38 @@
+{
+  "_comment": "GOL-108 never-as-text baseline. Each entry is an EXISTING color/fill use of a light-on-light brand token. Adding a NEW entry means you are putting gold/tan text on a surface — it MUST be a dark surface, and you must re-run --update to record it. See BRAND-A11Y.md. Existing entries are audited at render time under GOL-106.",
+  "tokens": [
+    "--harvest-gold",
+    "--harvest-gold-deep",
+    "--gold",
+    "--gold-deep",
+    "--midnight-bark",
+    "#EDD682",
+    "#C9B25C",
+    "#CCA75C"
+  ],
+  "allow": [
+    "app/globals.css :: .about-eyebrow::before :: color: var(--harvest-gold-deep)",
+    "app/globals.css :: .about-vision .about-eyebrow :: color: var(--harvest-gold)",
+    "app/globals.css :: .about-vision .about-eyebrow::before :: color: var(--harvest-gold)",
+    "app/globals.css :: .about-vision h2 em :: color: var(--harvest-gold)",
+    "app/globals.css :: .cart-link[data-cart-open]:hover :: color: var(--gold-deep)",
+    "app/globals.css :: .come-see-us__card .icon :: color: var(--harvest-gold)",
+    "app/globals.css :: .come-see-us__card.events .icon :: color: var(--harvest-gold)",
+    "app/globals.css :: .grows-card--anchor .grows-card__kicker :: color: var(--harvest-gold)",
+    "app/globals.css :: .hero-eyebrow :: color: var(--gold-deep)",
+    "app/globals.css :: .manifesto-grid--over-video .manifesto-body em :: color: var(--harvest-gold)",
+    "app/globals.css :: .manifesto-grid--over-video h2 em :: color: var(--harvest-gold)",
+    "app/globals.css :: .section-num :: color: var(--gold-deep)",
+    "app/globals.css :: .shop-eyebrow :: color: var(--gold-deep)",
+    "app/globals.css :: .story-hero__copy .about-eyebrow :: color: var(--harvest-gold)",
+    "app/globals.css :: .story-hero__copy h1 em :: color: var(--harvest-gold)",
+    "app/globals.css :: .story-strip .story-eyebrow :: color: var(--gold)",
+    "app/globals.css :: .story-strip h3 :: color: var(--gold)",
+    "app/globals.css :: .visit-contact__row strong :: color: var(--harvest-gold)",
+    "app/globals.css :: .visit-hero h1 em :: color: var(--harvest-gold)",
+    "app/globals.css :: .visit-hero__eyebrow :: color: var(--harvest-gold)",
+    "app/globals.css :: /* Kicker line (replaces the old \"№ 01\" generic numbering with a typographic mono+rule treatment that reads as an almanac heading rather than a list index). */ .grows-card__kicker :: color: var(--harvest-gold)",
+    "app/globals.css :: /* Leaf glyph replaces the \"Pillar 01 / Pillar 02\" mono numbering. The numbering felt like a SaaS landing template; a serif italic flourish with a small botanical mark reads as almanac chapter-heading. */ .about-vision-pillar__glyph :: color: var(--harvest-gold)",
+    "app/globals.css :: /* Prose anchor — italic harvest-gold display emphasis used inside body prose (e.g. \"Chestnuts. The main event.\"). Distinct from the mono row labels so the eye reads it as part of the sentence, not a tag. */ .prose-anchor :: color: var(--harvest-gold)"
+  ]
+}

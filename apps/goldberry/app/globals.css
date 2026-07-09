@@ -76,7 +76,28 @@
   --brown-deep: var(--chestnut-reserve-deep);
   --ink: #3D2810;
 
+  /* ── Focus ring (WCAG 2.4.11 focus appearance / 1.4.11 non-text 3:1) ──
+     Chestnut Reserve clears the 3:1 non-text minimum on every surface a
+     focus ring lands on here: cream 6.48:1, harvest-gold 4.79:1, even
+     harvest-gold-deep 3.29:1. Harvest Gold itself (1.35:1 on cream) must
+     NEVER be a focus indicator — see the never-as-text guardrail and
+     apps/goldberry/BRAND-A11Y.md. Tokenized so focus is consistent
+     site-wide instead of re-specified per component. */
+  --focus-ring: var(--chestnut-reserve);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
   --grid: clamp(1rem, 4vw, 2.5rem);
+}
+
+/* Global focus-visible base — one tokenized, WCAG-compliant ring for every
+   focusable element, so keyboard focus is always visible and consistent
+   rather than depending on per-component treatments. Components may widen
+   the offset (cards use 4px) but should reuse --focus-ring, never
+   reintroduce the low-contrast gold ring. */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* Body chrome — soft radial wash, no atmospheric noise (brand guide is
@@ -737,7 +758,13 @@ h1 em, h2 em, h3 em, h4 em {
   background: var(--harvest-gold);
   color: var(--chestnut-reserve);
   border-left-color: var(--forest-command);
-  outline: none;
+}
+/* Focus gets a real ring, not just the gold hover wash (gold-on-cream is
+   1.35:1 — invisible as a focus cue). Inset so the chestnut ring sits on
+   the gold focus background: chestnut-on-gold is 4.79:1, clears 3:1. */
+.nav-dropdown a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 .nav-dropdown a:hover .nav-dropdown__icon,
 .nav-dropdown a:focus-visible .nav-dropdown__icon {
@@ -1020,10 +1047,10 @@ h1 em, h2 em, h3 em, h4 em {
   border-color: var(--harvest-gold);
 }
 .come-see-us__card:focus-visible {
-  /* Chestnut Reserve = 6.48:1 vs the ivory page bg; the outline-offset:4px
-     ring sits on the page, so it must clear 3:1 (WCAG 1.4.11) on ivory, not
-     on the card. Harvest Gold was 1.35:1 — invisible. See GOL-111. */
-  outline: 2px solid var(--chestnut-reserve);
+  /* Tokenized focus ring (--focus-ring = Chestnut Reserve, 6.48:1 vs the ivory
+     page bg). The 4px offset puts the ring on the page, so it must clear 3:1
+     (WCAG 1.4.11) on ivory. Harvest Gold was 1.35:1 — invisible. */
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 4px;
   transform: translateY(-4px);
   box-shadow: 0 12px 28px -16px rgba(127, 79, 29, 0.32);
@@ -1692,10 +1719,10 @@ h1 em, h2 em, h3 em, h4 em {
   box-shadow: 0 8px 28px rgba(64, 41, 16, 0.12);
 }
 .grows-card:focus-visible {
-  /* Chestnut Reserve = 6.48:1 vs the ivory page bg; ring sits on the page via
-     outline-offset:4px, so it must clear 3:1 there. Harvest Gold failed at
-     1.35:1. See GOL-111. */
-  outline: 2px solid var(--chestnut-reserve);
+  /* Tokenized focus ring (--focus-ring = Chestnut Reserve, 6.48:1 vs the ivory
+     page bg). The 4px offset puts the ring on the page, so it must clear 3:1
+     there. Harvest Gold failed at 1.35:1. */
+  outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 4px;
   transform: translateY(-3px);
   border-color: var(--harvest-gold);
