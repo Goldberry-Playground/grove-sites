@@ -1,22 +1,23 @@
-import Link from "next/link";
+import { VendorCard as UiVendorCard } from "@grove/ui-kit";
 import type { Vendor } from "../data/marketplace";
 
 type Props = {
   vendor: Vendor;
 };
 
+/**
+ * Hub adapter: maps a Vendor record onto the presentational @grove/ui-kit
+ * VendorCard. Accent color (vendor.brandColor) moves from inline styles to
+ * the `--vendor-card-accent` CSS-variable mechanism. Link is injected via
+ * GroveProviders (already wraps all hub routes in app/layout.tsx).
+ */
 export function VendorCard({ vendor }: Props) {
   return (
-    <Link
+    <UiVendorCard
+      name={vendor.name}
+      tagline={vendor.tagline}
       href={`/marketplace/vendor/${vendor.slug}`}
-      className="vendor-card"
-      style={{ borderTopColor: vendor.brandColor }}
-    >
-      <h3 className="vendor-card__name" style={{ color: vendor.brandColor }}>
-        {vendor.name}
-      </h3>
-      <p className="vendor-card__tagline">{vendor.tagline}</p>
-      <span className="vendor-card__cta">Visit the shop →</span>
-    </Link>
+      accentColor={vendor.brandColor}
+    />
   );
 }

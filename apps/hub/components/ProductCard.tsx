@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ProductCard as UiProductCard, type ProductCardData } from "@grove/ui-kit";
 import type { HubProduct } from "../lib/marketplace";
 
 type Props = {
@@ -7,9 +7,11 @@ type Props = {
 };
 
 /**
- * Federated product card used on /marketplace, vendor profile, and journal embeds.
- * Vendor brandColor accents the bottom border so cards from different vendors are
- * visually distinguishable in a mixed grid.
+ * Hub adapter: maps a HubProduct (Odoo-fetched, vendor-joined) onto the
+ * presentational @grove/ui-kit ProductCard. Accent color (vendor.brandColor)
+ * moves from an inline `borderBottomColor` style to the `--product-card-accent`
+ * CSS-variable mechanism the ui-kit component expects. Link/Image are injected
+ * via GroveProviders (already wraps all hub routes in app/layout.tsx).
  */
 export function ProductCard({ product, editorialNote }: Props) {
   const { product: p, vendor } = product;
@@ -18,32 +20,19 @@ export function ProductCard({ product, editorialNote }: Props) {
     currency: p.currency ?? "USD",
   }).format(p.price);
 
+  const cardData: ProductCardData = {
+    name: p.name,
+    priceFormatted,
+    imageUrl: p.imageUrl ? `${vendor.odoo.apiUrl}${p.imageUrl}` : null,
+    href: `/marketplace/${vendor.slug}/${p.slug}`,
+    vendorName: vendor.name,
+  };
+
   return (
-    <Link
-      href={`/marketplace/${vendor.slug}/${p.slug}`}
-      className="product-card"
-      style={{ borderBottomColor: vendor.brandColor }}
-    >
-      <div className="product-card__image">
-        {p.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`${vendor.odoo.apiUrl}${p.imageUrl}`}
-            alt={p.name}
-            loading="lazy"
-          />
-        ) : null}
-      </div>
-      <div className="product-card__body">
-        <div className="product-card__vendor" style={{ color: vendor.brandColor }}>
-          {vendor.name}
-        </div>
-        <h3 className="product-card__name">{p.name}</h3>
-        {editorialNote ? (
-          <p className="product-card__editorial">“{editorialNote}”</p>
-        ) : null}
-        <div className="product-card__price">{priceFormatted}</div>
-      </div>
-    </Link>
+    <UiProductCard
+      product={cardData}
+      editorialNote={editorialNote}
+      accentColor={vendor.brandColor}
+    />
   );
 }
