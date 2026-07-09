@@ -1,5 +1,8 @@
-import Link from "next/link";
+"use client";
+
+import { ProductCard as UiProductCard } from "@grove/ui-kit";
 import type { HubProduct } from "../lib/marketplace";
+import { GroveNextProviders } from "./grove-adapters";
 
 type Props = {
   product: HubProduct;
@@ -7,9 +10,10 @@ type Props = {
 };
 
 /**
- * Federated product card used on /marketplace, vendor profile, and journal embeds.
- * Vendor brandColor accents the bottom border so cards from different vendors are
- * visually distinguishable in a mixed grid.
+ * Federated product card. Thin app wrapper over @grove/ui-kit's presentational
+ * ProductCard (GOL-139): maps the hub's domain shape to the card's props and
+ * injects Next's Link/Image via context. Vendor brandColor drives the accent
+ * (bottom border + vendor eyebrow) so mixed-vendor grids stay distinguishable.
  */
 export function ProductCard({ product, editorialNote }: Props) {
   const { product: p, vendor } = product;
@@ -19,31 +23,18 @@ export function ProductCard({ product, editorialNote }: Props) {
   }).format(p.price);
 
   return (
-    <Link
-      href={`/marketplace/${vendor.slug}/${p.slug}`}
-      className="product-card"
-      style={{ borderBottomColor: vendor.brandColor }}
-    >
-      <div className="product-card__image">
-        {p.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`${vendor.odoo.apiUrl}${p.imageUrl}`}
-            alt={p.name}
-            loading="lazy"
-          />
-        ) : null}
-      </div>
-      <div className="product-card__body">
-        <div className="product-card__vendor" style={{ color: vendor.brandColor }}>
-          {vendor.name}
-        </div>
-        <h3 className="product-card__name">{p.name}</h3>
-        {editorialNote ? (
-          <p className="product-card__editorial">“{editorialNote}”</p>
-        ) : null}
-        <div className="product-card__price">{priceFormatted}</div>
-      </div>
-    </Link>
+    <GroveNextProviders>
+      <UiProductCard
+        product={{
+          name: p.name,
+          priceFormatted,
+          imageUrl: p.imageUrl ? `${vendor.odoo.apiUrl}${p.imageUrl}` : null,
+          href: `/marketplace/${vendor.slug}/${p.slug}`,
+          vendorName: vendor.name,
+        }}
+        editorialNote={editorialNote}
+        accentColor={vendor.brandColor}
+      />
+    </GroveNextProviders>
   );
 }
