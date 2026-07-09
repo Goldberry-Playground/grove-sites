@@ -1,26 +1,22 @@
-import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import { mockProducts } from "../data/mock-products";
 import { NURSERY_CATEGORIES, countByCategory } from "../data/categories";
+import { CategoryBarView } from "./category-bar-view";
 
 /**
  * Cross-page category nav for At The Grove Nursery.
  *
- * Renders the horizontal pill row at the top of the homepage and /shop:
- *   All · Apple · Pear · Stone Fruit · Berries · Nuts · Rootstock · Bare-Root · Cold-Strat · Wholesale
- *
- * Each pill shows a live count derived from the actual product list (Odoo if
+ * Renders the horizontal pill row at the top of the homepage and /shop, each
+ * pill showing a live count derived from the actual product list (Odoo if
  * reachable, mockProducts otherwise). Clicking a pill links to `/shop?cat=<slug>`.
  *
- * The `activeSlug` prop controls which pill renders in the highlighted state.
- * Pass it from the consuming page (the /shop page reads it from searchParams;
- * the homepage doesn't have an active category and passes null/undefined).
+ * GOL-139: presentation lives in @grove/ui-kit's CategoryBar; this async Server
+ * Component still owns the Odoo-first-fallback-to-mock fetch + count math, then
+ * hands typed items to the ui-kit-backed client view.
  *
- * This is an async Server Component — it fetches its own product list for
- * count computation. The fetch uses the same Odoo-first-fallback-to-mock
- * pattern as the shop page, so the counts are guaranteed honest under all
- * runtime conditions (Odoo up, Odoo down, Odoo empty).
+ * The `activeSlug` prop controls which pill highlights. The /shop page reads it
+ * from searchParams; the homepage has no active category and passes null.
  */
 
 async function fetchProductsForCounts(): Promise<Product[]> {
@@ -39,32 +35,31 @@ interface CategoryBarProps {
 
 export async function CategoryBar({ activeSlug }: CategoryBarProps) {
   const products = await fetchProductsForCounts();
-  const totalCount = products.length;
+
+  const allItem = {
+    slug: "all",
+    label: "All Catalog",
+    href: "/shop",
+    count: products.length,
+  };
+
+  const items = NURSERY_CATEGORIES.map((category) => ({
+    slug: category.slug,
+    label: category.label,
+    href: `/shop?cat=${category.slug}`,
+    count: countByCategory(products, category.slug),
+  }));
+
+  // A category is active when its href matches; the "All" pill is active when
+  // no category is selected (its href is "/shop").
+  const activeHref = activeSlug ? `/shop?cat=${activeSlug}` : "/shop";
 
   return (
-    <nav className="cat-bar" aria-label="Browse the catalog by category">
-      <Link
-        href="/shop"
-        className={!activeSlug ? "is-active" : ""}
-        aria-current={!activeSlug ? "page" : undefined}
-      >
-        All Catalog · {totalCount}
-      </Link>
-      {NURSERY_CATEGORIES.map((category) => {
-        const count = countByCategory(products, category.slug);
-        const isActive = activeSlug === category.slug;
-        return (
-          <Link
-            key={category.slug}
-            href={`/shop?cat=${category.slug}`}
-            className={isActive ? "is-active" : ""}
-            aria-current={isActive ? "page" : undefined}
-          >
-            {category.label} · {count}
-          </Link>
-        );
-      })}
-      <Link href="/wholesale">Wholesale</Link>
-    </nav>
+    <CategoryBarView
+      allItem={allItem}
+      items={items}
+      trailing={{ label: "Wholesale", href: "/wholesale" }}
+      activeHref={activeHref}
+    />
   );
 }

@@ -1,22 +1,27 @@
-import Link from "next/link";
+"use client";
+
+import { VendorCard as UiVendorCard } from "@grove/ui-kit";
 import type { Vendor } from "../data/marketplace";
+import { GroveNextProviders } from "./grove-adapters";
 
 type Props = {
   vendor: Vendor;
 };
 
+/**
+ * Marketplace vendor card. Thin app wrapper over @grove/ui-kit's VendorCard
+ * (GOL-139): maps the vendor domain shape to props and injects the Next Link.
+ * The per-sub-brand brandColor drives the top-border + name accent.
+ */
 export function VendorCard({ vendor }: Props) {
   return (
-    <Link
-      href={`/marketplace/vendor/${vendor.slug}`}
-      className="vendor-card"
-      style={{ borderTopColor: vendor.brandColor }}
-    >
-      <h3 className="vendor-card__name" style={{ color: vendor.brandColor }}>
-        {vendor.name}
-      </h3>
-      <p className="vendor-card__tagline">{vendor.tagline}</p>
-      <span className="vendor-card__cta">Visit the shop →</span>
-    </Link>
+    <GroveNextProviders>
+      <UiVendorCard
+        name={vendor.name}
+        tagline={vendor.tagline}
+        href={`/marketplace/vendor/${vendor.slug}`}
+        accentColor={vendor.brandColor}
+      />
+    </GroveNextProviders>
   );
 }

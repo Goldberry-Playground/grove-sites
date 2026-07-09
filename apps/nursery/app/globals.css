@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
-/* GOL-113 — one source of truth for shared chrome. The lifted @grove/ui-kit
-   components (SiblingStrip, NavLink, …) ship their own token-mapped CSS against
-   the --grove-* role contract; we consume that bundle instead of maintaining
-   local copies here. Order matters: ui-kit/styles.css pulls in the contract
-   DEFAULTS (Goldberry-neutral baseline), then the nursery theme reassigns the
-   --grove-* roles to this brand's palette, so it MUST import last. */
+/* One source of truth for shared chrome (GOL-113) and the CategoryBar
+   (GOL-139): the lifted @grove/ui-kit components — SiblingStrip, NavLink,
+   CategoryBar, … — ship their own token-mapped CSS against the --grove-* role
+   contract, so we consume that bundle instead of maintaining local copies here.
+   Order matters: ui-kit/styles.css pulls in the contract DEFAULTS
+   (Goldberry-neutral baseline), then the nursery theme reassigns the --grove-*
+   roles to this brand's palette, so it MUST import last. */
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/nursery.css";
 
@@ -108,40 +109,11 @@ h1 em, h2 em, h3 em {
    Cat-bar · Pano-hero · Qsearch · Section grid · With-sidebar · Split-band.
    ───────────────────────────────────────────── */
 
-/* Sub-header / category bar */
-.cat-bar {
-  background: var(--forest-deep);
-  color: var(--parchment-deep);
-  padding: 10px clamp(1rem, 3vw, 2rem);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  display: flex;
-  gap: 2rem;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--moss);
-}
-.cat-bar a {
-  color: var(--parchment-deep);
-  text-decoration: none;
-  white-space: nowrap;
-  padding: 4px 0;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.cat-bar a:hover,
-.cat-bar a:focus-visible {
-  color: var(--orange);
-  outline: none;
-}
-/* Active category — shown when the current page's ?cat= matches this pill.
-   The orange underline + saturated color makes the active filter unmistakable
-   when QA testers click around and verify the grid reflects the selection. */
-.cat-bar a.is-active {
-  color: var(--orange);
-  border-bottom-color: var(--orange);
-}
+/* Sub-header / category bar — .cat-bar* CSS lifted to @grove/ui-kit (GOL-139).
+   Brand-visible convergence flagged for QA: the ui-kit version renders the active
+   /hover pill in --grove-color-gold (cross-brand cohesion, per GOL-113) rather
+   than nursery's local orange, uses the orange accent for the bottom divider,
+   and adds the GOL-108 focus ring + taller (44px) tap targets. */
 
 /* Category description lede on /shop?cat=<slug> — sits between heading and grid. */
 .section-lede {

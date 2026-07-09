@@ -16,6 +16,7 @@
     "@grove/config": "workspace:*",
     "@grove/ghost-client": "workspace:*",
     "@grove/odoo-client": "workspace:*",
+    "@grove/tokens": "workspace:*",
     "@grove/ui": "workspace:*",
     "@grove/ui-kit": "workspace:*",
     "@grove/tokens": "workspace:*",
