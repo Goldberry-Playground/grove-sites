@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* GOL-113/GOL-137 — one source of truth for shared chrome. The lifted
+   @grove/ui-kit components (SiblingStrip, NavLink, …) ship their own
+   token-mapped CSS against the --grove-* role contract; we consume that bundle
+   instead of maintaining local copies here. Order matters: ui-kit/styles.css
+   pulls in the contract DEFAULTS (Goldberry-neutral baseline), then the
+   goldberry theme reassigns the --grove-* roles to this brand's palette, so it
+   MUST import last. */
+@import "@grove/ui-kit/styles.css";
+@import "@grove/tokens/themes/goldberry.css";
+
 /* Tailwind v4 doesn't auto-scan files outside the app workspace. Tell it
    to also scan shared package source so classes used only in @grove/checkout
    components (MiniCartDrawer, StickyAddToCartBar, etc.) actually compile. */
@@ -32,11 +42,10 @@
 }
 
 :root {
-  /* @grove/ui Button surface */
-  --grove-color-primary: var(--color-primary);
-  --grove-color-primary-foreground: var(--color-primary-foreground);
-  --grove-color-secondary: var(--color-secondary);
-  --grove-color-secondary-foreground: var(--color-secondary-foreground);
+  /* --grove-* roles (Button surface, lifted chrome) now come from
+     @grove/tokens/themes/goldberry.css (imported above), the single source of
+     truth. The brand's raw palette tokens below still back the app-local
+     chrome (brand-header, hero, sections) that hasn't been lifted. — GOL-137 */
 
   /* ── Brand-guide named colors (canonical) ── */
   --ivory-mist: #FFF7E6;
@@ -133,114 +142,14 @@ h1 em, h2 em, h3 em, h4 em {
 
 /* ─────────────────────────────────────────────
    Sibling-strip — cross-brand cohesion bar.
-   Plum-deep band + gold accent so it reads as part of Goldberry's identity
-   while keeping the network shape shared with the other three sites.
+   CSS now lives in @grove/ui-kit (SiblingStrip.css, imported via
+   @grove/ui-kit/styles.css at the top of this file). The shared version renders
+   the band as the network-wide cohesion element mapped to --grove-* roles;
+   goldberry's theme resolves those to the same plum-deep band + ivory text +
+   gold active/hover pills this brand used locally, so the strip is unchanged
+   apart from the standardized pill height and an added focus-visible ring
+   (a11y improvement). — GOL-137
    ───────────────────────────────────────────── */
-.sibling-strip {
-  background: var(--plum-deep);
-  color: var(--cream);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  position: relative; /* for the mobile dropdown's absolute positioning */
-  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
-  z-index: 60;
-}
-/* Inner wrapper — matches the structural rule in apps/ggg, apps/hub,
-   and apps/nursery so the four sister sites render the strip at the
-   same height across every viewport. Only the bg/color tokens above
-   diverge per brand. */
-.sibling-strip__list {
-  max-width: 1300px;
-  margin: 0 auto;
-  padding: 16px var(--grid);
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  list-style: none;
-}
-.sibling-strip__list li { margin: 0; }
-.sibling-strip a,
-.sibling-strip .here {
-  color: rgba(244, 236, 216, 0.78);
-  text-decoration: none;
-  position: relative;
-  padding: 9px 20px;
-  border: 1px solid rgba(244, 236, 216, 0.45);
-  border-radius: 999px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
-}
-.sibling-strip a:hover {
-  color: var(--plum-deep);
-  background: var(--gold);
-  border-color: var(--gold);
-}
-.sibling-strip .here {
-  color: var(--plum-deep);
-  background: var(--gold);
-  border-color: var(--gold);
-}
-.sibling-strip .here::before {
-  content: '◐  ';
-  letter-spacing: 0;
-}
-
-/* Mobile-only toggle button — hidden on desktop, shown at <=720px. */
-.sibling-strip__toggle {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.sibling-strip__toggle .here { display: inline-block; }
-.sibling-strip__caret {
-  display: inline-block;
-  font-size: 0.85em;
-  line-height: 1;
-  transition: transform 0.2s ease;
-  opacity: 0.78;
-}
-.sibling-strip.is-open .sibling-strip__caret { transform: rotate(180deg); }
-
-@media (max-width: 720px) {
-  .sibling-strip__list {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--plum-deep);
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 12px var(--grid);
-    z-index: 50;
-    border-top: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-  }
-  .sibling-strip__list li { display: block; }
-  .sibling-strip__list a,
-  .sibling-strip__list .here {
-    display: block;
-    width: 100%;
-    text-align: center;
-  }
-  .sibling-strip.is-open .sibling-strip__list { display: flex; }
-  .sibling-strip__toggle {
-    display: inline-flex;
-    padding: 12px var(--grid);
-    width: 100%;
-    justify-content: center;
-  }
-}
 
 /* ─────────────────────────────────────────────
    Wireframe homepage sections (port).
