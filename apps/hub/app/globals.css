@@ -4,6 +4,18 @@
    Mapped to the hub's React component class names.
    ───────────────────────────────────────────── */
 
+/* GOL-113/GOL-138 — one source of truth for shared chrome. The lifted
+   @grove/ui-kit components (SiblingStrip, NavLink, …) ship their own
+   token-mapped CSS against the --grove-* role contract; we consume that bundle
+   instead of maintaining local copies here. Order matters: ui-kit/styles.css
+   pulls in the contract DEFAULTS (Goldberry-neutral baseline), then the hub
+   theme reassigns the --grove-* roles to this brand's palette, so the theme
+   MUST import last. (Card surfaces — ProductCard/VendorCard — are tracked on a
+   separate ticket; their local blocks below stay and, sitting after these
+   imports, still win the cascade until they're lifted.) */
+@import "@grove/ui-kit/styles.css";
+@import "@grove/tokens/themes/hub.css";
+
 :root {
   /* Hub neutrals — anchored to parchment so all 4 sites share a base */
   --ink: #1A1410;
@@ -56,107 +68,12 @@ body::before {
 a { color: inherit; text-decoration: none; }
 
 /* ─────── Sibling-strip (cross-brand cohesion bar) ─────── */
-/* Ported from wireframes/hub/styles.css — pill-button refinement. */
-.sibling-strip {
-  background: var(--ink);
-  color: var(--paper);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  position: relative; /* for the mobile dropdown's absolute positioning */
-  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
-  z-index: 60;
-}
-.sibling-strip__list {
-  max-width: 1300px;
-  margin: 0 auto;
-  padding: 16px var(--grid);
-  display: flex;
-  gap: 2.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  list-style: none;
-}
-.sibling-strip__list li { margin: 0; }
-.sibling-strip a,
-.sibling-strip .here {
-  color: var(--fog);
-  position: relative;
-  padding: 9px 20px;
-  border: 1px solid var(--fog);
-  border-radius: 999px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
-}
-.sibling-strip a:hover {
-  color: var(--ink);
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.sibling-strip .here {
-  color: var(--ink);
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.sibling-strip .here::before {
-  content: '◐  ';
-  letter-spacing: 0;
-}
-
-/* Mobile-only toggle button — hidden on desktop, shown at <=720px. */
-.sibling-strip__toggle {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.sibling-strip__toggle .here { display: inline-block; }
-.sibling-strip__caret {
-  display: inline-block;
-  font-size: 0.85em;
-  line-height: 1;
-  transition: transform 0.2s ease;
-  opacity: 0.78;
-}
-.sibling-strip.is-open .sibling-strip__caret { transform: rotate(180deg); }
-
-@media (max-width: 720px) {
-  .sibling-strip__list {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--ink);
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 12px var(--grid);
-    z-index: 50;
-    border-top: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-  }
-  .sibling-strip__list li { display: block; }
-  .sibling-strip__list a,
-  .sibling-strip__list .here {
-    display: block;
-    width: 100%;
-    text-align: center;
-  }
-  .sibling-strip.is-open .sibling-strip__list { display: flex; }
-  .sibling-strip__toggle {
-    display: inline-flex;
-    padding: 12px var(--grid);
-    width: 100%;
-    justify-content: center;
-  }
-}
+/* CSS now lives in @grove/ui-kit (SiblingStrip.css, imported via
+   @grove/ui-kit/styles.css above). The shared version renders the band as the
+   network-wide cohesion element: --grove-color-plum-deep band + --grove-color-gold
+   active/hover pills (constant across all four sites), replacing this brand's
+   former local ink/amber treatment. It also adds a :focus-visible ring (the
+   GOL-109 focus token), an a11y improvement over the former local copy. — GOL-113/GOL-138 */
 
 /* ─────── Header ─────── */
 .hub-header {

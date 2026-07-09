@@ -6,6 +6,7 @@ import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
+import { NavLink } from "./nav-link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -101,9 +102,17 @@ export default async function RootLayout({
                     </li>
                   </ul>
                 </div>
-                <Link href="/shop" className="nav-item__link">Shop</Link>
-                <Link href="/about" className="nav-item__link">Our Story</Link>
-                <Link href="/blog" className="nav-item__link">Journal</Link>
+                {/* Flat primary-nav links now use the shared @grove/ui-kit
+                    <NavLink> (active state via aria-current + focus-visible
+                    ring). Goldberry's signature header treatment — mono-caps
+                    with the gold underline-slide — is preserved by the
+                    app-local `.brand-header__nav > a` rules in globals.css,
+                    which out-specify the shared component's base styles. The
+                    "Come See Us" dropdown trigger stays app-local (ui-kit
+                    NavLink has no dropdown affordance). — GOL-137 */}
+                <NavLink href="/shop">Shop</NavLink>
+                <NavLink href="/about">Our Story</NavLink>
+                <NavLink href="/blog">Journal</NavLink>
                 <span className="brand-header__cart"><CartNavLink /></span>
               </nav>
             </div>

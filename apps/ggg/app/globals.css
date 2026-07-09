@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* GOL-113 — one source of truth for shared chrome. The lifted @grove/ui-kit
+   components (SiblingStrip, NavLink, …) ship their own token-mapped CSS against
+   the --grove-* role contract; we consume that bundle instead of maintaining
+   local copies here. Order matters: ui-kit/styles.css pulls in the contract
+   DEFAULTS (Goldberry-neutral baseline), then the ggg theme reassigns the
+   --grove-* roles to this brand's palette, so it MUST import last. */
+@import "@grove/ui-kit/styles.css";
+@import "@grove/tokens/themes/ggg.css";
+
 /* Tailwind v4 doesn't auto-scan files outside the app workspace. Tell it
    to also scan shared package source so classes used only in @grove/checkout
    components (MiniCartDrawer, StickyAddToCartBar, etc.) actually compile. */
@@ -27,11 +36,9 @@
 }
 
 :root {
-  --grove-color-primary: var(--color-primary);
-  --grove-color-primary-foreground: var(--color-primary-foreground);
-  --grove-color-secondary: var(--color-secondary);
-  --grove-color-secondary-foreground: var(--color-secondary-foreground);
-
+  /* --grove-* roles now come from @grove/tokens/themes/ggg.css (imported
+     above), the single source of truth. The brand's raw palette tokens below
+     still back the app-local chrome that hasn't been lifted to @grove/ui-kit. */
   --walnut: #3A2418;
   --walnut-deep: #1F1611;
   --cherry: #7A2E1A;
@@ -79,110 +86,12 @@ h1 em, h2 em, h3 em {
 
 /* ─────────────────────────────────────────────
    Sibling-strip — cross-brand cohesion bar.
-   Walnut-deep band + amber accent so it reads as part of GGG's identity
-   while keeping the network shape shared with the other three sites.
+   CSS now lives in @grove/ui-kit (SiblingStrip.css, imported via
+   @grove/ui-kit/styles.css above). The shared version renders the band as the
+   network-wide cohesion element: --grove-color-plum-deep band + --grove-color-gold
+   active/hover pills (constant across all four sites), replacing this brand's
+   former local walnut/amber treatment. — GOL-113
    ───────────────────────────────────────────── */
-.sibling-strip {
-  position: relative;
-  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
-  z-index: 60;
-  background: var(--walnut-deep);
-  color: var(--bone);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-.sibling-strip__list {
-  max-width: 1300px;
-  margin: 0 auto;
-  padding: 16px var(--grid);
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  list-style: none;
-}
-.sibling-strip__list li {
-  margin: 0;
-}
-.sibling-strip a,
-.sibling-strip .here {
-  color: rgba(239, 230, 211, 0.78);
-  text-decoration: none;
-  position: relative;
-  padding: 9px 20px;
-  border: 1px solid rgba(239, 230, 211, 0.45);
-  border-radius: 999px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
-}
-.sibling-strip a:hover {
-  color: var(--walnut-deep);
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.sibling-strip .here {
-  color: var(--walnut-deep);
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.sibling-strip .here::before {
-  content: '◐  ';
-  letter-spacing: 0;
-}
-.sibling-strip__toggle {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.sibling-strip__toggle .here { display: inline-block; }
-.sibling-strip__caret {
-  display: inline-block;
-  font-size: 0.85em;
-  line-height: 1;
-  transition: transform 0.2s ease;
-  opacity: 0.78;
-}
-.sibling-strip.is-open .sibling-strip__caret { transform: rotate(180deg); }
-
-@media (max-width: 720px) {
-  .sibling-strip__list {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--walnut-deep);
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 12px var(--grid);
-    z-index: 50;
-    border-top: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-  }
-  .sibling-strip__list li { display: block; }
-  .sibling-strip__list a,
-  .sibling-strip__list .here {
-    display: block;
-    width: 100%;
-    text-align: center;
-  }
-  .sibling-strip.is-open .sibling-strip__list { display: flex; }
-  .sibling-strip__toggle {
-    display: inline-flex;
-    padding: 12px var(--grid);
-    width: 100%;
-    justify-content: center;
-  }
-}
 
 /* ─── Aliases for wireframe-named tokens used by ported sections ─── */
 :root {
@@ -1020,12 +929,7 @@ h1 em, h2 em, h3 em {
   .timber-header .cross-beam { display: none; }
 }
 
-/* NavLink (lifted to @grove/ui-kit) — ports the original Tailwind treatment
-   (text-foreground/70 idle, text-primary hover/active, transition-colors). */
-.grove-nav-link {
-  color: color-mix(in srgb, var(--color-foreground) 70%, transparent);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-.grove-nav-link:hover { color: var(--color-primary); }
-.grove-nav-link.is-active { color: var(--color-primary); font-weight: 600; }
+/* NavLink CSS now lives in @grove/ui-kit (NavLink.css, imported via
+   @grove/ui-kit/styles.css above) and is mapped to --grove-* roles. The
+   shared version also adds a :focus-visible ring (the GOL-109 focus token),
+   an a11y improvement over this former local copy. — GOL-113 */
