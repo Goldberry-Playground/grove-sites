@@ -25,6 +25,8 @@
 #     blanket rubber-stamp.
 #   - Runs from the base-branch definition (workflow_run), so a PR
 #     cannot modify this file to approve itself.
+# GOL-130 verify (2026-07-09): end-to-end check that github-actions[bot] approval
+# clears REVIEW_REQUIRED and auto-merge fires once functional checks are green.
 name: Auto-approve verified agent PRs
 
 on:
