@@ -65,6 +65,9 @@ importers:
       '@grove/otel':
         specifier: workspace:*
         version: link:../../packages/otel
+      '@grove/tokens':
+        specifier: workspace:*
+        version: link:../../packages/grove-tokens
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -214,6 +217,9 @@ importers:
       '@grove/otel':
         specifier: workspace:*
         version: link:../../packages/otel
+      '@grove/tokens':
+        specifier: workspace:*
+        version: link:../../packages/grove-tokens
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -293,6 +299,9 @@ importers:
       '@grove/otel':
         specifier: workspace:*
         version: link:../../packages/otel
+      '@grove/tokens':
+        specifier: workspace:*
+        version: link:../../packages/grove-tokens
       '@grove/ui':
         specifier: workspace:*
         version: link:../../packages/ui
