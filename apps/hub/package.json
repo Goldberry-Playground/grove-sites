@@ -14,6 +14,7 @@
     "@grove/otel": "workspace:*",
     "@grove/config": "workspace:*",
     "@grove/ghost-client": "workspace:*",
+    "@grove/newsletter": "workspace:*",
     "@grove/odoo-client": "workspace:*",
     "@grove/ui": "workspace:*",
     "@grove/ui-kit": "workspace:*",
