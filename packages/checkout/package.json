@@ -16,6 +16,7 @@
     "@grove/analytics": "workspace:*",
     "@grove/odoo-client": "workspace:*",
     "@grove/ui": "workspace:*",
+    "@grove/ui-kit": "workspace:*",
     "server-only": "^0.0.1"
   },
   "peerDependencies": {

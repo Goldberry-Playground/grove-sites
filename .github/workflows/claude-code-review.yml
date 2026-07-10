@@ -3,20 +3,21 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    # Docs-only PRs don't need an agentic review; everything else does.
+    paths-ignore:
+      - "**.md"
+
+# Each review costs a full Claude Code session (~2-6 min of Max-subscription
+# capacity). `synchronize` re-reviews on every push, so rapid pushes stacked
+# reviews of already-obsolete intermediate states — cancel the stale one.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Drafts get reviewed when marked ready (ready_for_review trigger above).
+    if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
     permissions:
@@ -43,6 +44,11 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
+          # Paperclip agents open PRs as the AgenticOS GitHub App; the action
+          # rejects non-human actors by default ("Workflow initiated by
+          # non-human actor"). Allow exactly our App bot — agent-authored PRs
+          # need this review MORE than human ones (D4 review-lane design).
+          allowed_bots: 'agenticos-developer'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options

@@ -17,3 +17,18 @@ export { JournalProductEmbed, type JournalProductEmbedProps } from "./JournalPro
 export { HeroSlideshow, type HeroSlideshowProps, type HeroSlide } from "./HeroSlideshow";
 export { ShopSubHeader, type ShopSubHeaderProps, type ShopCategory } from "./ShopSubHeader";
 export { CategoryBar, type CategoryBarProps, type CategoryBarItem } from "./CategoryBar";
+
+// Cart-coupled checkout (presentational; cart state via props/callbacks — see cart-contract)
+export { type GroveCartLineItem, DEFAULT_TAX_RATE_ESTIMATE } from "./cart-contract";
+export { AddToCartButton, type AddToCartButtonProps } from "./AddToCartButton";
+export { StickyAddToCartBar, type StickyAddToCartBarProps } from "./StickyAddToCartBar";
+export { MiniCartDrawer, type MiniCartDrawerProps } from "./MiniCartDrawer";
+export { CartPage, type CartPageProps } from "./CartPage";
+export {
+  CheckoutPage,
+  type CheckoutPageProps,
+  type GroveCheckoutOrder,
+  type GroveCheckoutContact,
+  type GroveCheckoutShipping,
+  type GroveCheckoutPaymentMethod,
+} from "./CheckoutPage";

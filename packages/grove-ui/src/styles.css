@@ -21,3 +21,10 @@
 @import "./ShopSubHeader/ShopSubHeader.css";
 @import "./CategoryBar/CategoryBar.css";
 @import "./Button/Button.css";
+
+/* Cart-coupled checkout components (GOL-115). */
+@import "./AddToCartButton/AddToCartButton.css";
+@import "./StickyAddToCartBar/StickyAddToCartBar.css";
+@import "./MiniCartDrawer/MiniCartDrawer.css";
+@import "./CartPage/CartPage.css";
+@import "./CheckoutPage/CheckoutPage.css";

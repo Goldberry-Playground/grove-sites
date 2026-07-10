@@ -4,6 +4,28 @@ A running log of meaningful changes to the four-app monorepo. Entries are in
 reverse chronological order. Each session block lists what shipped and the
 follow-ups it surfaced.
 
+## 2026-07-09 — Lift cart-coupled checkout components into @grove/ui-kit (GOL-115)
+
+### Design system
+
+- **Five checkout components lifted** into `@grove/ui-kit` (`packages/grove-ui`):
+  `AddToCartButton`, `StickyAddToCartBar`, `MiniCartDrawer`, `CartPage`,
+  `CheckoutPage`. Each is now **presentational** — cart state arrives via props
+  and mutations leave via callbacks (`packages/grove-ui/src/cart-contract.ts`:
+  `GroveCartLineItem`, `onAddToCart`/`onSetQuantity`/`onRemove`/`onPlaceOrder`,
+  `open`/`loading`). No store, no `next/*` (Link via the Grove seam).
+- **Token-mapped** to `--grove-*` roles per `TOKEN-MAP.md`, including the new
+  status roles (`--grove-color-error-*`) for checkout validation/errors. A11y:
+  status is never color-alone (error pairs icon + text), and the destructive
+  "Remove" uses the accessible error-fg role.
+- **`@grove/checkout` keeps the cart store** and now ships thin *connected*
+  wrappers (`WithGroveNext` feeds `next/link`) with the same public API, so app
+  call sites are unchanged. Verified: `tsup` ESM+DTS build clean, `tsc --noEmit`
+  clean, 9/9 checkout tests pass, rendered at 1440 + 390 under the goldberry theme.
+- Follow-ups: stacked on the GOL-109 token-scale branch (needs the status
+  tokens) — merge after GOL-109 lands; app-swap to consume the kit directly +
+  next/image optimization for cart line images tracked separately.
+
 ## 2026-05-29 — Goldberry repositioning + cross-site polish
 
 ### Cross-site

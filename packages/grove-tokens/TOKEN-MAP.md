@@ -26,6 +26,23 @@ brand accent) is intentionally sacrificed for themeability — that's the design
 | `--grove-font-body` | `--font-body`, `--font-sans` |
 | `--grove-font-mono` | `--font-mono` |
 
+## Scale tokens (added GOL-109 — contract now covers these; use them, don't inline)
+Beyond the color/font roles above, `contract.css` also defines full scales. Lift component
+CSS onto these instead of inlining px/hex/ms:
+
+| Concern | Tokens |
+|---|---|
+| Type scale | `--grove-text-h1..h7`, `--grove-text-body/sm/xs`, `--grove-leading-tight/normal`, `--grove-font-weight-regular/medium/semibold` |
+| Spacing | `--grove-space-1..8` (4px base) + `--grove-space-grid`; `--grove-space-sm/md/lg` are aliases |
+| Radius | `--grove-radius-sm/md/lg/pill` |
+| Shadow | `--grove-shadow-sm/md/lg` (warm ink-tinted) |
+| Motion | `--grove-duration-fast/base/slow`, `--grove-ease-standard/out` |
+| Focus | `--grove-focus-ring`, `--grove-focus-ring-width/offset` (global `:focus-visible` ships in contract) |
+| Status | `--grove-color-{error,warning,success,info}-{fg,solid,surface}` — **cross-brand constants, never theme-overridden** |
+
+**Status a11y rule:** never signal status by color alone — pair color with icon **and** text.
+The four status hues are WCAG-compliant (fg ≥4.5:1, solid ≥3:1 on paper) and grayscale-distinct.
+
 ## Rules
 - **Never** leave a raw hex or a `--<bespoke>` token in a lifted component's CSS — every value comes through a `--grove-*` role.
 - If a token genuinely has no role above, STOP and report it to the orchestrator (don't invent a new `--grove-*` token — the contract is fixed).

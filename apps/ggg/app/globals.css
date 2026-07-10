@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* One source of truth for shared chrome (GOL-113/136) and the hero slideshow
+   (GOL-139): the lifted @grove/ui-kit components — SiblingStrip, NavLink,
+   HeroSlideshow, … — ship their own token-mapped CSS against the --grove-*
+   role contract, so we consume that bundle instead of maintaining local copies
+   here. Order matters: ui-kit/styles.css pulls in the contract DEFAULTS
+   (Goldberry-neutral baseline), then the ggg theme reassigns the --grove-*
+   roles to this brand's palette, so it MUST import last. */
+@import "@grove/ui-kit/styles.css";
+@import "@grove/tokens/themes/ggg.css";
+
 /* Tailwind v4 doesn't auto-scan files outside the app workspace. Tell it
    to also scan shared package source so classes used only in @grove/checkout
    components (MiniCartDrawer, StickyAddToCartBar, etc.) actually compile. */
@@ -27,11 +37,9 @@
 }
 
 :root {
-  --grove-color-primary: var(--color-primary);
-  --grove-color-primary-foreground: var(--color-primary-foreground);
-  --grove-color-secondary: var(--color-secondary);
-  --grove-color-secondary-foreground: var(--color-secondary-foreground);
-
+  /* --grove-* roles now come from @grove/tokens/themes/ggg.css (imported
+     above), the single source of truth. The brand's raw palette tokens below
+     still back the app-local chrome that hasn't been lifted to @grove/ui-kit. */
   --walnut: #3A2418;
   --walnut-deep: #1F1611;
   --cherry: #7A2E1A;
@@ -79,110 +87,12 @@ h1 em, h2 em, h3 em {
 
 /* ─────────────────────────────────────────────
    Sibling-strip — cross-brand cohesion bar.
-   Walnut-deep band + amber accent so it reads as part of GGG's identity
-   while keeping the network shape shared with the other three sites.
+   CSS now lives in @grove/ui-kit (SiblingStrip.css, imported via
+   @grove/ui-kit/styles.css above). The shared version renders the band as the
+   network-wide cohesion element: --grove-color-plum-deep band + --grove-color-gold
+   active/hover pills (constant across all four sites), replacing this brand's
+   former local walnut/amber treatment. — GOL-113
    ───────────────────────────────────────────── */
-.sibling-strip {
-  position: relative;
-  isolation: isolate; /* a11y P0 §2: own stacking context above the hero (Android dropdown fix) */
-  z-index: 60;
-  background: var(--walnut-deep);
-  color: var(--bone);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-.sibling-strip__list {
-  max-width: 1300px;
-  margin: 0 auto;
-  padding: 16px var(--grid);
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  list-style: none;
-}
-.sibling-strip__list li {
-  margin: 0;
-}
-.sibling-strip a,
-.sibling-strip .here {
-  color: rgba(239, 230, 211, 0.78);
-  text-decoration: none;
-  position: relative;
-  padding: 9px 20px;
-  border: 1px solid rgba(239, 230, 211, 0.45);
-  border-radius: 999px;
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
-}
-.sibling-strip a:hover {
-  color: var(--walnut-deep);
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.sibling-strip .here {
-  color: var(--walnut-deep);
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.sibling-strip .here::before {
-  content: '◐  ';
-  letter-spacing: 0;
-}
-.sibling-strip__toggle {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.sibling-strip__toggle .here { display: inline-block; }
-.sibling-strip__caret {
-  display: inline-block;
-  font-size: 0.85em;
-  line-height: 1;
-  transition: transform 0.2s ease;
-  opacity: 0.78;
-}
-.sibling-strip.is-open .sibling-strip__caret { transform: rotate(180deg); }
-
-@media (max-width: 720px) {
-  .sibling-strip__list {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--walnut-deep);
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 12px var(--grid);
-    z-index: 50;
-    border-top: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-  }
-  .sibling-strip__list li { display: block; }
-  .sibling-strip__list a,
-  .sibling-strip__list .here {
-    display: block;
-    width: 100%;
-    text-align: center;
-  }
-  .sibling-strip.is-open .sibling-strip__list { display: flex; }
-  .sibling-strip__toggle {
-    display: inline-flex;
-    padding: 12px var(--grid);
-    width: 100%;
-    justify-content: center;
-  }
-}
 
 /* ─── Aliases for wireframe-named tokens used by ported sections ─── */
 :root {
@@ -208,98 +118,11 @@ h1 em, h2 em, h3 em {
   display: flex;
 }
 
-/* ─── Hero slideshow (replaces static .hero-img) ─── */
-.hero-slideshow {
-  flex: 1.3;
-  position: relative;
-  overflow: hidden;
-  background: var(--walnut-deep);
-}
-.hero-slide {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-  transform: translateZ(0);
-}
-.hero-slide.active {
-  opacity: 1;
-  will-change: opacity;
-}
-.hero-slide-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background:
-    linear-gradient(135deg, transparent 50%, rgba(31, 18, 10, 0.6)),
-    linear-gradient(to top, rgba(31, 22, 17, 0.5) 0%, transparent 30%);
-  pointer-events: none;
-}
-
-/* a11y (audit P0 §1): default-off backdrop-filter fixes the iPhone hero crossfade
-   tearing; opt the blur back in only where it composites cleanly (not iOS Safari). */
-@supports (backdrop-filter: blur(6px)) and (not (-webkit-touch-callout: none)) {
-  .hero-tag { backdrop-filter: blur(6px); background: rgba(31, 22, 17, 0.88); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-slide { transition: none; }
-}
-
-/* Slab tag (absolute inside slideshow) */
-.hero-tag {
-  position: absolute;
-  bottom: 24px;
-  left: 24px;
-  z-index: 3;
-  background: rgba(31, 22, 17, 0.94);
-  color: var(--parchment);
-  padding: 12px 16px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  border-left: 3px solid var(--amber);
-  animation: tag-enter 0.4s ease both;
-}
-.hero-tag em {
-  font-style: normal;
-  color: var(--amber);
-  font-weight: 700;
-}
-@keyframes tag-enter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* Slide indicator pips */
-.hero-pips {
-  position: absolute;
-  bottom: 24px;
-  right: 24px;
-  z-index: 3;
-  display: flex;
-  gap: 8px;
-}
-.hero-pip {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 1px solid var(--parchment);
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.3s, transform 0.3s;
-  padding: 0;
-}
-.hero-pip.active {
-  background: var(--amber);
-  border-color: var(--amber);
-  transform: scale(1.3);
-}
-.hero-pip:hover:not(.active) {
-  background: rgba(239, 230, 211, 0.4);
-}
+/* ─── Hero slideshow ─── */
+/* .hero-slideshow / .hero-slide / .hero-tag / .hero-pips CSS lifted to
+   @grove/ui-kit (GOL-139) — see the imports at the top of this file. The ui-kit
+   version keeps GGG's palette via ggg.css (primary-deep = walnut, accent =
+   amber) and adds a play/pause control + 44px pip tap targets. */
 
 /* Legacy .hero-img (kept for fallback / non-JS) */
 .hero-img {
@@ -1020,12 +843,7 @@ h1 em, h2 em, h3 em {
   .timber-header .cross-beam { display: none; }
 }
 
-/* NavLink (lifted to @grove/ui-kit) — ports the original Tailwind treatment
-   (text-foreground/70 idle, text-primary hover/active, transition-colors). */
-.grove-nav-link {
-  color: color-mix(in srgb, var(--color-foreground) 70%, transparent);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-.grove-nav-link:hover { color: var(--color-primary); }
-.grove-nav-link.is-active { color: var(--color-primary); font-weight: 600; }
+/* NavLink CSS now lives in @grove/ui-kit (NavLink.css, imported via
+   @grove/ui-kit/styles.css above) and is mapped to --grove-* roles. The
+   shared version also adds a :focus-visible ring (the GOL-109 focus token),
+   an a11y improvement over this former local copy. — GOL-113 */
