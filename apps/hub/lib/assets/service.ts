@@ -15,14 +15,14 @@
  * env-backed implementations via `optimizeDepsFromEnv` / `brandEntryDepsFromEnv`.
  */
 import { NextResponse } from "next/server";
-import {
-  createSpacesAssetPipeline,
-  spacesConfigFromEnv,
-  type AssetPipeline,
-  type AssetPipelineInput,
-} from "@grove/assets";
-import { createAssetBrand, type AssetBrand } from "@grove/brand/ingest";
-import { createGithubBrandAdapters, githubBrandConfigFromEnv } from "./github-brand";
+// NOTE: these are TYPE-ONLY imports on purpose. @grove/assets pulls in native
+// `sharp`, whose binary loads at module-evaluation time. Next's `next build`
+// "Collecting page data" step imports every route module, so an eager value
+// import here would try to load sharp during the build and fail. The concrete
+// implementations are loaded lazily (dynamic import) inside the env-backed deps
+// builders below, which only run at request time.
+import type { AssetPipeline, AssetPipelineInput } from "@grove/assets";
+import type { AssetBrand } from "@grove/brand/ingest";
 
 /** Env var holding the shared bearer token the discord-plugin presents. */
 const TOKEN_ENV = "GROVE_ASSETS_OPTIMIZE_TOKEN";
@@ -202,14 +202,29 @@ function message(err: unknown): string {
 
 /* ---------------------------- env-backed deps ---------------------------- */
 
-/** Real optimize dependency: the Spaces-backed `@grove/assets` pipeline. */
-export function optimizeDepsFromEnv(env: NodeJS.ProcessEnv = process.env): OptimizeDeps {
+/**
+ * Real optimize dependency: the Spaces-backed `@grove/assets` pipeline.
+ * `@grove/assets` (and its native `sharp`) is imported lazily so the route
+ * module stays sharp-free at build time — see the type-only imports at the top.
+ */
+export async function optimizeDepsFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<OptimizeDeps> {
+  const { createSpacesAssetPipeline, spacesConfigFromEnv } = await import("@grove/assets");
   return { pipeline: createSpacesAssetPipeline(spacesConfigFromEnv(env)) };
 }
 
 /** Real brand-entry dependencies: the pipeline plus the GitHub-backed PR seam. */
-export function brandEntryDepsFromEnv(env: NodeJS.ProcessEnv = process.env): BrandEntryDeps {
-  const { repo, pr } = createGithubBrandAdapters(githubBrandConfigFromEnv(env));
+export async function brandEntryDepsFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<BrandEntryDeps> {
+  const [{ createSpacesAssetPipeline, spacesConfigFromEnv }, { createAssetBrand }, github] =
+    await Promise.all([
+      import("@grove/assets"),
+      import("@grove/brand/ingest"),
+      import("./github-brand"),
+    ]);
+  const { repo, pr } = github.createGithubBrandAdapters(github.githubBrandConfigFromEnv(env));
   return {
     pipeline: createSpacesAssetPipeline(spacesConfigFromEnv(env)),
     assetBrand: createAssetBrand({ repo, pr }),
@@ -218,12 +233,12 @@ export function brandEntryDepsFromEnv(env: NodeJS.ProcessEnv = process.env): Bra
 
 /** Wrap a deps builder so a configuration error surfaces as a 503, not a 500. */
 export async function withConfig<T>(
-  build: () => T,
+  build: () => T | Promise<T>,
   run: (deps: T) => Promise<NextResponse>,
 ): Promise<NextResponse> {
   let deps: T;
   try {
-    deps = build();
+    deps = await build();
   } catch (err) {
     return json({ error: "not_configured", detail: message(err) }, 503);
   }
