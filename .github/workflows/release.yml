@@ -3,11 +3,20 @@ name: Release — deploy Goldberry
 # Triggered manually (workflow_dispatch) or by pushing a vX.Y.Z tag.
 # Branch pushes never run this workflow.
 #
-# Deploy steps assume per-environment secrets are configured:
-#   sandbox   environment → SANDBOX_HOST, SANDBOX_SSH_USER, SANDBOX_SSH_KEY
-#   production environment → PROD_HOST,    PROD_SSH_USER,    PROD_SSH_KEY
-# If a secret is missing, the SSH step fails loudly — that's the intended
-# signal that someone needs to configure the GitHub Environment.
+# Deploy secrets are resolved from 1Password at run time via a service-account
+# token (ADR-0001 Phase 3 — retires Infisical / static per-secret tokens),
+# using the same `1password/load-secrets-action@v2` pattern as the preview
+# workflows (grove-sites GOL-6 / PR #67). The `qa-deploy` vs `qa-prod` boundary
+# is enforced with TWO distinct service-account tokens so a qa-deploy identity
+# cannot resolve prod refs (GOL-202 scope #3):
+#   sandbox    job → OP_CI_SA_TOKEN   → op://Grove Prod/grove-deploy/SANDBOX_*
+#   production job → OP_PROD_SA_TOKEN  → op://Grove Prod/grove-deploy-prod/PROD_*
+# NB: the `Grove Prod` vault name + item layout track GOL-268's provisioning
+# decision; if that lands under a different vault name, both this file and the
+# preview workflows get the same one-line sweep. HOLD until GOL-268 provisions
+# the items + mints the two scoped SA tokens (and the production Environment
+# keeps its required-reviewer gate). If a ref is unresolvable the load step
+# fails loudly — the intended signal that provisioning is incomplete.
 
 on:
   workflow_dispatch:
@@ -108,21 +117,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Required Environment secrets (Settings → Environments → sandbox):
-      #   SANDBOX_HOST       sandbox Droplet hostname or IP
-      #   SANDBOX_SSH_KEY    private key (PEM)
-      #   SANDBOX_SSH_USER   typically "deploy"
-      # Missing secrets cause this step to fail with a clear ssh error.
-      # TODO: migrate to DO OIDC federation
+      # Deploy secrets come from 1Password, resolved with the qa-deploy
+      # service-account token (OP_CI_SA_TOKEN). This identity is scoped to the
+      # qa-deploy item and cannot resolve the qa-prod refs used by the
+      # production job below. `export-env: true` places the resolved values in
+      # $SSH_KEY / $SSH_HOST / $SSH_USER for the deploy + smoke steps.
+      - name: Load sandbox deploy secrets (qa-deploy identity)
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          SSH_KEY:  op://Grove Prod/grove-deploy/SANDBOX_SSH_KEY
+          SSH_HOST: op://Grove Prod/grove-deploy/SANDBOX_HOST
+          SSH_USER: op://Grove Prod/grove-deploy/SANDBOX_SSH_USER
+
       - name: Deploy via SSH
         env:
-          SSH_KEY: ${{ secrets.SANDBOX_SSH_KEY }}
-          SSH_HOST: ${{ secrets.SANDBOX_HOST }}
-          SSH_USER: ${{ secrets.SANDBOX_SSH_USER }}
           IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.verify-image.outputs.tag }}
         run: |
           if [ -z "$SSH_HOST" ]; then
-            echo "::error::SANDBOX_HOST secret is empty. Configure it in Settings → Environments → sandbox."
+            echo "::error::SANDBOX_HOST resolved empty from op://Grove Prod/grove-deploy/SANDBOX_HOST. Check the 1Password item + OP_CI_SA_TOKEN scope (GOL-268 provisioning)."
             exit 1
           fi
           mkdir -p ~/.ssh
@@ -154,7 +169,7 @@ jobs:
 
       - name: Smoke test deployed sandbox
         env:
-          SANDBOX_URL: https://${{ secrets.SANDBOX_HOST }}
+          SANDBOX_URL: https://${{ env.SSH_HOST }}
         run: |
           for path in / /shop /cart /checkout; do
             code=$(curl -s -o /dev/null -w "%{http_code}" "$SANDBOX_URL$path")
@@ -175,19 +190,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Production env requires required-reviewer approval (configured in
-      # Settings → Environments → production). Secrets:
-      #   PROD_HOST, PROD_SSH_USER, PROD_SSH_KEY
-      # TODO: migrate to DO OIDC federation
+      # Production env keeps its required-reviewer approval gate (Settings →
+      # Environments → production). Deploy secrets are resolved from 1Password
+      # with the qa-prod service-account token (OP_PROD_SA_TOKEN) — a DISTINCT
+      # identity from the sandbox job's OP_CI_SA_TOKEN, so a qa-deploy identity
+      # can never reach these prod refs (GOL-202 scope #3).
+      - name: Load production deploy secrets (qa-prod identity)
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_PROD_SA_TOKEN }}
+          SSH_KEY:  op://Grove Prod/grove-deploy-prod/PROD_SSH_KEY
+          SSH_HOST: op://Grove Prod/grove-deploy-prod/PROD_HOST
+          SSH_USER: op://Grove Prod/grove-deploy-prod/PROD_SSH_USER
+
       - name: Deploy via SSH
         env:
-          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-          SSH_HOST: ${{ secrets.PROD_HOST }}
-          SSH_USER: ${{ secrets.PROD_SSH_USER }}
           IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.verify-image.outputs.tag }}
         run: |
           if [ -z "$SSH_HOST" ]; then
-            echo "::error::PROD_HOST secret is empty. Configure it in Settings → Environments → production."
+            echo "::error::PROD_HOST resolved empty from op://Grove Prod/grove-deploy-prod/PROD_HOST. Check the 1Password item + OP_PROD_SA_TOKEN scope (GOL-268 provisioning)."
             exit 1
           fi
           mkdir -p ~/.ssh
