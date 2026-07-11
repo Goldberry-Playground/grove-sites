@@ -1,0 +1,36 @@
+# Copy to terraform.tfvars and fill with REAL values before plan/apply.
+# terraform.tfvars is .gitignored (real IDs are not secret, but we keep the
+# committed tree free of environment specifics). The API token + monitoring
+# secret come from 1Password via .env.op, NOT from this file.
+#
+# Blocked input (GOL-264 unblock owner CEO Rick): the account_id, the 7 zone_ids,
+# and the confirmed plan_tier. Until these land, `terraform import` can't run and
+# `plan` can't be clean — this file is the shape they slot into.
+
+cloudflare_account_id = "REPLACE_WITH_ACCOUNT_ID"
+
+# Confirm against the real plan (scope item 1) before flipping the bot layer.
+plan_tier = "unknown" # -> "free" | "pro" | "business" | "enterprise"
+
+# The 7 storefront zones. rollout_first marks the lowest-traffic zone that leads
+# the no-log-mode bot rollout (§6). Fill each zone_id from the CF dashboard /
+# `cf.zones.list` output CEO Rick provides.
+zones = {
+  goldberry_farm = { domain = "goldberrygrove.farm", zone_id = "REPLACE_ZONE_ID" }
+  atthegrove     = { domain = "atthegrove.com", zone_id = "REPLACE_ZONE_ID" }
+  atthegrove_nur = { domain = "atthegrovenursery.com", zone_id = "REPLACE_ZONE_ID" }
+  georgeggg      = { domain = "georgeggg.com", zone_id = "REPLACE_ZONE_ID" }
+  woodworking    = { domain = "woodworkinggeorge.com", zone_id = "REPLACE_ZONE_ID", rollout_first = true }
+  gathering      = { domain = "gatheringatthegrove.com", zone_id = "REPLACE_ZONE_ID" }
+  # 7th zone: confirm the exact apex with CEO Rick (candidates: woodworkingeorge.com
+  # per the §6 note, or a www/mail zone). Kept explicit rather than guessed.
+  seventh_zone = { domain = "REPLACE_DOMAIN", zone_id = "REPLACE_ZONE_ID" }
+}
+
+# Rollout toggles — all default to safe (log/off) in variables.tf. Uncomment to
+# advance a layer in a reviewed PR after the prior one soaks (§6):
+# waf_managed_enabled   = true
+# cache_rules_enabled   = true
+# rate_limit_mode       = "log"   # -> "on" after 48-72h clean
+# custom_firewall_mode  = "log"   # -> "on" after 48-72h clean
+# enable_bot_management = false   # -> true (starts on woodworkingeorge.com only)
