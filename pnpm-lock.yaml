@@ -223,6 +223,9 @@ importers:
       '@grove/ghost-client':
         specifier: workspace:*
         version: link:../../packages/ghost-client
+      '@grove/newsletter':
+        specifier: workspace:*
+        version: link:../../packages/newsletter
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
@@ -531,6 +534,12 @@ importers:
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.15)(tsx@4.23.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/newsletter:
+    devDependencies:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
