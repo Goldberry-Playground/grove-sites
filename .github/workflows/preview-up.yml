@@ -17,12 +17,15 @@ name: preview-up
 #   3. comment + notify — write/update the "Grove preview is live" PR
 #                         comment with per-tenant URLs; ping #grove-ops Discord
 #
-# Static-secret interim: workflow uses secrets.DIGITALOCEAN_TOKEN +
-# spaces creds in the documented pattern. OIDC retrofit per Asana task
-# gid 1215643675066258 (due 2026-06-27) replaces these.
+# Secrets: fetched at run time from 1Password via the grove-ci-prod-ro
+#   service account (ADR-0001 Phase 3 — retires Infisical / static tokens).
+#   No static DIGITALOCEAN_TOKEN lives in GitHub secrets; the only repo
+#   secret is OP_CI_SA_TOKEN (the SA token used to resolve op:// refs).
+#   This satisfies GOL-6's "no static DIGITALOCEAN_TOKEN" requirement.
+#   Provisioning checklist: see .github/workflows/README-preview.md.
 #
-# Companion: preview-down.yml destroys the droplet on PR close/unlabel.
-# Asana task: gid 1215643866638350 (due 2026-06-19 — Hub deadline).
+# Companion: preview-down.yml destroys on PR close/unlabel; preview-sweep.yml
+#   is the scheduled safety net that reaps stragglers.
 ###############################################################################
 
 on:
@@ -50,6 +53,8 @@ permissions:
   contents: read       # checkout
   packages: write      # push to ghcr.io
   pull-requests: write # post the URLs comment
+  # NB: no `id-token` — 1Password authenticates with a service-account
+  # token (OP_CI_SA_TOKEN), not GitHub OIDC federation. See header note.
 
 env:
   PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -110,16 +115,28 @@ jobs:
           cache-from: type=gha,scope=preview-${{ matrix.app }}
           cache-to: type=gha,scope=preview-${{ matrix.app }},mode=max
 
+      # Only the `hub` matrix leg reads the snapshot heartbeat (avoids a 4x
+      # duplicate Spaces read). Load just the Spaces creds it needs from
+      # 1Password, exported as AWS_* for the aws-cli S3 read below.
+      - name: Load Spaces creds from 1Password
+        if: matrix.app == 'hub'
+        uses: 1password/load-secrets-action@v2
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          AWS_ACCESS_KEY_ID:     op://Grove Prod/odoocker/SPACES_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY: op://Grove Prod/odoocker/SPACES_SECRET_ACCESS_KEY
+        with:
+          export-env: true
+
       - id: snapshot
         name: Read snapshot heartbeat (only on the `hub` leg to avoid 4x duplicate read)
         if: matrix.app == 'hub'
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
         run: |
           # heartbeat.txt is written nightly by the M1 sanitization pipeline
           # (odoocker/scripts/preview/sanitize-and-upload.sh). It contains
           # the date of the most recent successful sanitized snapshot.
+          # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY come from the 1Password
+          # step above (export-env writes them to $GITHUB_ENV).
           date=$(aws --endpoint-url https://nyc3.digitaloceanspaces.com \
             s3 cp s3://grove-preview-data/heartbeat.txt - 2>/dev/null | tr -d '\n')
           if [[ -z "$date" ]]; then
@@ -147,6 +164,27 @@ jobs:
           # GITHUB_TOKEN auto-grants read on org repos; no PAT needed.
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Resolve every runtime secret from 1Password (ADR-0001 Phase 3). The
+      # grove-ci-prod-ro SA is read-only to the Grove Prod vault; export-env
+      # writes each value to $GITHUB_ENV for the steps below. Shared infra
+      # creds live under the `odoocker` item; preview-only creds under the
+      # `grove-preview` item (see README-preview.md for the provisioning list).
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DIGITALOCEAN_TOKEN:       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
+          SPACES_ACCESS_KEY_ID:     op://Grove Prod/odoocker/SPACES_ACCESS_KEY_ID
+          SPACES_SECRET_ACCESS_KEY: op://Grove Prod/odoocker/SPACES_SECRET_ACCESS_KEY
+          DISCORD_OPS_WEBHOOK_URL:  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+          GHOST_KEY_GOLDBERRY:      op://Grove Prod/grove-preview/GHOST_KEY_GOLDBERRY
+          GHOST_KEY_GGG:            op://Grove Prod/grove-preview/GHOST_KEY_GGG
+          GHOST_KEY_NURSERY:        op://Grove Prod/grove-preview/GHOST_KEY_NURSERY
+          PREVIEW_SSH_KEY_ID:       op://Grove Prod/grove-preview/PREVIEW_SSH_KEY_ID
+          ADMIN_IP_CIDR:            op://Grove Prod/grove-preview/ADMIN_IP_CIDR
+        with:
+          export-env: true
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -156,22 +194,23 @@ jobs:
         name: terraform init + apply
         working-directory: odoocker/infra/terraform/environments/preview
         env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_spaces_access_key: ${{ secrets.DO_SPACES_ACCESS_KEY }}
-          TF_VAR_spaces_secret_key: ${{ secrets.DO_SPACES_SECRET_KEY }}
-          # Spaces creds also needed for the S3 backend.
-          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
+          TF_VAR_do_token: ${{ env.DIGITALOCEAN_TOKEN }}
+          TF_VAR_spaces_access_key: ${{ env.SPACES_ACCESS_KEY_ID }}
+          TF_VAR_spaces_secret_key: ${{ env.SPACES_SECRET_ACCESS_KEY }}
+          # Spaces creds also needed for the S3 backend (aliased to AWS_*).
+          AWS_ACCESS_KEY_ID: ${{ env.SPACES_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.SPACES_SECRET_ACCESS_KEY }}
           TF_VAR_pr_number: ${{ env.PR_NUMBER }}
           TF_VAR_pr_branch: ${{ env.PR_BRANCH }}
           TF_VAR_snapshot_date: ${{ needs.build-images.outputs.snapshot_date }}
-          TF_VAR_ssh_key_fingerprint: ${{ secrets.PREVIEW_SSH_KEY_ID }}
-          TF_VAR_admin_ip_cidr: ${{ secrets.ADMIN_IP_CIDR }}
+          TF_VAR_ssh_key_fingerprint: ${{ env.PREVIEW_SSH_KEY_ID }}
+          TF_VAR_admin_ip_cidr: ${{ env.ADMIN_IP_CIDR }}
         run: |
           tag="${{ needs.build-images.outputs.image_tag }}"
 
           # Generate per-run tfvars overlay — image tags + Ghost keys.
-          # auto.tfvars.json is loaded automatically by terraform.
+          # auto.tfvars.json is loaded automatically by terraform. Ghost keys
+          # come from the 1Password export-env step ($GITHUB_ENV).
           cat > terraform.auto.tfvars.json <<JSON
           {
             "frontend_image_tags": {
@@ -182,9 +221,9 @@ jobs:
             },
             "odoo_image_tag": "latest",
             "ghost_content_keys": {
-              "goldberry": "${{ secrets.GHOST_KEY_GOLDBERRY }}",
-              "ggg":       "${{ secrets.GHOST_KEY_GGG }}",
-              "nursery":   "${{ secrets.GHOST_KEY_NURSERY }}"
+              "goldberry": "${GHOST_KEY_GOLDBERRY}",
+              "ggg":       "${GHOST_KEY_GGG}",
+              "nursery":   "${GHOST_KEY_NURSERY}"
             }
           }
           JSON
@@ -261,7 +300,8 @@ jobs:
       - name: Post Discord notification
         if: always()
         env:
-          DISCORD_OPS_WEBHOOK_URL: ${{ secrets.DISCORD_OPS_WEBHOOK_URL }}
+          # DISCORD_OPS_WEBHOOK_URL comes from the 1Password export-env step.
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
           STATUS: ${{ job.status }}
           URLS: ${{ steps.tf.outputs.preview_urls_json }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -270,6 +310,10 @@ jobs:
         run: |
           # Same Discord pattern as sandbox-reaper / terraform-drift (PR #25
           # in odoocker). jq -n + curl, no third-party action.
+          if [ -z "$DISCORD_OPS_WEBHOOK_URL" ]; then
+            echo "::warning::No Discord webhook (secret load may have been skipped) — preview state unchanged"
+            exit 0
+          fi
           if [ "$STATUS" = "success" ]; then
             COLOR=5763719; ICON="🌱"; TITLE="Preview up for PR #${PR_NUMBER}"
             FIELDS="$(jq -n --arg urls "$URLS" '$urls | fromjson | to_entries | map({name: .key, value: .value, inline: false})')"
