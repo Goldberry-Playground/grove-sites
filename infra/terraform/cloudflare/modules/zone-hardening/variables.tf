@@ -54,6 +54,12 @@ variable "payment_webhook_paths" {
   type        = list(string)
 }
 
+variable "geo_block_countries" {
+  description = "ISO country codes for the EXISTING GOL-44 geo block, reproduced verbatim in the custom-phase ruleset for a no-drift import. NOT a new Phase-2 geo rule."
+  type        = list(string)
+  default     = ["CN", "RU"]
+}
+
 locals {
   # Session-cookie presence heuristic. Storefront apps set an auth/session cookie
   # once a user has a cart or is logged in; any such request must bypass full-page
