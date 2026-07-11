@@ -131,3 +131,9 @@ variable "payment_webhook_paths" {
   type        = list(string)
   default     = ["/api/webhooks/square", "/api/webhooks/stripe"]
 }
+
+variable "geo_block_countries" {
+  description = "ISO country codes for the EXISTING GOL-44 geo block (live on every zone as the 'Grove edge policy' CN/RU rule), reproduced verbatim for a no-drift import. NOT a new Phase-2 geo rule."
+  type        = list(string)
+  default     = ["CN", "RU"]
+}
