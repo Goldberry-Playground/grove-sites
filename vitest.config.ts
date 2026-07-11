@@ -37,6 +37,7 @@ export default defineConfig({
       "@grove/brand": path.resolve(__dirname, "packages/grove-brand/src"),
       "@grove/odoo-client": path.resolve(__dirname, "packages/odoo-client/src"),
       "@grove/ghost-client": path.resolve(__dirname, "packages/ghost-client/src"),
+      "@grove/newsletter": path.resolve(__dirname, "packages/newsletter/src"),
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),
       "@grove/config": path.resolve(__dirname, "packages/config/src"),
       "@grove/analytics": path.resolve(__dirname, "packages/analytics/src"),
