@@ -1,0 +1,17 @@
+# Local TF state — never committed. Remote state lives in grove-tf-state.
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfstate.*.backup
+.terraform/
+.terraform.lock.hcl.tmp
+crash.log
+crash.*.log
+
+# Real environment values (zone ids). The .example file IS committed.
+terraform.tfvars
+*.auto.tfvars
+
+# .env.op is an op-run template of op:// references (not secrets) and MUST be
+# committed so every operator uses the same template. Override any repo-root
+# .env.* exclusion.
+!.env.op
