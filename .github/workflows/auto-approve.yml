@@ -27,6 +27,7 @@
 #     cannot modify this file to approve itself.
 # GOL-130 verify (2026-07-09): end-to-end check that github-actions[bot] approval
 # clears REVIEW_REQUIRED and auto-merge fires once functional checks are green.
+# GOL-130 verify-2 (2026-07-11): re-check github-actions[bot] approve after org-level enable.
 name: Auto-approve verified agent PRs
 
 on:
