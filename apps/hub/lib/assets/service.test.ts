@@ -12,7 +12,7 @@ import type { AssetPipeline, AssetUploadResult } from "@grove/assets";
 function form(meta: Record<string, unknown>, file?: Uint8Array | null): Request {
   const fd = new FormData();
   fd.set("meta", JSON.stringify(meta));
-  if (file) fd.set("file", new Blob([file], { type: "image/png" }), "logo.png");
+  if (file) fd.set("file", new Blob([file as BlobPart], { type: "image/png" }), "logo.png");
   return new Request("http://localhost/api/assets/optimize", { method: "POST", body: fd });
 }
 

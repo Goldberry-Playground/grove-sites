@@ -39,7 +39,9 @@ export interface GithubBrandConfig {
 }
 
 /** Read `owner`, `repo`, `base`, and `token` from the environment. */
-export function githubBrandConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GithubBrandConfig {
+export function githubBrandConfigFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): GithubBrandConfig {
   const slug = env.GROVE_BRAND_REPO ?? "Goldberry-Playground/grove-sites";
   const [owner, repo] = slug.split("/");
   const token = env.GROVE_BRAND_PR_TOKEN ?? env.GITHUB_TOKEN ?? "";

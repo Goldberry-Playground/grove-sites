@@ -36,7 +36,10 @@ function json(body: unknown, status: number): NextResponse {
  * when the request is authorized. A missing server-side token is a 503 (the
  * endpoint is not configured), never an open door.
  */
-export function checkAuth(req: Request, env: NodeJS.ProcessEnv = process.env): NextResponse | null {
+export function checkAuth(
+  req: Request,
+  env: Record<string, string | undefined> = process.env,
+): NextResponse | null {
   const expected = env[TOKEN_ENV] ?? "";
   if (!expected) {
     return json({ error: "not_configured" }, 503);
