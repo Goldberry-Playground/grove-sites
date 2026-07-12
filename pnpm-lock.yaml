@@ -217,6 +217,12 @@ importers:
       '@grove/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@grove/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
+      '@grove/brand':
+        specifier: workspace:*
+        version: link:../../packages/grove-brand
       '@grove/config':
         specifier: workspace:*
         version: link:../../packages/config
