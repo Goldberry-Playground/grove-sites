@@ -13,7 +13,11 @@
 # zones). Deploying by id via action=execute is the provider-blessed pattern.
 
 resource "cloudflare_ruleset" "managed_waf" {
-  count = var.waf_managed_enabled ? 1 : 0
+  # Gated OFF on Free: the full "Cloudflare Managed Ruleset" (efb7b8c9…) is a
+  # Pro+ entitlement. Free zones instead get the fixed, auto-on "Cloudflare
+  # Managed Free Ruleset" (already active, not Terraform-manageable), so
+  # deploying the full ruleset here would 400 on apply. Activates only on Pro+.
+  count = var.waf_managed_enabled && var.plan_tier != "free" ? 1 : 0
 
   zone_id = var.zone_id
   name    = "grove-tier0-managed-waf"
