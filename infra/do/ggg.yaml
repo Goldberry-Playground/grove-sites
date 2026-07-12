@@ -66,6 +66,41 @@ services:
         scope: RUN_AND_BUILD_TIME
         value: "1"
 
+      # ── RUM / analytics (@grove/analytics → grove-obs OpenObserve RUM) ──────
+      # NEXT_PUBLIC_* are inlined into the browser bundle at BUILD time, so they
+      # must be present when `docker build` runs → RUN_AND_BUILD_TIME scope.
+      # Browser-reachable ingest endpoint (public host + TLS + CORS) was stood up
+      # on grove-obs by GOL-311. The SDK POSTs custom actions + web-vitals to
+      # https://rum.gatheringatthegrove.com/rum/v1/default/rum (stream _rumdata).
+      - key: NEXT_PUBLIC_RUM_ENABLED
+        scope: RUN_AND_BUILD_TIME
+        value: "true"
+      - key: NEXT_PUBLIC_RUM_ENV
+        scope: RUN_AND_BUILD_TIME
+        value: production
+      - key: NEXT_PUBLIC_OO_RUM_SITE
+        scope: RUN_AND_BUILD_TIME
+        value: rum.gatheringatthegrove.com
+      - key: NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        # Browser-public by design (RUM-ingest-only, NOT an admin key). Real value:
+        # op://Goldberry Grove - Admin/Grove Infra/obs_rum_client_token
+        # Set in DO UI: Settings → grove-ggg → ggg → Environment Variables.
+        value: REPLACE_ME
+      - key: NEXT_PUBLIC_OO_RUM_APP_ID
+        scope: RUN_AND_BUILD_TIME
+        value: grove-ggg
+      - key: NEXT_PUBLIC_OO_RUM_SERVICE
+        scope: RUN_AND_BUILD_TIME
+        value: grove-ggg
+      - key: NEXT_PUBLIC_OO_RUM_ORG
+        scope: RUN_AND_BUILD_TIME
+        value: default
+      - key: NEXT_PUBLIC_OO_RUM_INSECURE
+        scope: RUN_AND_BUILD_TIME
+        value: "false"
+
 domains:
   - domain: woodworkingeorge.com
     type: PRIMARY
