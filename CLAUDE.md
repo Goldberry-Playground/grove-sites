@@ -104,3 +104,9 @@ After code is committed:
 | `/code-review` | Before finishing code — reviews for bugs, conventions, security |
 | `/simplify` | After code review — checks for reuse and unnecessary complexity |
 | `/commit` | Stage, commit, and push with conventional commit message |
+
+## Pull requests: Draft vs. Ready
+
+Open WIP as a **Draft** PR; only mark it **Ready** when the change is
+self-contained, you ran the smallest local verify, and you expect CI to be
+green. Full rule: [`docs/pr-policy.md`](docs/pr-policy.md).
