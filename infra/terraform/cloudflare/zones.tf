@@ -30,4 +30,5 @@ module "zone_hardening" {
   monitoring_secret_header_name  = var.monitoring_secret_header_name
   monitoring_secret_header_value = var.monitoring_secret_header_value
   payment_webhook_paths          = var.payment_webhook_paths
+  geo_block_countries            = var.geo_block_countries
 }
