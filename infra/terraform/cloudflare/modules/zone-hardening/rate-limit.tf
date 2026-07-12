@@ -21,7 +21,12 @@ locals {
 }
 
 resource "cloudflare_ruleset" "rate_limit" {
-  count = var.rate_limit_mode == "off" ? 0 : 1
+  # Gated OFF on Free: advanced rate limiting (per-characteristic counting +
+  # custom JSON responses, the client-type split below) is a Pro/Biz+ feature.
+  # Free allows only a single basic rate-limit rule with none of these controls,
+  # so this ruleset would 400 on apply. Activates only on Pro+; a Free-compatible
+  # single-rule fallback is a documented follow-up (README).
+  count = var.rate_limit_mode != "off" && var.plan_tier != "free" ? 1 : 0
 
   zone_id = var.zone_id
   name    = "grove-tier1-rate-limit"

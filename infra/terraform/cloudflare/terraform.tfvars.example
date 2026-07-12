@@ -1,36 +1,34 @@
-# Copy to terraform.tfvars and fill with REAL values before plan/apply.
-# terraform.tfvars is .gitignored (real IDs are not secret, but we keep the
-# committed tree free of environment specifics). The API token + monitoring
-# secret come from 1Password via .env.op, NOT from this file.
+# Copy to terraform.tfvars and adjust. terraform.tfvars is .gitignored; these IDs
+# are NOT secret (they're the storefront zone/account IDs), but env specifics stay
+# out of the committed tree. The CF API token + monitoring secret come from
+# 1Password via .env.op, NOT from this file.
 #
-# Blocked input (GOL-264 unblock owner CEO Rick): the account_id, the 7 zone_ids,
-# and the confirmed plan_tier. Until these land, `terraform import` can't run and
-# `plan` can't be clean — this file is the shape they slot into.
+# Values below are the REAL storefront inventory, confirmed 2026-07-11 via the CF
+# API: 4 zones, all Free tier, one account. (The GOL-264 ticket's original
+# atthegrove.com / georgeggg.com / woodworkinggeorge.com are NOT in this CF
+# account — pending CEO confirmation of where they resolve.)
 
-cloudflare_account_id = "REPLACE_WITH_ACCOUNT_ID"
+cloudflare_account_id = "5579f08c66e73a09ceb7855a19b14e11"
 
-# Confirm against the real plan (scope item 1) before flipping the bot layer.
-plan_tier = "unknown" # -> "free" | "pro" | "business" | "enterprise"
+# All four zones are Free. This gates the module to the Free-tier subset:
+# Bot Fight Mode + cookie-aware Cache Rules + the §4 allowlist folded into the
+# existing "Grove edge policy" ruleset. Full Managed WAF + advanced rate limiting
+# stay OFF until a zone is upgraded to Pro (per the accepted board decision to
+# ship the Free subset now and defer the Pro upgrade).
+plan_tier = "free"
 
-# The 7 storefront zones. rollout_first marks the lowest-traffic zone that leads
-# the no-log-mode bot rollout (§6). Fill each zone_id from the CF dashboard /
-# `cf.zones.list` output CEO Rick provides.
+# The 4 storefront zones. rollout_first marks the lowest-traffic zone that leads
+# the Bot Fight Mode rollout (§6 — BFM has no log mode).
 zones = {
-  goldberry_farm = { domain = "goldberrygrove.farm", zone_id = "REPLACE_ZONE_ID" }
-  atthegrove     = { domain = "atthegrove.com", zone_id = "REPLACE_ZONE_ID" }
-  atthegrove_nur = { domain = "atthegrovenursery.com", zone_id = "REPLACE_ZONE_ID" }
-  georgeggg      = { domain = "georgeggg.com", zone_id = "REPLACE_ZONE_ID" }
-  woodworking    = { domain = "woodworkinggeorge.com", zone_id = "REPLACE_ZONE_ID", rollout_first = true }
-  gathering      = { domain = "gatheringatthegrove.com", zone_id = "REPLACE_ZONE_ID" }
-  # 7th zone: confirm the exact apex with CEO Rick (candidates: woodworkingeorge.com
-  # per the §6 note, or a www/mail zone). Kept explicit rather than guessed.
-  seventh_zone = { domain = "REPLACE_DOMAIN", zone_id = "REPLACE_ZONE_ID" }
+  goldberry_farm = { domain = "goldberrygrove.farm", zone_id = "0c31404bc38c968a66b302bb99e9fad3" }
+  nursery        = { domain = "atthegrovenursery.com", zone_id = "939fd63eb2cadd07d57aa193fd543764" }
+  gathering      = { domain = "gatheringatthegrove.com", zone_id = "04ca33af08b2671402393a444da0e698" }
+  woodworking    = { domain = "woodworkingeorge.com", zone_id = "ea21ae31a73f7098ba6f962f8f10561a", rollout_first = true }
 }
 
-# Rollout toggles — all default to safe (log/off) in variables.tf. Uncomment to
-# advance a layer in a reviewed PR after the prior one soaks (§6):
-# waf_managed_enabled   = true
+# Rollout toggles — safe defaults live in variables.tf. On Free the WAF-managed
+# and rate-limit tiers are gated off regardless; cache rules + the allowlist ship
+# with the first apply, Bot Fight Mode advances last (woodworkingeorge.com first):
 # cache_rules_enabled   = true
-# rate_limit_mode       = "log"   # -> "on" after 48-72h clean
-# custom_firewall_mode  = "log"   # -> "on" after 48-72h clean
-# enable_bot_management = false   # -> true (starts on woodworkingeorge.com only)
+# custom_firewall_mode  = "on"     # allowlist + preserved CN/RU block
+# enable_bot_management = false     # -> true starts BFM on woodworkingeorge.com only
