@@ -23,6 +23,23 @@ variable "cache_rules_enabled" {
   type        = bool
 }
 
+variable "session_cookie_names" {
+  description = <<-EOT
+    Names of the cookies that mark a personalized / logged-in session. Any request
+    carrying one of these bypasses full-page cache (Cache Rule 2). DEFAULTS TO []
+    because the Grove storefront is currently COOKIELESS — the cart lives in
+    localStorage and there is no server session cookie (confirmed 2026-07-12,
+    GOL-315 / Alice review nit on GOL-264). With [] the session-bypass rule is not
+    emitted at all (a clean no-op) rather than matching placeholder cookie names
+    that never exist; the never-cache path rule + the /checkout|/account|/cart|
+    /api/* bypass keep the no-full-page-cache guarantee on their own. Populate the
+    real cookie name(s) here if the storefront ever introduces a server session and
+    Rule 2 reappears automatically.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "rate_limit_mode" {
   description = "log | on | off (Tier 1 rate limiting)."
   type        = string
@@ -61,14 +78,22 @@ variable "geo_block_countries" {
 }
 
 locals {
-  # Session-cookie presence heuristic. Storefront apps set an auth/session cookie
-  # once a user has a cart or is logged in; any such request must bypass full-page
-  # cache and skip challenges. Cookie names are the common Next.js/commerce set;
-  # tighten to the real cookie name(s) once confirmed with Engineering - Alice.
-  session_cookie_expr = "(len(http.request.cookies[\"__Secure-grove-session\"]) > 0 or len(http.request.cookies[\"grove_session\"]) > 0 or len(http.request.cookies[\"cart\"]) > 0)"
+  # Session-cookie presence heuristic, built from the configured cookie name(s).
+  # A logged-in / personalized request carries one of these and must bypass
+  # full-page cache. The Grove storefront is COOKIELESS today (cart=localStorage),
+  # so `session_cookie_names` defaults to [] and this expression is unused — Rule 2
+  # is not emitted (see cache-rules.tf `has_session_cookie` gate). If the list is
+  # populated later, the OR-of-presence matcher is generated automatically.
+  has_session_cookie  = length(var.session_cookie_names) > 0
+  session_cookie_expr = "(${join(" or ", [for c in var.session_cookie_names : "len(http.request.cookies[\"${c}\"]) > 0"])})"
 
   # Never-cache dynamic/PII paths regardless of cookie state.
   never_cache_path_expr = "(starts_with(http.request.uri.path, \"/checkout\") or starts_with(http.request.uri.path, \"/account\") or starts_with(http.request.uri.path, \"/cart\") or starts_with(http.request.uri.path, \"/api/\"))"
+
+  # Anonymous cache-eligible remainder. When there are no session cookies the
+  # `not session_cookie_expr` clause is dropped so the expression stays valid
+  # (join over an empty list would yield an empty matcher).
+  anonymous_cache_expr = local.has_session_cookie ? "not ${local.never_cache_path_expr} and not ${local.session_cookie_expr}" : "not ${local.never_cache_path_expr}"
 
   # XHR / fetch API traffic vs top-level navigation. Sec-Fetch-Mode is set by all
   # modern browsers: "navigate" for page loads, "cors"/"no-cors"/"same-origin"
