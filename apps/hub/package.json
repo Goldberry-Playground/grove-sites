@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@grove/analytics": "workspace:*",
+    "@grove/assets": "workspace:*",
+    "@grove/brand": "workspace:*",
     "@grove/otel": "workspace:*",
     "@grove/config": "workspace:*",
     "@grove/ghost-client": "workspace:*",

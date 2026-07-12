@@ -16,7 +16,14 @@ const nextConfig: NextConfig = {
     "@grove/otel",
     "@grove/ghost-client",
     "@grove/odoo-client",
+    // TS source packages consumed by the /api/assets/* ingest endpoints (GOL-290).
+    "@grove/assets",
+    "@grove/brand",
   ],
+  // Native `sharp` + the AWS SDK (pulled in by @grove/assets' optimize recipe)
+  // must stay external to the server bundle rather than be traced/bundled, so
+  // the native binary resolves at runtime on the Node server.
+  serverExternalPackages: ["sharp", "@aws-sdk/client-s3"],
   images: {
     remotePatterns: [
       // Grove assets CDN — future-proofed even though hub has no public

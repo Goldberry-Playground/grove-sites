@@ -31,6 +31,11 @@ COPY packages/otel/package.json packages/otel/
 # so it gets no node_modules copy below).
 COPY packages/grove-ui/package.json packages/grove-ui/
 COPY packages/grove-tokens/package.json packages/grove-tokens/
+# @grove/assets (native sharp + @aws-sdk) and @grove/brand (deps-free) back the
+# /api/assets/* ingest endpoints. assets' package.json must be present so pnpm
+# installs its @aws-sdk/client-s3 + sharp deps into the image (GOL-290).
+COPY packages/assets/package.json packages/assets/
+COPY packages/grove-brand/package.json packages/grove-brand/
 
 RUN pnpm install --frozen-lockfile
 
@@ -49,6 +54,9 @@ COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_
 COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics/node_modules
 COPY --from=deps /workspace/packages/otel/node_modules ./packages/otel/node_modules
 COPY --from=deps /workspace/packages/grove-ui/node_modules ./packages/grove-ui/node_modules
+# @grove/assets' external deps (@aws-sdk/client-s3 + sharp) resolve from here.
+# grove-brand is deps-free, so it has no node_modules to forward.
+COPY --from=deps /workspace/packages/assets/node_modules ./packages/assets/node_modules
 
 # Then copy the rest of the source.
 COPY . .
