@@ -42,12 +42,14 @@ on:
         required: false
         type: string
 
-# Cancel in-flight runs when a new commit lands on the same PR. Avoids
-# wasting build time on superseded commits and avoids racing terraform
-# state on the same backend key.
+# Serialize runs per PR. `cancel-in-progress: false` (not true): cancelling
+# an in-flight `terraform apply` mid-run leaves partial/corrupt state on a
+# backend with no locking (Spaces S3, TF ~1.6) — the sweep then "destroys"
+# an empty state and leaks the droplet. Superseded commits waste a build
+# but queue safely (same reasoning as odoocker's terraform-drift.yml).
 concurrency:
   group: preview-pr-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read       # checkout
@@ -161,7 +163,9 @@ jobs:
         with:
           repository: Goldberry-Playground/odoocker-goldberrygrove
           path: odoocker
-          # GITHUB_TOKEN auto-grants read on org repos; no PAT needed.
+          # odoocker is a public repo, so GITHUB_TOKEN suffices for read.
+          # (If it ever goes private this needs a PAT/app token — GITHUB_TOKEN
+          # is scoped to the current repo only.)
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # Resolve every runtime secret from 1Password (ADR-0001 Phase 3). The
@@ -205,8 +209,9 @@ jobs:
           TF_VAR_snapshot_date: ${{ needs.build-images.outputs.snapshot_date }}
           TF_VAR_ssh_key_fingerprint: ${{ env.PREVIEW_SSH_KEY_ID }}
           TF_VAR_admin_ip_cidr: ${{ env.ADMIN_IP_CIDR }}
+          IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
         run: |
-          tag="${{ needs.build-images.outputs.image_tag }}"
+          tag="$IMAGE_TAG"
 
           # Generate per-run tfvars overlay — image tags + Ghost keys.
           # auto.tfvars.json is loaded automatically by terraform. Ghost keys
