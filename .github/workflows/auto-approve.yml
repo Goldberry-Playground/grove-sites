@@ -1,4 +1,4 @@
-# Agent-mergeable path for grove-sites (GOL-122, reworked under GOL-276).
+# Agent-mergeable path for grove-sites (GOL-122, merge step fixed under GOL-276).
 #
 # Problem this solves:
 #   Every Paperclip agent authors PRs under the SAME GitHub App bot
@@ -6,24 +6,16 @@
 #   approving review, and GitHub blocks "approve your own pull request",
 #   so no agent can satisfy the review gate on its own PRs.
 #
-# Why this no longer approves as github-actions[bot] (GOL-276):
-#   The GITHUB_TOKEN / github-actions[bot] approval is gated by the
-#   admin-only setting "Allow GitHub Actions to create and approve pull
-#   requests". That setting is opaque to agents (settings API 403s without
-#   Administration) and did NOT take effect when we asked for it flipped —
-#   auto-approve runs kept failing with
-#   "GitHub Actions is not permitted to approve pull requests".
-#
-#   Instead we post the approving review as a DEDICATED reviewer PAT
-#   (secrets.REVIEWER_PAT): a fine-grained token for a DISTINCT
-#   human-collaborator identity (EngineeringMoonBear), scoped to grove-sites
-#   with `Pull requests: write`. A cross-identity approval of the App's PR is
-#   a normal, always-allowed review, so this is permanently independent of the
-#   GitHub Actions approve toggle.
-#
-#   The MERGE is still done by GITHUB_TOKEN (github-actions[bot]) — merging is
-#   NOT blocked for Actions, only *approving* is — as a direct squash merge, so
-#   it also does not depend on the "Allow auto-merge" repo setting.
+# How it works:
+#   - APPROVE as github-actions[bot] — a DISTINCT identity from the PR-author
+#     App — which satisfies the required review. (This needs the org/repo
+#     setting "Allow GitHub Actions to create and approve pull requests",
+#     enabled org-wide under GOL-304.)
+#   - MERGE as github-actions[bot] too, via a DIRECT squash (not `--auto`), so
+#     it does NOT depend on the separate "Allow auto-merge" repo setting.
+#     This requires `contents: write` (the previous version only had
+#     `contents: read`, which is why the merge step failed with
+#     "Resource not accessible by integration (mergePullRequest)").
 #
 # Guardrails (see GOL-122):
 #   - Never auto-approves human/external PRs (author must be the agent App bot)
@@ -32,7 +24,6 @@
 #     -> not a blanket rubber-stamp.
 #   - Runs from the base-branch definition (workflow_run), so a PR cannot
 #     modify this file to approve itself.
-#   - No-ops safely if REVIEWER_PAT is not configured yet.
 name: Auto-approve verified agent PRs
 
 on:
@@ -40,37 +31,29 @@ on:
     workflows: ["Claude Code Review"]
     types: [completed]
 
-# Least privilege. contents:write lets GITHUB_TOKEN perform the squash merge;
-# the approval itself is posted with REVIEWER_PAT, not GITHUB_TOKEN.
+# contents:write lets github-actions[bot] perform the direct squash merge;
+# pull-requests:write lets it post the approving review.
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
   auto-approve:
-    # Only when the agent code review passed, for a same-repo PR.
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.pull_requests[0] != null
     runs-on: ubuntu-latest
     steps:
-      - name: Approve (reviewer PAT) + merge (github-actions[bot])
+      - name: Approve + merge (github-actions[bot])
         env:
-          REVIEWER_PAT: ${{ secrets.REVIEWER_PAT }}
-          MERGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: |
           set -euo pipefail
 
-          if [ -z "${REVIEWER_PAT:-}" ]; then
-            echo "REVIEWER_PAT secret is not set — cannot post the cross-identity approval."
-            echo "GOL-276: add a fine-grained PAT (Pull requests: write on grove-sites) as repo secret REVIEWER_PAT."
-            exit 0
-          fi
-
-          AUTHOR=$(GH_TOKEN="$MERGE_TOKEN" gh pr view "$PR" --repo "$REPO" --json author -q '.author.login')
+          AUTHOR=$(gh pr view "$PR" --repo "$REPO" --json author -q '.author.login')
           # App bot logins appear as "app/agenticos-developer" via gh and
           # "agenticos-developer" via some APIs; accept both, reject all else.
           case "$AUTHOR" in
@@ -80,34 +63,27 @@ jobs:
               exit 0 ;;
           esac
 
-          # Resolve the reviewer identity (for dedup + guard against self-approval).
-          REVIEWER_LOGIN=$(GH_TOKEN="$REVIEWER_PAT" gh api user -q '.login')
-          if [ "$REVIEWER_LOGIN" = "agenticos-developer" ] || [ "$REVIEWER_LOGIN" = "agenticos-developer[bot]" ]; then
-            echo "REVIEWER_PAT resolves to the PR-author identity ($REVIEWER_LOGIN); a distinct reviewer is required. Aborting."
-            exit 1
-          fi
-
           # Don't stack duplicate approvals on re-runs.
-          ALREADY=$(GH_TOKEN="$MERGE_TOKEN" gh api "repos/$REPO/pulls/$PR/reviews" \
-            -q "[.[] | select(.user.login==\"$REVIEWER_LOGIN\" and .state==\"APPROVED\")] | length")
+          ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews" \
+            -q '[.[] | select(.user.login=="github-actions[bot]" and .state=="APPROVED")] | length')
           if [ "${ALREADY:-0}" -gt 0 ]; then
-            echo "PR #$PR already approved by $REVIEWER_LOGIN."
+            echo "PR #$PR already approved by github-actions[bot]."
           else
-            GH_TOKEN="$REVIEWER_PAT" gh pr review "$PR" --repo "$REPO" --approve --body \
-              "Auto-approved by $REVIEWER_LOGIN (dedicated reviewer identity, distinct from the PR-author App): the agent code review (Claude Code Review) passed. This satisfies branch protection's review requirement; functional required status checks still gate the actual merge. (GOL-122 / GOL-276)"
+            gh pr review "$PR" --repo "$REPO" --approve --body \
+              "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed. This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276)"
           fi
 
-          # Merge as github-actions[bot] via a direct squash (merging is allowed for
-          # Actions; only approving was blocked). Wait briefly for the remaining
-          # required checks to go green so we don't depend on "Allow auto-merge".
+          # Merge via a DIRECT squash (no `--auto`, so no dependency on the
+          # "Allow auto-merge" setting). Wait briefly for the remaining required
+          # checks to go green.
           for i in $(seq 1 30); do
-            MS=$(GH_TOKEN="$MERGE_TOKEN" gh pr view "$PR" --repo "$REPO" --json state,mergeStateStatus -q '.state + ":" + .mergeStateStatus')
+            MS=$(gh pr view "$PR" --repo "$REPO" --json state,mergeStateStatus -q '.state + ":" + .mergeStateStatus')
             echo "merge attempt $i — $MS"
             case "$MS" in
               MERGED:*)
                 echo "PR #$PR already merged."; exit 0 ;;
               OPEN:CLEAN|OPEN:UNSTABLE)
-                if GH_TOKEN="$MERGE_TOKEN" gh pr merge "$PR" --repo "$REPO" --squash --delete-branch; then
+                if gh pr merge "$PR" --repo "$REPO" --squash --delete-branch; then
                   echo "Merged PR #$PR."; exit 0
                 fi ;;
             esac
