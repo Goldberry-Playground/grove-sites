@@ -1,0 +1,2 @@
+Auto-merge canary 20260713003719
+Proves GOL-122 hands-free path (github-actions[bot] approve + direct squash). GOL-276/GOL-275.
