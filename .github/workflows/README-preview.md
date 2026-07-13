@@ -64,3 +64,5 @@ single source of truth for the paths.
 
 End-to-end verification is gated on the secret provisioning above; the
 workflow logic and the odoocker TF env are complete and reviewable now.
+
+<!-- GOL-6 acceptance re-run: verify preview boots clean with odoocker #245 (Caddyfile handles + odoo /.env mount) on main. -->
