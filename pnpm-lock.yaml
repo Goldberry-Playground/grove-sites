@@ -147,6 +147,9 @@ importers:
       '@grove/ghost-client':
         specifier: workspace:*
         version: link:../../packages/ghost-client
+      '@grove/newsletter':
+        specifier: workspace:*
+        version: link:../../packages/newsletter
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
@@ -314,6 +317,9 @@ importers:
       '@grove/ghost-client':
         specifier: workspace:*
         version: link:../../packages/ghost-client
+      '@grove/newsletter':
+        specifier: workspace:*
+        version: link:../../packages/newsletter
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client

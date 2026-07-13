@@ -15,6 +15,7 @@
     "@grove/checkout": "workspace:*",
     "@grove/config": "workspace:*",
     "@grove/ghost-client": "workspace:*",
+    "@grove/newsletter": "workspace:*",
     "@grove/odoo-client": "workspace:*",
     "@grove/tokens": "workspace:*",
     "@grove/ui": "workspace:*",

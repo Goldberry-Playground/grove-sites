@@ -11,6 +11,12 @@ export { CartNavLink, type CartNavLinkProps } from "./CartNavLink";
 export { ProductCard, type ProductCardProps, type ProductCardData } from "./ProductCard";
 export { VendorCard, type VendorCardProps } from "./VendorCard";
 export { BuyAtVendorForm, type BuyAtVendorFormProps } from "./BuyAtVendorForm";
+export {
+  CaptureForm,
+  type CaptureFormProps,
+  type CaptureBrand,
+  type CaptureSource,
+} from "./CaptureForm";
 export { JournalProductEmbed, type JournalProductEmbedProps } from "./JournalProductEmbed";
 
 // Shop nav + hero

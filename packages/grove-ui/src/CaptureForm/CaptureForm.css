@@ -1,0 +1,108 @@
+/* CaptureForm — Grove email capture. Styled entirely against --grove-* tokens
+   so it renders on-brand under any theme. */
+
+.grove-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+.grove-capture__heading {
+  margin: 0;
+  font-family: var(--grove-font-display, inherit);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--grove-color-foreground);
+}
+
+.grove-capture__desc {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--grove-color-foreground);
+  opacity: 0.85;
+}
+
+.grove-capture__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grove-capture--inline .grove-capture__fields {
+  flex-direction: row;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.grove-capture__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 12rem;
+}
+
+.grove-capture__label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--grove-color-foreground);
+}
+
+.grove-capture__input {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--grove-color-primary);
+  border-radius: 0.375rem;
+  background: var(--grove-color-background, #fff);
+  color: var(--grove-color-foreground);
+}
+
+.grove-capture__input:focus-visible {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: 1px;
+}
+
+/* Honeypot — kept in the DOM for bots, out of sight and off-flow for humans. */
+.grove-capture__hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.grove-capture__hub {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--grove-color-foreground);
+  cursor: pointer;
+}
+
+.grove-capture__hub input {
+  margin-top: 0.2rem;
+}
+
+.grove-capture__consent {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--grove-color-foreground);
+  opacity: 0.7;
+}
+
+.grove-capture__success {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--grove-color-primary);
+}
+
+.grove-capture__error {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--grove-color-danger, #b4232a);
+}

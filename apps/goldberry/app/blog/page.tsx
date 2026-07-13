@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
+import { CaptureForm } from "@grove/ui-kit";
 import { ghost } from "../../lib/ghost";
 import { mockPosts } from "../../data/mock-posts";
 
@@ -97,6 +98,21 @@ export default async function BlogPage() {
             </div>
           </article>
         ))}
+      </div>
+
+      <div style={{ maxWidth: "36rem", margin: "3rem auto 0", padding: "0 1rem" }}>
+        <CaptureForm
+          brand="goldberry"
+          source="newsletter-signup"
+          label="treefacts-content"
+          interests={["farm-updates"]}
+          heading="Get the next #TreeFacts in your inbox"
+          description="Every week we dig up one well-sourced fact about the trees we grow — the kind of thing that changes how you look at a hillside. We send the best ones out by email."
+          submitLabel="Send me TreeFacts"
+          successMessage="You're in. First one lands next week."
+          consentText="About an email a week. Unsubscribe anytime."
+          hubOptIn
+        />
       </div>
     </section>
   );
