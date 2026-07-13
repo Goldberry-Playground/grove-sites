@@ -64,3 +64,5 @@ single source of truth for the paths.
 
 End-to-end verification is gated on the secret provisioning above; the
 workflow logic and the odoocker TF env are complete and reviewable now.
+
+<!-- GOL-6 acceptance smoke test: verify preview stack boots+serves after odoocker #223/#217/#229. -->
