@@ -131,9 +131,14 @@ creates drift); document + re-import any emergency dashboard change.
 
 ## Notes / follow-ups
 
-- **Session cookie name** in `modules/zone-hardening/variables.tf`
-  `session_cookie_expr` is a best-guess set — confirm the real storefront cookie
-  name(s) with Engineering - Alice before enabling cache rules in prod.
+- **Session cookies — RESOLVED (GOL-315):** the storefront is cookieless today
+  (cart lives in localStorage, no server session), so `session_cookie_names`
+  defaults to `[]` and Cache Rule 2 (session bypass) is not emitted at all — a
+  clean no-op instead of a dead matcher on placeholder cookie names. The
+  no-full-page-cache guarantee is carried by Rule 1 (never-cache
+  `/checkout|/account|/cart|/api/*`) + CF's default `DYNAMIC` on HTML. Populate
+  `session_cookie_names` with the real name(s) if a server session is ever added;
+  Rule 2 reappears automatically.
 - **Unfurler/scanner UA list** in `custom-firewall.tf` — reconcile with GOL-44 §4.
 - **`grove-tf-state` Spaces bucket** must exist for the remote backend; bootstrap
   it like AgenticOS `state-backend/` if absent (the live proofs above used a

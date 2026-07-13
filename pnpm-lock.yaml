@@ -45,6 +45,15 @@ importers:
         specifier: ^4.1.5
         version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@22.19.15)(@vitest/ui@4.1.5)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.15)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.23.0))
 
+  apps/discord-bridge:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   apps/ggg:
     dependencies:
       '@grove/analytics':
@@ -138,6 +147,9 @@ importers:
       '@grove/ghost-client':
         specifier: workspace:*
         version: link:../../packages/ghost-client
+      '@grove/newsletter':
+        specifier: workspace:*
+        version: link:../../packages/newsletter
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
@@ -208,6 +220,12 @@ importers:
       '@grove/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@grove/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
+      '@grove/brand':
+        specifier: workspace:*
+        version: link:../../packages/grove-brand
       '@grove/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -299,6 +317,9 @@ importers:
       '@grove/ghost-client':
         specifier: workspace:*
         version: link:../../packages/ghost-client
+      '@grove/newsletter':
+        specifier: workspace:*
+        version: link:../../packages/newsletter
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client

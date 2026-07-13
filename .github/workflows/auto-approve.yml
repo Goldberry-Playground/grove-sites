@@ -1,32 +1,29 @@
-# Agent-mergeable path for grove-sites (GOL-122).
+# Agent-mergeable path for grove-sites (GOL-122, merge step fixed under GOL-276).
 #
 # Problem this solves:
 #   Every Paperclip agent authors PRs under the SAME GitHub App bot
 #   (agenticos-developer[bot]). `main` branch protection requires an
 #   approving review, and GitHub blocks "approve your own pull request",
-#   so no agent can satisfy the review gate. Our PR token has no admin,
-#   so `gh pr merge --admin` can't bypass it either. Today Josh admin-
-#   merges every green PR by hand — an org-wide throughput blocker.
+#   so no agent can satisfy the review gate on its own PRs.
 #
-# How this fixes it WITHOUT new credentials, a second App, or admin:
-#   This workflow submits the approving review as `github-actions[bot]`
-#   — a DISTINCT identity from the PR-author App — so the self-approval
-#   block does not apply. Crucially it only fires AFTER the agent code
-#   review ("Claude Code Review" -> the `claude-review` check) has
-#   SUCCEEDED, and only for PRs authored by our agent bot. The real
-#   reviewer stays the claude-review agent; this job just translates a
-#   passed agent review into the approval branch protection asks for.
-#   All functional required status checks still gate the actual merge.
+# How it works:
+#   - APPROVE as github-actions[bot] — a DISTINCT identity from the PR-author
+#     App — which satisfies the required review. (This needs the org/repo
+#     setting "Allow GitHub Actions to create and approve pull requests",
+#     enabled org-wide under GOL-304.)
+#   - MERGE as github-actions[bot] too, via a DIRECT squash (not `--auto`), so
+#     it does NOT depend on the separate "Allow auto-merge" repo setting.
+#     This requires `contents: write` (the previous version only had
+#     `contents: read`, which is why the merge step failed with
+#     "Resource not accessible by integration (mergePullRequest)").
 #
 # Guardrails (see GOL-122):
-#   - Never auto-approves human or external PRs (author must be the
-#     agent App bot) -> human review is preserved for human PRs.
-#   - Never approves unless the agent code review passed -> not a
-#     blanket rubber-stamp.
-#   - Runs from the base-branch definition (workflow_run), so a PR
-#     cannot modify this file to approve itself.
-# GOL-130 verify (2026-07-09): end-to-end check that github-actions[bot] approval
-# clears REVIEW_REQUIRED and auto-merge fires once functional checks are green.
+#   - Never auto-approves human/external PRs (author must be the agent App bot)
+#     -> human review is preserved for human PRs.
+#   - Only fires AFTER the agent code review ("Claude Code Review") SUCCEEDED
+#     -> not a blanket rubber-stamp.
+#   - Runs from the base-branch definition (workflow_run), so a PR cannot
+#     modify this file to approve itself.
 name: Auto-approve verified agent PRs
 
 on:
@@ -34,21 +31,21 @@ on:
     workflows: ["Claude Code Review"]
     types: [completed]
 
-# Least privilege: only what's needed to review + enable auto-merge.
+# contents:write lets github-actions[bot] perform the direct squash merge;
+# pull-requests:write lets it post the approving review.
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
   auto-approve:
-    # Only when the agent code review passed, for a same-repo PR.
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.pull_requests[0] != null
     runs-on: ubuntu-latest
     steps:
-      - name: Approve (as github-actions[bot]) + enable auto-merge
+      - name: Approve + merge (github-actions[bot])
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -70,13 +67,26 @@ jobs:
           ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews" \
             -q '[.[] | select(.user.login=="github-actions[bot]" and .state=="APPROVED")] | length')
           if [ "${ALREADY:-0}" -gt 0 ]; then
-            echo "PR #$PR already approved by github-actions[bot]; ensuring auto-merge is on."
+            echo "PR #$PR already approved by github-actions[bot]."
           else
             gh pr review "$PR" --repo "$REPO" --approve --body \
-              "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed. This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122)"
+              "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed. This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276)"
           fi
 
-          # Turn on auto-merge so GitHub merges once ALL required checks are green.
-          # No-op-safe: needs the repo "Allow auto-merge" setting enabled.
-          gh pr merge "$PR" --repo "$REPO" --auto --squash \
-            || echo "Could not enable auto-merge (enable 'Allow auto-merge' in repo settings). Approval still stands; merge will be a one-click for a maintainer."
+          # Merge via a DIRECT squash (no `--auto`, so no dependency on the
+          # "Allow auto-merge" setting). Wait briefly for the remaining required
+          # checks to go green.
+          for i in $(seq 1 30); do
+            MS=$(gh pr view "$PR" --repo "$REPO" --json state,mergeStateStatus -q '.state + ":" + .mergeStateStatus')
+            echo "merge attempt $i — $MS"
+            case "$MS" in
+              MERGED:*)
+                echo "PR #$PR already merged."; exit 0 ;;
+              OPEN:CLEAN|OPEN:UNSTABLE)
+                if gh pr merge "$PR" --repo "$REPO" --squash --delete-branch; then
+                  echo "Merged PR #$PR."; exit 0
+                fi ;;
+            esac
+            sleep 20
+          done
+          echo "Required checks not green within timeout; the approval stands and the PR will merge on a later trigger or a maintainer one-click."

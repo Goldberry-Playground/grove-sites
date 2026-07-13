@@ -31,6 +31,11 @@ COPY packages/otel/package.json packages/otel/
 # so it gets no node_modules copy below).
 COPY packages/grove-ui/package.json packages/grove-ui/
 COPY packages/grove-tokens/package.json packages/grove-tokens/
+# @grove/assets (native sharp + @aws-sdk) and @grove/brand (deps-free) back the
+# /api/assets/* ingest endpoints. assets' package.json must be present so pnpm
+# installs its @aws-sdk/client-s3 + sharp deps into the image (GOL-290).
+COPY packages/assets/package.json packages/assets/
+COPY packages/grove-brand/package.json packages/grove-brand/
 
 RUN pnpm install --frozen-lockfile
 
@@ -49,6 +54,9 @@ COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_
 COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics/node_modules
 COPY --from=deps /workspace/packages/otel/node_modules ./packages/otel/node_modules
 COPY --from=deps /workspace/packages/grove-ui/node_modules ./packages/grove-ui/node_modules
+# @grove/assets' external deps (@aws-sdk/client-s3 + sharp) resolve from here.
+# grove-brand is deps-free, so it has no node_modules to forward.
+COPY --from=deps /workspace/packages/assets/node_modules ./packages/assets/node_modules
 
 # Then copy the rest of the source.
 COPY . .
@@ -60,6 +68,29 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # /public/ paths (local dev + tests). QA/prod builds pass this via compose.
 ARG NEXT_PUBLIC_ASSETS_URL=""
 ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL
+
+# RUM / analytics (@grove/analytics → grove-obs OpenObserve RUM). NEXT_PUBLIC_*
+# inline into the client bundle at build time, so they must be ARGs here. Tenant
+# identity is intrinsic to this app (defaults below); the shared endpoint, the
+# master switch, and the browser-public ingest token are passed by CI
+# (.github/workflows/docker.yml) / App Platform spec (infra/do/hub.yaml). Unset
+# → the OpenObserve sink stays disabled (needs SITE + CLIENT_TOKEN both set).
+ARG NEXT_PUBLIC_RUM_ENABLED=""
+ENV NEXT_PUBLIC_RUM_ENABLED=$NEXT_PUBLIC_RUM_ENABLED
+ARG NEXT_PUBLIC_RUM_ENV=""
+ENV NEXT_PUBLIC_RUM_ENV=$NEXT_PUBLIC_RUM_ENV
+ARG NEXT_PUBLIC_OO_RUM_SITE=""
+ENV NEXT_PUBLIC_OO_RUM_SITE=$NEXT_PUBLIC_OO_RUM_SITE
+ARG NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN=""
+ENV NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN=$NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN
+ARG NEXT_PUBLIC_OO_RUM_APP_ID="grove-hub"
+ENV NEXT_PUBLIC_OO_RUM_APP_ID=$NEXT_PUBLIC_OO_RUM_APP_ID
+ARG NEXT_PUBLIC_OO_RUM_SERVICE="grove-hub"
+ENV NEXT_PUBLIC_OO_RUM_SERVICE=$NEXT_PUBLIC_OO_RUM_SERVICE
+ARG NEXT_PUBLIC_OO_RUM_ORG="default"
+ENV NEXT_PUBLIC_OO_RUM_ORG=$NEXT_PUBLIC_OO_RUM_ORG
+ARG NEXT_PUBLIC_OO_RUM_INSECURE="false"
+ENV NEXT_PUBLIC_OO_RUM_INSECURE=$NEXT_PUBLIC_OO_RUM_INSECURE
 
 # Build the ui-kit first — pnpm --filter does NOT build workspace deps,
 # and @grove/ui-kit resolves to dist/ which only exists after tsup runs.

@@ -1,0 +1,93 @@
+name: Discord weekly digest
+
+###############################################################################
+# Posts the weekly Buffer analytics digest to Discord #weekly-insights
+# (GOL-262 Phase 1). Runs Mondays 08:00 ET, or on demand via workflow_dispatch.
+#
+# Secrets come from 1Password via the service-account token (same pattern as the
+# rest of the Grove stack) — nothing sensitive lives in GitHub. Until the Discord
+# app is provisioned (GOL-263) the job self-skips cleanly, so enabling this file
+# on main never produces red runs.
+#
+# DST note: GitHub cron is UTC. `0 12 * * 1` = 08:00 EDT (summer/market season).
+# In EST it fires 07:00 ET — acceptable for now; revisit if a winter slot matters.
+###############################################################################
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+    inputs:
+      period:
+        description: "Reporting window"
+        required: false
+        default: "last7d"
+        type: choice
+        options:
+          - last7d
+          - last30d
+          - last90d
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-digest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    name: Post weekly digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'Goldberry-Playground/grove-sites'
+    steps:
+      - name: Guard — skip until 1Password service account is configured
+        id: guard
+        env:
+          OP_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          if [ -z "$OP_TOKEN" ]; then
+            echo "OP_SERVICE_ACCOUNT_TOKEN not set — Discord bridge not yet provisioned (GOL-263). Skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        if: steps.guard.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.0"
+
+      - name: Setup Node.js
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Load secrets from 1Password
+        if: steps.guard.outputs.run == 'true'
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          BUFFER_API_TOKEN: "op://Goldberry Grove - Admin/Grove Infra/buffer_api_token"
+          DISCORD_BOT_TOKEN: "op://Goldberry Grove - Admin/Grove Infra/discord_bot_token"
+          DISCORD_APP_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_app_id"
+          DISCORD_PUBLIC_KEY: "op://Goldberry Grove - Admin/Grove Infra/discord_public_key"
+          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_approvals_channel_id"
+
+      - name: Post digest
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm --filter @grove/discord-bridge digest -- "${{ github.event.inputs.period || 'last7d' }}"

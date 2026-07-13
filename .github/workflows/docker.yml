@@ -113,8 +113,16 @@ jobs:
           # an instant-rollback value if the Worker ever misbehaves. All 4
           # apps' next.config.ts allow both hostnames in remotePatterns.
           # Local `pnpm dev` keeps the /public/ fallback (env unset there).
+          # RUM → grove-obs (GOL-281): non-secret NEXT_PUBLIC_* RUM values are
+          # baked below; the browser-public RUM-ingest token is kept out of git
+          # as the NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN repo secret (empty on
+          # untrusted forks → the OpenObserve sink stays disabled, no breakage).
           build-args: |
             NEXT_PUBLIC_ASSETS_URL=https://assets.gatheringatthegrove.com
+            NEXT_PUBLIC_RUM_ENABLED=true
+            NEXT_PUBLIC_RUM_ENV=production
+            NEXT_PUBLIC_OO_RUM_SITE=rum.gatheringatthegrove.com
+            NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN=${{ secrets.NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN }}
 
       # Run the container with placeholder backend URLs. Server Components catch
       # fetch errors and render the empty state; the routes in `smoke_routes`

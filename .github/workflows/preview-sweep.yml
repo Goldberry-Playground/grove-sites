@@ -1,0 +1,346 @@
+name: preview-sweep
+
+###############################################################################
+# Grove Preview — scheduled straggler reaper.
+#
+# The safety net for the per-PR preview lifecycle. preview-up.yml stands a
+# droplet up on a `qa`-labeled PR; preview-down.yml tears it down on close /
+# unlabel. But teardown can miss:
+#   - preview-down.yml crashed mid-destroy (transient DO/API error)
+#   - a PR was closed while preview-down was disabled / secrets were missing
+#   - the `closed` event was dropped by GitHub
+#   - a droplet outlived its purpose past the `auto-destroy-7d` budget
+#
+# This job runs on a schedule, lists every droplet tagged `env-preview`,
+# and destroys the ones whose PR is no longer an open `qa`-labeled PR (or
+# whose droplet is older than the 7-day budget). Destroy goes through the
+# same odoocker preview/ TF env + per-PR backend key as preview-down, so
+# state, DNS, and firewall are all cleaned up — not just the droplet.
+#
+# Secrets: 1Password via the grove-ci-prod-ro service account (no static
+#   DIGITALOCEAN_TOKEN). Provisioning: see README-preview.md.
+###############################################################################
+
+on:
+  schedule:
+    # Every 6 hours. Preview droplets are cheap (~$0.033/hr) so a 6h reaper
+    # window caps a leaked droplet at ~$0.20 of waste. Cron is UTC.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List stragglers without destroying (report-only)"
+        required: false
+        type: boolean
+        default: false
+      max_age_days:
+        description: "Destroy any preview droplet older than this many days regardless of PR state"
+        required: false
+        type: string
+        default: "7"
+
+permissions:
+  contents: read
+  pull-requests: read # gh api pulls/N — required if this repo ever goes private
+  actions: read       # check for in-flight preview-up/down runs before destroying
+  # No `id-token` — 1Password uses a service-account token, not GitHub OIDC.
+
+# Never let two sweeps run at once — they'd race the same TF state keys.
+concurrency:
+  group: preview-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Reap orphaned preview droplets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout odoocker (for the preview/ TF env + module)
+        uses: actions/checkout@v4
+        with:
+          repository: Goldberry-Playground/odoocker-goldberrygrove
+          path: odoocker
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DIGITALOCEAN_TOKEN:       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
+          SPACES_ACCESS_KEY_ID:     op://Grove Prod/odoocker/SPACES_ACCESS_KEY_ID
+          SPACES_SECRET_ACCESS_KEY: op://Grove Prod/odoocker/SPACES_SECRET_ACCESS_KEY
+          DISCORD_OPS_WEBHOOK_URL:  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+          PREVIEW_SSH_KEY_ID:       op://Grove Prod/grove-preview/PREVIEW_SSH_KEY_ID
+          ADMIN_IP_CIDR:            op://Grove Prod/grove-preview/ADMIN_IP_CIDR
+        with:
+          export-env: true
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ env.DIGITALOCEAN_TOKEN }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.10"
+
+      - id: scan
+        name: Identify straggler previews
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '7' }}
+        run: |
+          set -euo pipefail
+
+          # Operator input reaches shell arithmetic — refuse anything non-numeric.
+          if ! [[ "$MAX_AGE_DAYS" =~ ^[0-9]+$ ]]; then
+            echo "::error::max_age_days must be a positive integer, got: ${MAX_AGE_DAYS}"
+            exit 1
+          fi
+
+          # All droplets the preview env tags with `env-preview`.
+          droplets="$(doctl compute droplet list \
+            --tag-name env-preview \
+            --output json)"
+
+          count="$(echo "$droplets" | jq 'length')"
+          echo "Found ${count} droplet(s) tagged env-preview."
+
+          now_epoch="$(date -u +%s)"
+          max_age_secs=$(( MAX_AGE_DAYS * 24 * 3600 ))
+
+          # Accumulate straggler PR numbers (+ reason) as JSON lines.
+          : > /tmp/stragglers.jsonl
+
+          echo "$droplets" | jq -c '.[]' | while read -r d; do
+            name="$(echo "$d"   | jq -r '.name')"
+            created="$(echo "$d" | jq -r '.created_at')"
+            # PR number lives in the `pr-<n>` tag and the `grove-preview-pr-<n>` name.
+            pr="$(echo "$d" | jq -r '.tags[] | select(startswith("pr-")) | ltrimstr("pr-")' | head -n1)"
+            if [[ -z "$pr" ]]; then
+              pr="$(echo "$name" | sed -n 's/.*pr-\([0-9]\+\).*/\1/p')"
+            fi
+            # A non-numeric `pr-` tag would corrupt the JSONL and the gh call —
+            # treat it the same as an unresolvable PR.
+            if ! [[ "$pr" =~ ^[0-9]+$ ]]; then
+              pr=""
+            fi
+
+            if [[ -z "$pr" ]]; then
+              echo "  ⚠️  ${name}: cannot resolve PR number — flagging as orphan."
+              echo "{\"pr\":null,\"name\":\"${name}\",\"reason\":\"no PR number on droplet\"}" >> /tmp/stragglers.jsonl
+              continue
+            fi
+
+            # Age check first — the auto-destroy-7d budget is absolute.
+            created_epoch="$(date -u -d "$created" +%s 2>/dev/null || echo 0)"
+            age_secs=$(( now_epoch - created_epoch ))
+            if [[ "$created_epoch" -gt 0 && "$age_secs" -gt "$max_age_secs" ]]; then
+              echo "  ⌛ PR #${pr} (${name}): older than ${MAX_AGE_DAYS}d — reaping."
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"exceeded ${MAX_AGE_DAYS}d budget\"}" >> /tmp/stragglers.jsonl
+              continue
+            fi
+
+            # PR state + labels. gh exits non-zero if the PR doesn't exist.
+            if ! pr_json="$(gh api "repos/${REPO}/pulls/${pr}" 2>/dev/null)"; then
+              echo "  🗑️  PR #${pr} (${name}): PR not found — reaping."
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"PR not found\"}" >> /tmp/stragglers.jsonl
+              continue
+            fi
+
+            state="$(echo "$pr_json" | jq -r '.state')"
+            has_qa="$(echo "$pr_json" | jq -r '[.labels[].name] | index("qa") != null')"
+
+            if [[ "$state" != "open" ]]; then
+              echo "  🗑️  PR #${pr} (${name}): PR is ${state} — reaping."
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"PR ${state}\"}" >> /tmp/stragglers.jsonl
+            elif [[ "$has_qa" != "true" ]]; then
+              echo "  🗑️  PR #${pr} (${name}): open but no longer labeled qa — reaping."
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"qa label removed\"}" >> /tmp/stragglers.jsonl
+            else
+              echo "  ✅ PR #${pr} (${name}): open + qa — keeping."
+            fi
+          done
+
+          n="$(wc -l < /tmp/stragglers.jsonl | tr -d ' ')"
+          echo "straggler_count=${n}" >> "$GITHUB_OUTPUT"
+          echo "Identified ${n} straggler(s)."
+          echo "--- stragglers ---"; cat /tmp/stragglers.jsonl || true
+
+      - id: destroy
+        name: Destroy stragglers
+        if: steps.scan.outputs.straggler_count != '0' && github.event.inputs.dry_run != 'true'
+        working-directory: odoocker/infra/terraform/environments/preview
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TF_VAR_do_token: ${{ env.DIGITALOCEAN_TOKEN }}
+          TF_VAR_spaces_access_key: ${{ env.SPACES_ACCESS_KEY_ID }}
+          TF_VAR_spaces_secret_key: ${{ env.SPACES_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ env.SPACES_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.SPACES_SECRET_ACCESS_KEY }}
+          # Stub vars — irrelevant to destroy, but TF validation needs them set.
+          TF_VAR_pr_branch: "swept"
+          TF_VAR_snapshot_date: "2026-01-01"
+          TF_VAR_ssh_key_fingerprint: ${{ env.PREVIEW_SSH_KEY_ID }}
+          TF_VAR_admin_ip_cidr: ${{ env.ADMIN_IP_CIDR }}
+        run: |
+          set -uo pipefail
+
+          cat > terraform.auto.tfvars.json <<'JSON'
+          {
+            "frontend_image_tags": {
+              "hub": "swept", "goldberry": "swept",
+              "ggg": "swept", "nursery": "swept"
+            },
+            "odoo_image_tag": "swept",
+            "ghost_content_keys": {
+              "goldberry": "swept", "ggg": "swept", "nursery": "swept"
+            }
+          }
+          JSON
+
+          # The sweep's concurrency group only serializes sweep-vs-sweep. A
+          # preview-up apply or preview-down destroy can be in flight on the
+          # same backend key (the Spaces S3 backend has no locking on TF ~1.6),
+          # so collect the head branches of any queued/in-progress runs of
+          # either workflow and skip those PRs this pass — the next sweep
+          # (≤6h) retries anything we defer.
+          active_branches="$(
+            for wf in preview-up.yml preview-down.yml; do
+              for st in in_progress queued; do
+                gh api "repos/${REPO}/actions/workflows/${wf}/runs?status=${st}&per_page=100" \
+                  --jq '.workflow_runs[].head_branch' 2>/dev/null || true
+              done
+            done | sort -u
+          )"
+
+          failures=0
+          destroyed=0
+          # Iterate stragglers with a resolvable PR number. `null`-PR orphans
+          # (no state to destroy) are reported by the summary step but skipped
+          # here — deleting a nameless droplet blind is riskier than leaving it
+          # for a human to inspect in the DO console.
+          while read -r line; do
+            pr="$(echo "$line" | jq -r '.pr')"
+            [[ "$pr" == "null" || -z "$pr" ]] && continue
+
+            # Re-check the PR right before destroying: the scan ran minutes ago
+            # and the PR may have been reopened / relabeled `qa` since (which
+            # also means preview-up may be re-provisioning it right now).
+            pr_json="$(gh api "repos/${REPO}/pulls/${pr}" 2>/dev/null || echo '{}')"
+            state="$(echo "$pr_json" | jq -r '.state // "unknown"')"
+            has_qa="$(echo "$pr_json" | jq -r '[.labels[]?.name] | index("qa") != null')"
+            head_ref="$(echo "$pr_json" | jq -r '.head.ref // ""')"
+            if [[ "$state" == "open" && "$has_qa" == "true" ]]; then
+              echo "  ↩️  PR #${pr}: now open + qa again — skipping destroy."
+              continue
+            fi
+            if [[ -n "$head_ref" ]] && grep -qxF "$head_ref" <<< "$active_branches"; then
+              echo "  ⏳ PR #${pr}: preview-up/down run in flight on ${head_ref} — deferring to next sweep."
+              continue
+            fi
+
+            echo "::group::terraform destroy — PR #${pr}"
+            cat > backend.hcl <<HCL
+          bucket                      = "grove-tf-state"
+          key                         = "preview/pr-${pr}.tfstate"
+          region                      = "us-east-1"
+          endpoint                    = "https://nyc3.digitaloceanspaces.com"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          skip_requesting_account_id  = true
+          force_path_style            = true
+          HCL
+
+            rm -rf .terraform
+            if terraform init -backend-config=backend.hcl -input=false -reconfigure \
+               && TF_VAR_pr_number="${pr}" terraform destroy -auto-approve -input=false; then
+              # `destroy` against empty/corrupt state (e.g. preview-up canceled
+              # mid-apply) "succeeds" as a no-op and would leak the droplet
+              # forever while we report it reaped — verify against DO itself.
+              remaining="$(doctl compute droplet list --tag-name "pr-${pr}" --output json \
+                | jq '[.[] | select(.tags | index("env-preview"))] | length')"
+              if [[ "$remaining" != "0" ]]; then
+                echo "::error::PR #${pr}: terraform destroy succeeded but ${remaining} droplet(s) still exist (empty/corrupt state?) — needs manual cleanup"
+                failures=$(( failures + 1 ))
+              else
+                echo "  ✔ destroyed PR #${pr}"
+                destroyed=$(( destroyed + 1 ))
+              fi
+            else
+              echo "::error::terraform destroy failed for PR #${pr}"
+              failures=$(( failures + 1 ))
+            fi
+            echo "::endgroup::"
+          done < /tmp/stragglers.jsonl
+
+          echo "destroyed=${destroyed}" >> "$GITHUB_OUTPUT"
+          if [[ "$failures" -gt 0 ]]; then
+            echo "::error::${failures} straggler destroy(s) failed — see groups above."
+            exit 1
+          fi
+
+      - name: Post Discord summary
+        if: always()
+        env:
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          STRAGGLERS: ${{ steps.scan.outputs.straggler_count }}
+          DESTROYED: ${{ steps.destroy.outputs.destroyed }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Skip the "nothing to do" chatter — only ping when we actually
+          # reaped something or the job failed.
+          if [ -z "$DISCORD_OPS_WEBHOOK_URL" ]; then
+            echo "::warning::No Discord webhook configured — skipping summary"
+            exit 0
+          fi
+          if [ "${STRAGGLERS:-0}" = "0" ] && [ "$STATUS" = "success" ]; then
+            echo "No stragglers, clean run — no Discord ping."
+            exit 0
+          fi
+
+          if [ "$STATUS" = "success" ]; then
+            COLOR=10070709; ICON="🧹"
+            if [ "$DRY_RUN" = "true" ]; then
+              TITLE="Preview sweep (dry run): ${STRAGGLERS} straggler(s) found"
+            else
+              # STRAGGLERS counts candidates (incl. null-PR orphans and PRs the
+              # destroy step deliberately skipped); DESTROYED is what was
+              # actually verified gone. Don't claim more than we reaped.
+              TITLE="Preview sweep reaped ${DESTROYED:-0} of ${STRAGGLERS} straggler(s)"
+            fi
+          else
+            COLOR=15158332; ICON="🚨"; TITLE="Preview sweep FAILED (${STRAGGLERS} candidate(s), ${DESTROYED:-0} destroyed)"
+          fi
+
+          FIELDS="$(jq -s 'map({
+            name: ("PR #\(.pr // "?") — \(.name)"),
+            value: .reason,
+            inline: false
+          })' /tmp/stragglers.jsonl 2>/dev/null || echo '[]')"
+
+          PAYLOAD=$(jq -n \
+            --arg title "$ICON $TITLE" \
+            --arg run_url "$RUN_URL" \
+            --argjson color "$COLOR" \
+            --argjson fields "$FIELDS" \
+            '{
+              username: "🧹 Grove Preview Sweep",
+              embeds: [{
+                title: $title,
+                color: $color,
+                fields: $fields,
+                footer: { text: "Workflow run: \($run_url)" }
+              }]
+            }')
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "$DISCORD_OPS_WEBHOOK_URL" || \
+            echo "::warning::Discord webhook failed — sweep result stands regardless"

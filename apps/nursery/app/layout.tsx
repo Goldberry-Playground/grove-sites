@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { siblingSitesForHost, GroveProviders } from "@grove/ui";
-import { SiblingStrip } from "@grove/ui-kit";
+import { SiblingStrip, CaptureForm } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
@@ -57,8 +57,24 @@ export default async function RootLayout({
             </nav>
           </header>
           <main>{children}</main>
-          <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-center text-sm text-foreground/60">
-            <p>&copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.</p>
+          <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-foreground/60">
+            <div className="mx-auto flex max-w-6xl flex-col items-center gap-6">
+              <CaptureForm
+                brand="nursery"
+                source="footer"
+                label="nursery-general"
+                heading="News from the nursery"
+                description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
+                submitLabel="Sign up"
+                successMessage="Thanks — you'll hear from us when there's something worth sending."
+                consentText="Unsubscribe anytime."
+                layout="inline"
+                hubOptIn
+              />
+              <p className="text-center">
+                &copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.
+              </p>
+            </div>
           </footer>
         </Providers>
         </GroveProviders>

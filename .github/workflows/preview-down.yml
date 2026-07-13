@@ -10,18 +10,18 @@ name: preview-down
 #
 # Flow:
 #   1. Checkout odoocker
-#   2. terraform init against the per-PR backend key
-#   3. terraform destroy
-#   4. Post a "preview destroyed" comment on the PR
+#   2. Load secrets from 1Password (grove-ci-prod-ro SA — no static token)
+#   3. terraform init against the per-PR backend key
+#   4. terraform destroy
+#   5. Post a "preview destroyed" comment on the PR
 #
 # Failure-safe: if the preview wasn't actually up (no state in the bucket),
 # `terraform init` succeeds against an empty state and destroy is a no-op.
 # This means the workflow can be re-triggered safely if a previous run
 # crashed mid-teardown.
 #
-# Companion: preview-up.yml; preview-sweep.yml (M3 follow-up — periodic
-# safety net that destroys droplets whose tag indicates they're orphaned
-# from closed PRs).
+# Companion: preview-up.yml; preview-sweep.yml (scheduled safety net that
+#   destroys droplets whose PR is closed or lost the `qa` label).
 ###############################################################################
 
 on:
@@ -36,6 +36,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  # No `id-token` — 1Password uses a service-account token, not GitHub OIDC.
 
 env:
   PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
@@ -74,26 +75,43 @@ jobs:
           path: odoocker
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Resolve secrets from 1Password (ADR-0001 Phase 3 — no static token).
+      # destroy needs the DO token (provider) + Spaces creds (S3 backend).
+      # The other TF_VARs are stubbed below; TF validation requires them set
+      # but their values don't affect a destroy.
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DIGITALOCEAN_TOKEN:       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
+          SPACES_ACCESS_KEY_ID:     op://Grove Prod/odoocker/SPACES_ACCESS_KEY_ID
+          SPACES_SECRET_ACCESS_KEY: op://Grove Prod/odoocker/SPACES_SECRET_ACCESS_KEY
+          DISCORD_OPS_WEBHOOK_URL:  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+          PREVIEW_SSH_KEY_ID:       op://Grove Prod/grove-preview/PREVIEW_SSH_KEY_ID
+          ADMIN_IP_CIDR:            op://Grove Prod/grove-preview/ADMIN_IP_CIDR
+        with:
+          export-env: true
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.6"
+          terraform_version: "~1.10"
 
       - name: terraform init + destroy
         working-directory: odoocker/infra/terraform/environments/preview
         env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_spaces_access_key: ${{ secrets.DO_SPACES_ACCESS_KEY }}
-          TF_VAR_spaces_secret_key: ${{ secrets.DO_SPACES_SECRET_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_KEY }}
+          TF_VAR_do_token: ${{ env.DIGITALOCEAN_TOKEN }}
+          TF_VAR_spaces_access_key: ${{ env.SPACES_ACCESS_KEY_ID }}
+          TF_VAR_spaces_secret_key: ${{ env.SPACES_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ env.SPACES_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.SPACES_SECRET_ACCESS_KEY }}
           TF_VAR_pr_number: ${{ env.PR_NUMBER }}
           # The remaining vars don't matter for `destroy` but TF requires them
           # to be set because validation runs before plan/destroy. Stub safe.
           TF_VAR_pr_branch: "destroyed"
           TF_VAR_snapshot_date: "2026-01-01"
-          TF_VAR_ssh_key_fingerprint: ${{ secrets.PREVIEW_SSH_KEY_ID }}
-          TF_VAR_admin_ip_cidr: ${{ secrets.ADMIN_IP_CIDR }}
+          TF_VAR_ssh_key_fingerprint: ${{ env.PREVIEW_SSH_KEY_ID }}
+          TF_VAR_admin_ip_cidr: ${{ env.ADMIN_IP_CIDR }}
         run: |
           cat > terraform.auto.tfvars.json <<JSON
           {
@@ -130,11 +148,13 @@ jobs:
       - name: Comment on PR — preview destroyed
         if: always() && github.event_name != 'workflow_dispatch'
         uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
         with:
           script: |
             const marker = '<!-- grove-preview-bot -->';
             const torn = '<!-- grove-preview-torn-down -->';
-            const status = '${{ job.status }}';
+            const status = process.env.JOB_STATUS;
 
             // Strikethrough the live URLs comment so reviewers know the
             // preview is gone, and add a small "destroyed" note below.
@@ -160,12 +180,16 @@ jobs:
       - name: Post Discord notification
         if: always()
         env:
-          DISCORD_OPS_WEBHOOK_URL: ${{ secrets.DISCORD_OPS_WEBHOOK_URL }}
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
           STATUS: ${{ job.status }}
           PR_TITLE: ${{ github.event.pull_request.title || 'manual dispatch' }}
           PR_URL: ${{ github.event.pull_request.html_url || '' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          if [ -z "$DISCORD_OPS_WEBHOOK_URL" ]; then
+            echo "::warning::No Discord webhook (secret load may have been skipped) — teardown state unchanged"
+            exit 0
+          fi
           if [ "$STATUS" = "success" ]; then
             COLOR=10070709; ICON="🪦"; TITLE="Preview destroyed for PR #${PR_NUMBER}"
           else

@@ -66,6 +66,32 @@ services:
         # Variables. The placeholder is rejected at runtime by ghost-client.
         value: REPLACE_ME
 
+      # @grove/newsletter — Ghost-native opt-in capture + hub dual-write
+      # (GOL-249 / GOL-333). JSON map of sender → Ghost instance; the capture
+      # route (apps/hub/app/api/newsletter/subscribe) resolves this and POSTs
+      # members to `${url}/members/api/send-magic-link/`. Public members
+      # endpoint — no API key, so these are plain URLs, NOT a secret. Absent →
+      # the route returns 503 newsletter_not_configured (safe go-live gate).
+      #
+      # MUST point at each instance's canonical Ghost `url` host — the members
+      # frontend routes (/members/api/*) mount on `url` only, never on a split
+      # `admin__url` vhost. Members is ENABLED on all four Ghost 6.51 instances
+      # (verified GOL-333/GOL-337); the earlier "grove/goldberry disabled" note
+      # was a misdiagnosis: blog.{gatheringatthegrove.com,goldberrygrove.farm}
+      # are those two instances' `admin__url` today, so they 404 the members
+      # route by design, while their `url` (the apex) returns 400 as expected.
+      #
+      # LAUNCH-COUPLED: the values below are the POST-cutover state. At the
+      # brand-apex launch cutover (GOL-287), the apex becomes the Next.js site
+      # and Ghost's `url` for hub + goldberry moves to blog.{domain} — at which
+      # point these values are correct. This spec must be applied on the prod
+      # hub as part of / after that cutover (GOL-286 → GOL-287), NOT before it,
+      # or hub/goldberry capture will hit the admin vhost and 404. nursery/ggg
+      # have no split (`url` == blog.{domain}) so they are correct throughout.
+      - key: GHOST_NEWSLETTER_INSTANCES
+        scope: RUN_AND_BUILD_TIME
+        value: '{"grove":{"url":"https://blog.gatheringatthegrove.com"},"nursery":{"url":"https://blog.atthegrovenursery.com"},"goldberry":{"url":"https://blog.goldberrygrove.farm"}}'
+
       - key: GROVE_REVALIDATE_SECRET
         scope: RUN_AND_BUILD_TIME
         type: SECRET
@@ -75,6 +101,41 @@ services:
       - key: NEXT_TELEMETRY_DISABLED
         scope: RUN_AND_BUILD_TIME
         value: "1"
+
+      # ── RUM / analytics (@grove/analytics → grove-obs OpenObserve RUM) ──────
+      # NEXT_PUBLIC_* are inlined into the browser bundle at BUILD time, so they
+      # must be present when `docker build` runs → RUN_AND_BUILD_TIME scope.
+      # Browser-reachable ingest endpoint (public host + TLS + CORS) was stood up
+      # on grove-obs by GOL-311. The SDK POSTs custom actions + web-vitals to
+      # https://rum.gatheringatthegrove.com/rum/v1/default/rum (stream _rumdata).
+      - key: NEXT_PUBLIC_RUM_ENABLED
+        scope: RUN_AND_BUILD_TIME
+        value: "true"
+      - key: NEXT_PUBLIC_RUM_ENV
+        scope: RUN_AND_BUILD_TIME
+        value: production
+      - key: NEXT_PUBLIC_OO_RUM_SITE
+        scope: RUN_AND_BUILD_TIME
+        value: rum.gatheringatthegrove.com
+      - key: NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        # Browser-public by design (RUM-ingest-only, NOT an admin key). Real value:
+        # op://Goldberry Grove - Admin/Grove Infra/obs_rum_client_token
+        # Set in DO UI: Settings → grove-hub → hub → Environment Variables.
+        value: REPLACE_ME
+      - key: NEXT_PUBLIC_OO_RUM_APP_ID
+        scope: RUN_AND_BUILD_TIME
+        value: grove-hub
+      - key: NEXT_PUBLIC_OO_RUM_SERVICE
+        scope: RUN_AND_BUILD_TIME
+        value: grove-hub
+      - key: NEXT_PUBLIC_OO_RUM_ORG
+        scope: RUN_AND_BUILD_TIME
+        value: default
+      - key: NEXT_PUBLIC_OO_RUM_INSECURE
+        scope: RUN_AND_BUILD_TIME
+        value: "false"
 
 domains:
   - domain: gatheringatthegrove.com

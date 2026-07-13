@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
+import { CaptureForm } from "@grove/ui-kit";
 
 export const metadata: Metadata = {
   title: "Public Events — Goldberry Grove",
@@ -77,11 +78,18 @@ export default function EventsPage() {
           open-gate days are free.
         </p>
 
-        <p>
-          Want a heads-up by email? Drop us a note at{" "}
-          <strong>sales@goldberrygrove.farm</strong>{" "}
-          and we'll add you to the next-event list.
-        </p>
+        <CaptureForm
+          brand="goldberry"
+          source="newsletter-signup"
+          label="events-workshops"
+          interests={["events"]}
+          heading="Hear when the next workshop opens"
+          description="We run a handful of hands-on workshops and farm-to-table nights each season. Seats are limited and the list gets first word — add your email to hear when the next one opens."
+          submitLabel="Add my email"
+          successMessage="Done — you'll get first word when the next workshop opens."
+          consentText="Event announcements only. Unsubscribe anytime."
+          hubOptIn
+        />
 
         <Link href="/visit" className="btn btn-gold visit-cta">
           ← Back to all visits
