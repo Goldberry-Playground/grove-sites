@@ -66,6 +66,21 @@ services:
         # Variables. The placeholder is rejected at runtime by ghost-client.
         value: REPLACE_ME
 
+      # @grove/newsletter — Ghost-native opt-in capture + hub dual-write
+      # (GOL-249 / GOL-333). JSON map of sender → Ghost instance; the capture
+      # route (apps/hub/app/api/newsletter/subscribe) resolves this and POSTs
+      # members to `${url}/members/api/send-magic-link/`. Public members
+      # endpoint — no API key, so these are plain URLs, NOT a secret. Absent →
+      # the route returns 503 newsletter_not_configured (safe go-live gate).
+      # Production origins are the post-cutover blog.{domain} Ghost instances.
+      # NOTE (2026-07-13): only the `nursery` instance has Ghost Memberships
+      # enabled today (send-magic-link live); `grove`/`goldberry` return 404
+      # until their Ghost admin enables members — see GOL-333. They are kept in
+      # the map so they light up with no further infra change once enabled.
+      - key: GHOST_NEWSLETTER_INSTANCES
+        scope: RUN_AND_BUILD_TIME
+        value: '{"grove":{"url":"https://blog.gatheringatthegrove.com"},"nursery":{"url":"https://blog.atthegrovenursery.com"},"goldberry":{"url":"https://blog.goldberrygrove.farm"}}'
+
       - key: GROVE_REVALIDATE_SECRET
         scope: RUN_AND_BUILD_TIME
         type: SECRET
