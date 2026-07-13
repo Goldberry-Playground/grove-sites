@@ -8,6 +8,9 @@
 #            regardless of cookies. Belt-and-suspenders vs origin cache headers.
 #   Rule 2 — bypass cache whenever a session cookie is present (logged-in / has
 #            cart), so a personalized response is never cached or served shared.
+#            ONLY EMITTED when var.session_cookie_names is non-empty. The Grove
+#            storefront is cookieless today (cart=localStorage), so this rule is a
+#            no-op by default rather than a dead matcher on placeholder cookies.
 #   Rule 3 — everything else (anonymous, no session cookie): eligible to cache,
 #            respecting origin TTLs. This is the marketing/Ghost/listing content.
 #
@@ -36,24 +39,30 @@ resource "cloudflare_ruleset" "cache_rules" {
     }
   }
 
-  # Rule 2 — bypass cache when a session cookie is present.
-  rules {
-    ref         = "grove_cache_bypass_session"
-    description = "Bypass cache for requests carrying a session cookie (${var.zone_name})"
-    expression  = local.session_cookie_expr
-    action      = "set_cache_settings"
-    enabled     = true
+  # Rule 2 — bypass cache when a session cookie is present. Emitted only when
+  # session cookie names are configured (see local.has_session_cookie); with the
+  # default cookieless storefront this block produces zero rules — a clean no-op.
+  dynamic "rules" {
+    for_each = local.has_session_cookie ? [1] : []
+    content {
+      ref         = "grove_cache_bypass_session"
+      description = "Bypass cache for requests carrying a session cookie (${var.zone_name})"
+      expression  = local.session_cookie_expr
+      action      = "set_cache_settings"
+      enabled     = true
 
-    action_parameters {
-      cache = false
+      action_parameters {
+        cache = false
+      }
     }
   }
 
-  # Rule 3 — anonymous remainder: cacheable, respect origin TTLs.
+  # Rule 3 — anonymous remainder: cacheable, respect origin TTLs. The anonymous
+  # matcher drops the session-cookie clause when no cookies are configured.
   rules {
     ref         = "grove_cache_anonymous"
     description = "Cache anonymous marketing/listing/Ghost responses, respect origin (${var.zone_name})"
-    expression  = "not ${local.never_cache_path_expr} and not ${local.session_cookie_expr}"
+    expression  = local.anonymous_cache_expr
     action      = "set_cache_settings"
     enabled     = true
 

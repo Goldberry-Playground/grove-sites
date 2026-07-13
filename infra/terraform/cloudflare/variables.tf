@@ -69,6 +69,18 @@ variable "cache_rules_enabled" {
   default     = true
 }
 
+variable "session_cookie_names" {
+  description = <<-EOT
+    Cookie name(s) that mark a personalized/logged-in session; any request with
+    one bypasses full-page cache (Cache Rule 2). DEFAULTS TO [] because the Grove
+    storefront is cookieless today (cart=localStorage, no server session) — so the
+    session-bypass rule is omitted entirely (a clean no-op) rather than matching
+    placeholder cookie names. Set the real name(s) if a server session is added.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "rate_limit_mode" {
   description = <<-EOT
     Rate-limit rollout mode (Tier 1): "log" (log-only, no mitigation — default

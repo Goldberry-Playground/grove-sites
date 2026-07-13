@@ -18,6 +18,7 @@ module "zone_hardening" {
 
   waf_managed_enabled  = var.waf_managed_enabled
   cache_rules_enabled  = var.cache_rules_enabled
+  session_cookie_names = var.session_cookie_names
   rate_limit_mode      = var.rate_limit_mode
   custom_firewall_mode = var.custom_firewall_mode
 
