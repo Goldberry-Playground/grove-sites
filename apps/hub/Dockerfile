@@ -69,6 +69,29 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_ASSETS_URL=""
 ENV NEXT_PUBLIC_ASSETS_URL=$NEXT_PUBLIC_ASSETS_URL
 
+# RUM / analytics (@grove/analytics → grove-obs OpenObserve RUM). NEXT_PUBLIC_*
+# inline into the client bundle at build time, so they must be ARGs here. Tenant
+# identity is intrinsic to this app (defaults below); the shared endpoint, the
+# master switch, and the browser-public ingest token are passed by CI
+# (.github/workflows/docker.yml) / App Platform spec (infra/do/hub.yaml). Unset
+# → the OpenObserve sink stays disabled (needs SITE + CLIENT_TOKEN both set).
+ARG NEXT_PUBLIC_RUM_ENABLED=""
+ENV NEXT_PUBLIC_RUM_ENABLED=$NEXT_PUBLIC_RUM_ENABLED
+ARG NEXT_PUBLIC_RUM_ENV=""
+ENV NEXT_PUBLIC_RUM_ENV=$NEXT_PUBLIC_RUM_ENV
+ARG NEXT_PUBLIC_OO_RUM_SITE=""
+ENV NEXT_PUBLIC_OO_RUM_SITE=$NEXT_PUBLIC_OO_RUM_SITE
+ARG NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN=""
+ENV NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN=$NEXT_PUBLIC_OO_RUM_CLIENT_TOKEN
+ARG NEXT_PUBLIC_OO_RUM_APP_ID="grove-hub"
+ENV NEXT_PUBLIC_OO_RUM_APP_ID=$NEXT_PUBLIC_OO_RUM_APP_ID
+ARG NEXT_PUBLIC_OO_RUM_SERVICE="grove-hub"
+ENV NEXT_PUBLIC_OO_RUM_SERVICE=$NEXT_PUBLIC_OO_RUM_SERVICE
+ARG NEXT_PUBLIC_OO_RUM_ORG="default"
+ENV NEXT_PUBLIC_OO_RUM_ORG=$NEXT_PUBLIC_OO_RUM_ORG
+ARG NEXT_PUBLIC_OO_RUM_INSECURE="false"
+ENV NEXT_PUBLIC_OO_RUM_INSECURE=$NEXT_PUBLIC_OO_RUM_INSECURE
+
 # Build the ui-kit first — pnpm --filter does NOT build workspace deps,
 # and @grove/ui-kit resolves to dist/ which only exists after tsup runs.
 RUN pnpm --filter @grove/ui-kit build && pnpm --filter @grove/hub build
