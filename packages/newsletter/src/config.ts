@@ -50,6 +50,16 @@ const SENDERS: Sender[] = ["grove", "nursery", "goldberry"];
  *     {"grove":{"url":"https://blog.gatheringatthegrove.com"},
  *      "nursery":{"url":"https://blog.atthegrovenursery.com"},
  *      "goldberry":{"url":"https://blog.goldberrygrove.farm"}}
+ *   (post-cutover origins; see the url-host note below).
+ *
+ * Each `url` MUST be the instance's canonical Ghost `url` host — Ghost mounts
+ * the members routes (`/members/api/send-magic-link/`) on `url` only, never on
+ * a split `admin__url` vhost. Instances that split admin off (hub + goldberry:
+ * `url`=apex, `admin__url`=blog.{domain} pre-launch) 404 the members route on
+ * the admin host — so before the brand-apex launch cutover the hub/goldberry
+ * `url` is the apex (gatheringatthegrove.com / goldberrygrove.farm), and only
+ * after cutover does it become blog.{domain}. nursery + ggg have no split, so
+ * blog.{domain} is their `url` throughout. (Ref: GOL-333 / GOL-337.)
  *
  * Convenience fallback (single-tenant apps that already set GHOST_URL for their
  * own instance): if the JSON map is absent, a lone `GHOST_URL` is read as the
