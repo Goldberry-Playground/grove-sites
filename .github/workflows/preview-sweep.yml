@@ -440,8 +440,15 @@ jobs:
                 printf '## ⌛ Grove preview reaped (age budget)\n\n'
                 printf "This PR's preview droplet passed its **%s-day** lifetime budget, so the scheduled sweep tore it down to stop the hourly spend.\n\n" "$MAX_AGE_DAYS"
               fi
-              printf 'Nothing was lost — previews are disposable and rebuilt from scratch.\n\n'
-              printf '**To bring it back:** push a commit, or remove and re-add the `qa` label.\n\n'
+              # Quoted heredoc: the markdown contains backticks, which are
+              # literal here but read as command substitution by shellcheck
+              # (SC2016) if written inside single quotes.
+              cat <<'MD'
+          Nothing was lost — previews are disposable and rebuilt from scratch.
+
+          **To bring it back:** push a commit, or remove and re-add the `qa` label.
+
+          MD
               printf '<sub>Reaped by [preview-sweep.yml](%s/%s/actions/runs/%s) — GOL-255.</sub>\n' \
                 "$GITHUB_SERVER_URL" "$REPO" "$GITHUB_RUN_ID"
             } > /tmp/reap-comment.md
