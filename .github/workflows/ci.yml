@@ -147,27 +147,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+      # Trivy replaced `pnpm audit` on 2026-07-15 (GOL-389). npm retired the
+      # legacy audit endpoint that pnpm calls; it now returns HTTP 410, so
+      # `pnpm audit` fails for everyone regardless of pnpm version (reproduced
+      # on 9.15.0 and 10.28.2, and off-CI). Trivy reads pnpm-lock.yaml natively
+      # and needs no install step, so this job no longer sets up pnpm/Node.
+      #
       # Blocking as of 2026-05-19. The soft-fail period drifted — a manual audit
       # surfaced 6 HIGH Next.js CVEs (15.5.14 → ≥15.5.18) that this gate would
       # have caught if it had been blocking. If noisy, fix the noise (raise
-      # --audit-level=critical, or add a documented allowlist file) — do not
-      # re-soften this gate.
-      - name: pnpm audit
-        run: pnpm audit --audit-level=high
+      # severity to CRITICAL only, or add a documented .trivyignore entry with
+      # an expiry) — do not flip exit-code back to 0 and do not re-soften this
+      # gate. Verified on the 15.5.14 lockfile: this config reports all 6 of
+      # those HIGH CVEs and exits 1.
+      - name: Trivy dependency scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          # `pnpm audit` scanned dev dependencies by default; Trivy suppresses
+          # them unless told otherwise. Without this the gate would silently
+          # scan less than the gate it replaced. Not a trivy-action input, so
+          # it is set via the environment.
+          TRIVY_INCLUDE_DEV_DEPS: "true"
+          # Fall back to the GHCR copy if the gcr.io mirror rate-limits, so a
+          # DB-download blip cannot turn this gate red for reasons unrelated
+          # to our dependencies.
+          TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: library
 
   secrets-scan:
     name: Secret scan
