@@ -9,6 +9,6 @@
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--grove-color-accent);
+  color: var(--grove-color-accent-fg);
   margin-bottom: 0.5rem;
 }

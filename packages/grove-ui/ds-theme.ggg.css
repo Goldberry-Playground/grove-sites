@@ -18,6 +18,11 @@
   --grove-color-secondary: #edd682;          /* secondary anchor / warm highlight */
   --grove-color-secondary-foreground: #3d2810;
   --grove-color-accent: #617333;             /* the brand's accent hue (CTAs, pops) */
+  /* Accent deepened until it clears 4.5:1 on paper/paper-soft, for accent-colored
+     TEXT. Same -fg/-solid split the status roles below use: --grove-color-accent
+     is the ≥3:1 fill/border value, --grove-color-accent-fg the ≥4.5:1 text value.
+     Brands whose accent already clears 4.5:1 assign the same hex to both. */
+  --grove-color-accent-fg: #617333;          /* 4.91:1 on paper */
 
   /* ── Neutral text + surface roles ── */
   --grove-color-ink: #3d2810;                /* body text */
@@ -146,7 +151,8 @@
   --grove-color-primary-foreground: #efe6d3; /* bone */
   --grove-color-secondary: #7a2e1a;          /* cherry */
   --grove-color-secondary-foreground: #efe6d3;
-  --grove-color-accent: #b17839;             /* amber */
+  --grove-color-accent: #b17839;             /* amber — 3.32:1 on paper-soft: fills/borders only */
+  --grove-color-accent-fg: #8a5a24;          /* deepened amber for accent text — 5.22:1 on paper-soft */
 
   --grove-color-ink: #1f1611;
   --grove-color-ink-soft: #6a4a38;           /* walnut-light */
@@ -1337,7 +1343,7 @@
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--grove-color-accent);
+  color: var(--grove-color-accent-fg);
   margin-bottom: 0.5rem;
 }
 /* MiniCartDrawer — slide-in cart confirmation.
