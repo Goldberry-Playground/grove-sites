@@ -7,7 +7,8 @@
   --grove-color-primary-foreground: #efe6d3; /* bone */
   --grove-color-secondary: #7a2e1a;          /* cherry */
   --grove-color-secondary-foreground: #efe6d3;
-  --grove-color-accent: #b17839;             /* amber */
+  --grove-color-accent: #b17839;             /* amber — 3.32:1 on paper-soft: fills/borders only */
+  --grove-color-accent-fg: #8a5a24;          /* deepened amber for accent text — 5.22:1 on paper-soft */
 
   --grove-color-ink: #1f1611;
   --grove-color-ink-soft: #6a4a38;           /* walnut-light */
