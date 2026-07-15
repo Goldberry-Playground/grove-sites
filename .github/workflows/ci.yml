@@ -38,6 +38,34 @@ jobs:
           fi
           echo "No tracked .env (non-example) files."
 
+  ds-theme-drift:
+    name: Design-sync theme artifacts match sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # packages/grove-ui/ds-theme.<brand>.css is a generated artifact that is
+      # committed to git (the Claude Design projects consume it directly, and
+      # .design-sync is one-way outbound, so it cannot be built on their side).
+      # Nothing but convention kept it in step with grove-tokens + the component
+      # CSS, and it had drifted ~1400 lines behind by the time GOL-380 checked.
+      # Regenerating needs no install: ds-theme-gen.sh is pure concatenation.
+      - name: Regenerate theme artifacts
+        run: ./scripts/ds-theme-gen.sh --all
+
+      - name: Fail if committed artifacts drifted from their sources
+        run: |
+          if ! git diff --quiet -- packages/grove-ui/ds-theme.*.css; then
+            echo "::error::ds-theme.<brand>.css is out of date with grove-tokens / grove-ui component CSS. Run ./scripts/ds-theme-gen.sh --all and commit the result."
+            git diff --stat -- packages/grove-ui/ds-theme.*.css
+            echo "--- full diff ---"
+            git diff -- packages/grove-ui/ds-theme.*.css
+            exit 1
+          fi
+          echo "All four ds-theme artifacts match their sources."
+
   lint-and-typecheck:
     name: Lint, Type Check & Test
     runs-on: ubuntu-latest

@@ -31,20 +31,98 @@
   --grove-color-plum-deep: #3d1a33;
   --grove-color-gold: #edd682;               /* sibling-strip hover/active */
 
-  /* ── Type ── */
+  /* ── Type families ── */
   --grove-font-display: Georgia, "Times New Roman", serif;
   --grove-font-body: system-ui, -apple-system, sans-serif;
   --grove-font-sans: var(--grove-font-body);  /* alias: some components used --font-sans */
   --grove-font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* ── Layout / shape (--grid is identical across all four apps) ── */
+  /* ── Type scale (brand guide H1 68 → H7 20; exposed so non-heading UI reuses it,
+   *    not just element styles). rem-based, 16px root. ── */
+  --grove-text-h1: 4.25rem;   /* 68px */
+  --grove-text-h2: 3.25rem;   /* 52px */
+  --grove-text-h3: 2.5rem;    /* 40px */
+  --grove-text-h4: 2rem;      /* 32px */
+  --grove-text-h5: 1.5rem;    /* 24px */
+  --grove-text-h6: 1.375rem;  /* 22px */
+  --grove-text-h7: 1.25rem;   /* 20px */
+  --grove-text-body: 1rem;    /* 16px */
+  --grove-text-sm: 0.875rem;  /* 14px */
+  --grove-text-xs: 0.75rem;   /* 12px */
+  --grove-leading-tight: 1.15;
+  --grove-leading-normal: 1.55;
+  --grove-font-weight-regular: 400;
+  --grove-font-weight-medium: 500;
+  --grove-font-weight-semibold: 600; /* brand headings are semibold */
+
+  /* ── Spacing scale (4px base) — coexists with --grove-space-grid.
+   *    sm/md/lg retained as aliases for already-lifted components. ── */
+  --grove-space-1: 0.25rem;  /* 4px  */
+  --grove-space-2: 0.5rem;   /* 8px  */
+  --grove-space-3: 0.75rem;  /* 12px */
+  --grove-space-4: 1rem;     /* 16px */
+  --grove-space-5: 1.5rem;   /* 24px */
+  --grove-space-6: 2rem;     /* 32px */
+  --grove-space-7: 3rem;     /* 48px */
+  --grove-space-8: 4rem;     /* 64px */
   --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
-  --grove-space-sm: 0.5rem;
-  --grove-space-md: 1rem;
-  --grove-space-lg: 2rem;
+  --grove-space-sm: var(--grove-space-2);
+  --grove-space-md: var(--grove-space-4);
+  --grove-space-lg: var(--grove-space-6);
+
+  /* ── Radius ── */
   --grove-radius-sm: 0.25rem;
   --grove-radius-md: 0.5rem;
   --grove-radius-lg: 1rem;
+  --grove-radius-pill: 999px;   /* pills / chips / round buttons (was inline 999px/50%) */
+
+  /* ── Elevation / shadow (warm ink-tinted, not pure black — matches cream brand) ── */
+  --grove-shadow-sm: 0 1px 2px rgba(61, 40, 16, 0.08);
+  --grove-shadow-md: 0 4px 12px rgba(61, 40, 16, 0.12);
+  --grove-shadow-lg: 0 12px 32px rgba(61, 40, 16, 0.16);
+
+  /* ── Motion — durations stay under the 400ms Doherty ceiling; honor prefers-reduced-motion at the app level. ── */
+  --grove-duration-fast: 120ms;
+  --grove-duration-base: 240ms;
+  --grove-duration-slow: 400ms;
+  --grove-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --grove-ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* ── Focus ring — global, tokenized. Forest (4.91:1 on paper) replaces the old
+   *    gold ring (1.35:1, WCAG-fail). Meets 3:1 non-text UI contrast. ── */
+  --grove-focus-ring: #617333;
+  --grove-focus-ring-width: 2px;
+  --grove-focus-ring-offset: 2px;
+
+  /* ── Status / feedback colors — CROSS-BRAND CONSTANTS (like plum/gold); not
+   *    theme-overridden, so status semantics read the same on every storefront.
+   *
+   *    ACCESSIBILITY CONTRACT (do not violate):
+   *    1. NEVER encode status by color alone — always pair the color with an icon
+   *       AND text (deuteranopia/protanopia collapse error-red vs success-green).
+   *    2. `-fg` = text/icon on paper, ≥4.5:1. `-solid` = borders/fills/icons, ≥3:1.
+   *       `-surface` = soft tint bg; the matching `-fg` is legible on it (≥4.5:1).
+   *    3. The four hues are also luminance-separated, so they stay distinct in grayscale.
+   *    ── */
+  --grove-color-error-fg: #9e2b1e;       /* 6.99:1 on paper */
+  --grove-color-error-solid: #c0392b;    /* 5.10:1 */
+  --grove-color-error-surface: #fbeae7;
+  --grove-color-warning-fg: #8a5200;     /* 5.99:1 on paper */
+  --grove-color-warning-solid: #c77700;  /* 3.25:1 */
+  --grove-color-warning-surface: #fbf0dc;
+  --grove-color-success-fg: #256437;     /* 6.66:1 on paper */
+  --grove-color-success-solid: #2e7d46;  /* 4.76:1 */
+  --grove-color-success-surface: #e7f4ea;
+  --grove-color-info-fg: #234e86;        /* 7.86:1 on paper */
+  --grove-color-info-solid: #2d5fa6;     /* 5.97:1 */
+  --grove-color-info-surface: #e7eef8;
+}
+
+/* ── Global tokenized focus ring — recognizable, consistent, WCAG-safe.
+ *    Apps/components may scope tighter, but this guarantees a visible ring everywhere. ── */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--grove-focus-ring-width) solid var(--grove-focus-ring);
+  outline-offset: var(--grove-focus-ring-offset);
 }
 
 /* ── Global a11y utility: visually-hidden text for screen readers (ships in every bundle) ── */
@@ -61,7 +139,9 @@
 }
 /* Gather at the Grove (hub) theme — gatheringatthegrove.com (vault Marketing/Gathering at the Grove).
  * The family blend: warm-bark primary, Harvest Gold secondary, grove-green accent,
- * on warm parchment. Reflects all three storefronts. */
+ * on warm parchment. Reflects all three storefronts.
+ * Logos: @grove/brand (assets/gather — unity-circle/three-trees mark, 2026-07-05);
+ * use logo-on-light on paper surfaces, *-reversed on primary-deep/ink surfaces. */
 :root,
 [data-grove-theme="hub"] {
   --grove-color-primary: #5c3a1f;            /* warm bark — GGG walnut × Goldberry chestnut */
@@ -88,6 +168,52 @@
 
   --grove-space-grid: clamp(1rem, 4vw, 2.5rem);
 }
+/* AddToCartButton — quantity stepper + primary add action.
+ * Lifted from apps/<app>/shop where it was Tailwind utilities on the app theme:
+ *   wrap:    flex items-center gap-4
+ *   stepper: flex items-center border border-primary/20 rounded
+ *   step:    px-3 py-2 text-foreground/60 hover:text-foreground
+ * Mapped to --grove-* roles per TOKEN-MAP.md (primary → --grove-color-primary,
+ * foreground → --grove-color-ink). The primary button itself is the shared
+ * <Button variant="primary">, already token-mapped.
+ */
+
+.grove-atc {
+  display: flex;
+  align-items: center;
+  gap: var(--grove-space-4, 1rem);
+}
+
+.grove-atc__stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-radius: var(--grove-radius-sm);
+}
+
+.grove-atc__step {
+  padding: var(--grove-space-2, 0.5rem) var(--grove-space-3, 0.75rem);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-atc__step:hover {
+  color: var(--grove-color-ink);
+}
+
+.grove-atc__qty {
+  padding: var(--grove-space-2, 0.5rem) var(--grove-space-3, 0.75rem);
+  min-width: 2rem;
+  text-align: center;
+  font-family: var(--grove-font-sans);
+  font-size: var(--grove-text-sm, 0.875rem);
+  font-weight: var(--grove-font-weight-medium, 500);
+  color: var(--grove-color-ink);
+}
 .grove-btn:focus-visible {
   outline: 2px solid var(--grove-color-accent);
   outline-offset: 2px;
@@ -108,6 +234,114 @@
   background: var(--grove-color-accent);
   border-color: var(--grove-color-accent);
   color: var(--grove-color-ink);
+}
+/* CaptureForm — Grove email capture. Styled entirely against --grove-* tokens
+   so it renders on-brand under any theme. */
+
+.grove-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+.grove-capture__heading {
+  margin: 0;
+  font-family: var(--grove-font-display, inherit);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--grove-color-foreground);
+}
+
+.grove-capture__desc {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--grove-color-foreground);
+  opacity: 0.85;
+}
+
+.grove-capture__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grove-capture--inline .grove-capture__fields {
+  flex-direction: row;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.grove-capture__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 12rem;
+}
+
+.grove-capture__label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--grove-color-foreground);
+}
+
+.grove-capture__input {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--grove-color-primary);
+  border-radius: 0.375rem;
+  background: var(--grove-color-background, #fff);
+  color: var(--grove-color-foreground);
+}
+
+.grove-capture__input:focus-visible {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: 1px;
+}
+
+/* Honeypot — kept in the DOM for bots, out of sight and off-flow for humans. */
+.grove-capture__hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.grove-capture__hub {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--grove-color-foreground);
+  cursor: pointer;
+}
+
+.grove-capture__hub input {
+  margin-top: 0.2rem;
+}
+
+.grove-capture__consent {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--grove-color-foreground);
+  opacity: 0.7;
+}
+
+.grove-capture__success {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--grove-color-primary);
+}
+
+.grove-capture__error {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--grove-color-danger, #b4232a);
 }
 /* CartNavLink — cart link with an item-count badge. Lifted from apps/goldberry,
  * where it was expressed as Tailwind utilities:
@@ -144,6 +378,376 @@
   font-size: 0.75rem;
   font-weight: 500;
 }
+/* CartPage — full cart with sticky checkout banner, trust strip, line items,
+ * and order summary. Lifted from apps/<app>/cart Tailwind; mapped to --grove-* per
+ * TOKEN-MAP.md. The remove action's old `hover:text-red-600` (color-only) is now
+ * the accessible error role AND stays labelled text — never color alone.
+ */
+
+.grove-cart {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-7, 3rem) var(--grove-space-5, 1.5rem);
+}
+.grove-cart--narrow {
+  max-width: 56rem;
+}
+
+.grove-cart__title {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h3, 2.5rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  color: var(--grove-color-primary);
+  margin: 0;
+}
+
+.grove-cart__loading {
+  margin-top: var(--grove-space-5, 1.5rem);
+  font-size: var(--grove-text-sm, 0.875rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+}
+
+/* Empty state */
+.grove-cart__empty {
+  margin-top: var(--grove-space-6, 2rem);
+  padding: var(--grove-space-8, 4rem) var(--grove-space-5, 1.5rem);
+  text-align: center;
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-radius: var(--grove-radius-lg);
+}
+.grove-cart__empty-text {
+  margin: 0 0 var(--grove-space-5, 1.5rem);
+  font-size: var(--grove-text-h7, 1.25rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+}
+.grove-cart__empty-cta {
+  text-decoration: none;
+}
+
+/* Sticky banner */
+.grove-cart__banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  box-shadow: var(--grove-shadow-md, 0 4px 12px rgba(61, 40, 16, 0.12));
+}
+.grove-cart__banner-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-4, 1rem) var(--grove-space-5, 1.5rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--grove-space-4, 1rem);
+}
+.grove-cart__banner-eyebrow {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+.grove-cart__banner-total {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h5, 1.5rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  line-height: 1.1;
+}
+.grove-cart__banner-note {
+  font-size: var(--grove-text-xs, 0.75rem);
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 0.5rem;
+}
+.grove-cart__banner-cta {
+  flex-shrink: 0;
+  background: var(--grove-color-accent);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  font-size: var(--grove-text-sm, 0.875rem);
+  padding: var(--grove-space-4, 1rem) var(--grove-space-6, 2rem);
+  border-radius: var(--grove-radius-sm);
+  box-shadow: var(--grove-shadow-sm, 0 1px 2px rgba(61, 40, 16, 0.08));
+  transition: transform var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__banner-cta:hover {
+  transform: scale(1.05);
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-cart__banner-cta:hover {
+    transform: none;
+  }
+}
+
+/* Trust strip */
+.grove-cart__trust {
+  background: color-mix(in srgb, var(--grove-color-secondary) 30%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+}
+.grove-cart__trust-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-3, 0.75rem) var(--grove-space-5, 1.5rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+  font-family: var(--grove-font-mono);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+}
+.grove-cart__trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Head */
+.grove-cart__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--grove-space-6, 2rem);
+}
+.grove-cart__keep-link {
+  font-size: var(--grove-text-sm, 0.875rem);
+  text-decoration: none;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__keep-link:hover {
+  color: var(--grove-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Grid */
+.grove-cart__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--grove-space-6, 2rem);
+}
+@media (min-width: 1024px) {
+  .grove-cart__grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+/* Line items */
+.grove-cart__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-4, 1rem);
+}
+.grove-cart__line {
+  display: flex;
+  gap: var(--grove-space-4, 1rem);
+  padding: var(--grove-space-4, 1rem);
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-radius: var(--grove-radius-lg);
+}
+.grove-cart__line-img {
+  position: relative;
+  width: 6rem;
+  height: 6rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--grove-radius-sm);
+  background: color-mix(in srgb, var(--grove-color-secondary) 20%, transparent);
+}
+.grove-cart__line-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.grove-cart__line-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+.grove-cart__line-name {
+  font-weight: var(--grove-font-weight-medium, 500);
+  color: var(--grove-color-ink);
+  text-decoration: none;
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__line-name:hover {
+  color: var(--grove-color-primary);
+}
+.grove-cart__line-unit {
+  margin: 0.25rem 0 0;
+  font-size: var(--grove-text-sm, 0.875rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+}
+.grove-cart__line-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--grove-space-4, 1rem);
+  margin-top: var(--grove-space-3, 0.75rem);
+}
+.grove-cart__stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-radius: var(--grove-radius-sm);
+}
+.grove-cart__step {
+  padding: 0.375rem var(--grove-space-3, 0.75rem);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__step:hover {
+  color: var(--grove-color-ink);
+}
+.grove-cart__step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.grove-cart__qty {
+  padding: 0.375rem var(--grove-space-3, 0.75rem);
+  min-width: 2rem;
+  text-align: center;
+  font-size: var(--grove-text-sm, 0.875rem);
+  font-weight: var(--grove-font-weight-medium, 500);
+}
+.grove-cart__line-right {
+  display: flex;
+  align-items: center;
+  gap: var(--grove-space-4, 1rem);
+}
+.grove-cart__line-total {
+  font-weight: var(--grove-font-weight-semibold, 600);
+}
+.grove-cart__remove {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: var(--grove-text-xs, 0.75rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+  text-underline-offset: 2px;
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__remove:hover {
+  color: var(--grove-color-error-fg, #9e2b1e);
+  text-decoration: underline;
+}
+
+/* Summary */
+.grove-cart__summary {
+  height: fit-content;
+  padding: var(--grove-space-6, 2rem);
+  border: 2px solid color-mix(in srgb, var(--grove-color-primary) 30%, transparent);
+  border-radius: var(--grove-radius-lg);
+  background: color-mix(in srgb, var(--grove-color-secondary) 10%, transparent);
+  box-shadow: var(--grove-shadow-sm, 0 1px 2px rgba(61, 40, 16, 0.08));
+}
+@media (min-width: 1024px) {
+  .grove-cart__summary {
+    position: sticky;
+    top: 8rem;
+  }
+}
+.grove-cart__summary-title {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h7, 1.25rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  margin: 0 0 var(--grove-space-4, 1rem);
+}
+.grove-cart__summary-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-2, 0.5rem);
+  font-size: var(--grove-text-sm, 0.875rem);
+}
+.grove-cart__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--grove-space-4, 1rem);
+}
+.grove-cart__summary-row dt {
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+}
+.grove-cart__summary-note {
+  display: block;
+  font-size: var(--grove-text-xs, 0.75rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 40%, transparent);
+}
+.grove-cart__summary-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 2px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  padding-top: var(--grove-space-3, 0.75rem);
+  margin-top: var(--grove-space-3, 0.75rem);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  font-size: var(--grove-text-h7, 1.25rem);
+  color: var(--grove-color-primary);
+}
+.grove-cart__summary-cta {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--grove-space-5, 1.5rem);
+  padding: var(--grove-space-4, 1rem);
+  text-align: center;
+  text-decoration: none;
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--grove-radius-sm);
+  box-shadow: var(--grove-shadow-sm, 0 1px 2px rgba(61, 40, 16, 0.08));
+  transition: transform var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__summary-cta:hover {
+  transform: scale(1.02);
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-cart__summary-cta:hover {
+    transform: none;
+  }
+}
+.grove-cart__reassure {
+  margin-top: var(--grove-space-4, 1rem);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-align: center;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+}
+.grove-cart__summary-continue {
+  display: block;
+  margin-top: var(--grove-space-4, 1rem);
+  text-align: center;
+  font-size: var(--grove-text-sm, 0.875rem);
+  text-decoration: none;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-cart__summary-continue:hover {
+  color: var(--grove-color-primary);
+}
 /* ─── Category bar ─── */
 .cat-bar {
   background: var(--grove-color-primary-deep);
@@ -177,6 +781,391 @@
 .cat-bar a.is-active {
   color: var(--grove-color-gold);
   border-bottom-color: var(--grove-color-gold);
+}
+/* CheckoutPage — contact/shipping/payment form + order summary with a sticky
+ * place-order banner. Lifted from apps/<app>/checkout Tailwind; mapped to --grove-*
+ * per TOKEN-MAP.md. Validation/error surfaces use the status tokens
+ * (--grove-color-error-*), and the error message pairs an icon + text so it
+ * never signals by color alone.
+ */
+
+.grove-checkout {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-7, 3rem) var(--grove-space-5, 1.5rem);
+}
+.grove-checkout--narrow {
+  max-width: 56rem;
+}
+.grove-checkout__title {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h3, 2.5rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  color: var(--grove-color-primary);
+  margin: 0 0 var(--grove-space-6, 2rem);
+}
+.grove-checkout__loading {
+  font-size: var(--grove-text-sm, 0.875rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+}
+
+/* Empty state */
+.grove-checkout__empty {
+  padding: var(--grove-space-8, 4rem) var(--grove-space-5, 1.5rem);
+  text-align: center;
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-radius: var(--grove-radius-lg);
+}
+.grove-checkout__empty-text {
+  margin: 0 0 var(--grove-space-5, 1.5rem);
+  font-size: var(--grove-text-h7, 1.25rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+}
+.grove-checkout__empty-cta {
+  text-decoration: none;
+}
+
+/* Sticky banner */
+.grove-checkout__banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  box-shadow: var(--grove-shadow-md, 0 4px 12px rgba(61, 40, 16, 0.12));
+}
+.grove-checkout__banner-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-4, 1rem) var(--grove-space-5, 1.5rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--grove-space-4, 1rem);
+}
+.grove-checkout__banner-eyebrow {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+.grove-checkout__banner-total {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h5, 1.5rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  line-height: 1.1;
+}
+.grove-checkout__banner-note {
+  font-size: var(--grove-text-xs, 0.75rem);
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 0.5rem;
+}
+.grove-checkout__banner-cta {
+  flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+  background: var(--grove-color-accent);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--grove-text-sm, 0.875rem);
+  padding: var(--grove-space-4, 1rem) var(--grove-space-6, 2rem);
+  border-radius: var(--grove-radius-sm);
+  box-shadow: var(--grove-shadow-sm, 0 1px 2px rgba(61, 40, 16, 0.08));
+  transition: transform var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-checkout__banner-cta:hover {
+  transform: scale(1.05);
+}
+.grove-checkout__banner-cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-checkout__banner-cta:hover {
+    transform: none;
+  }
+}
+
+/* Trust strip */
+.grove-checkout__trust {
+  background: color-mix(in srgb, var(--grove-color-secondary) 30%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+}
+.grove-checkout__trust-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-3, 0.75rem) var(--grove-space-5, 1.5rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+  font-family: var(--grove-font-mono);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+}
+.grove-checkout__trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Grid */
+.grove-checkout__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--grove-space-6, 2rem);
+}
+@media (min-width: 1024px) {
+  .grove-checkout__grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+.grove-checkout__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-6, 2rem);
+}
+
+/* Fieldsets */
+.grove-checkout__fieldset {
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-radius: var(--grove-radius-lg);
+  padding: var(--grove-space-5, 1.5rem);
+  margin: 0;
+}
+.grove-checkout__legend {
+  padding: 0 var(--grove-space-2, 0.5rem);
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h7, 1.25rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+}
+.grove-checkout__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--grove-space-4, 1rem);
+  margin-top: var(--grove-space-2, 0.5rem);
+}
+@media (min-width: 640px) {
+  .grove-checkout__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .grove-checkout__field--span2 {
+    grid-column: span 2;
+  }
+}
+
+/* Fields */
+.grove-checkout__field {
+  display: block;
+  font-size: var(--grove-text-sm, 0.875rem);
+}
+.grove-checkout__field-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+}
+.grove-checkout__required {
+  color: var(--grove-color-error-fg, #9e2b1e);
+  margin-left: 0.1rem;
+}
+.grove-checkout__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem var(--grove-space-3, 0.75rem);
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-paper);
+  color: var(--grove-color-ink);
+  font-family: var(--grove-font-sans);
+  font-size: var(--grove-text-body, 1rem);
+  transition: border-color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-checkout__input:focus {
+  outline: none;
+  border-color: var(--grove-color-primary);
+  box-shadow: 0 0 0 1px var(--grove-color-primary);
+}
+.grove-checkout__input:invalid:not(:placeholder-shown) {
+  border-color: var(--grove-color-error-solid, #c0392b);
+}
+
+/* Payment */
+.grove-checkout__payments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-2, 0.5rem);
+  margin-top: var(--grove-space-2, 0.5rem);
+}
+.grove-checkout__payment {
+  display: flex;
+  align-items: center;
+  gap: var(--grove-space-3, 0.75rem);
+  padding: var(--grove-space-3, 0.75rem) var(--grove-space-4, 1rem);
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  border-radius: var(--grove-radius-sm);
+  cursor: pointer;
+  font-size: var(--grove-text-sm, 0.875rem);
+  transition: border-color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-checkout__payment:hover {
+  border-color: color-mix(in srgb, var(--grove-color-primary) 30%, transparent);
+}
+.grove-checkout__payment:has(input:checked) {
+  border-color: var(--grove-color-primary);
+  background: color-mix(in srgb, var(--grove-color-secondary) 12%, transparent);
+}
+.grove-checkout__payment-note {
+  margin-top: var(--grove-space-3, 0.75rem);
+  font-size: var(--grove-text-xs, 0.75rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+}
+
+/* Summary */
+.grove-checkout__summary {
+  height: fit-content;
+  padding: var(--grove-space-6, 2rem);
+  border: 2px solid color-mix(in srgb, var(--grove-color-primary) 30%, transparent);
+  border-radius: var(--grove-radius-lg);
+  background: color-mix(in srgb, var(--grove-color-secondary) 10%, transparent);
+  box-shadow: var(--grove-shadow-sm, 0 1px 2px rgba(61, 40, 16, 0.08));
+}
+@media (min-width: 1024px) {
+  .grove-checkout__summary {
+    position: sticky;
+    top: 8rem;
+  }
+}
+.grove-checkout__summary-title {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h7, 1.25rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  margin: 0 0 var(--grove-space-4, 1rem);
+}
+.grove-checkout__order-list {
+  list-style: none;
+  margin: 0 0 var(--grove-space-4, 1rem);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-2, 0.5rem);
+  font-size: var(--grove-text-sm, 0.875rem);
+}
+.grove-checkout__order-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--grove-space-4, 1rem);
+}
+.grove-checkout__order-name {
+  flex: 1;
+}
+.grove-checkout__order-qty {
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+}
+.grove-checkout__summary-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-2, 0.5rem);
+  font-size: var(--grove-text-sm, 0.875rem);
+  border-top: 1px solid color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  padding-top: var(--grove-space-3, 0.75rem);
+}
+.grove-checkout__summary-row {
+  display: flex;
+  justify-content: space-between;
+}
+.grove-checkout__summary-row dt {
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+}
+.grove-checkout__summary-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 2px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  padding-top: var(--grove-space-3, 0.75rem);
+  margin-top: var(--grove-space-3, 0.75rem);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  font-size: var(--grove-text-h7, 1.25rem);
+  color: var(--grove-color-primary);
+}
+
+/* Error — status token, icon + text (not color-alone) */
+.grove-checkout__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: var(--grove-space-4, 1rem);
+  padding: 0.5rem var(--grove-space-3, 0.75rem);
+  border: 1px solid var(--grove-color-error-solid, #c0392b);
+  background: var(--grove-color-error-surface, #fbeae7);
+  color: var(--grove-color-error-fg, #9e2b1e);
+  border-radius: var(--grove-radius-sm);
+  font-size: var(--grove-text-sm, 0.875rem);
+}
+.grove-checkout__error-icon {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.grove-checkout__submit {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--grove-space-5, 1.5rem);
+  padding: var(--grove-space-4, 1rem);
+  border: none;
+  cursor: pointer;
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--grove-text-body, 1rem);
+  border-radius: var(--grove-radius-sm);
+  box-shadow: var(--grove-shadow-sm, 0 1px 2px rgba(61, 40, 16, 0.08));
+  transition: transform var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-checkout__submit:hover {
+  transform: scale(1.02);
+}
+.grove-checkout__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-checkout__submit:hover {
+    transform: none;
+  }
+}
+.grove-checkout__reassure {
+  margin-top: var(--grove-space-4, 1rem);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-align: center;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+}
+.grove-checkout__back {
+  display: block;
+  margin-top: var(--grove-space-3, 0.75rem);
+  text-align: center;
+  font-size: var(--grove-text-sm, 0.875rem);
+  text-decoration: none;
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-checkout__back:hover {
+  color: var(--grove-color-primary);
 }
 /* ─── Hero slideshow ─── */
 .hero-slideshow {
@@ -353,6 +1342,282 @@
   text-transform: uppercase;
   color: var(--grove-color-accent);
   margin-bottom: 0.5rem;
+}
+/* MiniCartDrawer — slide-in cart confirmation.
+ * Lifted from apps/<app>/layout Tailwind; mapped to --grove-* per TOKEN-MAP.md.
+ *   overlay: fixed inset-0 z-[1000] bg-black/45 backdrop-blur justify-end
+ *   panel:   bg-background max-w-md h-full; mobile: bottom-sheet rounded-t-2xl
+ *   accents: border-secondary/40 bg-secondary/10 (just-added), text-accent tag
+ */
+
+.grove-minicart {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.grove-minicart__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 28rem;
+  height: 100%;
+  overflow: hidden;
+  background: var(--grove-color-paper);
+  color: var(--grove-color-ink);
+  box-shadow: var(--grove-shadow-lg, 0 12px 32px rgba(61, 40, 16, 0.16));
+  animation: grove-minicart-in var(--grove-duration-slow, 300ms)
+    var(--grove-ease-out, ease);
+}
+
+@keyframes grove-minicart-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Mobile: bottom sheet instead of right drawer. */
+@media (max-width: 639px) {
+  .grove-minicart {
+    justify-content: stretch;
+    align-items: flex-end;
+  }
+  .grove-minicart__panel {
+    max-width: 100%;
+    height: auto;
+    max-height: 88vh;
+    border-top-left-radius: var(--grove-radius-lg);
+    border-top-right-radius: var(--grove-radius-lg);
+    animation-name: grove-minicart-in-bottom;
+  }
+  @keyframes grove-minicart-in-bottom {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grove-minicart__panel {
+    animation: none;
+  }
+}
+
+/* Header */
+.grove-minicart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: var(--grove-space-4, 1rem) var(--grove-space-5, 1.5rem);
+  border-bottom: 1px solid color-mix(in srgb, var(--grove-color-primary) 15%, transparent);
+}
+.grove-minicart__title {
+  margin: 0;
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h7, 1.25rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  color: var(--grove-color-primary);
+}
+.grove-minicart__close {
+  padding: 0 var(--grove-space-2, 0.5rem);
+  margin-right: -0.5rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-minicart__close:hover {
+  color: var(--grove-color-ink);
+}
+
+/* Body */
+.grove-minicart__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--grove-space-4, 1rem) var(--grove-space-5, 1.5rem);
+}
+.grove-minicart__empty {
+  padding: var(--grove-space-7, 3rem) 0;
+  text-align: center;
+  font-size: var(--grove-text-sm, 0.875rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+}
+
+/* Just-added highlight */
+.grove-minicart__just-added {
+  display: flex;
+  gap: var(--grove-space-3, 0.75rem);
+  padding: var(--grove-space-3, 0.75rem);
+  margin-bottom: var(--grove-space-4, 1rem);
+  border: 1px solid color-mix(in srgb, var(--grove-color-secondary) 40%, transparent);
+  background: color-mix(in srgb, var(--grove-color-secondary) 12%, transparent);
+  border-radius: var(--grove-radius-md);
+}
+.grove-minicart__ja-img {
+  width: 4rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: var(--grove-radius-sm);
+  flex-shrink: 0;
+  background: var(--grove-color-paper);
+}
+.grove-minicart__ja-meta {
+  flex: 1;
+  min-width: 0;
+}
+.grove-minicart__ja-tag {
+  font-family: var(--grove-font-mono);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.15rem;
+  /* accent role, but darkened to the accessible fg pairing on paper */
+  color: var(--grove-color-success-fg, var(--grove-color-accent));
+}
+.grove-minicart__ja-name {
+  font-weight: var(--grove-font-weight-medium, 500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grove-minicart__ja-line {
+  font-size: var(--grove-text-sm, 0.875rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+  margin-top: 0.25rem;
+}
+
+/* Also-in-cart list */
+.grove-minicart__section-label {
+  font-family: var(--grove-font-mono);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--grove-space-2, 0.5rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+}
+.grove-minicart__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-3, 0.75rem);
+}
+.grove-minicart__row {
+  display: flex;
+  gap: var(--grove-space-3, 0.75rem);
+  align-items: flex-start;
+}
+.grove-minicart__row-img {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: var(--grove-radius-sm);
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--grove-color-ink) 5%, transparent);
+}
+.grove-minicart__row-meta {
+  flex: 1;
+  min-width: 0;
+}
+.grove-minicart__row-name {
+  font-size: var(--grove-text-sm, 0.875rem);
+  font-weight: var(--grove-font-weight-medium, 500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grove-minicart__row-line {
+  font-size: var(--grove-text-xs, 0.75rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  margin-top: 0.15rem;
+}
+
+/* Footer */
+.grove-minicart__footer {
+  flex-shrink: 0;
+  padding: var(--grove-space-4, 1rem) var(--grove-space-5, 1.5rem);
+  border-top: 1px solid color-mix(in srgb, var(--grove-color-primary) 15%, transparent);
+  background: var(--grove-color-paper);
+}
+.grove-minicart__subtotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--grove-space-3, 0.75rem);
+}
+.grove-minicart__subtotal-label {
+  font-size: var(--grove-text-sm, 0.875rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+}
+.grove-minicart__subtotal-amount {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h7, 1.25rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  color: var(--grove-color-primary);
+}
+.grove-minicart__ctas {
+  display: flex;
+  gap: var(--grove-space-3, 0.75rem);
+}
+.grove-minicart__keep,
+.grove-minicart__checkout {
+  flex: 1;
+  padding: var(--grove-space-3, 0.75rem) var(--grove-space-4, 1rem);
+  font-size: var(--grove-text-sm, 0.875rem);
+  font-weight: var(--grove-font-weight-medium, 500);
+  text-align: center;
+  text-decoration: none;
+  border-radius: var(--grove-radius-sm);
+  cursor: pointer;
+  transition: opacity var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease),
+    border-color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-minicart__keep {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--grove-color-primary) 30%, transparent);
+  color: var(--grove-color-ink);
+}
+.grove-minicart__keep:hover {
+  border-color: var(--grove-color-primary);
+}
+.grove-minicart__checkout {
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  border: 1px solid var(--grove-color-primary);
+}
+.grove-minicart__checkout:hover {
+  opacity: 0.9;
+}
+.grove-minicart__view-cart {
+  display: block;
+  text-align: center;
+  margin-top: var(--grove-space-3, 0.75rem);
+  font-family: var(--grove-font-mono);
+  font-size: var(--grove-text-xs, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  color: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+  transition: color var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-minicart__view-cart:hover {
+  color: var(--grove-color-ink);
 }
 /* NavLink — primary-nav link with active state. Lifted from apps/ggg +
  * apps/nursery, where it was expressed as Tailwind utilities
@@ -546,7 +1811,7 @@
     padding-bottom: 0.25rem;
   }
 }
-/* SiblingStrip — cross-village nav band. Lifted from apps/*/app/globals.css
+/* SiblingStrip — cross-village nav band. Lifted from each app's app/globals.css
  * (byte-identical across all four apps; only the band bg/color tokens diverged
  * per brand, now collapsed onto --grove-* roles per TOKEN-MAP.md).
  *
@@ -660,6 +1925,114 @@
     width: 100%;
     justify-content: center;
   }
+}
+/* StickyAddToCartBar — mobile-only sticky purchase bar.
+ * Lifted from apps/<app>/shop Tailwind:
+ *   fixed left/right/bottom z-[900] sm:hidden bg-background border-t border-primary/20
+ *   shadow-[0_-8px_24px…]; button bg-primary text-primary-foreground; badge bg-accent.
+ * Mapped to --grove-* per TOKEN-MAP.md. The `sm:hidden` (hide ≥640px) becomes a
+ * media query so the bar never shows on desktop.
+ */
+
+.grove-sticky-atc {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  background: var(--grove-color-paper);
+  border-top: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  box-shadow: 0 -8px 24px rgba(61, 40, 16, 0.12);
+  transform: translateY(100%);
+  transition: transform var(--grove-duration-base, 240ms) var(--grove-ease-out, ease);
+}
+.grove-sticky-atc--visible {
+  transform: translateY(0);
+}
+/* Desktop never sees the bar — the inline Add-to-Cart button is always on screen. */
+@media (min-width: 640px) {
+  .grove-sticky-atc {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-sticky-atc {
+    transition: none;
+  }
+}
+
+.grove-sticky-atc__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--grove-space-3, 0.75rem);
+  padding: var(--grove-space-3, 0.75rem) var(--grove-space-4, 1rem);
+}
+
+.grove-sticky-atc__thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--grove-radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--grove-color-ink) 5%, transparent);
+}
+
+.grove-sticky-atc__meta {
+  flex: 1;
+  min-width: 0;
+}
+.grove-sticky-atc__name {
+  font-family: var(--grove-font-sans);
+  font-size: var(--grove-text-xs, 0.75rem);
+  color: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grove-sticky-atc__price {
+  font-family: var(--grove-font-sans);
+  font-size: var(--grove-text-body, 1rem);
+  font-weight: var(--grove-font-weight-semibold, 600);
+  color: var(--grove-color-primary);
+}
+
+.grove-sticky-atc__btn {
+  position: relative;
+  padding: 0.625rem var(--grove-space-4, 1rem);
+  min-width: 7rem;
+  border: none;
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-sans);
+  font-size: var(--grove-text-sm, 0.875rem);
+  font-weight: var(--grove-font-weight-medium, 500);
+  cursor: pointer;
+  transition: opacity var(--grove-duration-fast, 120ms) var(--grove-ease-standard, ease);
+}
+.grove-sticky-atc__btn:hover {
+  opacity: 0.9;
+}
+.grove-sticky-atc__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.grove-sticky-atc__badge {
+  position: absolute;
+  top: -0.375rem;
+  right: -0.375rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--grove-radius-pill, 999px);
+  background: var(--grove-color-accent);
+  color: var(--grove-color-primary-foreground);
+  font-size: 0.625rem;
+  font-weight: 700;
 }
 .vendor-card-wrap {
   display: contents;
