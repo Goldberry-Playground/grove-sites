@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProductCard } from "../../../../components/ProductCard";
-import { fetchVendorProducts } from "../../../../lib/marketplace";
+import { fetchVendorCatalog } from "../../../../lib/marketplace";
 import { findVendor } from "../../../../data/marketplace";
 
 export const revalidate = 600;
@@ -16,7 +16,7 @@ export default async function VendorProfilePage({
   const vendor = findVendor(slug);
   if (!vendor) notFound();
 
-  const products = await fetchVendorProducts(slug);
+  const catalog = await fetchVendorCatalog(slug);
 
   // Render vendor.story as paragraphs (light markdown — one blank line = paragraph break).
   const paragraphs = vendor.story.split(/\n\s*\n/).filter(Boolean);
@@ -47,16 +47,23 @@ export default async function VendorProfilePage({
 
       <section className="vendor-profile__catalog">
         <h2>What {vendor.name} is making</h2>
-        {vendor.comingSoon ? (
-          <p className="vendor-profile__coming-soon">{vendor.comingSoon}</p>
-        ) : products.length === 0 ? (
+        {catalog.state === "coming-soon" ? (
+          <p className="vendor-profile__coming-soon">{catalog.message}</p>
+        ) : catalog.state === "empty" ? (
           <p className="vendor-profile__empty">
-            {vendor.name}'s catalog is currently unreachable. Visit them directly →{" "}
+            {vendor.name} hasn't listed anything in the marketplace yet. Their
+            own shop is the best place to look →{" "}
+            <a href={vendor.homepageUrl}>{vendor.homepageUrl}</a>
+          </p>
+        ) : catalog.state === "unreachable" ? (
+          <p className="vendor-profile__empty">
+            We couldn't load {vendor.name}'s catalog just now. Visit them
+            directly →{" "}
             <a href={vendor.homepageUrl}>{vendor.homepageUrl}</a>
           </p>
         ) : (
           <div className="marketplace__grid">
-            {products.map((p) => (
+            {catalog.products.map((p) => (
               <ProductCard key={p.product.slug} product={p} />
             ))}
           </div>
