@@ -47,6 +47,7 @@ jobs:
           - app: goldberry
             internal_port: 3001
             image_name: ghcr.io/goldberry-playground/grove-goldberry
+            qa_app: grove-goldberry-qa
             smoke_routes: "/ /cart /checkout"
             env_extra: |
               -e TENANT_ID=goldberry
@@ -57,6 +58,7 @@ jobs:
           - app: ggg
             internal_port: 3001
             image_name: ghcr.io/goldberry-playground/grove-ggg
+            qa_app: grove-ggg-qa
             smoke_routes: "/ /cart /checkout"
             env_extra: |
               -e TENANT_ID=ggg
@@ -67,6 +69,7 @@ jobs:
           - app: nursery
             internal_port: 3001
             image_name: ghcr.io/goldberry-playground/grove-nursery
+            qa_app: grove-nursery-qa
             smoke_routes: "/ /cart /checkout"
             env_extra: |
               -e TENANT_ID=nursery
@@ -78,6 +81,7 @@ jobs:
           - app: hub
             internal_port: 3000
             image_name: ghcr.io/goldberry-playground/grove-hub
+            qa_app: grove-hub-qa
             smoke_routes: "/ /journal"
             env_extra: |
               -e GROVE_ODOO_URL=http://127.0.0.1:1
@@ -200,3 +204,86 @@ jobs:
           docker tag "$IMAGE:$TAG" "$IMAGE:$SHA"
           docker push "$IMAGE:latest"
           docker push "$IMAGE:$SHA"
+
+      # ── Redeploy the QA app on the freshly-pushed image (GOL-397) ───────────
+      #
+      # WHY THIS STEP EXISTS: the grove-*-qa apps' specs carry
+      # `image.deploy_on_push.enabled = true`, but that field is a DOCR-only
+      # feature. Our images live in GHCR, and DO accepts the field on an
+      # external-registry spec and then silently ignores it. Verified on
+      # grove-hub-qa (GOL-396/GOL-397): NO deployment in the app's entire
+      # history has cause `image push` — every one is `manual` or `app spec
+      # updated`. So a GHCR push alone deploys nothing, and QA silently serves
+      # a stale image. That trap already cost days on GOL-92, where QA showed a
+      # 504 that was fixed in `main`.
+      #
+      # This step is inside the matrix leg on purpose: each app redeploys iff
+      # its OWN image just pushed. A separate `needs:` job would be skipped
+      # entirely when any one leg fails (fail-fast is false), re-creating the
+      # exact silent-staleness gap for the legs that did push.
+      #
+      # `--wait` is deliberate: it makes a failed rollout turn this job red
+      # instead of failing quietly, which is the whole point of the ticket.
+      # A full QA rollout measured 75s against grove-hub-qa, so this costs
+      # roughly a minute on top of a main build.
+
+      # Resolve the DO token from 1Password (ADR-0001 Phase 3), same path
+      # preview-up.yml uses. Deliberately NOT the repo's DIGITALOCEAN_ACCESS_TOKEN
+      # secret: that one is only ever used for `doctl apps spec validate`, which
+      # is a local parse and works with a read-only token — its scope is
+      # unverifiable from here and could 403 on create-deployment. The op:// token
+      # below is known-good for app writes because preview-up.yml provisions real
+      # infrastructure with it.
+      #
+      # LEAST-PRIVILEGE FOLLOW-UP (GOL-399): this is the full-privilege infra
+      # token. It is already reachable by any workflow in this repo via
+      # OP_CI_SA_TOKEN (preview-up.yml loads it today), so using it here adds no
+      # new exposure — but an app-write-only token would still be better. DO has
+      # no API to mint scoped tokens (POST /v2/tokens → 403), so that needs a
+      # human in the control panel. Swap the one op:// line below when it lands.
+      - name: Load DO token from 1Password
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: 1password/load-secrets-action@v2
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DIGITALOCEAN_ACCESS_TOKEN: op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
+        with:
+          export-env: true
+
+      - name: Install doctl
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: digitalocean/action-doctl@v2
+        with:
+          # From the 1Password step above (export-env wrote it to $GITHUB_ENV).
+          token: ${{ env.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Redeploy ${{ matrix.qa_app }} onto the new image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          # Same defense-in-depth convention as the smoke-test step: matrix
+          # values reach the shell via env, never via ${{ }} inside `run:`.
+          QA_APP: ${{ matrix.qa_app }}
+        run: |
+          set -euo pipefail
+
+          # Resolve by NAME rather than hardcoding an app ID: the QA apps are
+          # not (yet) codified in infra/do/ — those specs describe the git-source
+          # PROD apps — so an ID pinned here would rot silently if an app were
+          # ever recreated. See GOL-398 for closing that drift.
+          app_id=$(doctl apps list --format ID,Spec.Name --no-header \
+            | awk -v n="$QA_APP" '$2 == n { print $1 }')
+
+          if [[ -z "$app_id" ]]; then
+            echo "::error::No DigitalOcean app named '${QA_APP}' — cannot redeploy. QA will serve a stale image until this is fixed."
+            exit 1
+          fi
+
+          echo "Redeploying ${QA_APP} (${app_id}) onto the just-pushed :latest"
+          doctl apps create-deployment "$app_id" --force-rebuild --wait
+
+          # Report what actually went live, so the run log is the audit trail.
+          # awk NR==1 rather than `head -1`: head closes the pipe after one line,
+          # which can SIGPIPE doctl and trip `pipefail` into failing this step
+          # after an already-successful deploy. awk drains stdin, so it can't.
+          doctl apps list-deployments "$app_id" --format ID,Phase,Created --no-header \
+            | awk 'NR == 1'
