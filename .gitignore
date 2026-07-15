@@ -18,6 +18,12 @@ dist/
 
 # design-sync converter is a committed build tool; only its installed deps are ignored
 .ds-sync/node_modules/
+# Snapshots of the LIVE published bundle, fetched by the ds-guard preflight
+# (GOL-402). Deliberately not committed: a snapshot is evidence about the far
+# side at one moment, and a committed one would go stale and start vouching for
+# pushes it can no longer speak for. The committed anchor is
+# .design-sync/baseline.<brand>.json instead.
+.ds-sync/published/
 dist-bundles/
 ds-bundle/
 .design-sync/.cache/
