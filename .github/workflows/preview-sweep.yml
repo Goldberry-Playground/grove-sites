@@ -10,12 +10,21 @@ name: preview-sweep
 #   - a PR was closed while preview-down was disabled / secrets were missing
 #   - the `closed` event was dropped by GitHub
 #   - a droplet outlived its purpose past the `auto-destroy-7d` budget
+#   - a PR went quiet: still open, still `qa`, but nobody has pushed or
+#     redeployed for hours and the droplet is burning money (GOL-255)
 #
 # This job runs on a schedule, lists every droplet tagged `env-preview`,
-# and destroys the ones whose PR is no longer an open `qa`-labeled PR (or
-# whose droplet is older than the 7-day budget). Destroy goes through the
-# same odoocker preview/ TF env + per-PR backend key as preview-down, so
-# state, DNS, and firewall are all cleaned up — not just the droplet.
+# and destroys the ones whose PR is no longer an open `qa`-labeled PR, whose
+# droplet is older than the 7-day budget, or whose PR has had no deploy
+# activity within the idle TTL. Destroy goes through the same odoocker
+# preview/ TF env + per-PR backend key as preview-down, so state, DNS, and
+# firewall are all cleaned up — not just the droplet.
+#
+# Fail-safe posture (GOL-255): every ambiguity resolves toward *keeping* the
+# droplet. If activity timestamps can't be resolved, if a deploy is in
+# flight, or if the PR came back to life between scan and destroy, we leave
+# it up and let the next sweep retry. We would rather pay for a droplet than
+# kill a preview someone is using.
 #
 # Secrets: 1Password via the grove-ci-prod-ro service account (no static
 #   DIGITALOCEAN_TOKEN). Provisioning: see README-preview.md.
@@ -38,11 +47,16 @@ on:
         required: false
         type: string
         default: "7"
+      idle_ttl_hours:
+        description: "Destroy an open+qa preview with no deploy activity for this many hours (0 disables idle reaping)"
+        required: false
+        type: string
+        default: "24"
 
 permissions:
   contents: read
-  pull-requests: read # gh api pulls/N — required if this repo ever goes private
-  actions: read       # check for in-flight preview-up/down runs before destroying
+  pull-requests: write # gh api pulls/N; comment on PRs whose preview was idle-reaped
+  actions: read        # last preview-up run per branch (idle signal) + in-flight guard
   # No `id-token` — 1Password uses a service-account token, not GitHub OIDC.
 
 # Never let two sweeps run at once — they'd race the same TF state keys.
@@ -93,12 +107,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '7' }}
+          IDLE_TTL_HOURS: ${{ github.event.inputs.idle_ttl_hours || '24' }}
         run: |
           set -euo pipefail
 
           # Operator input reaches shell arithmetic — refuse anything non-numeric.
           if ! [[ "$MAX_AGE_DAYS" =~ ^[0-9]+$ ]]; then
             echo "::error::max_age_days must be a positive integer, got: ${MAX_AGE_DAYS}"
+            exit 1
+          fi
+          if ! [[ "$IDLE_TTL_HOURS" =~ ^[0-9]+$ ]]; then
+            echo "::error::idle_ttl_hours must be a non-negative integer, got: ${IDLE_TTL_HOURS}"
             exit 1
           fi
 
@@ -112,8 +131,26 @@ jobs:
 
           now_epoch="$(date -u +%s)"
           max_age_secs=$(( MAX_AGE_DAYS * 24 * 3600 ))
+          idle_ttl_secs=$(( IDLE_TTL_HOURS * 3600 ))
+
+          # Idle signal (GOL-255). "Activity" on a preview means someone
+          # deployed to it — not that someone talked about it — so PR
+          # `updated_at` is the wrong clock (a bot comment would keep a dead
+          # preview alive forever). We use the newest of:
+          #   - the head commit's timestamp (a push = a redeploy via
+          #     preview-up's `synchronize` trigger), and
+          #   - the most recent preview-up run on that head branch (covers
+          #     re-label and manual dispatch, which push no commit).
+          # One paginated call now, reused per droplet below.
+          up_runs="$(gh api "repos/${REPO}/actions/workflows/preview-up.yml/runs?per_page=100" \
+            --jq '[.workflow_runs[] | {branch: .head_branch, started: .run_started_at}]' \
+            2>/dev/null || echo '[]')"
 
           # Accumulate straggler PR numbers (+ reason) as JSON lines.
+          # `kind` drives the destroy step's re-check: an `orphan` is re-checked
+          # against PR state, an `idle` against the activity clock. Using the
+          # orphan check on an idle candidate would always skip it (idle
+          # previews are open + qa by definition).
           : > /tmp/stragglers.jsonl
 
           echo "$droplets" | jq -c '.[]' | while read -r d; do
@@ -132,23 +169,29 @@ jobs:
 
             if [[ -z "$pr" ]]; then
               echo "  ⚠️  ${name}: cannot resolve PR number — flagging as orphan."
-              echo "{\"pr\":null,\"name\":\"${name}\",\"reason\":\"no PR number on droplet\"}" >> /tmp/stragglers.jsonl
+              echo "{\"pr\":null,\"name\":\"${name}\",\"kind\":\"orphan\",\"reason\":\"no PR number on droplet\"}" >> /tmp/stragglers.jsonl
               continue
             fi
 
             # Age check first — the auto-destroy-7d budget is absolute.
             created_epoch="$(date -u -d "$created" +%s 2>/dev/null || echo 0)"
             age_secs=$(( now_epoch - created_epoch ))
+            # `budget`, not `orphan`: the droplet's `auto-destroy-7d` tag is an
+            # absolute cap, so this fires even on an open + qa PR. That makes
+            # its destroy-time re-check different from an orphan's — see the
+            # destroy step. (Before GOL-255 this was flagged as an orphan and
+            # then unconditionally skipped at destroy time by the open+qa
+            # guard, so the budget never actually reaped a live PR's droplet.)
             if [[ "$created_epoch" -gt 0 && "$age_secs" -gt "$max_age_secs" ]]; then
               echo "  ⌛ PR #${pr} (${name}): older than ${MAX_AGE_DAYS}d — reaping."
-              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"exceeded ${MAX_AGE_DAYS}d budget\"}" >> /tmp/stragglers.jsonl
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"kind\":\"budget\",\"reason\":\"exceeded ${MAX_AGE_DAYS}d budget\"}" >> /tmp/stragglers.jsonl
               continue
             fi
 
             # PR state + labels. gh exits non-zero if the PR doesn't exist.
             if ! pr_json="$(gh api "repos/${REPO}/pulls/${pr}" 2>/dev/null)"; then
               echo "  🗑️  PR #${pr} (${name}): PR not found — reaping."
-              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"PR not found\"}" >> /tmp/stragglers.jsonl
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"kind\":\"orphan\",\"reason\":\"PR not found\"}" >> /tmp/stragglers.jsonl
               continue
             fi
 
@@ -157,12 +200,57 @@ jobs:
 
             if [[ "$state" != "open" ]]; then
               echo "  🗑️  PR #${pr} (${name}): PR is ${state} — reaping."
-              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"PR ${state}\"}" >> /tmp/stragglers.jsonl
-            elif [[ "$has_qa" != "true" ]]; then
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"kind\":\"orphan\",\"reason\":\"PR ${state}\"}" >> /tmp/stragglers.jsonl
+              continue
+            fi
+            if [[ "$has_qa" != "true" ]]; then
               echo "  🗑️  PR #${pr} (${name}): open but no longer labeled qa — reaping."
-              echo "{\"pr\":${pr},\"name\":\"${name}\",\"reason\":\"qa label removed\"}" >> /tmp/stragglers.jsonl
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"kind\":\"orphan\",\"reason\":\"qa label removed\"}" >> /tmp/stragglers.jsonl
+              continue
+            fi
+
+            # Still a live preview (open + qa). Only the idle clock can reap it.
+            if [[ "$idle_ttl_secs" -eq 0 ]]; then
+              echo "  ✅ PR #${pr} (${name}): open + qa, idle reaping disabled — keeping."
+              continue
+            fi
+
+            head_ref="$(echo "$pr_json" | jq -r '.head.ref // ""')"
+            head_sha="$(echo "$pr_json" | jq -r '.head.sha // ""')"
+
+            last_activity=0
+            if [[ -n "$head_sha" ]]; then
+              commit_date="$(gh api "repos/${REPO}/commits/${head_sha}" \
+                --jq '.commit.committer.date' 2>/dev/null || echo "")"
+              if [[ -n "$commit_date" ]]; then
+                c_epoch="$(date -u -d "$commit_date" +%s 2>/dev/null || echo 0)"
+                [[ "$c_epoch" -gt "$last_activity" ]] && last_activity="$c_epoch"
+              fi
+            fi
+            if [[ -n "$head_ref" ]]; then
+              run_date="$(echo "$up_runs" | jq -r --arg b "$head_ref" \
+                '[.[] | select(.branch == $b) | .started] | max // ""' 2>/dev/null || echo "")"
+              if [[ -n "$run_date" && "$run_date" != "null" ]]; then
+                r_epoch="$(date -u -d "$run_date" +%s 2>/dev/null || echo 0)"
+                [[ "$r_epoch" -gt "$last_activity" ]] && last_activity="$r_epoch"
+              fi
+            fi
+
+            # Fail-safe: no resolvable activity clock means we do not know
+            # whether this preview is in use — keep it and let a human or the
+            # 7-day budget deal with it. Never reap on missing evidence.
+            if [[ "$last_activity" -eq 0 ]]; then
+              echo "  ⚠️  PR #${pr} (${name}): open + qa but no activity timestamp resolved — keeping (fail-safe)."
+              continue
+            fi
+
+            idle_secs=$(( now_epoch - last_activity ))
+            idle_hours=$(( idle_secs / 3600 ))
+            if [[ "$idle_secs" -gt "$idle_ttl_secs" ]]; then
+              echo "  💤 PR #${pr} (${name}): no deploy activity for ${idle_hours}h (TTL ${IDLE_TTL_HOURS}h) — reaping."
+              echo "{\"pr\":${pr},\"name\":\"${name}\",\"kind\":\"idle\",\"reason\":\"idle ${idle_hours}h — no deploy activity within ${IDLE_TTL_HOURS}h TTL\"}" >> /tmp/stragglers.jsonl
             else
-              echo "  ✅ PR #${pr} (${name}): open + qa — keeping."
+              echo "  ✅ PR #${pr} (${name}): open + qa, active ${idle_hours}h ago — keeping."
             fi
           done
 
@@ -178,6 +266,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          IDLE_TTL_HOURS: ${{ github.event.inputs.idle_ttl_hours || '24' }}
+          MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '7' }}
           TF_VAR_do_token: ${{ env.DIGITALOCEAN_TOKEN }}
           TF_VAR_spaces_access_key: ${{ env.SPACES_ACCESS_KEY_ID }}
           TF_VAR_spaces_secret_key: ${{ env.SPACES_SECRET_ACCESS_KEY }}
@@ -219,8 +309,18 @@ jobs:
             done | sort -u
           )"
 
+          # Re-read the activity clock at destroy time for idle candidates.
+          up_runs="$(gh api "repos/${REPO}/actions/workflows/preview-up.yml/runs?per_page=100" \
+            --jq '[.workflow_runs[] | {branch: .head_branch, started: .run_started_at}]' \
+            2>/dev/null || echo '[]')"
+          now_epoch="$(date -u +%s)"
+          idle_ttl_secs=$(( IDLE_TTL_HOURS * 3600 ))
+
           failures=0
           destroyed=0
+          # `pr|kind` for previews reaped while their PR was still open — they
+          # get a comment, because nothing else tells the author the URLs died.
+          notify_reaped=""
           # Iterate stragglers with a resolvable PR number. `null`-PR orphans
           # (no state to destroy) are reported by the summary step but skipped
           # here — deleting a nameless droplet blind is riskier than leaving it
@@ -228,15 +328,57 @@ jobs:
           while read -r line; do
             pr="$(echo "$line" | jq -r '.pr')"
             [[ "$pr" == "null" || -z "$pr" ]] && continue
+            kind="$(echo "$line" | jq -r '.kind // "orphan"')"
 
             # Re-check the PR right before destroying: the scan ran minutes ago
-            # and the PR may have been reopened / relabeled `qa` since (which
-            # also means preview-up may be re-provisioning it right now).
+            # and the PR may have come back to life since. What "alive" means
+            # depends on why we flagged it, so re-check the same signal the
+            # scan used — an idle candidate is open + qa by definition, so the
+            # orphan check would skip every one of them.
             pr_json="$(gh api "repos/${REPO}/pulls/${pr}" 2>/dev/null || echo '{}')"
             state="$(echo "$pr_json" | jq -r '.state // "unknown"')"
             has_qa="$(echo "$pr_json" | jq -r '[.labels[]?.name] | index("qa") != null')"
             head_ref="$(echo "$pr_json" | jq -r '.head.ref // ""')"
-            if [[ "$state" == "open" && "$has_qa" == "true" ]]; then
+            head_sha="$(echo "$pr_json" | jq -r '.head.sha // ""')"
+
+            if [[ "$kind" == "budget" ]]; then
+              # The age cap is absolute and a droplet cannot get younger, so
+              # there is nothing to re-check — an open + qa PR does NOT save
+              # it. Only an in-flight deploy (checked below) defers it.
+              echo "  ⌛ PR #${pr}: past the ${MAX_AGE_DAYS}d budget — reaping regardless of PR state."
+            elif [[ "$kind" == "idle" ]]; then
+              # Someone may have pushed or redeployed between scan and now.
+              last_activity=0
+              if [[ -n "$head_sha" ]]; then
+                commit_date="$(gh api "repos/${REPO}/commits/${head_sha}" \
+                  --jq '.commit.committer.date' 2>/dev/null || echo "")"
+                if [[ -n "$commit_date" ]]; then
+                  c_epoch="$(date -u -d "$commit_date" +%s 2>/dev/null || echo 0)"
+                  [[ "$c_epoch" -gt "$last_activity" ]] && last_activity="$c_epoch"
+                fi
+              fi
+              if [[ -n "$head_ref" ]]; then
+                run_date="$(echo "$up_runs" | jq -r --arg b "$head_ref" \
+                  '[.[] | select(.branch == $b) | .started] | max // ""' 2>/dev/null || echo "")"
+                if [[ -n "$run_date" && "$run_date" != "null" ]]; then
+                  r_epoch="$(date -u -d "$run_date" +%s 2>/dev/null || echo 0)"
+                  [[ "$r_epoch" -gt "$last_activity" ]] && last_activity="$r_epoch"
+                fi
+              fi
+              if [[ "$last_activity" -eq 0 ]]; then
+                echo "  ⚠️  PR #${pr}: activity clock unresolvable at destroy time — skipping (fail-safe)."
+                continue
+              fi
+              if [[ $(( now_epoch - last_activity )) -le "$idle_ttl_secs" ]]; then
+                echo "  ↩️  PR #${pr}: activity resumed since scan — skipping destroy."
+                continue
+              fi
+              if [[ "$state" != "open" ]]; then
+                # Closed since the scan → preview-down owns it; let it run.
+                echo "  ↩️  PR #${pr}: closed since scan — leaving to preview-down."
+                continue
+              fi
+            elif [[ "$state" == "open" && "$has_qa" == "true" ]]; then
               echo "  ↩️  PR #${pr}: now open + qa again — skipping destroy."
               continue
             fi
@@ -272,6 +414,9 @@ jobs:
               else
                 echo "  ✔ destroyed PR #${pr}"
                 destroyed=$(( destroyed + 1 ))
+                if [[ "$kind" == "idle" || ( "$kind" == "budget" && "$state" == "open" ) ]]; then
+                  notify_reaped="${notify_reaped}${pr}|${kind} "
+                fi
               fi
             else
               echo "::error::terraform destroy failed for PR #${pr}"
@@ -279,6 +424,41 @@ jobs:
             fi
             echo "::endgroup::"
           done < /tmp/stragglers.jsonl
+
+          # These PRs are still open, so their author has no other signal that
+          # the preview URLs went dead. Tell them, and how to get it back.
+          # (Orphan reaps don't need this: the PR is closed, or the operator
+          # removed the `qa` label on purpose.)
+          for entry in $notify_reaped; do
+            pr="${entry%%|*}"
+            kind="${entry##*|}"
+            {
+              if [[ "$kind" == "idle" ]]; then
+                printf '## 💤 Grove preview reaped (idle)\n\n'
+                printf "This PR's preview had no deploy activity for more than **%sh**, so the scheduled sweep tore the droplet down to stop the hourly spend.\n\n" "$IDLE_TTL_HOURS"
+              else
+                printf '## ⌛ Grove preview reaped (age budget)\n\n'
+                printf "This PR's preview droplet passed its **%s-day** lifetime budget, so the scheduled sweep tore it down to stop the hourly spend.\n\n" "$MAX_AGE_DAYS"
+              fi
+              # Quoted heredoc: the markdown contains backticks, which are
+              # literal here but read as command substitution by shellcheck
+              # (SC2016) if written inside single quotes.
+              cat <<'MD'
+          Nothing was lost — previews are disposable and rebuilt from scratch.
+
+          **To bring it back:** push a commit, or remove and re-add the `qa` label.
+
+          MD
+              printf '<sub>Reaped by [preview-sweep.yml](%s/%s/actions/runs/%s) — GOL-255.</sub>\n' \
+                "$GITHUB_SERVER_URL" "$REPO" "$GITHUB_RUN_ID"
+            } > /tmp/reap-comment.md
+            if gh api "repos/${REPO}/issues/${pr}/comments" \
+                 -f body="$(cat /tmp/reap-comment.md)" >/dev/null 2>&1; then
+              echo "  💬 commented on PR #${pr}"
+            else
+              echo "::warning::could not comment on PR #${pr} — droplet was still reaped"
+            fi
+          done
 
           echo "destroyed=${destroyed}" >> "$GITHUB_OUTPUT"
           if [[ "$failures" -gt 0 ]]; then
