@@ -8,6 +8,7 @@
   --grove-color-secondary: #edd682;          /* Harvest Gold */
   --grove-color-secondary-foreground: #7f4f1d;
   --grove-color-accent: #617333;             /* Forest Command */
+  --grove-color-accent-fg: #617333;          /* already 4.91:1 on paper — no deepening needed */
 
   --grove-color-ink: #3d2810;
   --grove-color-ink-soft: #5a3712;

@@ -17,6 +17,11 @@
   --grove-color-secondary: #edd682;          /* secondary anchor / warm highlight */
   --grove-color-secondary-foreground: #3d2810;
   --grove-color-accent: #617333;             /* the brand's accent hue (CTAs, pops) */
+  /* Accent deepened until it clears 4.5:1 on paper/paper-soft, for accent-colored
+     TEXT. Same -fg/-solid split the status roles below use: --grove-color-accent
+     is the ≥3:1 fill/border value, --grove-color-accent-fg the ≥4.5:1 text value.
+     Brands whose accent already clears 4.5:1 assign the same hex to both. */
+  --grove-color-accent-fg: #617333;          /* 4.91:1 on paper */
 
   /* ── Neutral text + surface roles ── */
   --grove-color-ink: #3d2810;                /* body text */

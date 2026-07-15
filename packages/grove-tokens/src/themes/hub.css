@@ -10,7 +10,8 @@
   --grove-color-primary-foreground: #fff7e6;
   --grove-color-secondary: #edd682;          /* Harvest Gold (Goldberry) */
   --grove-color-secondary-foreground: #5c3a1f;
-  --grove-color-accent: #617333;             /* grove green (Nursery / Goldberry) */
+  --grove-color-accent: #617333;             /* grove green (Nursery / Goldberry) — 4.45:1 on hub's darker paper */
+  --grove-color-accent-fg: #5c6d30;          /* nudged darker for accent text — 4.84:1 on paper */
 
   --grove-color-ink: #1a1410;
   --grove-color-ink-soft: #2d241b;

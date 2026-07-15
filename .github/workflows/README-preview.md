@@ -6,9 +6,40 @@ Three workflows implement the per-PR preview environment (GOL-6, M3):
 |---|---|---|
 | `preview-up.yml`   | PR labeled `qa` (or push to a labeled PR) | Builds 4 frontend images at the PR SHA, `terraform apply` the odoocker `preview/` env → droplet + DNS + firewall + full Compose stack, comments per-tenant URLs. |
 | `preview-down.yml` | PR closed / merged / `qa` label removed | `terraform destroy` the per-PR state — droplet, DNS, firewall. |
-| `preview-sweep.yml`| Scheduled (every 6h) + manual | Lists `env-preview` droplets, destroys any whose PR is closed / unlabeled / older than the 7-day budget. Safety net for missed teardowns. |
+| `preview-sweep.yml`| Scheduled (every 6h) + manual | Lists `env-preview` droplets, destroys any whose PR is closed / unlabeled / idle past the TTL / older than the 7-day budget. Safety net for missed teardowns + the scale-to-zero reaper. |
 
 The Terraform lives in **odoocker** at `infra/terraform/environments/preview/` (M2). These workflows are the CI drivers; they check that repo out at run time.
+
+## Scale-to-zero: when a preview dies (GOL-255)
+
+A preview droplet costs ~$0.033/hr, so nothing is allowed to linger. Four
+independent things can reap one — the first to fire wins:
+
+| Reason | Fires when | Re-checked before destroy against |
+|---|---|---|
+| PR closed / merged | immediately, via `preview-down.yml` | — |
+| `qa` label removed | immediately, via `preview-down.yml` | — |
+| **Idle TTL** | sweep sees an open + `qa` PR with **no deploy activity for 24h** | the activity clock (a push since the scan saves it) |
+| **Age budget** | sweep sees a droplet older than **7 days**, regardless of PR state | nothing — the cap is absolute |
+
+**"Activity" means a deploy, not a conversation.** The idle clock is the newest
+of (a) the head commit's timestamp and (b) the last `preview-up` run on that
+branch. PR `updated_at` is deliberately *not* used — a bot comment would keep a
+dead preview alive forever.
+
+**Fail-safe:** every ambiguity keeps the droplet. Unresolvable timestamps, an
+in-flight `preview-up`/`preview-down`, or a PR that revived between scan and
+destroy all defer to the next sweep (≤6h). We would rather pay for a droplet
+than kill a preview someone is reviewing.
+
+**Getting a reaped preview back:** push a commit, or remove and re-add the `qa`
+label. The sweep comments on the PR whenever it reaps a still-open PR's preview,
+so the URLs never go dead silently.
+
+**Tuning:** `workflow_dispatch` takes `idle_ttl_hours` (default `24`, set `0` to
+disable idle reaping) and `max_age_days` (default `7`), plus `dry_run` to report
+without destroying. Change the defaults in `preview-sweep.yml` to make them
+permanent.
 
 ## Authentication — no static DIGITALOCEAN_TOKEN
 
