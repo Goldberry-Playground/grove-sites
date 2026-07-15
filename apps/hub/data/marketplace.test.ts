@@ -11,7 +11,7 @@ import { marketplace, findVendor } from "./marketplace";
  * The other half — does `productSlug` exist in that vendor's Odoo — needs a
  * live seeded catalog and is deliberately NOT asserted here; a unit test must
  * not depend on a droplet being up. `fetchFeaturedProducts` warns server-side
- * when a slug fails to resolve, and GOL-401 tracks the CI check against the
+ * when a slug fails to resolve, and GOL-407 tracks the CI check against the
  * seeded catalog.
  */
 describe("marketplace editorial overlay", () => {
