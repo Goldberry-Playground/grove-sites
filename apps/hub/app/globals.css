@@ -366,6 +366,11 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  /* Wrap rather than collide: "See all 22 from At The Grove Nursery →" does
+     not fit beside the heading at 390px and was overlapping it. Content-driven
+     — no breakpoint, it reflows when it runs out of room. */
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
   margin-bottom: 1.5rem;
 }
 .marketplace__vendor-head a {
@@ -502,6 +507,22 @@ a { color: inherit; text-decoration: none; }
 }
 .marketplace__vendor-section--soon .marketplace__coming-soon {
   margin-top: 1rem;
+}
+
+/* Factual catalog states (empty / unreachable). Deliberately quieter than
+   --coming-soon: that one is an editorial promise in display type, these
+   just state what happened. Same paper-deep block so the section still has
+   a body instead of collapsing to a bare heading (GOL-400). */
+.marketplace__vendor-note {
+  margin-top: 1rem;
+  padding: 1.25rem 2rem;
+  background: var(--paper-deep);
+  border-left: 3px solid var(--vendor-color, var(--ink));
+  font-style: italic;
+}
+.marketplace__vendor-note a {
+  color: inherit;
+  text-decoration: underline;
 }
 
 /* ─────── Journal (Ghost-blog DNA) ─────── */

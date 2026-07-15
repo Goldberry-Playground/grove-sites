@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ProductCard } from "../../components/ProductCard";
 import {
   fetchFeaturedProducts,
-  fetchVendorProducts,
+  fetchVendorCatalog,
   searchProducts,
 } from "../../lib/marketplace";
 import { marketplace } from "../../data/marketplace";
@@ -41,7 +41,7 @@ export default async function MarketplacePage({
   const byVendor = await Promise.all(
     marketplace.vendors.map(async (v) => ({
       vendor: v,
-      products: await fetchVendorProducts(v.slug),
+      catalog: await fetchVendorCatalog(v.slug),
     })),
   );
 
@@ -66,60 +66,76 @@ export default async function MarketplacePage({
         </form>
       </header>
 
-      <section className="marketplace__featured">
-        <h2>Featured this week</h2>
-        <div className="marketplace__grid">
-          {featured.map((f) => (
-            <ProductCard
-              key={`${f.vendor.slug}-${f.product.slug}`}
-              product={{ product: f.product, vendor: f.vendor }}
-              editorialNote={f.editorialNote}
-            />
-          ))}
-        </div>
-      </section>
+      {/* No resolvable picks → no section. A "Featured this week" heading over
+          an empty grid reads as a broken page; omitting it reads as a week
+          without picks. Unresolved refs are warned server-side (GOL-400). */}
+      {featured.length > 0 && (
+        <section className="marketplace__featured">
+          <h2>Featured this week</h2>
+          <div className="marketplace__grid">
+            {featured.map((f) => (
+              <ProductCard
+                key={`${f.vendor.slug}-${f.product.slug}`}
+                product={{ product: f.product, vendor: f.vendor }}
+                editorialNote={f.editorialNote}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {byVendor.map(({ vendor, products }) =>
-        vendor.comingSoon ? (
-          <section
-            key={vendor.slug}
-            className="marketplace__vendor-section marketplace__vendor-section--soon"
-            style={{ borderTopColor: vendor.brandColor }}
-          >
-            <header className="marketplace__vendor-head">
-              <h2 style={{ color: vendor.brandColor }}>{vendor.name}</h2>
-              <Link
-                href={`/marketplace/vendor/${vendor.slug}`}
-                style={{ color: vendor.brandColor }}
-              >
-                Meet the maker →
-              </Link>
-            </header>
-            <p className="marketplace__coming-soon">{vendor.comingSoon}</p>
-          </section>
-        ) : (
-          <section
-            key={vendor.slug}
-            className="marketplace__vendor-section"
-            style={{ borderTopColor: vendor.brandColor }}
-          >
-            <header className="marketplace__vendor-head">
-              <h2 style={{ color: vendor.brandColor }}>{vendor.name}</h2>
-              <Link
-                href={`/marketplace/vendor/${vendor.slug}`}
-                style={{ color: vendor.brandColor }}
-              >
-                See all {products.length} from {vendor.name} →
-              </Link>
-            </header>
+      {byVendor.map(({ vendor, catalog }) => (
+        <section
+          key={vendor.slug}
+          className={
+            catalog.state === "ok"
+              ? "marketplace__vendor-section"
+              : "marketplace__vendor-section marketplace__vendor-section--soon"
+          }
+          style={{
+            borderTopColor: vendor.brandColor,
+            ["--vendor-color" as string]: vendor.brandColor,
+          }}
+        >
+          <header className="marketplace__vendor-head">
+            <h2 style={{ color: vendor.brandColor }}>{vendor.name}</h2>
+            {/* "See all N" only when there is an N worth clicking. Every other
+                state sends the reader to the maker's story instead of a grid
+                that would be empty when they arrive. */}
+            <Link
+              href={`/marketplace/vendor/${vendor.slug}`}
+              style={{ color: vendor.brandColor }}
+            >
+              {catalog.state === "ok"
+                ? `See all ${catalog.products.length} from ${vendor.name} →`
+                : "Meet the maker →"}
+            </Link>
+          </header>
+
+          {catalog.state === "ok" ? (
             <div className="marketplace__grid">
-              {products.slice(0, 4).map((p) => (
+              {catalog.products.slice(0, 4).map((p) => (
                 <ProductCard key={p.product.slug} product={p} />
               ))}
             </div>
-          </section>
-        ),
-      )}
+          ) : catalog.state === "coming-soon" ? (
+            <p className="marketplace__coming-soon">{catalog.message}</p>
+          ) : catalog.state === "empty" ? (
+            // Reachable, genuinely nothing listed. States the fact without
+            // promising a launch — only an explicit `comingSoon` may do that.
+            <p className="marketplace__vendor-note">
+              {vendor.name} hasn't listed anything in the marketplace yet.
+            </p>
+          ) : (
+            // Odoo did not answer. Never dressed up as "no products".
+            <p className="marketplace__vendor-note">
+              We couldn't load {vendor.name}'s catalog just now. It should be
+              back shortly — or visit{" "}
+              <a href={vendor.homepageUrl}>{vendor.name}</a> directly.
+            </p>
+          )}
+        </section>
+      ))}
     </main>
   );
 }
