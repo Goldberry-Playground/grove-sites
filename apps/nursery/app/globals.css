@@ -20,38 +20,55 @@
    At The Grove Nursery — Garden / Natural
    Forest × Orange × Leaf × Parchment
    Ported from wireframes/nursery/styles.css
+
+   ONE colour system (GOL-380): every value below derives from the --grove-*
+   token contract in @grove/tokens/themes/nursery.css. Do not reintroduce a raw
+   hex here — a second copy of the palette is how the two systems silently drift
+   apart. Change the brand's colours in the theme file; this app follows.
    ───────────────────────────────────────────── */
 
-@theme {
-  --color-primary: #1F3F2B;             /* forest */
-  --color-primary-foreground: #F2EBD9;  /* parchment */
-  --color-secondary: #8AAB6E;           /* leaf */
-  --color-secondary-foreground: #1F3F2B;
-  --color-accent: #D5641A;              /* orange */
-  --color-background: #F2EBD9;          /* parchment */
-  --color-foreground: #1A2A1F;          /* deep forest */
+@theme inline {
+  /* Backs the Tailwind utilities the markup uses — bg-background, text-foreground,
+     border-primary/10, font-display … — so they resolve to the same tokens the
+     @grove/ui-kit components style against, instead of a parallel set of hexes.
 
-  --font-sans: "Newsreader", "Cardo", Georgia, serif;
-  --font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+     `inline` is load-bearing, not stylistic: without it Tailwind sees a var() it
+     can't resolve at build time and silently DROPS the opacity modifiers, so
+     border-primary/10 emits a solid forest border instead of a 10% one. With
+     inline it emits color-mix(… var(--grove-color-primary) 10% …) as intended. */
+  --color-primary: var(--grove-color-primary);
+  --color-primary-foreground: var(--grove-color-primary-foreground);
+  --color-secondary: var(--grove-color-secondary);
+  --color-secondary-foreground: var(--grove-color-secondary-foreground);
+  --color-accent: var(--grove-color-accent);
+  --color-background: var(--grove-color-paper);
+  --color-foreground: var(--grove-color-ink);
+
+  --font-sans: var(--grove-font-body);
+  --font-display: var(--grove-font-display);
+  --font-mono: var(--grove-font-mono);
 }
 
 :root {
-  /* --grove-* roles now come from @grove/tokens/themes/nursery.css (imported
-     above), the single source of truth. The brand's raw palette tokens below
-     still back the app-local chrome that hasn't been lifted to @grove/ui-kit. */
-  --forest: #1F3F2B;
-  --forest-deep: #142A1C;
-  --orange: #D5641A;
-  --orange-deep: #A84B0F;
-  --leaf: #8AAB6E;
-  --leaf-deep: #688248;
-  --parch: #F2EBD9;
-  --parch-soft: #F9F3E2;
-  --parch-deep: #DFD5B9;
-  --ink: #1A2A1F;
+  /* The brand's palette aliases, backing app-local chrome that hasn't been lifted
+     to @grove/ui-kit yet. Names kept (the ported wireframe CSS below reads
+     --forest / --orange / …) but the values are now the tokens, not copies. */
+  --forest: var(--grove-color-primary);
+  --forest-deep: var(--grove-color-primary-deep);
+  --orange: var(--grove-color-accent);
+  --leaf: var(--grove-color-secondary);
+  --parch: var(--grove-color-paper);
+  --parch-soft: var(--grove-color-paper-soft);
+  --parch-deep: var(--grove-color-paper-deep);
+  --ink: var(--grove-color-ink);
 
-  --grid: clamp(1rem, 4vw, 2.5rem);
+  /* No --grove-* role covers these yet (nor --moss below): nursery-only shades
+     used by not-yet-lifted chrome. Promoting them to the contract would touch all
+     four brands, so it is deliberately left outside the cutover scope (GOL-380). */
+  --orange-deep: #A84B0F;
+  --leaf-deep: #688248;
+
+  --grid: var(--grove-space-grid);
 }
 
 body {
@@ -99,9 +116,10 @@ h1 em, h2 em, h3 em {
   --parchment: var(--parch);
   --parchment-soft: var(--parch-soft);
   --parchment-deep: var(--parch-deep);
-  --moss: #355A45;
-  --ink-soft: #2D3A30;
+  --ink-soft: var(--grove-color-ink-soft);
   --rust: var(--orange-deep);
+  /* nursery-only mid-green — no --grove-* role covers it (see note above). */
+  --moss: #355A45;
 }
 
 /* ─────────────────────────────────────────────

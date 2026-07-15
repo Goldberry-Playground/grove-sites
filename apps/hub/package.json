@@ -21,7 +21,6 @@
     "@grove/tokens": "workspace:*",
     "@grove/ui": "workspace:*",
     "@grove/ui-kit": "workspace:*",
-    "@grove/tokens": "workspace:*",
     "next": "^15.5.18",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

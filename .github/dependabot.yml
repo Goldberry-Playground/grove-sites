@@ -1,0 +1,88 @@
+# Dependency updates.
+#
+# The existing CVE gates are reactive: `pnpm audit --audit-level=high` (ci.yml)
+# and dependency-review.yml both block a PR that *introduces* a bad dep. Neither
+# does anything when a CVE lands on a version already sitting on main — that only
+# surfaced last time because someone ran an audit by hand. Dependabot is the
+# piece that opens the bump PR.
+#
+# grouped: a pnpm workspace fans out into ~19 manifests, and one PR per package
+# per app is unreviewable. Security fixes stay ungrouped so they arrive alone and
+# obvious.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # Next + React move together; splitting them produces PRs that cannot pass CI.
+      next-react:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+          - "@next/*"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      dev-tooling:
+        dependency-type: development
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "next"
+          - "eslint-config-next"
+          - "@next/*"
+          - "react*"
+          - "@types/react*"
+      production:
+        dependency-type: production
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "next"
+          - "react*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # The four storefront images. There is no Dockerfile at the repo root, so this
+  # globs the app dirs — a `directory: "/"` entry here would silently scan nothing.
+  - package-ecosystem: docker
+    directories:
+      - "/apps/*"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci
