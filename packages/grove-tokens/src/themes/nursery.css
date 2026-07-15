@@ -7,7 +7,8 @@
   --grove-color-primary-foreground: #f2ebd9; /* parchment */
   --grove-color-secondary: #8aab6e;          /* leaf */
   --grove-color-secondary-foreground: #1f3f2b;
-  --grove-color-accent: #d5641a;             /* orange (marigold) */
+  --grove-color-accent: #d5641a;             /* orange (marigold) — 3.34:1 on paper-soft: fills/borders only */
+  --grove-color-accent-fg: #a5490f;          /* deepened orange for accent text — 5.32:1 on paper-soft */
 
   --grove-color-ink: #1a2a1f;
   --grove-color-ink-soft: #2d3a30;           /* ink-soft */
