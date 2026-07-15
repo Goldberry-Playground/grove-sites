@@ -139,10 +139,15 @@ jobs:
           # the date of the most recent successful sanitized snapshot.
           # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY come from the 1Password
           # step above (export-env writes them to $GITHUB_ENV).
+          # stderr intentionally VISIBLE: the old `2>/dev/null` swallowed the
+          # aws-cli auth error when Spaces creds were unset/wrong, leaving only
+          # the misleading "has the sanitize cron run?" message (cost a full
+          # debugging round on the 2026-07-09 run). Auth failures and
+          # missing-object errors now print before the guard message.
           date=$(aws --endpoint-url https://nyc3.digitaloceanspaces.com \
-            s3 cp s3://grove-preview-data/heartbeat.txt - 2>/dev/null | tr -d '\n')
+            s3 cp s3://grove-preview-data/heartbeat.txt - | tr -d '\n')
           if [[ -z "$date" ]]; then
-            echo "::error::heartbeat.txt missing or empty in grove-preview-data — has the sanitize cron run?"
+            echo "::error::heartbeat.txt missing or empty in grove-preview-data — see aws stderr above (auth failure vs missing object vs cron not run)."
             exit 1
           fi
           echo "date=$date" >> "$GITHUB_OUTPUT"
