@@ -20,6 +20,25 @@ export type HubFeaturedProduct = HubProduct & {
   editorialNote?: string;
 };
 
+/**
+ * Outcome of a vendor catalog fetch.
+ *
+ * `empty` and `unreachable` are deliberately distinct. The vendor's Odoo
+ * answering "0 products" and the vendor's Odoo not answering at all are
+ * different facts, and the hub states a different one to the reader for each.
+ * Collapsing them into `[]` is what let /marketplace/vendor/goldberry tell
+ * visitors the catalog was "currently unreachable" while that Odoo was up and
+ * simply had no rows in it (GOL-400).
+ *
+ * `coming-soon` short-circuits before any network call — a pre-launch vendor
+ * is an editorial fact from the overlay, never inferred from a fetch result.
+ */
+export type VendorCatalog =
+  | { state: "ok"; products: HubProduct[] }
+  | { state: "empty" }
+  | { state: "unreachable" }
+  | { state: "coming-soon"; message: string };
+
 /** Single product page payload. */
 export async function fetchProductByVendorSlug(
   vendorSlug: string,
@@ -38,41 +57,76 @@ export async function fetchProductByVendorSlug(
   }
 }
 
-/** All products from one vendor, used by /marketplace/vendor/[slug]. */
-export async function fetchVendorProducts(vendorSlug: string): Promise<HubProduct[]> {
+/**
+ * One vendor's catalog, with reachability preserved.
+ * Used by /marketplace and /marketplace/vendor/[slug] to render a state that
+ * matches what actually happened.
+ */
+export async function fetchVendorCatalog(vendorSlug: string): Promise<VendorCatalog> {
   const vendor = findVendor(vendorSlug);
-  if (!vendor) return [];
-  // Pre-launch vendors have no catalog to fetch; callers render
-  // vendor.comingSoon instead of a grid.
-  if (vendor.comingSoon) return [];
+  if (!vendor) return { state: "unreachable" };
+  if (vendor.comingSoon) return { state: "coming-soon", message: vendor.comingSoon };
 
   try {
     const result = await clientForVendor(vendor).products.list({ limit: 100 });
-    return result.products.map((p) => ({ product: p, vendor }));
-  } catch {
-    return [];
+    if (result.products.length === 0) return { state: "empty" };
+    return {
+      state: "ok",
+      products: result.products.map((p) => ({ product: p, vendor })),
+    };
+  } catch (err) {
+    console.warn(
+      `[marketplace] vendor "${vendorSlug}" catalog unreachable at ${vendor.odoo.apiUrl}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return { state: "unreachable" };
   }
 }
 
 /**
+ * Products only, for callers that genuinely don't care why a catalog is empty
+ * (search). Anything that renders a vendor's own section wants
+ * `fetchVendorCatalog` so it can tell an outage from an empty shelf.
+ */
+export async function fetchVendorProducts(vendorSlug: string): Promise<HubProduct[]> {
+  const catalog = await fetchVendorCatalog(vendorSlug);
+  return catalog.state === "ok" ? catalog.products : [];
+}
+
+/**
  * Resolve the editorial overlay's featured[] into hydrated products.
- * Silently drops refs whose product was deleted, whose vendor is unreachable,
- * or whose vendor isn't in the overlay.
+ *
+ * Unresolvable refs are still dropped from the reader's view — a visitor should
+ * not be shown a hole where a curator's typo was. But they are no longer
+ * dropped *quietly*: each one warns server-side with the ref that failed, so a
+ * stale slug surfaces in logs instead of only as an empty row on the page.
+ * Callers must treat an empty return as "render no featured section at all".
  */
 export async function fetchFeaturedProducts(): Promise<HubFeaturedProduct[]> {
-  const resolved: HubFeaturedProduct[] = [];
   const resolutions = await Promise.all(
     marketplace.featured.map((slot) => resolveFeaturedSlot(slot)),
   );
-  for (const r of resolutions) {
-    if (r) resolved.push(r);
+  const resolved = resolutions.filter((r): r is HubFeaturedProduct => r !== null);
+
+  const dropped = marketplace.featured.length - resolved.length;
+  if (dropped > 0) {
+    console.warn(
+      `[marketplace] ${dropped}/${marketplace.featured.length} featured ref(s) did not resolve; ` +
+        `the featured section will be hidden if none do.`,
+    );
   }
   return resolved;
 }
 
 async function resolveFeaturedSlot(slot: FeaturedSlot): Promise<HubFeaturedProduct | null> {
   const hydrated = await fetchProductByVendorSlug(slot.ref.vendor, slot.ref.productSlug);
-  if (!hydrated) return null;
+  if (!hydrated) {
+    console.warn(
+      `[marketplace] featured ref unresolved: vendor="${slot.ref.vendor}" ` +
+        `productSlug="${slot.ref.productSlug}" (no such product, or vendor unreachable)`,
+    );
+    return null;
+  }
   return { ...hydrated, editorialNote: slot.editorialNote };
 }
 
