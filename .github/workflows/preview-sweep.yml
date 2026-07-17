@@ -88,14 +88,14 @@ jobs:
 
     steps:
       - name: Checkout odoocker (for the preview/ TF env + module)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Goldberry-Playground/odoocker-goldberrygrove
           path: odoocker
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load secrets from 1Password
-        uses: 1password/load-secrets-action@v2
+        uses: 1password/load-secrets-action@v4
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
           DIGITALOCEAN_TOKEN:       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
@@ -113,7 +113,7 @@ jobs:
           token: ${{ env.DIGITALOCEAN_TOKEN }}
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.10"
 

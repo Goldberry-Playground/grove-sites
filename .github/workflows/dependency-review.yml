@@ -28,9 +28,9 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Dependency Review
-        uses: actions/dependency-review-action@67d4f4bd7a9b17a0db54d2a7519187c65e339de8 # v4.5.0
+        uses: actions/dependency-review-action@da6b129d277471d01428781accece1bd831a8b0d # v4.5.0
         with:
           fail-on-severity: high
           # GPL-3.0 + AGPL conflict with our private commercial use; flag them.
