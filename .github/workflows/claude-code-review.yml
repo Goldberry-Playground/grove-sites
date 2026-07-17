@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -39,7 +39,7 @@ jobs:
         # major-version tag (Anthropic doesn't ship semver releases on
         # this repo). Pinned to the immutable commit. Renovate/Dependabot
         # should drive future bumps after review.
-        uses: anthropics/claude-code-action@a92e7c70a4da9793dc164451d829089dc057a464 # v1 (2025-08-26)
+        uses: anthropics/claude-code-action@12531344451323133b0493233c759991ac61da12 # v1 (2025-08-26)
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
