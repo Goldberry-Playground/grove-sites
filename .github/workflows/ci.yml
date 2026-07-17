@@ -23,7 +23,7 @@ jobs:
     name: Reject tracked .env files
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Single source of truth against the "real .env got committed" leak class.
       # Operator-owned .env files (.env, .env.local, .env.production, .env.grove,
       # .env.monitoring) MUST never appear in git history. Example/template files
@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # packages/grove-ui/ds-theme.<brand>.css is a generated artifact that is
       # committed to git (the Claude Design projects consume it directly, and
@@ -72,15 +72,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -104,15 +104,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -145,7 +145,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Trivy replaced `pnpm audit` on 2026-07-15 (GOL-389). npm retired the
       # legacy audit endpoint that pnpm calls; it now returns HTTP 410, so
@@ -188,13 +188,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # trufflehog needs full history to scan
 
       # gitleaks-action requires a paid license for org accounts; trufflehog
       # is still free and equivalent in coverage for our use case.
       - name: Run trufflehog
-        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
+        uses: trufflesecurity/trufflehog@27b0417c16317ca9a472a9a8092acce143b49c55 # v3.95.9
         with:
           extra_args: --only-verified
