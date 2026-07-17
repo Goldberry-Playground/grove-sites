@@ -1,5 +1,10 @@
 # Storefront Experience Spec — Variants, Gallery, Preorders
 
+> **⚠️ Partially amended 2026-07-13:** the **product-page layout and API-additions sections** of this spec are superseded by
+> [`docs/superpowers/specs/2026-07-13-nursery-product-pages-design.md`](./superpowers/specs/2026-07-13-nursery-product-pages-design.md)
+> (adds growing-facts/spec block, facets, Ghost guides, companions, shipping transparency; restructures the API changes into one batched PR).
+> Everything about **cart, checkout, preorders, deposits, mixed orders, pickup, and Discord alerts** (decisions 1, 3–8b below) remains canonical here.
+
 Status: agreed 2026-07-07 (grill session with Josh) — implementation phased below.
 Scope: nursery storefront first (only tenant with a catalog); all components
 shared so goldberry/ggg light up when they have products.
