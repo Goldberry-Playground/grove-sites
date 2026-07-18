@@ -92,19 +92,18 @@ describe("hub/lib/marketplace federation", () => {
   it("fetchFeaturedProducts joins overlay editorialNote with canonical product", async () => {
     // This test deliberately couples to the live featured[] overlay in
     // data/marketplace.ts — when the real catalog rotates, update these
-    // fixtures alongside it (2026-07-08: the two Goldberry stickers).
+    // fixtures alongside it (2026-07-18, GOL-439: the seeded nursery sticker,
+    // retargeted off the not-yet-seeded Goldberry stickers).
     vi.mocked(clientForVendor).mockReturnValue(
-      mockClient([
-        { id: 1, slug: "samoyed-goldberry-grove-stickers", name: "Samoyed Goldberry Grove Stickers" },
-        { id: 2, slug: "cryptid-support-forests-stickers", name: "Cryptid Support Forests Stickers" },
-      ]) as never,
+      mockClient([{ id: 169, slug: "sticker", name: "At The Grove Nursery Sticker" }]) as never,
     );
 
     const featured = await fetchFeaturedProducts();
     expect(featured.length).toBeGreaterThan(0);
-    const samoyed = featured.find((f) => f.product.slug === "samoyed-goldberry-grove-stickers");
-    expect(samoyed).toBeDefined();
-    expect(samoyed?.editorialNote).toMatch(/farm dog/i);
+    const sticker = featured.find((f) => f.product.slug === "sticker");
+    expect(sticker).toBeDefined();
+    expect(sticker?.vendor.slug).toBe("nursery");
+    expect(sticker?.editorialNote).toMatch(/food-forest/i);
   });
 
   it("fetchFeaturedProducts silently skips refs whose product was deleted", async () => {
