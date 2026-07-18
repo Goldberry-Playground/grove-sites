@@ -117,21 +117,29 @@ export const marketplace: Marketplace = {
     },
   ],
 
+  // Retargeted 2026-07-18 (GOL-440, CEO product decision). The two Goldberry
+  // sticker slugs that lived here (samoyed-goldberry-grove-stickers,
+  // cryptid-support-forests-stickers) resolve to nothing in the sanitized QA
+  // snapshot: the Goldberry Odoo catalog isn't built until GOL-104 (~Jul 21).
+  // A mismatched ref is *silently dropped* by fetchFeaturedProducts, so an
+  // unseeded slug renders the whole featured row empty with no error. Rather
+  // than fabricate a placeholder Goldberry catalog (a product decision the CEO
+  // has deferred), we feature real, seeded At-The-Grove-Nursery products so the
+  // row proves the render path today. Swap back to Goldberry slugs once that
+  // catalog lands — the CI guard (see featured-slugs.live.test.ts +
+  // .github/workflows/ci.yml `featured-slug-guard`) resolves every slug below
+  // against the seeded catalog and fails the build if any returns count=0,
+  // which is the only thing that makes a re-introduced gap loud.
   featured: [
-    // Real catalog (2026-07-08): the two Goldberry sticker SKUs. Slugs must
-    // match each product's grove_slug in Odoo after entry — a mismatched ref
-    // is silently dropped by fetchFeaturedProducts, so verify on the page
-    // once the products exist. (Demo-seed refs removed; GGG is comingSoon
-    // and must not be featured until inventory exists.)
     {
-      ref: { vendor: "goldberry", productSlug: "samoyed-goldberry-grove-stickers" },
+      ref: { vendor: "nursery", productSlug: "sticker" },
       editorialNote:
-        "The farm dog, immortalized in vinyl. Rides on water bottles, toolboxes, and truck glass.",
+        "Nursery vinyl for water bottles and truck glass — a small way to carry the grove.",
     },
     {
-      ref: { vendor: "goldberry", productSlug: "cryptid-support-forests-stickers" },
+      ref: { vendor: "nursery", productSlug: "chestnut" },
       editorialNote:
-        "Cryptids support forests. So do sticker buyers — this one plants the habit.",
+        "The chestnut anchors the whole hillside — grafted in our beds, lined out two years, lifted bare-root.",
     },
   ],
 

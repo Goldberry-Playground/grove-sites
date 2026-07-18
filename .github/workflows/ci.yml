@@ -97,6 +97,41 @@ jobs:
       - name: Unit tests (vitest)
         run: pnpm test
 
+  featured-slug-guard:
+    name: Featured slugs resolve in seeded catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # GOL-440: the hub's featured row silently drops any featured[] slug that
+      # doesn't resolve in the vendor's seeded catalog (this is how GOL-400's
+      # empty row went unnoticed). This job resolves every featured slug against
+      # the seeded QA Odoo the same way production does and fails if any returns
+      # count=0. If the QA Odoo is unreachable the test skips (see the file's
+      # reachability policy) so an infra outage never reds an unrelated PR — the
+      # structural half of the guard still runs in the unit suite above.
+      - name: Resolve featured slugs against seeded catalog
+        env:
+          FEATURED_SLUG_CHECK: "1"
+          GROVE_ODOO_URL: ${{ vars.GROVE_QA_ODOO_URL || 'https://odoo.qa.gatheringatthegrove.com' }}
+        run: pnpm exec vitest run apps/hub/data/__tests__/featured-slugs.live.test.ts
+
   build:
     name: Production build
     runs-on: ubuntu-latest
