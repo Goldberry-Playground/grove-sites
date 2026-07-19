@@ -73,8 +73,9 @@ pnpm --filter @grove/discord-bridge start
 ## Deploy checklist (blocked on GOL-263 credential provisioning)
 
 1. Josh creates the Discord app + bot, saves `discord_bot_token`,
-   `discord_app_id`, `discord_public_key`, `discord_approvals_channel_id` to 1P
-   `Grove Infra` (GOL-263).
+   `discord_app_id`, `discord_public_key`, `discord_insights_channel_id` (the
+   `#weekly-insights` channel the digest posts to) and `discord_approvals_channel_id`
+   (the `#cmo-approvals` channel, reserved for Phase 2) to 1P `Grove Infra` (GOL-263).
 2. Deploy `server.ts` to a droplet; set the Discord **Interactions Endpoint URL**
    to `https://<host>/interactions` (Discord validates it with a PING —
    verification is already implemented).

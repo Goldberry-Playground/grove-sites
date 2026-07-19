@@ -86,7 +86,7 @@ jobs:
           DISCORD_BOT_TOKEN: "op://Goldberry Grove - Admin/Grove Infra/discord_bot_token"
           DISCORD_APP_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_app_id"
           DISCORD_PUBLIC_KEY: "op://Goldberry Grove - Admin/Grove Infra/discord_public_key"
-          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_approvals_channel_id"
+          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_insights_channel_id"
 
       - name: Post digest
         if: steps.guard.outputs.run == 'true'
