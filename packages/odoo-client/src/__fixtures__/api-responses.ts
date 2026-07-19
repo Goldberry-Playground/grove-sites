@@ -36,7 +36,10 @@ export const productListResponse: ApiProductListResponse = {
 export const honeycrispDetail: ApiProductDetail = {
   id: 2,
   name: "Honeycrisp Apple Tree",
-  slug: "honeycrisp-apple-tree",
+  // Detail endpoint returns `grove_slug` (not the list endpoint's `slug`).
+  // Verified live against QA Odoo (GOL-400). normalizeProductDetail reads
+  // `slug ?? grove_slug`, so this exercises the real fallback path.
+  grove_slug: "honeycrisp-apple-tree",
   list_price: 38.0,
   default_code: "TREE-HONEYCRISP",
   website_published: true,
