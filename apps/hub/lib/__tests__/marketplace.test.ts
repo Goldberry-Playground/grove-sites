@@ -9,6 +9,7 @@ import {
   fetchProductByVendorSlug,
   fetchFeaturedProducts,
 } from "../marketplace";
+import { marketplace } from "../../data/marketplace";
 
 function mockClient(products: Array<{ slug: string; id: number; name: string }>) {
   return {
@@ -90,21 +91,26 @@ describe("hub/lib/marketplace federation", () => {
   });
 
   it("fetchFeaturedProducts joins overlay editorialNote with canonical product", async () => {
-    // This test deliberately couples to the live featured[] overlay in
-    // data/marketplace.ts — when the real catalog rotates, update these
-    // fixtures alongside it (2026-07-08: the two Goldberry stickers).
-    vi.mocked(clientForVendor).mockReturnValue(
-      mockClient([
-        { id: 1, slug: "samoyed-goldberry-grove-stickers", name: "Samoyed Goldberry Grove Stickers" },
-        { id: 2, slug: "cryptid-support-forests-stickers", name: "Cryptid Support Forests Stickers" },
-      ]) as never,
-    );
+    // This test couples to the live featured[] overlay in data/marketplace.ts.
+    // Rather than hardcode slug/copy fixtures (which churn every catalog rotation
+    // and every editorial reword — 2026-07-18 GOL-440 retargeted goldberry
+    // stickers → seeded nursery SKUs), derive the fixtures from the overlay
+    // itself and assert the JOIN: each resolved card carries the exact
+    // editorialNote the overlay declared for that slot.
+    const seeded = marketplace.featured.map((slot, i) => ({
+      id: 100 + i,
+      slug: slot.ref.productSlug,
+      name: slot.ref.productSlug,
+    }));
+    vi.mocked(clientForVendor).mockReturnValue(mockClient(seeded) as never);
 
     const featured = await fetchFeaturedProducts();
-    expect(featured.length).toBeGreaterThan(0);
-    const samoyed = featured.find((f) => f.product.slug === "samoyed-goldberry-grove-stickers");
-    expect(samoyed).toBeDefined();
-    expect(samoyed?.editorialNote).toMatch(/farm dog/i);
+    expect(featured).toHaveLength(marketplace.featured.length);
+    for (const slot of marketplace.featured) {
+      const card = featured.find((f) => f.product.slug === slot.ref.productSlug);
+      expect(card, `featured card for "${slot.ref.productSlug}" did not resolve`).toBeDefined();
+      expect(card?.editorialNote).toBe(slot.editorialNote);
+    }
   });
 
   it("fetchFeaturedProducts silently skips refs whose product was deleted", async () => {
