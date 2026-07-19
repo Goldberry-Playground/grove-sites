@@ -46,7 +46,12 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
 export function normalizeProductDetail(raw: ApiProductDetail): Product {
   return {
     id: raw.id,
-    slug: raw.slug,
+    // The detail endpoint returns `grove_slug`, not the list endpoint's aliased
+    // `slug`. Reading `raw.slug` alone yielded `undefined`, which rendered
+    // featured ProductCard links as `/marketplace/<vendor>/undefined` (GOL-400).
+    // Featured products resolve via getBySlug → this normalizer, so this is the
+    // single choke point for that bug.
+    slug: raw.slug ?? raw.grove_slug,
     name: raw.name,
     sku: raw.default_code || null,
     description: raw.description_sale || null,
