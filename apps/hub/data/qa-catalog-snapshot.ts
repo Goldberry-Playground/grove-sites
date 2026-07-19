@@ -17,15 +17,21 @@
  * slug returns count=0 live — wire that into the preview pipeline for a
  * live gate on top of this every-PR check.
  *
- * Last regenerated: 2026-07-18 (GOL-439). Nursery `sticker` = id 169,
- * At The Grove Nursery (company 9), confirmed seeded per GOL-431/Terra. The
- * Goldberry catalog is intentionally sparse here until GOL-104 seeds it; that
- * is exactly why the two Goldberry sticker slugs are NOT featured yet.
+ * Last updated: 2026-07-19 (GOL-440). Added nursery `chestnut` = id 151,
+ * At The Grove Nursery (company 9) — confirmed count=1 against grove-qa-l3-odoo
+ * (`scripts/check-featured-slugs.mjs --verify`), now featured alongside the
+ * sticker. Nursery `sticker` = id 169 (GOL-431/Terra).
+ *
+ * This map deliberately tracks the SANITIZED PREVIEW env (goldberry/ggg empty
+ * until GOL-104 seeds them), NOT the live QA droplet — a full regen against
+ * grove-qa-l3-odoo would import goldberry products (4, incl. both old sticker
+ * slugs) that the preview env lacks, weakening the guard. Only slugs verified
+ * to render in the preview env belong here.
  */
 
 /** vendor slug → grove_slug values present in the seeded QA/preview catalog. */
 export const seededCatalogSnapshot: Record<string, string[]> = {
   goldberry: [],
-  nursery: ["sticker"],
+  nursery: ["sticker", "chestnut"],
   ggg: [],
 };
