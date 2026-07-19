@@ -1,11 +1,11 @@
-/* GOL-139 — federated card surfaces (ProductCard / VendorCard /
-   JournalProductEmbed) now render from @grove/ui-kit, which ships its own
-   token-mapped CSS against the --grove-* role contract. We consume that bundle
-   instead of the local copies below. Order matters: ui-kit/styles.css pulls in
-   the contract DEFAULTS, then the hub theme reassigns the --grove-* roles to
-   this brand's palette, so it MUST import last. (Local chrome CSS — .sibling-strip
-   etc. — is defined further down and still wins by cascade order; that stays
-   local until GOL-138.) */
+/* GOL-113/GOL-138/GOL-139 — one source of truth for shared chrome + card
+   surfaces. The lifted @grove/ui-kit components (SiblingStrip, NavLink,
+   ProductCard, VendorCard, JournalProductEmbed) ship their own token-mapped CSS
+   against the --grove-* role contract; we consume that bundle instead of
+   maintaining local copies here (their old blocks below are now empty stubs).
+   Order matters: ui-kit/styles.css pulls in the contract DEFAULTS
+   (Goldberry-neutral baseline), then the hub theme reassigns the --grove-* roles
+   to this brand's palette, so the theme MUST import last. */
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/hub.css";
 
@@ -14,18 +14,6 @@
    Editorial port of wireframes/hub/styles.css
    Mapped to the hub's React component class names.
    ───────────────────────────────────────────── */
-
-/* GOL-113/GOL-138 — one source of truth for shared chrome. The lifted
-   @grove/ui-kit components (SiblingStrip, NavLink, …) ship their own
-   token-mapped CSS against the --grove-* role contract; we consume that bundle
-   instead of maintaining local copies here. Order matters: ui-kit/styles.css
-   pulls in the contract DEFAULTS (Goldberry-neutral baseline), then the hub
-   theme reassigns the --grove-* roles to this brand's palette, so the theme
-   MUST import last. (Card surfaces — ProductCard/VendorCard — are tracked on a
-   separate ticket; their local blocks below stay and, sitting after these
-   imports, still win the cascade until they're lifted.) */
-@import "@grove/ui-kit/styles.css";
-@import "@grove/tokens/themes/hub.css";
 
 :root {
   /* Hub neutrals — anchored to parchment so all 4 sites share a base */
