@@ -48,8 +48,19 @@ export interface ApiVariant {
   image_url: string;
 }
 
-/** Raw product detail from /grove/api/v1/products/:id. */
-export interface ApiProductDetail extends ApiProductListItem {
+/** Raw product detail from /grove/api/v1/products/:id.
+ *
+ * ⚠️ Wire asymmetry: the list endpoint aliases the Odoo `grove_slug` field to
+ * `slug`, but the detail endpoint does NOT — it returns the canonical
+ * `grove_slug` and omits `slug` entirely (verified live against QA Odoo,
+ * id 173/174). So `slug` is optional here and `grove_slug` is the source of
+ * truth; the normalizer reads `slug ?? grove_slug` (see normalizeProductDetail).
+ */
+export interface ApiProductDetail extends Omit<ApiProductListItem, "slug"> {
+  /** Present on the list endpoint; absent on the detail endpoint. */
+  slug?: string;
+  /** Canonical Odoo slug — always returned by the detail endpoint. */
+  grove_slug: string;
   description_sale: string | false;
   grove_seo_description: string | false;
   categ_id: ApiMany2One | false;
