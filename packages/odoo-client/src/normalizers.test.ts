@@ -252,6 +252,18 @@ describe("normalizeVariant", () => {
   it("treats sku: false as null (Odoo many2one quirk)", () => {
     expect(normalizeVariant(honeycrispDetail.variants[0]).sku).toBeNull();
   });
+
+  it("carries the exact on-hand count for the 'N in stock' line", () => {
+    expect(normalizeVariant(honeycrispDetail.variants[0]).qtyAvailable).toBe(5);
+  });
+
+  it("reports qtyAvailable null on a payload without qty_available (older API)", () => {
+    const variantInput = {
+      ...honeycrispDetail.variants[0],
+      qty_available: undefined as unknown as number,
+    };
+    expect(normalizeVariant(variantInput).qtyAvailable).toBeNull();
+  });
 });
 
 describe("normalizeCart", () => {

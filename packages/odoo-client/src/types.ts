@@ -207,6 +207,12 @@ export interface ProductVariant {
   format?: string | null;
   /** Effective shipping tier — drives the Potted/Bareroot landed-cost delta. */
   shippingTier?: ShippingTier | null;
+  /**
+   * Exact on-hand quantity for the "N in stock" display. null when the payload
+   * omits qty_available (older API) — render the boolean `available` state only
+   * rather than a misleading count.
+   */
+  qtyAvailable?: number | null;
 }
 
 /** Filterable + display growing facts, normalized from the detail endpoint. */

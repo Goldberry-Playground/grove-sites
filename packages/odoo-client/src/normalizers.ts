@@ -93,6 +93,10 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     // defensive default so an older/partial payload can't render a live product
     // as sold out.
     available: raw.qty_available === undefined ? true : raw.qty_available > 0,
+    // Exact on-hand count for the "N in stock" line (catalog API v1 always
+    // sends it). null on an older/partial payload that omits qty_available —
+    // the page then shows the boolean state only, never a fabricated "0".
+    qtyAvailable: raw.qty_available ?? null,
     imageUrl: raw.image_url,
     cultivar: emptyToNull(raw.cultivar),
     format: emptyToNull(raw.format),
