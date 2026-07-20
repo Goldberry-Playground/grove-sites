@@ -11,6 +11,7 @@ import type {
   ApiProductDetail,
   ApiFacts,
   ApiProductImage,
+  ApiCategory,
   ApiCartResponse,
   ApiOrderCreateResponse,
   ApiOrderDetail,
@@ -20,6 +21,7 @@ import type {
   ProductVariant,
   GrowingFacts,
   ProductImage,
+  ProductCategory,
   Cart,
   CartItem,
   OrderSummary,
@@ -48,6 +50,7 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     categoryId: null,
     categoryName: null,
     tags: (raw.tags ?? []).map((t) => t.name),
+    categories: (raw.categories ?? []).map(normalizeCategory),
     priceMin: raw.price_min,
     variantCount: raw.variant_count,
     available: raw.website_published,
@@ -75,6 +78,7 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     categoryId: raw.categ_id ? raw.categ_id.id : null,
     categoryName: raw.categ_id ? raw.categ_id.name : null,
     tags: (raw.tags ?? []).map((t) => t.name),
+    categories: (raw.categories ?? []).map(normalizeCategory),
     // qty_available is only present when the Odoo `stock` module is installed.
     // Fall back to the parent product's website_published flag so the page
     // still distinguishes "out of stock" from "we don't track stock at all".
@@ -118,6 +122,14 @@ export function normalizeFacts(raw: ApiFacts): GrowingFacts {
     matureSize: emptyToNull(raw.mature_size),
     spacing: emptyToNull(raw.spacing),
     soil: emptyToNull(raw.soil),
+  };
+}
+
+export function normalizeCategory(raw: ApiCategory): ProductCategory {
+  return {
+    id: raw.id,
+    name: raw.name,
+    slug: raw.slug,
   };
 }
 

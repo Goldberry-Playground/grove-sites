@@ -16,6 +16,15 @@ export interface ApiTag {
   name: string;
 }
 
+/** Website (public) category from the catalog API — the storefront's plant-type
+ * browse taxonomy (Trees/Shrubs/Vines). `slug` is the stable URL twin of `id`,
+ * used by the /shop cat-bar (`?cat=<slug>`). */
+export interface ApiCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 /** Raw product from the /grove/api/v1/products list endpoint. */
 export interface ApiProductListItem {
   id: number;
@@ -28,6 +37,10 @@ export interface ApiProductListItem {
   image_url: string;
   /** Cross-cutting tags (catalog API v1). Powers the /shop facet sidebar. */
   tags: ApiTag[];
+  /** Website (public) categories — the plant-type browse taxonomy that drives
+   * the /shop cat-bar. Empty until the product is filed under a website
+   * category in Odoo. */
+  categories: ApiCategory[];
   /** Number of purchasable variants (catalog API v1). */
   variant_count: number;
   /** Lowest variant list price — the "from $X" card price (catalog API v1). */
@@ -158,6 +171,14 @@ export interface ApiCartResponse {
 
 // ── Normalized types (used by React components) ─────────────────────
 
+/** A website (public) category as surfaced to the UI — the /shop cat-bar's
+ * plant-type nav. `slug` is the stable `?cat=<slug>` URL key. */
+export interface ProductCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export interface Product {
   id: number;
   slug: string;
@@ -185,6 +206,17 @@ export interface Product {
    * can ignore it until they need cross-cutting categorization too.
    */
   tags?: string[];
+  /**
+   * Website (public) categories — the plant-type browse taxonomy (Trees /
+   * Shrubs / Vines) that drives the /shop cat-bar. Sourced from Odoo's
+   * `product.template.public_categ_ids`. Each carries a stable `slug` for the
+   * `?cat=<slug>` URL. Distinct from the free-form `tags` above: `categories`
+   * is the curated storefront nav, `tags` is cross-cutting labels.
+   *
+   * Optional so per-tenant mockProducts don't have to specify it; the nursery
+   * cat-bar reads it, other tenants can ignore it.
+   */
+  categories?: ProductCategory[];
   available: boolean;
   featured: boolean;
   variants: ProductVariant[];
