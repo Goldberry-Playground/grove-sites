@@ -127,6 +127,14 @@ export interface ApiProductDetail
   images: ApiProductImage[];
 }
 
+/** Raw response from GET /grove/api/v1/zone?zip= (catalog API v1). The
+ * endpoint 404s for a ZIP outside the USDA matrix — the client maps that to
+ * `null` rather than surfacing it as an error. */
+export interface ApiZoneResponse {
+  zip: string;
+  zone: number;
+}
+
 /** Cart line from /grove/api/v1/cart. */
 export interface ApiCartLine {
   id: number;
@@ -225,6 +233,17 @@ export interface GrowingFacts {
   matureSize: string | null;
   spacing: string | null;
   soil: string | null;
+}
+
+/** ZIP → USDA hardiness zone lookup result (GET /grove/api/v1/zone). Powers
+ * the "Will this grow for me?" zone check — the buyer's ZIP resolves to a zone
+ * that's compared against a plant's zoneMin..zoneMax, and doubles as the value
+ * handed to the /shop `zone` list filter. */
+export interface ZoneLookupResult {
+  /** The 5-digit ZIP echoed back by the API. */
+  zip: string;
+  /** USDA hardiness zone (integer, roughly 2–10). */
+  zone: number;
 }
 
 /** A single gallery image with full and thumbnail URLs. */
@@ -407,12 +426,21 @@ export interface OdooClient {
       tagId?: number;
       /** USDA zone — returns products whose zone_min..zone_max spans it. */
       zone?: number;
+      /** Food-forest layer facet (`grove_layer`): canopy | understory |
+       * shrub | ground | vine. Filtered server-side (catalog API v1). */
+      layer?: string;
+      /** Sun-requirement facet (`grove_sun`): full | partial | shade.
+       * Filtered server-side (catalog API v1). */
+      sun?: string;
       limit?: number;
       offset?: number;
     }): Promise<ProductListResult>;
     get(id: number): Promise<Product>;
     getBySlug(slug: string): Promise<Product | null>;
   };
+  /** Resolve a US ZIP to its USDA hardiness zone. Returns null for a ZIP the
+   * USDA matrix doesn't cover (the endpoint 404s) or a malformed ZIP. */
+  zone(zip: string): Promise<ZoneLookupResult | null>;
   cart: {
     get(): Promise<Cart>;
     addItem(productId: number, quantity?: number): Promise<Cart>;

@@ -1,24 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 /**
  * "Will this grow for me?" zone-check widget (design spec §"buy box" / ZIP-zone).
  *
- * v1 accepts a USDA hardiness zone directly and compares it to the plant's
- * zone_min..zone_max from the facts block — no backend dependency. The spec's
- * ZIP→zone lookup (backed by `zip_usda_zone.csv`) is a follow-up: it just
- * pre-fills this same comparison from a ZIP once the catalog API exposes the
- * endpoint. Renders nothing when the product has no zone data.
+ * Accepts EITHER a 5-digit US ZIP or a USDA hardiness zone typed directly:
+ *   - a 5-digit ZIP is resolved to its USDA zone via the `/api/zone` BFF
+ *     (backed by grove_headless `zip_usda_zone.csv`), then compared;
+ *   - a 1–2 digit value is treated as a zone the buyer already knows.
+ * The resolved zone is compared against the plant's zone_min..zone_max from the
+ * facts block. Renders nothing when the product has no zone data.
  */
 export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMax: number | null }) {
-  const [zone, setZone] = useState("");
+  const [input, setInput] = useState("");
+  const [resolvedZone, setResolvedZone] = useState<number | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "unknown">("idle");
+  // Monotonic request id — a slow ZIP lookup that resolves after the buyer has
+  // typed something else must not overwrite the newer state.
+  const reqId = useRef(0);
+
   if (zoneMin == null && zoneMax == null) return null;
 
   const min = zoneMin ?? -Infinity;
   const max = zoneMax ?? Infinity;
-  const parsed = /^\d+$/.test(zone) ? Number(zone) : null;
-  const fits = parsed == null ? null : parsed >= min && parsed <= max;
+
+  async function onChange(raw: string) {
+    const value = raw.trim();
+    setInput(value);
+    setResolvedZone(null);
+    setStatus("idle");
+    const id = ++reqId.current;
+
+    if (/^\d{5}$/.test(value)) {
+      setStatus("loading");
+      try {
+        const res = await fetch(`/api/zone?zip=${value}`);
+        if (id !== reqId.current) return; // superseded by newer input
+        if (res.ok) {
+          const data = (await res.json()) as { zone: number };
+          setResolvedZone(data.zone);
+          setStatus("idle");
+        } else {
+          setStatus("unknown");
+        }
+      } catch {
+        if (id === reqId.current) setStatus("unknown");
+      }
+    } else if (/^\d{1,2}$/.test(value)) {
+      setResolvedZone(Number(value));
+    }
+  }
+
+  const fits = resolvedZone == null ? null : resolvedZone >= min && resolvedZone <= max;
 
   const range =
     zoneMin != null && zoneMax != null
@@ -36,19 +70,32 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
         <input
           id="zone-check"
           inputMode="numeric"
-          value={zone}
-          onChange={(e) => setZone(e.target.value.trim())}
-          placeholder="Your USDA zone"
+          value={input}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Your ZIP or USDA zone"
           className="w-40 rounded border border-primary/20 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
         />
         <span className="text-xs text-foreground/50">Hardy in {range}.</span>
       </div>
+      {status === "loading" && (
+        <p className="mt-2 text-sm text-foreground/60">Looking up your zone…</p>
+      )}
+      {status === "unknown" && (
+        <p className="mt-2 text-sm text-amber-700">
+          We couldn&apos;t find that ZIP — try entering your USDA zone directly.
+        </p>
+      )}
+      {resolvedZone != null && /^\d{5}$/.test(input) && (
+        <p className="mt-2 text-xs text-foreground/50">
+          ZIP {input} is in USDA zone {resolvedZone}.
+        </p>
+      )}
       {fits === true && (
         <p className="mt-2 text-sm text-green-700">✓ Yes — this plant is hardy in your zone.</p>
       )}
       {fits === false && (
         <p className="mt-2 text-sm text-amber-700">
-          This plant is rated for {range}; zone {parsed} may be outside its comfort range.
+          This plant is rated for {range}; zone {resolvedZone} may be outside its comfort range.
         </p>
       )}
     </div>
