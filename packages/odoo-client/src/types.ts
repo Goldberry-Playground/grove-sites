@@ -345,6 +345,45 @@ export interface OrderLine {
   totalPrice: number;
 }
 
+/** Input for POST /grove/api/v1/checkout/session — the order shape plus the
+ *  redirect URLs Stripe returns the buyer to after (or instead of) paying. */
+export interface CheckoutSessionInput extends OrderCreateInput {
+  /** Absolute URL Stripe redirects to on success (the endpoint appends the
+   *  Stripe session id so the success page can look the order up). */
+  successUrl: string;
+  /** Absolute URL Stripe redirects to on cancel / back. */
+  cancelUrl: string;
+}
+
+/** Raw response from POST /grove/api/v1/checkout/session. */
+export interface ApiCheckoutSessionResponse {
+  session_id: string;
+  checkout_url: string;
+  order_id: number;
+  order_ref: string;
+  access_token: string;
+  has_preorder: boolean;
+  amount_due_today: number;
+  amount_total: number;
+  currency: string;
+}
+
+export interface CheckoutSession {
+  sessionId: string;
+  /** Stripe-hosted Checkout URL — redirect the browser here. */
+  checkoutUrl: string;
+  orderId: number;
+  orderRef: string;
+  accessToken: string;
+  /** True when the cart contains a preorder line paid by deposit. */
+  hasPreorder: boolean;
+  /** Charged today: deposits + in-stock goods + shipping + tax on those. */
+  amountDueToday: number;
+  /** Full order value; `amountTotal - amountDueToday` is due at ship time. */
+  amountTotal: number;
+  currency: string;
+}
+
 export interface OrderDetail {
   id: number;
   name: string;
@@ -381,5 +420,8 @@ export interface OdooClient {
   orders: {
     create(input: OrderCreateInput): Promise<OrderSummary>;
     get(id: number, accessToken: string): Promise<OrderDetail>;
+  };
+  checkout: {
+    createSession(input: CheckoutSessionInput): Promise<CheckoutSession>;
   };
 }

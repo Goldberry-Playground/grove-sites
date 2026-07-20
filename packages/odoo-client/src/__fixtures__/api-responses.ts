@@ -10,6 +10,7 @@ import type {
   ApiCartResponse,
   ApiOrderCreateResponse,
   ApiOrderDetail,
+  ApiCheckoutSessionResponse,
 } from "../types";
 
 export const honeycrispListItem: ApiProductListItem = {
@@ -165,6 +166,18 @@ export const orderCreateResponse: ApiOrderCreateResponse = {
   amount_total: 43.7,
   currency: { id: 1, name: "USD" },
   line_count: 1,
+};
+
+export const checkoutSessionResponse: ApiCheckoutSessionResponse = {
+  session_id: "cs_test_a1b2c3",
+  checkout_url: "https://checkout.stripe.com/c/pay/cs_test_a1b2c3",
+  order_id: 5,
+  order_ref: "S00005",
+  access_token: "d009e9e9-ae45-48a7-80dd-64d92a6641a2",
+  has_preorder: true,
+  amount_due_today: 15.7,
+  amount_total: 43.7,
+  currency: "USD",
 };
 
 export const orderDetail: ApiOrderDetail = {

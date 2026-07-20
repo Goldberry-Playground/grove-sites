@@ -7,6 +7,7 @@ import {
   normalizeCartItem,
   normalizeOrderSummary,
   normalizeOrderDetail,
+  normalizeCheckoutSession,
 } from "./normalizers";
 import {
   honeycrispListItem,
@@ -17,6 +18,7 @@ import {
   cartWithOneLine,
   orderCreateResponse,
   orderDetail,
+  checkoutSessionResponse,
 } from "./__fixtures__/api-responses";
 
 describe("normalizeProductListItem", () => {
@@ -325,6 +327,30 @@ describe("normalizeOrderSummary", () => {
     expect(result.id).toBe(5);
     expect(result.name).toBe("S00005");
     expect(result.state).toBe("draft");
+  });
+});
+
+describe("normalizeCheckoutSession", () => {
+  it("maps snake_case wire fields to the camelCase CheckoutSession shape", () => {
+    const result = normalizeCheckoutSession(checkoutSessionResponse);
+    expect(result).toEqual({
+      sessionId: "cs_test_a1b2c3",
+      checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_a1b2c3",
+      orderId: 5,
+      orderRef: "S00005",
+      accessToken: "d009e9e9-ae45-48a7-80dd-64d92a6641a2",
+      hasPreorder: true,
+      amountDueToday: 15.7,
+      amountTotal: 43.7,
+      currency: "USD",
+    });
+  });
+
+  it("keeps amountDueToday distinct from amountTotal for a deposit cart", () => {
+    // A preorder cart pays less today than the full order value; the UI shows
+    // the difference as due-at-shipping.
+    const result = normalizeCheckoutSession(checkoutSessionResponse);
+    expect(result.amountTotal - result.amountDueToday).toBeCloseTo(28.0, 2);
   });
 });
 

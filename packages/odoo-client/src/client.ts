@@ -11,6 +11,9 @@ import type {
   OrderDetail,
   ApiOrderCreateResponse,
   ApiOrderDetail,
+  CheckoutSessionInput,
+  CheckoutSession,
+  ApiCheckoutSessionResponse,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -18,6 +21,7 @@ import {
   normalizeCart,
   normalizeOrderSummary,
   normalizeOrderDetail,
+  normalizeCheckoutSession,
 } from "./normalizers";
 
 /**
@@ -157,6 +161,33 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           `/grove/api/v1/orders/${id}?${params.toString()}`
         );
         return normalizeOrderDetail(raw);
+      },
+    },
+
+    checkout: {
+      async createSession(
+        input: CheckoutSessionInput
+      ): Promise<CheckoutSession> {
+        const raw = await api<ApiCheckoutSessionResponse>(
+          config,
+          "/grove/api/v1/checkout/session",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              contact: input.contact,
+              shipping: input.shipping,
+              billing: input.billing ?? null,
+              payment_method: input.paymentMethod,
+              success_url: input.successUrl,
+              cancel_url: input.cancelUrl,
+              items: input.items.map((i) => ({
+                variant_id: i.variantId,
+                quantity: i.quantity,
+              })),
+            }),
+          }
+        );
+        return normalizeCheckoutSession(raw);
       },
     },
   };
