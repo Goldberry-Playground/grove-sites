@@ -22,7 +22,7 @@ Next.js 15 App Router monorepo (pnpm + Turborepo) for the Gather at the Grove ec
 ## Backend Integration
 
 - **Odoo** (`grove_headless` module) — REST API at `/grove/api/v1/*` for e-commerce, inventory, CRM
-- **Ghost CMS** — Content API for `/blog` pages, one instance per tenant
+- **Ghost CMS** — Content API for `/blog` pages, one instance per tenant. Local dev runs local Ghost containers; **QA and prod frontends both read the PROD blogs droplet at `blog.{domain}` via read-only Content API keys** (decided 2026-07-20 — there is no QA Ghost droplet; QA wiring lands via Terraform in odoocker `qa-app-platform/apps.tf`)
 - Each Next.js app's API routes serve as a **BFF** (Backend-for-Frontend) — server-to-server calls to Odoo/Ghost, no direct browser-to-backend traffic
 
 ## Related Repos
