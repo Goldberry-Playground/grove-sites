@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { loadConfig, loadBufferConfig, BUFFER_ORG_ID_DEFAULT } from "./config";
+import {
+  loadConfig,
+  loadBufferConfig,
+  loadRegisterConfig,
+  BUFFER_ORG_ID_DEFAULT,
+} from "./config";
 
 const full = {
   BUFFER_API_TOKEN: "buf",
@@ -23,6 +28,26 @@ describe("loadConfig", () => {
   it("throws listing every missing var", () => {
     expect(() => loadConfig({ BUFFER_API_TOKEN: "buf" } as NodeJS.ProcessEnv)).toThrow(
       /DISCORD_BOT_TOKEN.*DISCORD_APP_ID.*DISCORD_PUBLIC_KEY.*DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID/,
+    );
+  });
+});
+
+describe("loadRegisterConfig", () => {
+  it("resolves from only the bot token + app id (no Buffer/public-key/channel)", () => {
+    const cfg = loadRegisterConfig({
+      DISCORD_BOT_TOKEN: "bot",
+      DISCORD_APP_ID: "app",
+    } as NodeJS.ProcessEnv);
+    expect(cfg).toEqual({ discordBotToken: "bot", discordAppId: "app" });
+  });
+
+  it("throws listing only the Discord app vars it needs", () => {
+    expect(() => loadRegisterConfig({} as NodeJS.ProcessEnv)).toThrow(
+      /DISCORD_BOT_TOKEN.*DISCORD_APP_ID/,
+    );
+    // BUFFER/public-key/channel are irrelevant to registration — not demanded.
+    expect(() => loadRegisterConfig({} as NodeJS.ProcessEnv)).not.toThrow(
+      /BUFFER_API_TOKEN|DISCORD_PUBLIC_KEY|DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID/,
     );
   });
 });

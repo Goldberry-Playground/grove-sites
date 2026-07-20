@@ -64,6 +64,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
 }
 
 /**
+ * Resolve just the Discord app credentials needed to register slash commands.
+ * Command registration is a one-shot REST call that only needs the bot token
+ * and app id (see `registerGlobalCommands`) — it never touches Buffer or the
+ * Ed25519 public key. Requiring the full config here would force operators to
+ * inject three unrelated secrets just to run `register-commands` (the GOL-473
+ * handback command documents only `discord_bot_token` + `discord_app_id`).
+ */
+export function loadRegisterConfig(env: NodeJS.ProcessEnv = process.env): {
+  discordBotToken: string;
+  discordAppId: string;
+} {
+  const missing: string[] = [];
+  const cfg = {
+    discordBotToken: req(env, "DISCORD_BOT_TOKEN", missing),
+    discordAppId: req(env, "DISCORD_APP_ID", missing),
+  };
+  if (missing.length) throw new MissingEnvError(missing);
+  return cfg;
+}
+
+/**
  * Resolve just the Buffer credentials — used by the `/insights` read path and
  * tests that never touch Discord. Keeps the read-only insights token isolated
  * from the (future, Phase 2) write-scoped token.

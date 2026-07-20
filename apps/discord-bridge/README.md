@@ -59,7 +59,11 @@ register-commands.ts  one-time /insights registration
 # All env vars from 1P (see .env.example). Example with 1Password CLI:
 export BUFFER_API_TOKEN=$(op read "op://Goldberry Grove - Admin/Grove Infra/buffer_api_token")
 
-# One-time: register the /insights slash command with Discord.
+# One-time: register the /insights slash command with Discord. Registration is
+# a pure REST call — it needs ONLY the two Discord app secrets, not Buffer /
+# public-key / channel (loadRegisterConfig).
+export DISCORD_BOT_TOKEN=$(op read "op://Goldberry Grove - Admin/Grove Infra/discord_bot_token")
+export DISCORD_APP_ID=$(op read "op://Goldberry Grove - Admin/Grove Infra/discord_app_id")
 pnpm --filter @grove/discord-bridge register-commands
 
 # Post this week's digest now (used by the Monday cron).
