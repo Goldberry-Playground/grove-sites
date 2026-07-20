@@ -38,3 +38,8 @@ export {
   type GroveCheckoutShipping,
   type GroveCheckoutPaymentMethod,
 } from "./CheckoutPage";
+export {
+  CheckoutReview,
+  type CheckoutReviewProps,
+  type CheckoutReviewLine,
+} from "./CheckoutReview";
