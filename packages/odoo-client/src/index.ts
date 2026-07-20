@@ -18,6 +18,7 @@ export type {
   OrderDetail,
   CheckoutSessionInput,
   CheckoutSession,
+  ZoneLookupResult,
 } from "./types";
-export { createOdooClient } from "./client";
+export { createOdooClient, OdooApiError } from "./client";
 export { resolveOdooImageUrl } from "./images";
