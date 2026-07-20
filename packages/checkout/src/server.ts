@@ -9,5 +9,9 @@
 import "server-only";
 
 export { createCartRoute } from "./api/createCartRoute";
-export { createCheckoutRoute } from "./api/createCheckoutRoute";
+export {
+  createCheckoutRoute,
+  createCheckoutSessionRoute,
+} from "./api/createCheckoutRoute";
 export { createOrderSuccessPage } from "./components/createOrderSuccessPage";
+export { createCheckoutSuccessPage } from "./components/createCheckoutSuccessPage";

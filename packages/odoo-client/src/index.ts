@@ -2,6 +2,9 @@ export type {
   TenantConfig,
   Product,
   ProductVariant,
+  GrowingFacts,
+  ProductImage,
+  ShippingTier,
   ProductListResult,
   Cart,
   CartItem,
@@ -13,6 +16,8 @@ export type {
   OrderSummary,
   OrderLine,
   OrderDetail,
+  CheckoutSessionInput,
+  CheckoutSession,
 } from "./types";
 export { createOdooClient } from "./client";
 export { resolveOdooImageUrl } from "./images";

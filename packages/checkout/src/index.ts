@@ -18,3 +18,4 @@ export { MiniCartDrawer } from "./components/MiniCartDrawer";
 export { StickyAddToCartBar } from "./components/StickyAddToCartBar";
 export { CartPage } from "./components/CartPage";
 export { CheckoutPage } from "./components/CheckoutPage";
+export { CheckoutCancelPage } from "./components/CheckoutCancelPage";
