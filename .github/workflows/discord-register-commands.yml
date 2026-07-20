@@ -5,11 +5,17 @@ name: Discord register /insights command
 # (GOL-262 Phase 1, handback GOL-602). Discord's PUT /applications/{id}/commands
 # is an upsert, so re-running is safe — do it whenever INSIGHTS_COMMAND changes.
 #
-# Manual-only (workflow_dispatch): registration is a one-time/on-change op, not
-# something to run on a schedule. Secrets come from 1Password via the service-
-# account token — the bot token is never handled by a human or pasted into a
-# shell, and nothing sensitive lives in GitHub. Only the two secrets the
-# registration actually needs (bot token + app id) are pulled (least privilege).
+# Trigger paths (GOL-651):
+#   - workflow_dispatch     : manual run from the Actions UI (needs actions:write).
+#   - repository_dispatch   : fire via POST /repos/.../dispatches with
+#       {"event_type":"register-discord-commands"}. This only needs contents:write,
+#       so the AgenticOS GitHub App (Terra's broker token, which lacks
+#       actions:write) can trigger registration self-serve — no human click.
+#
+# Secrets come from 1Password via the service-account token — the bot token is
+# never handled by a human or pasted into a shell, and nothing sensitive lives
+# in GitHub. Only the two secrets the registration actually needs (bot token +
+# app id) are pulled (least privilege).
 #
 # Until the 1Password service account is configured the job self-skips cleanly,
 # so enabling this file on main never produces red runs.
@@ -17,6 +23,8 @@ name: Discord register /insights command
 
 on:
   workflow_dispatch: {}
+  repository_dispatch:
+    types: [register-discord-commands]
 
 permissions:
   contents: read
