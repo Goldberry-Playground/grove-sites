@@ -48,6 +48,21 @@ describe("normalizeProductListItem", () => {
         .available,
     ).toBe(false);
   });
+
+  it("flattens tags to name strings and carries price_min/variant_count (catalog API v1)", () => {
+    const result = normalizeProductListItem(honeycrispListItem);
+    expect(result.tags).toEqual(["apple", "pollinator-required"]);
+    expect(result.priceMin).toBe(32.0);
+    expect(result.variantCount).toBe(2);
+  });
+
+  it("tolerates a payload without tags (older API) → empty tags", () => {
+    const result = normalizeProductListItem({
+      ...honeycrispListItem,
+      tags: undefined as unknown as [],
+    });
+    expect(result.tags).toEqual([]);
+  });
 });
 
 describe("normalizeProductDetail — stock module absent (production today)", () => {
@@ -89,6 +104,77 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
       variants: undefined as unknown as never[],
     });
     expect(result.variants).toEqual([]);
+  });
+
+  it("normalizes the growing-facts block, collapsing '' to null (catalog API v1)", () => {
+    const result = normalizeProductDetail(honeycrispDetail);
+    expect(result.facts).toEqual({
+      botanicalName: "Malus domestica 'Honeycrisp'",
+      zoneMin: 3,
+      zoneMax: 7,
+      layer: "canopy",
+      sun: "full",
+      matureSize: "14–18 ft",
+      spacing: "15 ft",
+      soil: "Well-drained loam",
+    });
+  });
+
+  it("collapses empty facts strings and null zones to null", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      facts: {
+        botanical_name: "",
+        zone_min: null,
+        zone_max: null,
+        layer: "",
+        sun: "",
+        mature_size: "",
+        spacing: "",
+        soil: "",
+      },
+    });
+    expect(result.facts).toEqual({
+      botanicalName: null,
+      zoneMin: null,
+      zoneMax: null,
+      layer: null,
+      sun: null,
+      matureSize: null,
+      spacing: null,
+      soil: null,
+    });
+  });
+
+  it("maps the image gallery to camelCase thumbUrl (catalog API v1)", () => {
+    const result = normalizeProductDetail(honeycrispDetail);
+    expect(result.images).toEqual([
+      {
+        id: 0,
+        url: "/web/image/product.template/2/image_1024",
+        thumbUrl: "/web/image/product.template/2/image_256",
+      },
+      {
+        id: 5,
+        url: "/web/image/product.image/5/image_1024",
+        thumbUrl: "/web/image/product.image/5/image_256",
+      },
+    ]);
+  });
+
+  it("flattens detail tags to name strings (catalog API v1)", () => {
+    expect(normalizeProductDetail(honeycrispDetail).tags).toEqual([
+      "apple",
+      "pollinator-required",
+    ]);
+  });
+
+  it("leaves facts undefined when the endpoint omits the block (older API)", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      facts: undefined as unknown as never,
+    });
+    expect(result.facts).toBeUndefined();
   });
 });
 
@@ -139,9 +225,32 @@ describe("normalizeVariant", () => {
     expect(normalizeVariant(variantInput).available).toBe(false);
   });
 
-  it("defaults to available when qty_available undefined (no stock module)", () => {
-    const variantInput = honeycrispDetail.variants[0];
+  it("defaults to available when qty_available undefined (defensive — v1 always sends it)", () => {
+    // v1 always includes qty_available (stock is a hard grove_headless dep), but
+    // the normalizer must not render a live product as sold out on a partial payload.
+    const variantInput = {
+      ...honeycrispDetail.variants[0],
+      qty_available: undefined as unknown as number,
+    };
     expect(normalizeVariant(variantInput).available).toBe(true);
+  });
+
+  it("renames sku/price and parses the cultivar+format axes (catalog API v1)", () => {
+    const potted = normalizeVariant(honeycrispDetail.variants[0]);
+    expect(potted.price).toBe(38.0);
+    expect(potted.cultivar).toBe("Honeycrisp");
+    expect(potted.format).toBe("Nursery Pot");
+    expect(potted.shippingTier).toBe("potted");
+  });
+
+  it("carries the bareroot effective shipping tier through (potted/bareroot delta)", () => {
+    const bareroot = normalizeVariant(honeycrispDetail.variants[1]);
+    expect(bareroot.shippingTier).toBe("bareroot");
+    expect(bareroot.price).toBe(32.0);
+  });
+
+  it("treats sku: false as null (Odoo many2one quirk)", () => {
+    expect(normalizeVariant(honeycrispDetail.variants[0]).sku).toBeNull();
   });
 });
 

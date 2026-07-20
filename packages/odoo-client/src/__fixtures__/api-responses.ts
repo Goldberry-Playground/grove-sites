@@ -21,6 +21,13 @@ export const honeycrispListItem: ApiProductListItem = {
   website_published: true,
   grove_featured: false,
   image_url: "/web/image/product.template/2/image_128",
+  tags: [
+    { id: 11, name: "apple" },
+    { id: 12, name: "pollinator-required" },
+  ],
+  variant_count: 2,
+  // Bareroot is the cheaper Format, so price_min < list_price.
+  price_min: 32.0,
 };
 
 export const productListResponse: ApiProductListResponse = {
@@ -56,16 +63,50 @@ export const honeycrispDetail: ApiProductDetail = {
     {
       id: 2,
       display_name: "Honeycrisp Apple Tree (3 gal, Nursery Pot)",
-      default_code: false,
-      lst_price: 38.0,
+      sku: false,
+      cultivar: "Honeycrisp",
+      format: "Nursery Pot",
+      price: 38.0,
+      qty_available: 5,
+      shipping_tier: "potted",
       image_url: "/web/image/product.product/2/image_128",
     },
     {
       id: 3,
-      display_name: "Honeycrisp Apple Tree (3 gal, Burlap Ball)",
-      default_code: false,
-      lst_price: 38.0,
+      display_name: "Honeycrisp Apple Tree (Bareroot)",
+      sku: false,
+      cultivar: "Honeycrisp",
+      format: "Bareroot",
+      price: 32.0,
+      qty_available: 5,
+      shipping_tier: "bareroot",
       image_url: "/web/image/product.product/3/image_128",
+    },
+  ],
+  facts: {
+    botanical_name: "Malus domestica 'Honeycrisp'",
+    zone_min: 3,
+    zone_max: 7,
+    layer: "canopy",
+    sun: "full",
+    mature_size: "14–18 ft",
+    spacing: "15 ft",
+    soil: "Well-drained loam",
+  },
+  tags: [
+    { id: 11, name: "apple" },
+    { id: 12, name: "pollinator-required" },
+  ],
+  images: [
+    {
+      id: 0,
+      url: "/web/image/product.template/2/image_1024",
+      thumb_url: "/web/image/product.template/2/image_256",
+    },
+    {
+      id: 5,
+      url: "/web/image/product.image/5/image_1024",
+      thumb_url: "/web/image/product.image/5/image_256",
     },
   ],
 };
