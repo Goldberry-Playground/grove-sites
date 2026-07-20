@@ -14,6 +14,8 @@ import type {
   CheckoutSessionInput,
   CheckoutSession,
   ApiCheckoutSessionResponse,
+  ApiZoneResponse,
+  ZoneLookupResult,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -22,7 +24,21 @@ import {
   normalizeOrderSummary,
   normalizeOrderDetail,
   normalizeCheckoutSession,
+  normalizeZone,
 } from "./normalizers";
+
+/** Thrown when the grove_headless API returns a non-2xx status. Carries the
+ * HTTP `status` so callers can branch on it — e.g. the ZIP→zone lookup treats
+ * 404 as "unknown ZIP" (null) rather than a hard failure. */
+export class OdooApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "OdooApiError";
+  }
+}
 
 /**
  * Fetch from the grove_headless REST API.
@@ -49,7 +65,8 @@ async function api<T>(
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(
+    throw new OdooApiError(
+      response.status,
       `Odoo API error: ${response.status} ${response.statusText} — ${body}`
     );
   }
@@ -80,6 +97,8 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         if (params?.featured) searchParams.set("featured", "1");
         if (params?.tagId) searchParams.set("tag_id", String(params.tagId));
         if (params?.zone) searchParams.set("zone", String(params.zone));
+        if (params?.layer) searchParams.set("layer", params.layer);
+        if (params?.sun) searchParams.set("sun", params.sun);
         if (params?.limit) searchParams.set("limit", String(params.limit));
         if (params?.offset) searchParams.set("offset", String(params.offset));
 
@@ -115,6 +134,27 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         );
         return normalizeProductDetail(detail);
       },
+    },
+
+    async zone(zip): Promise<ZoneLookupResult | null> {
+      // Guard client-side so a blank/partial ZIP never round-trips (the widget
+      // calls this on every keystroke). The API only knows 5-digit US ZIPs.
+      const trimmed = String(zip ?? "").trim();
+      if (!/^\d{5}$/.test(trimmed)) return null;
+
+      const params = new URLSearchParams({ zip: trimmed });
+      try {
+        const raw = await api<ApiZoneResponse>(
+          config,
+          `/grove/api/v1/zone?${params.toString()}`
+        );
+        return normalizeZone(raw);
+      } catch (err) {
+        // A ZIP outside the USDA matrix 404s — a normal "we don't cover that
+        // ZIP" answer, not a failure. Re-throw anything else (network/5xx).
+        if (err instanceof OdooApiError && err.status === 404) return null;
+        throw err;
+      }
     },
 
     cart: {

@@ -12,15 +12,25 @@ import type { Product } from "@grove/odoo-client";
  *                  carry zones, so it can't be filtered client-side.
  *   ?tag=<slug>    cross-cutting usage tag(s) — repeatable; applied client-side
  *                  against each product's `tags[]` with AND semantics.
- *
- * `layer` and `sun` facets from the spec are intentionally deferred: they live
- * only in the detail `facts` block, so filtering the *list* by them needs the
- * list serializer to expose facts first (tracked as a follow-up).
+ *   ?layer=<v>     food-forest layer (`grove_layer`) — applied SERVER-SIDE via
+ *                  the catalog API `layer` param. Like `zone`, list items don't
+ *                  carry facts, so this filters at the source (grove_headless).
+ *   ?sun=<v>       sun requirement (`grove_sun`) — applied SERVER-SIDE via the
+ *                  catalog API `sun` param, same as `layer`.
  */
 
 /** USDA zones the nursery ships to. Static because list items carry no zones;
  * the option a buyer picks is handed to the API's `zone` filter. */
 export const ZONE_OPTIONS = [3, 4, 5, 6, 7, 8, 9] as const;
+
+/** Food-forest layer facet values (`grove_layer` selection in grove_headless).
+ * Handed to the catalog API's `layer` filter; kept static so an out-of-range
+ * URL param can be dropped rather than round-tripped. */
+export const LAYER_OPTIONS = ["canopy", "understory", "shrub", "ground", "vine"] as const;
+
+/** Sun-requirement facet values (`grove_sun` selection). Handed to the catalog
+ * API's `sun` filter. */
+export const SUN_OPTIONS = ["full", "partial", "shade"] as const;
 
 export interface FacetParams {
   /** Plant-type category slug (existing `cat` contract). */
@@ -29,6 +39,10 @@ export interface FacetParams {
   zone: number | null;
   /** Selected usage tags (AND-combined). */
   tags: string[];
+  /** Food-forest layer — applied server-side via `products.list({layer})`. */
+  layer: string | null;
+  /** Sun requirement — applied server-side via `products.list({sun})`. */
+  sun: string | null;
 }
 
 type RawParam = string | string[] | undefined;
@@ -48,10 +62,15 @@ function stringList(v: RawParam): string[] {
 export function parseFacetParams(sp: Record<string, RawParam>): FacetParams {
   const rawZone = firstString(sp.zone);
   const zone = rawZone !== null && /^\d+$/.test(rawZone) ? Number(rawZone) : null;
+  const rawLayer = firstString(sp.layer);
+  const rawSun = firstString(sp.sun);
   return {
     cat: firstString(sp.cat),
     zone: zone !== null && ZONE_OPTIONS.includes(zone as (typeof ZONE_OPTIONS)[number]) ? zone : null,
     tags: stringList(sp.tag),
+    layer:
+      rawLayer !== null && (LAYER_OPTIONS as readonly string[]).includes(rawLayer) ? rawLayer : null,
+    sun: rawSun !== null && (SUN_OPTIONS as readonly string[]).includes(rawSun) ? rawSun : null,
   };
 }
 

@@ -27,24 +27,30 @@ interface ShopPageProps {
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   const sp = await searchParams;
-  const { cat, zone, tags } = parseFacetParams(sp);
+  const { cat, zone, tags, layer, sun } = parseFacetParams(sp);
 
-  // 1) Fetch products. The `zone` facet is applied SERVER-SIDE via the catalog
-  //    API (list items carry no zones, so it can't be filtered client-side).
-  //    Category + tag facets are applied client-side against the returned set.
+  // 1) Fetch products. The `zone`, `layer`, and `sun` facets are applied
+  //    SERVER-SIDE via the catalog API (list items carry no facts, so they
+  //    can't be filtered client-side). Category + tag facets are applied
+  //    client-side against the returned set.
   let base: Product[] = [];
   let usingMockData = false;
   try {
     const result = await odoo.products.list({
       limit: 40,
       ...(zone !== null ? { zone } : {}),
+      ...(layer !== null ? { layer } : {}),
+      ...(sun !== null ? { sun } : {}),
     });
     base = result.products;
   } catch {
     base = mockProducts;
     usingMockData = true;
   }
-  if (base.length === 0 && zone === null) {
+  // Only fall back to mock data on a genuinely empty catalog — an empty result
+  // under an active server-side facet (zone/layer/sun) is a real "no matches",
+  // not a dead backend, and must render the empty state instead of mocks.
+  if (base.length === 0 && zone === null && layer === null && sun === null) {
     base = mockProducts;
     usingMockData = true;
   }
@@ -96,6 +102,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             activeCat={cat}
             activeZone={zone}
             activeTags={tags}
+            activeLayer={layer}
+            activeSun={sun}
           />
 
           <div className="flex-1">

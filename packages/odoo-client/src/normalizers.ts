@@ -15,6 +15,7 @@ import type {
   ApiOrderCreateResponse,
   ApiOrderDetail,
   ApiCheckoutSessionResponse,
+  ApiZoneResponse,
   Product,
   ProductVariant,
   GrowingFacts,
@@ -24,6 +25,7 @@ import type {
   OrderSummary,
   OrderDetail,
   CheckoutSession,
+  ZoneLookupResult,
 } from "./types";
 
 /** Odoo Selection/Char fields serialize "" when unset — collapse to null so
@@ -124,6 +126,13 @@ export function normalizeImage(raw: ApiProductImage): ProductImage {
     id: raw.id,
     url: raw.url,
     thumbUrl: raw.thumb_url,
+  };
+}
+
+export function normalizeZone(raw: ApiZoneResponse): ZoneLookupResult {
+  return {
+    zip: raw.zip,
+    zone: raw.zone,
   };
 }
 
