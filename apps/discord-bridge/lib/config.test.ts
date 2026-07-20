@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loadConfig, loadBufferConfig, BUFFER_ORG_ID_DEFAULT } from "./config";
+import { loadConfig, loadBufferConfig, loadDiscordAppConfig, BUFFER_ORG_ID_DEFAULT } from "./config";
 
 const full = {
   BUFFER_API_TOKEN: "buf",
@@ -36,5 +36,22 @@ describe("loadBufferConfig", () => {
 
   it("throws when the Buffer token is absent", () => {
     expect(() => loadBufferConfig({} as NodeJS.ProcessEnv)).toThrow(/BUFFER_API_TOKEN/);
+  });
+});
+
+describe("loadDiscordAppConfig", () => {
+  it("resolves just the bot token + app id (no Buffer/channel required)", () => {
+    const cfg = loadDiscordAppConfig({
+      DISCORD_BOT_TOKEN: "bot",
+      DISCORD_APP_ID: "app",
+    } as NodeJS.ProcessEnv);
+    expect(cfg.discordBotToken).toBe("bot");
+    expect(cfg.discordAppId).toBe("app");
+  });
+
+  it("throws listing both missing vars", () => {
+    expect(() => loadDiscordAppConfig({} as NodeJS.ProcessEnv)).toThrow(
+      /DISCORD_BOT_TOKEN.*DISCORD_APP_ID/,
+    );
   });
 });

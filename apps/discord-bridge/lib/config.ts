@@ -64,6 +64,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
 }
 
 /**
+ * Resolve just the Discord app credentials — used by `register-commands`, which
+ * registers the `/insights` slash command and never touches Buffer or the
+ * channel. Keeps the bot token isolated so the registration job only needs to
+ * pull two secrets from 1Password (least privilege).
+ */
+export function loadDiscordAppConfig(env: NodeJS.ProcessEnv = process.env): {
+  discordBotToken: string;
+  discordAppId: string;
+} {
+  const missing: string[] = [];
+  const discordBotToken = req(env, "DISCORD_BOT_TOKEN", missing);
+  const discordAppId = req(env, "DISCORD_APP_ID", missing);
+  if (missing.length) throw new MissingEnvError(missing);
+  return { discordBotToken, discordAppId };
+}
+
+/**
  * Resolve just the Buffer credentials — used by the `/insights` read path and
  * tests that never touch Discord. Keeps the read-only insights token isolated
  * from the (future, Phase 2) write-scoped token.
