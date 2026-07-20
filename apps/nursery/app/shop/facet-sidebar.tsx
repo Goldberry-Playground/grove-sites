@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { trackEvent } from "@grove/analytics";
-import { ZONE_OPTIONS, type FacetOption } from "../../lib/facets";
+import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
 
 export interface TypeOption {
   slug: string;
@@ -16,6 +16,13 @@ export interface FacetSidebarProps {
   activeCat: string | null;
   activeZone: number | null;
   activeTags: string[];
+  activeLayer: string | null;
+  activeSun: string | null;
+}
+
+/** Sentence-case a facet value for its option label ("understory" → "Understory"). */
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 /**
@@ -25,7 +32,15 @@ export interface FacetSidebarProps {
  * re-filters. Every change emits a Plausible `filter_applied {facet, value}`
  * custom event — the spec's zero-infra analytics for "which facets get used".
  */
-export function FacetSidebar({ types, tags, activeCat, activeZone, activeTags }: FacetSidebarProps) {
+export function FacetSidebar({
+  types,
+  tags,
+  activeCat,
+  activeZone,
+  activeTags,
+  activeLayer,
+  activeSun,
+}: FacetSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -54,7 +69,12 @@ export function FacetSidebar({ types, tags, activeCat, activeZone, activeTags }:
     commit(next, "tag", tag);
   }
 
-  const hasFilters = activeCat !== null || activeZone !== null || activeTags.length > 0;
+  const hasFilters =
+    activeCat !== null ||
+    activeZone !== null ||
+    activeTags.length > 0 ||
+    activeLayer !== null ||
+    activeSun !== null;
 
   return (
     <aside className="w-full md:w-56 shrink-0" aria-label="Filters">
@@ -110,6 +130,40 @@ export function FacetSidebar({ types, tags, activeCat, activeZone, activeTags }:
           {ZONE_OPTIONS.map((z) => (
             <option key={z} value={z}>
               Zone {z}
+            </option>
+          ))}
+        </select>
+      </FacetGroup>
+
+      {/* Layer (server-side filter via catalog API `layer`) */}
+      <FacetGroup label="Food-forest layer">
+        <select
+          value={activeLayer ?? ""}
+          onChange={(e) => setSingle("layer", e.target.value || null, "layer")}
+          className="w-full rounded border border-primary/20 bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+          aria-label="Filter by food-forest layer"
+        >
+          <option value="">Any layer</option>
+          {LAYER_OPTIONS.map((l) => (
+            <option key={l} value={l}>
+              {titleCase(l)}
+            </option>
+          ))}
+        </select>
+      </FacetGroup>
+
+      {/* Sun (server-side filter via catalog API `sun`) */}
+      <FacetGroup label="Sun">
+        <select
+          value={activeSun ?? ""}
+          onChange={(e) => setSingle("sun", e.target.value || null, "sun")}
+          className="w-full rounded border border-primary/20 bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+          aria-label="Filter by sun requirement"
+        >
+          <option value="">Any sun</option>
+          {SUN_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {titleCase(s)}
             </option>
           ))}
         </select>
