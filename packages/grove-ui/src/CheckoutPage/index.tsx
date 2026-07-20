@@ -58,11 +58,31 @@ export interface CheckoutPageProps {
   taxRateEstimate?: number;
   /** Selectable payment methods. */
   paymentMethods?: GroveCheckoutPaymentMethod[];
+  /** Hide the on-page payment-method chooser — e.g. when payment is collected
+   *  on a hosted provider page (Stripe). `paymentMethods[0]` is still reported
+   *  as the order's `paymentMethod`. */
+  hidePaymentMethods?: boolean;
+  /** Primary submit label (banner + summary button). */
+  submitLabel?: string;
+  /** Primary submit label while submitting. */
+  submitPendingLabel?: string;
+  /** Note under the payment section (shown only when methods are visible). */
+  paymentNote?: React.ReactNode;
+  /** Reassurance line under the summary submit button. */
+  reassure?: React.ReactNode;
+  /** Trust-strip badges (icon + text; the icon is decorative). */
+  trustItems?: { icon: string; text: string }[];
   /** Shop route (empty state). */
   shopHref?: string;
   /** Cart route (back link). */
   cartHref?: string;
 }
+
+const DEFAULT_TRUST_ITEMS = [
+  { icon: "✦", text: "Secure · we never store card data" },
+  { icon: "◐", text: "Email confirmation before charge" },
+  { icon: "✓", text: "Satisfaction or refund" },
+];
 
 function formatPrice(amount: number): string {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -82,6 +102,12 @@ export function CheckoutPage({
   onPlaceOrder,
   taxRateEstimate = DEFAULT_TAX_RATE_ESTIMATE,
   paymentMethods = DEFAULT_PAYMENT_METHODS,
+  hidePaymentMethods = false,
+  submitLabel = "Place Order →",
+  submitPendingLabel = "Placing Order…",
+  paymentNote,
+  reassure,
+  trustItems = DEFAULT_TRUST_ITEMS,
   shopHref = "/shop",
   cartHref = "/cart",
 }: CheckoutPageProps) {
@@ -177,22 +203,18 @@ export function CheckoutPage({
             disabled={submitting}
             className="grove-checkout__banner-cta"
           >
-            {submitting ? "Placing Order…" : "Place Order →"}
+            {submitting ? submitPendingLabel : submitLabel}
           </button>
         </div>
       </div>
 
       <div className="grove-checkout__trust">
         <div className="grove-checkout__trust-inner">
-          <span className="grove-checkout__trust-item">
-            <span aria-hidden="true">✦</span> Secure · we never store card data
-          </span>
-          <span className="grove-checkout__trust-item">
-            <span aria-hidden="true">◐</span> Email confirmation before charge
-          </span>
-          <span className="grove-checkout__trust-item">
-            <span aria-hidden="true">✓</span> Satisfaction or refund
-          </span>
+          {trustItems.map((t, i) => (
+            <span key={i} className="grove-checkout__trust-item">
+              <span aria-hidden="true">{t.icon}</span> {t.text}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -281,27 +303,33 @@ export function CheckoutPage({
               </div>
             </fieldset>
 
-            <fieldset className="grove-checkout__fieldset">
-              <legend className="grove-checkout__legend">Payment Method</legend>
-              <div className="grove-checkout__payments">
-                {paymentMethods.map((method) => (
-                  <label key={method.value} className="grove-checkout__payment">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value={method.value}
-                      checked={paymentMethod === method.value}
-                      onChange={() => setPaymentMethod(method.value)}
-                    />
-                    <span>{method.label}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="grove-checkout__payment-note">
-                Payment is collected after order confirmation. We&apos;ll contact you
-                with details.
-              </p>
-            </fieldset>
+            {!hidePaymentMethods && (
+              <fieldset className="grove-checkout__fieldset">
+                <legend className="grove-checkout__legend">Payment Method</legend>
+                <div className="grove-checkout__payments">
+                  {paymentMethods.map((method) => (
+                    <label key={method.value} className="grove-checkout__payment">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value={method.value}
+                        checked={paymentMethod === method.value}
+                        onChange={() => setPaymentMethod(method.value)}
+                      />
+                      <span>{method.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="grove-checkout__payment-note">
+                  {paymentNote ?? (
+                    <>
+                      Payment is collected after order confirmation. We&apos;ll
+                      contact you with details.
+                    </>
+                  )}
+                </p>
+              </fieldset>
+            )}
           </div>
 
           <aside className="grove-checkout__summary">
@@ -343,12 +371,16 @@ export function CheckoutPage({
             )}
 
             <button type="submit" disabled={submitting} className="grove-checkout__submit">
-              {submitting ? "Placing Order…" : "Place Order →"}
+              {submitting ? submitPendingLabel : submitLabel}
             </button>
 
             <p className="grove-checkout__reassure">
-              You will not be charged today. We confirm every order by email before
-              processing payment.
+              {reassure ?? (
+                <>
+                  You will not be charged today. We confirm every order by email
+                  before processing payment.
+                </>
+              )}
             </p>
 
             <Link href={cartHref} className="grove-checkout__back">

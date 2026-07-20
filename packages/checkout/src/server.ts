@@ -14,3 +14,4 @@ export {
   createCheckoutSessionRoute,
 } from "./api/createCheckoutRoute";
 export { createOrderSuccessPage } from "./components/createOrderSuccessPage";
+export { createCheckoutSuccessPage } from "./components/createCheckoutSuccessPage";

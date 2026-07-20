@@ -1,48 +1,106 @@
 "use client";
 
+import { useState } from "react";
 import { trackBeginCheckout } from "@grove/analytics";
-import { useRouter } from "next/navigation";
+import type { CheckoutSession } from "@grove/odoo-client";
 import {
   CheckoutPage as UICheckoutPage,
+  CheckoutReview,
   type GroveCheckoutOrder,
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { WithGroveNext } from "./grove-next-seam";
+import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
+
+const STRIPE_PAYMENT_METHOD = [
+  { value: "card", label: "Pay by card — secure Stripe checkout" },
+];
 
 /**
- * Cart-connected CheckoutPage. The presentational form + summary live in
- * `@grove/ui-kit`; this wrapper owns the app-side concerns the kit must not
- * carry: analytics, the BFF `POST /api/checkout` call, cart-clear, and routing
- * to the order-success page. A thrown Error surfaces inline on the form.
+ * Cart-connected checkout with the Stripe hand-off. Two phases:
+ *
+ *   1. Form — the presentational `@grove/ui-kit` CheckoutPage collects contact +
+ *      shipping. Submitting POSTs the order to `/api/checkout/session`, which
+ *      returns a CheckoutSession (order created in Odoo + Stripe session minted).
+ *   2. Review — `CheckoutReview` shows the pay-today (deposit) vs due-at-shipping
+ *      split so the buyer sees exactly what is charged *before* entering card
+ *      details. "Pay with card" stashes the order hand-off in a cookie and
+ *      redirects the browser to Stripe's hosted `checkoutUrl`.
+ *
+ * The cart is intentionally NOT cleared here — a cancelled payment must keep the
+ * cart (see the cancel page). It's cleared on the success page after payment.
  */
 export function CheckoutPage() {
-  const router = useRouter();
-  const { items, hydrated, subtotal, clear } = useCart();
+  const { items, hydrated, subtotal } = useCart();
+  const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
 
-  async function placeOrder(order: GroveCheckoutOrder) {
+  async function createSession(order: GroveCheckoutOrder) {
     const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
     trackBeginCheckout({ itemCount: totalQuantity, subtotal });
 
-    const response = await fetch("/api/checkout", {
+    const origin = window.location.origin;
+    const response = await fetch("/api/checkout/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contact: order.contact,
         shipping: order.shipping,
         billing: null,
-        paymentMethod: order.paymentMethod,
+        paymentMethod: "card",
         items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        successUrl: `${origin}/checkout/success`,
+        cancelUrl: `${origin}/checkout/cancel`,
       }),
     });
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || "Failed to place order");
+      throw new Error(
+        data.error || "We couldn't start secure checkout. Please try again.",
+      );
     }
 
-    clear();
-    const params = new URLSearchParams({ token: data.accessToken });
-    router.push(`/checkout/success/${data.id}?${params.toString()}`);
+    setSession(data as CheckoutSession);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  function payNow() {
+    if (!session) return;
+    setRedirecting(true);
+    // Hand the order id + access token (already known) to the success page.
+    const handoff = encodeHandoff({
+      orderId: session.orderId,
+      accessToken: session.accessToken,
+      amountDueToday: session.amountDueToday,
+      amountTotal: session.amountTotal,
+      hasPreorder: session.hasPreorder,
+      currency: session.currency,
+    });
+    document.cookie = `${CHECKOUT_HANDOFF_COOKIE}=${handoff}; path=/checkout; max-age=1800; SameSite=Lax`;
+    window.location.assign(session.checkoutUrl);
+  }
+
+  if (session) {
+    return (
+      <WithGroveNext>
+        <CheckoutReview
+          items={items.map((i) => ({
+            variantId: i.variantId,
+            name: i.name,
+            quantity: i.quantity,
+            price: i.price,
+          }))}
+          amountDueToday={session.amountDueToday}
+          amountTotal={session.amountTotal}
+          hasPreorder={session.hasPreorder}
+          currency={session.currency}
+          redirecting={redirecting}
+          onPay={payNow}
+          onBack={() => setSession(null)}
+        />
+      </WithGroveNext>
+    );
   }
 
   return (
@@ -51,7 +109,17 @@ export function CheckoutPage() {
         items={items}
         subtotal={subtotal}
         loading={!hydrated}
-        onPlaceOrder={placeOrder}
+        onPlaceOrder={createSession}
+        paymentMethods={STRIPE_PAYMENT_METHOD}
+        hidePaymentMethods
+        submitLabel="Continue to payment →"
+        submitPendingLabel="Starting secure checkout…"
+        reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
+        trustItems={[
+          { icon: "✦", text: "Card entered on Stripe — never stored by us" },
+          { icon: "◐", text: "Deposit today on preorders, balance at ship time" },
+          { icon: "✓", text: "Satisfaction or refund" },
+        ]}
       />
     </WithGroveNext>
   );
