@@ -1,5 +1,17 @@
 # Storefront Experience Spec — Variants, Gallery, Preorders
 
+> ## Decisions 2026-07-20 — end-of-July QA deploy scope
+>
+> Locked 2026-07-20 for the QA window (2026-07-28 → 31). Where this block conflicts with the phasing below, this block wins for the July build; the rest of the spec remains canonical for cart/checkout/preorder mechanics.
+>
+> - **Stripe scope:** sandbox accounts exist for all 3 tenants (nursery, goldberry, ggg). EOM scope = **full-payment hosted Checkout only (S1+S2) on all three storefronts**. The $10-deposit + off-session balance capture (S3+S4, decisions 4/5 and Phase B below) is **deferred to August**. Stripe entity decision deferred to prod cutover. Odoo computes tax + shipping (Stripe Tax OFF); the frontend/BFF only creates Checkout Sessions and handles the signature-verified webhook into `grove_headless`.
+> - **Shipping:** the zone-rate engine is merged (`grove_headless/models/shipping_zones.py`, 5 zones, 21-state green list). PROVISIONAL `shipping_rates.json` rates are accepted for QA; Shippo + rate-checker deferred to August. **Out-of-green-list checkout addresses are BLOCKED** with a kind message + farm-pickup offer + newsletter signup CTA tagged with the shopper's state.
+> - **Inventory:** honest per-variant availability from live QA Odoo + oversell guard (stock check before order creation AND re-check in the webhook confirm); a paid sandbox order decrements stock.
+> - **Product images:** no photos exist in Square — the "Square importer pulls product images" premise was wrong. Images are family photographs ingested via `scripts/upload-asset.ts` (ADR-009); the durable-filestore `terraform apply` lands 2026-07-23 before photos do.
+> - **Blog/guides source:** QA frontends read the **prod Ghost blogs droplet via read-only Content API keys** (no QA Ghost droplet, ever), wired via Terraform (`qa-app-platform/apps.tf`) ~2026-07-23. Ghost moves off the apexes to `blog.{domain}` on 2026-07-22 (Cloudflare 302 apex redirects until prod cutover).
+> - **Search/filter:** faceted filtering against live Odoo is the real EOM build (depends on grove-odoo-modules PR #24 catalog API v1); client-side text search is stretch (hard deadline 2026-08-28); no server-side search.
+> - **Test orders:** QA Odoo is system-of-record with real orders — sandbox test orders must use the `qatest` email convention so cleanup can cancel/archive them before the prod freeze → promote. See `docs/QA-AGENT-GUARDRAILS.md`.
+
 Status: agreed 2026-07-07 (grill session with Josh) — implementation phased below.
 Scope: nursery storefront first (only tenant with a catalog); all components
 shared so goldberry/ggg light up when they have products.

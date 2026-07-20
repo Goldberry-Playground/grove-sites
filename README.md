@@ -220,6 +220,8 @@ Each storefront's `.env.local` follows the same shape (see the per-app `.env.loc
 | `GHOST_URL` | Yes | `http://localhost:2368/2369/2370` | Ghost CMS instance URL (one instance per tenant: goldberry 2368, ggg 2369, nursery 2370) |
 | `GHOST_CONTENT_KEY` | Yes | — | Ghost Content API key. Generate via `make ghost-setup-<tenant>` in the odoocker stack |
 
+> **Deployed environments (decided 2026-07-20):** in QA and prod, `GHOST_URL` points at the **prod blogs droplet** (`blog.{domain}`) with a **read-only Content API key** (1Password `Grove Infra`). There is no QA Ghost instance; the values are injected via Terraform (odoocker `qa-app-platform/apps.tf`). The local ports above are for local dev only.
+
 ### `apps/hub/.env.local`
 
 | Variable | Required | Default | Description |

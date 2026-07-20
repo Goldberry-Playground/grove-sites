@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-13 · **Status:** Approved (brainstorming session with Josh) · **Amends:** `docs/STOREFRONT-SPEC.md` product-page + API sections (PR #34; nothing from those sections was built yet, so this supersedes them without migration cost). Cart/checkout/preorder mechanics from STOREFRONT-SPEC are **unchanged** and incorporated by reference.
 
+> **Update 2026-07-20:** the $10-deposit / off-session balance-capture flow referenced below is **deferred to August** — the end-of-July QA deploy ships full-payment hosted Checkout only (S1+S2) on all three storefronts. Species guides (~19, authored from 2026-07-24) live on the prod Ghost at `blog.atthegrovenursery.com` (Ghost leaves the apexes 2026-07-22), read by QA via read-only Content API keys. See the "Decisions 2026-07-20" block in `docs/STOREFRONT-SPEC.md`.
+
 ## Purpose
 
 Design the nursery product/shop pages balancing Odoo's data-model limits against the headless API's flexibility, for the goals: customer experience, ease of purchase, promoting food-forest/silvopasture add-ons, reducing shipping costs, and informative growing content (zones etc.).
