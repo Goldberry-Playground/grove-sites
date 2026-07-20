@@ -74,6 +74,8 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         const searchParams = new URLSearchParams();
         if (params?.categoryId) searchParams.set("category_id", String(params.categoryId));
         if (params?.featured) searchParams.set("featured", "1");
+        if (params?.tagId) searchParams.set("tag_id", String(params.tagId));
+        if (params?.zone) searchParams.set("zone", String(params.zone));
         if (params?.limit) searchParams.set("limit", String(params.limit));
         if (params?.offset) searchParams.set("offset", String(params.offset));
 

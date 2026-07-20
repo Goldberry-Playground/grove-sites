@@ -6,63 +6,75 @@ import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
 import { CategoryBar } from "../category-bar";
-import { filterByCategory, findCategory } from "../../data/categories";
+import {
+  NURSERY_CATEGORIES,
+  filterByCategory,
+  findCategory,
+  countByCategory,
+} from "../../data/categories";
+import { parseFacetParams, applyTagFilter, buildTagFacet } from "../../lib/facets";
+import { FacetSidebar, type TypeOption } from "./facet-sidebar";
 
-// Render on every request so the page reflects current Odoo state.
-// (Build-time render can't reach Odoo when building inside Docker; ISR will
-// be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
+// Render on every request so the page reflects current Odoo state and the
+// live facet selection. (Build-time render can't reach Odoo when building
+// inside Docker; ISR returns once Odoo posts a revalidation webhook.)
 export const dynamic = "force-dynamic";
 
 interface ShopPageProps {
-  searchParams: Promise<{ cat?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
-  // Next.js 15 — searchParams is a Promise in async server components.
-  const { cat: catSlug } = await searchParams;
+  const sp = await searchParams;
+  const { cat, zone, tags } = parseFacetParams(sp);
 
-  // 1) Fetch products: Odoo first, mockProducts fallback. The filter runs
-  //    against whichever source returned data — same logic for both, which
-  //    is exactly the seam Odoo will plug into when product tags are exposed.
-  // 2) Filter by category slug. The filter logic lives in data/categories.ts
-  //    so the homepage's CategoryBar, the shop page filter, and any future
-  //    consumer all share one source of truth for what "Apple" means.
-  let allProducts: Product[] = [];
+  // 1) Fetch products. The `zone` facet is applied SERVER-SIDE via the catalog
+  //    API (list items carry no zones, so it can't be filtered client-side).
+  //    Category + tag facets are applied client-side against the returned set.
+  let base: Product[] = [];
   let usingMockData = false;
-
   try {
-    const result = await odoo.products.list({ limit: 40 });
-    allProducts = result.products;
+    const result = await odoo.products.list({
+      limit: 40,
+      ...(zone !== null ? { zone } : {}),
+    });
+    base = result.products;
   } catch {
-    // Odoo unreachable — fall back to seed data so the storefront is still
-    // demoable. Remove this branch when Odoo is consistently up.
-    allProducts = mockProducts;
+    base = mockProducts;
+    usingMockData = true;
+  }
+  if (base.length === 0 && zone === null) {
+    base = mockProducts;
     usingMockData = true;
   }
 
-  if (allProducts.length === 0) {
-    allProducts = mockProducts;
-    usingMockData = true;
-  }
+  // 2) Apply category + tag facets. Displayed = zone ∩ category ∩ tags.
+  const byCategory = filterByCategory(base, cat);
+  const products = applyTagFilter(byCategory, tags);
+  const activeCategory = findCategory(cat);
 
-  const products = filterByCategory(allProducts, catSlug);
-  const activeCategory = findCategory(catSlug);
+  // 3) Facet option models (cross-faceted counts stay honest: the type counts
+  //    respect the current tag/zone context; the tag counts respect the current
+  //    category/zone context — each ignores its own axis so it stays togglable).
+  const typeContext = applyTagFilter(base, tags);
+  const types: TypeOption[] = NURSERY_CATEGORIES.map((c) => ({
+    slug: c.slug,
+    label: c.label,
+    count: countByCategory(typeContext, c.slug),
+  })).filter((t) => t.count > 0 || t.slug === cat);
+  const tagFacet = buildTagFacet(byCategory, tags);
 
   return (
     <>
-      <CategoryBar activeSlug={catSlug ?? null} />
+      <CategoryBar activeSlug={cat} />
 
       <section className="section">
         <div className="section-header">
-          <h2>
-            {activeCategory ? activeCategory.label : tenantConfig.copy.shopHeading}
-          </h2>
+          <h2>{activeCategory ? activeCategory.label : tenantConfig.copy.shopHeading}</h2>
           <span className="section-tag">
             {products.length} {products.length === 1 ? "variety" : "varieties"}
-            {activeCategory && allProducts.length !== products.length
-              ? ` · of ${allProducts.length} total`
-              : ""}
+            {base.length !== products.length ? ` · of ${base.length} total` : ""}
           </span>
         </div>
 
@@ -72,66 +84,76 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
         {usingMockData && (
           <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 mb-8 text-amber-800 text-xs font-mono uppercase tracking-wider">
-            Demo catalog · These products are placeholders until the Odoo
-            backend is live.
+            Demo catalog · These products are placeholders until the Odoo backend is
+            live. Zone filtering applies against live Odoo only.
           </div>
         )}
 
-        {products.length === 0 ? (
-          // Empty state — happens when a category has no matching products.
-          // For QA visibility this should never show in normal mock-data flow
-          // since each category has at least one product, but it's important
-          // for the Odoo-live case where new categories may be empty at first.
-          <div className="shop-empty">
-            <p>
-              No products in <em>{activeCategory?.label ?? "this category"}</em>{" "}
-              yet — check back soon, or{" "}
-              <Link href="/shop" className="shop-empty__link">
-                browse the full catalog
-              </Link>
-              .
-            </p>
+        <div className="flex flex-col md:flex-row gap-8">
+          <FacetSidebar
+            types={types}
+            tags={tagFacet}
+            activeCat={cat}
+            activeZone={zone}
+            activeTags={tags}
+          />
+
+          <div className="flex-1">
+            {products.length === 0 ? (
+              <div className="shop-empty">
+                <p>
+                  No products match these filters —{" "}
+                  <Link href="/shop" className="shop-empty__link">
+                    clear filters
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : (
+              <div className="var-grid">
+                {products.map((product, i) => (
+                  <Link
+                    key={product.id}
+                    href={`/shop/${product.id}`}
+                    className="var-card"
+                    style={{ animationDelay: `${i * 80}ms` }}
+                  >
+                    <div className="var-img">
+                      {product.imageUrl && (
+                        <Image
+                          src={resolveOdooImageUrl(product.imageUrl, odooBase)}
+                          alt={product.name}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        />
+                      )}
+                      {product.featured && <span className="var-badge">Featured</span>}
+                    </div>
+                    <div className="var-info">
+                      {product.categoryName && (
+                        <span className="var-latin">{product.categoryName}</span>
+                      )}
+                      <h3 className="var-name">{product.name}</h3>
+                      {typeof product.variantCount === "number" && product.variantCount > 1 && (
+                        <span className="var-latin">{product.variantCount} varieties</span>
+                      )}
+                      <div className="var-foot">
+                        <span className="var-price">
+                          {typeof product.priceMin === "number"
+                            ? `from $${product.priceMin.toFixed(2)}`
+                            : `$${product.price.toFixed(2)}`}
+                        </span>
+                        <span className="var-stock">
+                          {product.available ? "In stock" : "Sold out"}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="var-grid">
-            {products.map((product, i) => (
-              <Link
-                key={product.id}
-                href={`/shop/${product.id}`}
-                className="var-card"
-                style={{ animationDelay: `${i * 80}ms` }}
-              >
-                <div className="var-img">
-                  {product.imageUrl && (
-                    <Image
-                      src={resolveOdooImageUrl(product.imageUrl, odooBase)}
-                      alt={product.name}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    />
-                  )}
-                  {product.featured && (
-                    <span className="var-badge">Featured</span>
-                  )}
-                </div>
-                <div className="var-info">
-                  {product.categoryName && (
-                    <span className="var-latin">{product.categoryName}</span>
-                  )}
-                  <h3 className="var-name">{product.name}</h3>
-                  <div className="var-foot">
-                    <span className="var-price">
-                      ${product.price.toFixed(2)}
-                    </span>
-                    <span className="var-stock">
-                      {product.available ? "In stock" : "Sold out"}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        </div>
       </section>
     </>
   );

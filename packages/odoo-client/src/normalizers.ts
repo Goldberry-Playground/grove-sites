@@ -9,16 +9,26 @@
 import type {
   ApiProductListItem,
   ApiProductDetail,
+  ApiFacts,
+  ApiProductImage,
   ApiCartResponse,
   ApiOrderCreateResponse,
   ApiOrderDetail,
   Product,
   ProductVariant,
+  GrowingFacts,
+  ProductImage,
   Cart,
   CartItem,
   OrderSummary,
   OrderDetail,
 } from "./types";
+
+/** Odoo Selection/Char fields serialize "" when unset — collapse to null so
+ * the UI can `??`-fall-back uniformly instead of testing for empty strings. */
+function emptyToNull(value: string): string | null {
+  return value ? value : null;
+}
 
 export function normalizeProductListItem(raw: ApiProductListItem): Product {
   return {
@@ -33,10 +43,9 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     imageUrl: raw.image_url,
     categoryId: null,
     categoryName: null,
-    // TODO(odoo): populate from raw.product_tag_ids once grove_headless exposes
-    // it. Currently the list endpoint doesn't return tags — they come from
-    // mock-products until the backend is wired.
-    tags: [],
+    tags: (raw.tags ?? []).map((t) => t.name),
+    priceMin: raw.price_min,
+    variantCount: raw.variant_count,
     available: raw.website_published,
     featured: raw.grove_featured,
     variants: [],
@@ -61,14 +70,15 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     imageUrl: raw.image_url,
     categoryId: raw.categ_id ? raw.categ_id.id : null,
     categoryName: raw.categ_id ? raw.categ_id.name : null,
-    // TODO(odoo): populate from raw.product_tag_ids once grove_headless exposes it.
-    tags: [],
+    tags: (raw.tags ?? []).map((t) => t.name),
     // qty_available is only present when the Odoo `stock` module is installed.
     // Fall back to the parent product's website_published flag so the page
     // still distinguishes "out of stock" from "we don't track stock at all".
     available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
     featured: raw.grove_featured,
     variants: (raw.variants ?? []).map(normalizeVariant),
+    facts: raw.facts ? normalizeFacts(raw.facts) : undefined,
+    images: (raw.images ?? []).map(normalizeImage),
   };
 }
 
@@ -76,11 +86,42 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
   return {
     id: raw.id,
     name: raw.display_name,
-    sku: raw.default_code || null,
-    price: raw.lst_price,
-    // Same fallback story as normalizeProductDetail — see comment there.
+    sku: raw.sku || null,
+    price: raw.price,
+    // Same fallback story as normalizeProductDetail — see comment there. The
+    // v1 API always sends qty_available (stock is a hard dep), but keep the
+    // defensive default so an older/partial payload can't render a live product
+    // as sold out.
     available: raw.qty_available === undefined ? true : raw.qty_available > 0,
+    // Exact on-hand count for the "N in stock" line (catalog API v1 always
+    // sends it). null on an older/partial payload that omits qty_available —
+    // the page then shows the boolean state only, never a fabricated "0".
+    qtyAvailable: raw.qty_available ?? null,
     imageUrl: raw.image_url,
+    cultivar: emptyToNull(raw.cultivar),
+    format: emptyToNull(raw.format),
+    shippingTier: raw.shipping_tier || null,
+  };
+}
+
+export function normalizeFacts(raw: ApiFacts): GrowingFacts {
+  return {
+    botanicalName: emptyToNull(raw.botanical_name),
+    zoneMin: raw.zone_min ?? null,
+    zoneMax: raw.zone_max ?? null,
+    layer: emptyToNull(raw.layer),
+    sun: emptyToNull(raw.sun),
+    matureSize: emptyToNull(raw.mature_size),
+    spacing: emptyToNull(raw.spacing),
+    soil: emptyToNull(raw.soil),
+  };
+}
+
+export function normalizeImage(raw: ApiProductImage): ProductImage {
+  return {
+    id: raw.id,
+    url: raw.url,
+    thumbUrl: raw.thumb_url,
   };
 }
 
