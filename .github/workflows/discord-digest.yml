@@ -45,10 +45,10 @@ jobs:
       - name: Guard — skip until 1Password service account is configured
         id: guard
         env:
-          OP_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
         run: |
           if [ -z "$OP_TOKEN" ]; then
-            echo "OP_SERVICE_ACCOUNT_TOKEN not set — Discord bridge not yet provisioned (GOL-263). Skipping."
+            echo "OP_CI_SA_TOKEN not set — Discord bridge not yet provisioned (GOL-263). Skipping."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -81,12 +81,12 @@ jobs:
         with:
           export-env: true
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
           BUFFER_API_TOKEN: "op://Goldberry Grove - Admin/Grove Infra/buffer_api_token"
           DISCORD_BOT_TOKEN: "op://Goldberry Grove - Admin/Grove Infra/discord_bot_token"
           DISCORD_APP_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_app_id"
           DISCORD_PUBLIC_KEY: "op://Goldberry Grove - Admin/Grove Infra/discord_public_key"
-          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_approvals_channel_id"
+          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_insights_channel_id"
 
       - name: Post digest
         if: steps.guard.outputs.run == 'true'
