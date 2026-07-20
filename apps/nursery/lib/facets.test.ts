@@ -33,6 +33,8 @@ describe("parseFacetParams", () => {
       cat: "apple",
       zone: 5,
       tags: ["nitrogen-fixer", "edible"],
+      layer: null,
+      sun: null,
     });
     expect(parseFacetParams({ tag: "a,b" }).tags).toEqual(["a", "b"]);
   });
@@ -42,8 +44,22 @@ describe("parseFacetParams", () => {
     expect(parseFacetParams({ zone: "abc" }).zone).toBeNull();
   });
 
+  it("reads valid layer + sun values", () => {
+    expect(parseFacetParams({ layer: "vine", sun: "partial" })).toMatchObject({
+      layer: "vine",
+      sun: "partial",
+    });
+  });
+
+  it("drops a layer or sun value outside the supported set", () => {
+    expect(parseFacetParams({ layer: "canopy-ish" }).layer).toBeNull();
+    expect(parseFacetParams({ sun: "dappled" }).sun).toBeNull();
+    // takes the first value when the param repeats
+    expect(parseFacetParams({ layer: ["shrub", "vine"] }).layer).toBe("shrub");
+  });
+
   it("defaults everything when params are absent", () => {
-    expect(parseFacetParams({})).toEqual({ cat: null, zone: null, tags: [] });
+    expect(parseFacetParams({})).toEqual({ cat: null, zone: null, tags: [], layer: null, sun: null });
   });
 
   it("covers the documented zone range", () => {
