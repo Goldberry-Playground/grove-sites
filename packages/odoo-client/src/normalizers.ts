@@ -14,6 +14,7 @@ import type {
   ApiCartResponse,
   ApiOrderCreateResponse,
   ApiOrderDetail,
+  ApiCheckoutSessionResponse,
   Product,
   ProductVariant,
   GrowingFacts,
@@ -22,6 +23,7 @@ import type {
   CartItem,
   OrderSummary,
   OrderDetail,
+  CheckoutSession,
 } from "./types";
 
 /** Odoo Selection/Char fields serialize "" when unset — collapse to null so
@@ -159,6 +161,22 @@ export function normalizeOrderSummary(raw: ApiOrderCreateResponse): OrderSummary
     amountTotal: raw.amount_total,
     currency: raw.currency.name,
     lineCount: raw.line_count,
+  };
+}
+
+export function normalizeCheckoutSession(
+  raw: ApiCheckoutSessionResponse
+): CheckoutSession {
+  return {
+    sessionId: raw.session_id,
+    checkoutUrl: raw.checkout_url,
+    orderId: raw.order_id,
+    orderRef: raw.order_ref,
+    accessToken: raw.access_token,
+    hasPreorder: raw.has_preorder,
+    amountDueToday: raw.amount_due_today,
+    amountTotal: raw.amount_total,
+    currency: raw.currency,
   };
 }
 
