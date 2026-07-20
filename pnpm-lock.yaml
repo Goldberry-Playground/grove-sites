@@ -461,6 +461,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.700.0
         version: 3.1082.0
+      '@grove/odoo-client':
+        specifier: workspace:*
+        version: link:../odoo-client
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
