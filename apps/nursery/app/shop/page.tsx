@@ -73,7 +73,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
   return (
     <>
-      <CategoryBar activeSlug={cat} />
+      <CategoryBar activeSlug={cat} products={typeContext} />
 
       <section className="section">
         <div className="section-header">
