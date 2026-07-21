@@ -248,6 +248,16 @@
   max-width: 32rem;
 }
 
+.grove-capture__eyebrow {
+  margin: 0 0 0.1rem;
+  font-family: var(--grove-font-mono, inherit);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--grove-color-primary);
+}
+
 .grove-capture__heading {
   margin: 0;
   font-family: var(--grove-font-display, inherit);

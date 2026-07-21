@@ -6,6 +6,7 @@ import { odoo } from "../../../lib/clients";
 import { ghost } from "../../../lib/ghost";
 import { getMockProductById, mockProducts } from "../../../data/mock-products";
 import { inferCompanions, toCompanionInput } from "../../../lib/companions";
+import { stripVariantCode } from "../../../lib/variant-select";
 import { ProductView, type ViewImage, type ViewVariant } from "./product-view";
 import { SpecBlock } from "./spec-block";
 import { GrowingGuide } from "./growing-guide";
@@ -71,7 +72,9 @@ export default async function ProductDetailPage({
   }));
   const variants: ViewVariant[] = product.variants.map((v) => ({
     id: v.id,
-    name: v.name,
+    // Drop the leading internal [SKU] Odoo prefixes onto variant names — it is
+    // not for customers and leaked into the cart/sticky bar (GOL-678, Bug 2).
+    name: stripVariantCode(v.name),
     price: v.price,
     available: v.available,
     qtyAvailable: v.qtyAvailable ?? null,

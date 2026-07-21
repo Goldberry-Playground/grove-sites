@@ -126,6 +126,10 @@ h1 em, h2 em, h3 em {
      and survives greyscale / red-green colour-blindness (● vs ✕). */
   --stock-in: var(--moss);
   --stock-out: #9A1C11;
+  /* Reservable (bareroot preorder) — GOL-678. Amber-800, NOT Tailwind
+     amber-700: #B45309 is only 3.93:1 on --paper-deep and fails AA there.
+     This clears 4.5:1 on all three parchment surfaces (5.55:1 worst case). */
+  --stock-reserve: #92400E;
 }
 
 /* ─────────────────────────────────────────────
@@ -577,8 +581,10 @@ h1 em, h2 em, h3 em {
 }
 .stock-line--in { color: var(--stock-in); }
 .stock-line--out { color: var(--stock-out); }
+.stock-line--reserve { color: var(--stock-reserve); }
 .stock-line--in::before,
-.stock-line--out::before {
+.stock-line--out::before,
+.stock-line--reserve::before {
   content: "";
   width: 0.6em;
   height: 0.6em;
@@ -588,6 +594,14 @@ h1 em, h2 em, h3 em {
 }
 .stock-line--in::before { background: currentColor; }
 .stock-line--out::before { border: 2px solid currentColor; }
+/* Reserve gets a filled DIAMOND — a third glyph distinct from the filled and
+   hollow discs, so in-stock / reserve / sold-out stay separable in greyscale
+   and for colour-blind readers (WCAG 1.4.1), not just by hue. */
+.stock-line--reserve::before {
+  background: currentColor;
+  border-radius: 0;
+  transform: rotate(45deg);
+}
 
 /* Mobile facet-disclosure caret (GOL-682 #3) — CSS triangle, not a font glyph
    (▸ tofu'd in the mono face). Points right when collapsed, rotates down on
