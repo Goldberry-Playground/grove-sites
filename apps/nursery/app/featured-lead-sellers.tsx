@@ -112,11 +112,17 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                 <div className="var-foot">
                   <span className="var-price">
                     {p.onSale && p.compareAtPrice != null ? (
+                      // aria-hidden on the visual half so the prices are not
+                      // announced twice: without it a screen reader reads the
+                      // struck + current price, then the sr-only sentence
+                      // repeats both ("$58.00 $42.00 on sale, was $58.00, now
+                      // $42.00"). The sr-only text is the accessible name here.
                       <>
-                        <s className="var-price-was">${p.compareAtPrice.toFixed(2)}</s>{" "}
-                        <span className="var-price-now">{priceLabel(p)}</span>
+                        <span aria-hidden="true">
+                          <s className="var-price-was">${p.compareAtPrice.toFixed(2)}</s>{" "}
+                          <span className="var-price-now">{priceLabel(p)}</span>
+                        </span>
                         <span className="sr-only">
-                          {" "}
                           on sale, was ${p.compareAtPrice.toFixed(2)}, now {priceLabel(p)}
                         </span>
                       </>

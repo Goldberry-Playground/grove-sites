@@ -35,11 +35,19 @@ export const FEATURED_LIMIT = 4;
  * @grove/odoo-client's normalizer and read `product.compareAtPrice` directly.
  * See the GOL-659 follow-up for the Odoo field.
  */
-export const SALE_OVERRIDES: Record<string, { compareAtPrice: number }> = {
-  // Mock-only ("Montmorency Sour Cherry", GN-CHR-003) — no live product
-  // normalizes to this token, so it can never mislabel a real listing.
-  montmorencysourcherry: { compareAtPrice: 58 },
-};
+// Object.create(null), not `{}`: this map is indexed by product-derived
+// strings, so a product normalizing to an Object.prototype key ("constructor",
+// "toString", "valueOf"…) would otherwise return a truthy inherited member and
+// be treated as an override. It is harmless today only because withSale() then
+// reads `.compareAtPrice` and gets undefined — a later refactor to
+// `if (override) { onSale = true }` would fabricate a sale badge on a real
+// product, which is exactly the dark pattern the comment below forbids.
+export const SALE_OVERRIDES: Record<string, { compareAtPrice: number }> =
+  Object.assign(Object.create(null) as Record<string, { compareAtPrice: number }>, {
+    // Mock-only ("Montmorency Sour Cherry", GN-CHR-003) — no live product
+    // normalizes to this token, so it can never mislabel a real listing.
+    montmorencysourcherry: { compareAtPrice: 58 },
+  });
 
 /** A catalog product enriched with the homepage's sale decision. */
 export interface LeadSeller extends Product {
@@ -125,8 +133,13 @@ export function selectLeadSellers(
   }
 
   if (chosen.length < limit) {
+    // `p.available` filter, not just score ordering: scoreForFeature ranks
+    // sold-out products last but still returns them, so an under-stocked
+    // catalog would pad the hero row with "Sold out" cards. The docstring
+    // above promises "anything in stock" — a short row is the intended
+    // outcome, not a row led by things nobody can buy.
     const backfill = enriched
-      .filter((p) => !used.has(p.id))
+      .filter((p) => !used.has(p.id) && p.available)
       .sort((a, b) => scoreForFeature(b) - scoreForFeature(a));
     for (const p of backfill) take(p);
   }
