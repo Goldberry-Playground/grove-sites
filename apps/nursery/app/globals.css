@@ -572,6 +572,77 @@ h1 em, h2 em, h3 em {
 .btn-forest { background: var(--forest); color: var(--parchment); border-color: var(--forest); }
 .btn-forest:hover { background: transparent; color: var(--forest); }
 
+/* ─── GOL-659 — homepage lead-seller redesign ─── */
+
+/* Hero CTA row. The outline button sits on the dark hero photo, where the
+   light-section --orange idle state loses contrast — retune to parchment. */
+.pano-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 2rem;
+}
+.pano-cta .btn-outline {
+  color: var(--parchment);
+  border-color: var(--parchment);
+}
+.pano-cta .btn-outline:hover {
+  background: var(--parchment);
+  color: var(--forest-deep);
+  border-color: var(--parchment);
+}
+
+/* On-sale flag — colour-independent by design: a caret icon + the words
+   "On sale" + a distinct filled shape, so the state survives grayscale and
+   deuteranopia / protanopia / tritanopia. --orange-deep (#A84B0F) on white
+   clears 4.5:1 (WCAG AA) even at the badge's small type. */
+.var-badge.sale {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--orange-deep);
+  color: #fff;
+}
+/* Down-triangle "price drop" mark, drawn in CSS so it never depends on a font
+   glyph being present. Pairs with the "On sale" word for a colour-independent
+   flag. */
+.var-badge.sale::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+}
+/* Struck pre-sale price — a second, non-colour signal — muted beside the live
+   price, which keeps the strong --rust weight so the current price dominates. */
+.var-price-was {
+  color: var(--moss);
+  font-size: 0.85em;
+  font-weight: 400;
+  margin-right: 2px;
+}
+.var-price-now { color: var(--rust); }
+
+/* Screen-reader-only text — used for the "was $X, now $Y on sale" price
+   announcement so the sale state isn't conveyed by the struck price alone. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Respect reduced-motion: no card-entrance drift. */
+@media (prefers-reduced-motion: reduce) {
+  .var-card { animation: none; }
+}
+
 @media (max-width: 900px) {
   .pano-content,
   .qsearch,
