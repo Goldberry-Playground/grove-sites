@@ -26,6 +26,7 @@ export const honeycrispListItem: ApiProductListItem = {
     { id: 11, name: "apple" },
     { id: 12, name: "pollinator-required" },
   ],
+  categories: [{ id: 2, name: "Trees", slug: "trees" }],
   variant_count: 2,
   // Bareroot is the cheaper Format, so price_min < list_price.
   price_min: 32.0,
@@ -98,6 +99,7 @@ export const honeycrispDetail: ApiProductDetail = {
     { id: 11, name: "apple" },
     { id: 12, name: "pollinator-required" },
   ],
+  categories: [{ id: 2, name: "Trees", slug: "trees" }],
   images: [
     {
       id: 0,

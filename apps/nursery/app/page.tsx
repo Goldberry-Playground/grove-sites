@@ -2,16 +2,33 @@ import Link from "next/link";
 import { assetPath } from "@grove/ui";
 import { CaptureForm } from "@grove/ui-kit";
 import { CategoryBar } from "./category-bar";
+import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
 
 // At The Grove Nursery homepage — port of wireframes/nursery/index.html.
-// Sections in wireframe order: cat-bar → pano-hero → qsearch → section grid →
+// Sections in wireframe order: cat-bar → pano-hero → qsearch → lead-sellers →
 // with-sidebar → split-band.
 //
 // The category bar is now a shared server component that fetches the live
 // product list (Odoo or mock) and renders counts. Clicking a pill navigates
 // to /shop?cat=<slug>, which filters the catalog. On the homepage no pill is
 // "active" — the bar is purely a discovery surface.
+//
+// GOL-659 — Josh: "none of those [links] navigate anywhere specific." Every
+// hero CTA, the quick-search band, and each featured card now resolves to a
+// real route, and the featured row is data-driven (see FeaturedLeadSellers)
+// around our curated lead sellers rather than hardcoded markup.
+
+// Render per-request so the data-driven lead-seller row (and the CategoryBar
+// counts) reflect current Odoo state, and the build never bakes the mock
+// fallback statically. Matches /shop; ISR returns once Odoo posts a
+// revalidation webhook (Sprint 5).
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
+  // One catalog fetch for the whole page — feeds the hero "varieties" stat and
+  // the data-driven lead-seller row so their counts always agree.
+  const { products, total } = await fetchCatalog();
+
   return (
     <>
       <CategoryBar />
@@ -35,10 +52,16 @@ export default async function HomePage() {
               <em>cold-climate, hard-grown,</em><br />
               shipped at the right week.
             </h1>
+            <div className="pano-cta">
+              <Link href="/shop" className="btn">Shop the catalog &rarr;</Link>
+              <Link href="#lead-sellers" className="btn btn-outline">
+                See this season&apos;s sellers &darr;
+              </Link>
+            </div>
           </div>
           <div className="pano-stats">
             <div className="pano-stat">
-              <div className="num">328</div>
+              <div className="num">{total}</div>
               <div className="label">Varieties in catalog</div>
             </div>
             <div className="pano-stat">
@@ -57,11 +80,16 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="qsearch">
+      {/* Real GET form → /shop?cat=<slug>. The category select drives the
+          filter (its values are the live category slugs); the zone/pollination
+          /rootstock selects are refinement hints not yet wired to the /shop
+          facet params (sibling taxonomy issue) and so carry no `name` — the
+          band always resolves to a real, filtered catalog page. */}
+      <form className="qsearch" action="/shop" method="get">
         <h3>Find your tree.</h3>
         <div>
-          <label>USDA Zone</label>
-          <select defaultValue="5">
+          <label htmlFor="qs-zone">USDA Zone</label>
+          <select id="qs-zone" defaultValue="5">
             <option value="3">Zone 3</option>
             <option value="4">Zone 4</option>
             <option value="5">Zone 5 (the default)</option>
@@ -70,8 +98,8 @@ export default async function HomePage() {
           </select>
         </div>
         <div>
-          <label>Category</label>
-          <select defaultValue="apple">
+          <label htmlFor="qs-cat">Category</label>
+          <select id="qs-cat" name="cat" defaultValue="apple">
             <option value="apple">Apple</option>
             <option value="pear">Pear</option>
             <option value="stone">Plum &amp; Cherry</option>
@@ -80,191 +108,26 @@ export default async function HomePage() {
           </select>
         </div>
         <div>
-          <label>Pollination</label>
-          <select defaultValue="self">
+          <label htmlFor="qs-poll">Pollination</label>
+          <select id="qs-poll" defaultValue="self">
             <option value="self">Self-fertile</option>
             <option value="partner">Needs partner</option>
             <option value="either">Either</option>
           </select>
         </div>
         <div>
-          <label>Rootstock</label>
-          <select defaultValue="standard">
+          <label htmlFor="qs-root">Rootstock</label>
+          <select id="qs-root" defaultValue="standard">
             <option value="standard">Standard</option>
             <option value="semi-dwarf">Semi-dwarf</option>
             <option value="dwarf">Dwarf</option>
             <option value="bush">Bush</option>
           </select>
         </div>
-        <button type="submit">Search →</button>
-      </section>
+        <button type="submit">Browse →</button>
+      </form>
 
-      <section className="section">
-        <div className="section-header">
-          <h2>Featured for this <em>bare-root window.</em></h2>
-          <span className="section-tag">— Ship March 7–31</span>
-        </div>
-        <div className="var-grid">
-          <Link href="/shop/honeycrisp-apple" className="var-card is-anchor">
-            <div className="var-img">
-              <span className="var-badge">★ Editor's pick</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={assetPath("nursery", "products/honeycrisp-apple.webp")}
-                alt="A single ripe red-and-yellow Honeycrisp apple, stem intact, on a white studio background."
-                loading="lazy"
-              />
-            </div>
-            <div className="var-info">
-              <div className="var-latin">Malus domestica</div>
-              <div className="var-name">Honeycrisp Apple</div>
-              <div className="var-specs">
-                <div><strong>Zone</strong> 3-7</div>
-                <div><strong>Bloom</strong> Mid</div>
-                <div><strong>Harvest</strong> Late Sep</div>
-                <div><strong>Rootstock</strong> M.111</div>
-              </div>
-              <div className="var-foot">
-                <span className="var-price">$42</span>
-                <span className="var-stock">● In stock · 64</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/shop/bartlett-pear" className="var-card">
-            <div className="var-img">
-              <span className="var-badge cold">Cold-hardy Z3</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={assetPath("nursery", "products/bartlett-pear.webp")}
-                alt="A close-packed pile of harvested green Bartlett pears, several with their brown stems still attached."
-                loading="lazy"
-              />
-            </div>
-            <div className="var-info">
-              <div className="var-latin">Pyrus communis</div>
-              <div className="var-name">Bartlett Pear</div>
-              <div className="var-specs">
-                <div><strong>Zone</strong> 3-8</div>
-                <div><strong>Bloom</strong> Early</div>
-                <div><strong>Harvest</strong> Aug</div>
-                <div><strong>Rootstock</strong> OHxF 87</div>
-              </div>
-              <div className="var-foot">
-                <span className="var-price">$38</span>
-                <span className="var-stock">● In stock · 41</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/shop/montmorency-sour-cherry" className="var-card">
-            <div className="var-img">
-              <span className="var-badge">Heirloom</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={assetPath("nursery", "products/montmorency-sour-cherry.webp")}
-                alt="Two bright-red Montmorency sour cherries hanging from a slender stem against blurred green tree foliage."
-                loading="lazy"
-              />
-            </div>
-            <div className="var-info">
-              <div className="var-latin">Prunus cerasus</div>
-              <div className="var-name">Montmorency Sour Cherry</div>
-              <div className="var-specs">
-                <div><strong>Zone</strong> 4-7</div>
-                <div><strong>Bloom</strong> Mid</div>
-                <div><strong>Harvest</strong> Jul</div>
-                <div><strong>Rootstock</strong> Mazzard</div>
-              </div>
-              <div className="var-foot">
-                <span className="var-price">$46</span>
-                <span className="var-stock">● Low · 8</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/shop/black-walnut-northern" className="var-card">
-            <div className="var-img">
-              <span className="var-badge cold">Native</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={assetPath("nursery", "products/black-walnut-northern.webp")}
-                alt="A mature Black Walnut tree in a park with thick furrowed bark and a wide spreading canopy of yellow-green compound leaves in early autumn."
-                loading="lazy"
-              />
-            </div>
-            <div className="var-info">
-              <div className="var-latin">Juglans nigra</div>
-              <div className="var-name">Black Walnut · Northern</div>
-              <div className="var-specs">
-                <div><strong>Zone</strong> 4-9</div>
-                <div><strong>Mature</strong> 70 ft</div>
-                <div><strong>Bears</strong> Year 8-10</div>
-                <div><strong>Stock</strong> 2-yr seedling</div>
-              </div>
-              <div className="var-foot">
-                <span className="var-price">$28</span>
-                <span className="var-stock">● In stock · 112</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/shop/damson-plum-shropshire" className="var-card">
-            <div className="var-img">
-              <span className="var-badge">★ Editor's pick</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={assetPath("nursery", "products/damson-plum.webp")}
-                alt="A cluster of deep blue-purple Damson plums with a soft bloom, hanging on the branch among bright green leaves."
-                loading="lazy"
-              />
-            </div>
-            <div className="var-info">
-              <div className="var-latin">Prunus insititia</div>
-              <div className="var-name">Damson Plum · 'Shropshire'</div>
-              <div className="var-specs">
-                <div><strong>Zone</strong> 4-8</div>
-                <div><strong>Bloom</strong> Mid</div>
-                <div><strong>Harvest</strong> Sep</div>
-                <div><strong>Self-fertile</strong> Yes</div>
-              </div>
-              <div className="var-foot">
-                <span className="var-price">$44</span>
-                <span className="var-stock">● In stock · 22</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/shop/concord-grape" className="var-card">
-            <div className="var-img">
-              <span className="var-badge cold">Cold-hardy Z3</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={assetPath("nursery", "products/concord-grape.webp")}
-                alt="Dusty-blue Concord grape clusters with morning dew on the vine, surrounded by autumn-yellow grape leaves."
-                loading="lazy"
-              />
-            </div>
-            <div className="var-info">
-              <div className="var-latin">Vitis labrusca</div>
-              <div className="var-name">Concord Grape</div>
-              <div className="var-specs">
-                <div><strong>Zone</strong> 4-8</div>
-                <div><strong>Bloom</strong> Late</div>
-                <div><strong>Harvest</strong> Sep-Oct</div>
-                <div><strong>Stock</strong> 2-yr vine</div>
-              </div>
-              <div className="var-foot">
-                <span className="var-price">$24</span>
-                <span className="var-stock">● In stock · 56</span>
-              </div>
-            </div>
-          </Link>
-        </div>
-        <div style={{ textAlign: "center", marginTop: "3rem" }}>
-          <Link href="/shop" className="btn btn-forest">Browse all 82 varieties →</Link>
-        </div>
-      </section>
+      <FeaturedLeadSellers products={products} total={total} />
 
       <section className="with-sidebar">
         <div>
@@ -287,9 +150,12 @@ export default async function HomePage() {
             year — let the tree spend its energy putting down roots, not
             pushing leaves it can't yet support.
           </p>
-          <div style={{ display: "flex", gap: "1rem", marginTop: "2rem" }}>
-            <Link href="/blog/planting-guide" className="btn btn-forest">Read the planting guide</Link>
-            <Link href="/videos/bare-root" className="btn btn-outline">Watch the 4-min video</Link>
+          {/* GOL-659 — /blog/planting-guide and /videos/bare-root were 404s.
+              Point at real routes: the live blog hub, and the on-page lead
+              form. Dedicated guide article + how-to video are a follow-up. */}
+          <div style={{ display: "flex", gap: "1rem", marginTop: "2rem", flexWrap: "wrap" }}>
+            <Link href="/blog" className="btn btn-forest">Read the field guide</Link>
+            <Link href="#notify" className="btn btn-outline">Get the ship-window alert</Link>
           </div>
         </div>
 
@@ -334,15 +200,19 @@ export default async function HomePage() {
             harvest preferences, and we'll send back a three-tree plan and the
             partner-pollination calendar.
           </p>
-          <Link href="/planting-plan" className="btn" style={{ marginTop: "1rem" }}>
-            Request a planting plan →
+          {/* /planting-plan was a 404 — no such route. Route the lead-gen CTA
+              to the on-page email form (real, in-page); a dedicated
+              planting-plan request form is a follow-up (see GOL-659 comment). */}
+          <Link href="#notify" className="btn" style={{ marginTop: "1rem" }}>
+            Request a planting plan &rarr;
           </Link>
         </div>
       </section>
 
       <section
+        id="notify"
         className="with-sidebar"
-        style={{ padding: "3rem 1.5rem", display: "flex", justifyContent: "center" }}
+        style={{ padding: "3rem 1.5rem", display: "flex", justifyContent: "center", scrollMarginTop: "2rem" }}
       >
         <CaptureForm
           brand="nursery"
