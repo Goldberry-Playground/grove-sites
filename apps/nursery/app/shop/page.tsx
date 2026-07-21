@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { ProductImage } from "../product-image";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
@@ -127,14 +127,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                     style={{ animationDelay: `${i * 80}ms` }}
                   >
                     <div className="var-img">
-                      {product.imageUrl && (
-                        <Image
-                          src={resolveOdooImageUrl(product.imageUrl, odooBase)}
-                          alt={product.name}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        />
-                      )}
+                      <ProductImage
+                        src={resolveOdooImageUrl(product.imageUrl, odooBase)}
+                        alt={product.name}
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      />
                       {product.featured && <span className="var-badge">Featured</span>}
                     </div>
                     <div className="var-info">

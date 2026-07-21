@@ -395,6 +395,47 @@ h1 em, h2 em, h3 em {
 }
 .var-card:hover .var-img img { transform: scale(1.04); }
 
+/* Real product photo (next/image fill) — keep parity with the plain-<img> path
+   so the two never diverge visually. */
+.product-photo { object-fit: cover; }
+
+/* Branded botanical placeholder (GOL-680) — shown when a product has no photo
+   yet or its image fails to load. Replaces the browser's / Odoo's gray
+   broken-image glyph with an intentional, on-brand frame. Fills any positioned
+   parent (.var-img, the detail hero, a companion tile). Monochrome line-art +
+   text label, so it reads the same in grayscale and to color-blind viewers —
+   no color-coded meaning. */
+.product-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  text-align: center;
+  background:
+    radial-gradient(115% 130% at 50% 0%, var(--parch-soft) 0%, var(--parch-deep) 100%);
+}
+.product-ph__mark {
+  width: 32%;
+  min-width: 38px;
+  max-width: 86px;
+  height: auto;
+  color: var(--forest);
+  opacity: 0.92;
+}
+.product-ph__label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--forest);
+  max-width: 100%;
+}
+
 @keyframes card-enter {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }

@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
+import { ProductImage } from "../../product-image";
 
 /**
  * Guild-companions strip (design spec §"Companions", v1 tag-inference).
@@ -36,15 +36,7 @@ export function CompanionsStrip({
               className="group rounded-lg border border-primary/10 overflow-hidden hover:border-primary/40 transition"
             >
               <div className="relative aspect-square bg-secondary/20">
-                {img && (
-                  <Image
-                    src={img}
-                    alt={c.name}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 50vw, 25vw"
-                  />
-                )}
+                <ProductImage src={img} alt={c.name} sizes="(max-width: 640px) 50vw, 25vw" />
               </div>
               <div className="p-3">
                 <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
