@@ -35,6 +35,17 @@ export interface ApiProductListItem {
   website_published: boolean;
   grove_featured: boolean;
   image_url: string;
+  /**
+   * Odoo's `image_128` field — base64 of the stored photo when one is set,
+   * `false` when the product has no image. This is the authoritative "has a
+   * real photo" signal: `image_url` is always a non-empty path even for
+   * imageless products (Odoo then serves its own gray placeholder at HTTP 200,
+   * indistinguishable from a real image), so the normalizer reads `image_128`
+   * to decide whether to show the branded botanical placeholder (GOL-680).
+   * Optional so older/partial payloads that omit it fall back to showing the
+   * URL. Inherited by ApiProductDetail.
+   */
+  image_128?: string | false;
   /** Cross-cutting tags (catalog API v1). Powers the /shop facet sidebar. */
   tags: ApiTag[];
   /** Website (public) categories — the plant-type browse taxonomy that drives
