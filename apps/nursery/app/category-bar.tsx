@@ -31,10 +31,19 @@ async function fetchProductsForCounts(): Promise<Product[]> {
 
 interface CategoryBarProps {
   activeSlug?: string | null;
+  /**
+   * Product set the pill counts are derived from. When provided (e.g. /shop with
+   * active zone/layer/sun/tag facets), the counts reflect those filters so the
+   * bar stays honest against the grid. When omitted (the homepage, which has no
+   * facets), CategoryBar fetches the full catalog itself. GOL-658: Josh asked the
+   * counts to "work off filters" — without this the bar always counted the full
+   * unfiltered catalog while the grid filtered server-side.
+   */
+  products?: Product[] | null;
 }
 
-export async function CategoryBar({ activeSlug }: CategoryBarProps) {
-  const products = await fetchProductsForCounts();
+export async function CategoryBar({ activeSlug, products: provided }: CategoryBarProps) {
+  const products = provided ?? (await fetchProductsForCounts());
 
   const allItem = {
     slug: "all",
