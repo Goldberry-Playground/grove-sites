@@ -180,27 +180,27 @@ const mockProductsBase: Product[] = [
 ];
 
 // Website (public) categories — the browse taxonomy the real catalog carries on
-// `Product.categories` (Trees/Shrubs/Vines, seeded on QA; slugs are
+// `Product.categories` (Josh's five use-type buckets, GOL-658; slugs are
 // `slugify(name)`). The demo set predates that field, so we derive a category
 // from each product's legacy plant-type tag: this keeps the /shop cat-bar counts
 // honest when Odoo is unreachable and the page falls back to this data, instead
 // of showing every pill at `· 0`. REMOVE with the rest of this file once Odoo is
 // the only source.
 const DEMO_CATEGORIES: Record<string, ProductCategory> = {
-  trees: { id: 2, name: "Trees", slug: "trees" },
-  shrubs: { id: 1, name: "Shrubs", slug: "shrubs" },
-  vines: { id: 3, name: "Vines", slug: "vines" },
+  "fruit-trees": { id: 1, name: "Fruit Trees", slug: "fruit-trees" },
+  berries: { id: 2, name: "Berries", slug: "berries" },
+  "fruiting-vines": { id: 3, name: "Fruiting Vines", slug: "fruiting-vines" },
+  "nut-trees": { id: 4, name: "Nut Trees", slug: "nut-trees" },
 };
 
 const TAG_TO_CATEGORY: Record<string, keyof typeof DEMO_CATEGORIES> = {
-  apple: "trees",
-  pear: "trees",
-  stone: "trees",
-  nuts: "trees",
-  rootstock: "trees",
-  "cold-strat": "trees",
-  "bare-root": "trees",
-  berries: "vines", // the only "berries" item in the demo set is Concord Grape
+  apple: "fruit-trees",
+  pear: "fruit-trees",
+  stone: "fruit-trees", // cherry, plum, persimmon
+  rootstock: "fruit-trees", // fruit-tree rootstock
+  nuts: "nut-trees",
+  berries: "fruiting-vines", // the only "berries" item in the demo set is Concord Grape (a vine)
+  // "bare-root" / "cold-strat" are product forms, not use-types — intentionally unmapped.
 };
 
 function deriveCategories(tags: string[] | undefined): ProductCategory[] {
