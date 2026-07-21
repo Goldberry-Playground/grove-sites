@@ -226,6 +226,7 @@ export default async function HomePage() {
           source="notify-me"
           label="nursery-restock"
           interests={["nursery"]}
+          eyebrow="Back-in-stock alert"
           heading="Want us to tell you when these are back?"
           description="We grow in seasonal batches, so stock comes and goes. Leave your email and we'll send one note the week these trees are ready to ship again — that's it."
           submitLabel="Notify me"

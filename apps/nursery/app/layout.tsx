@@ -63,6 +63,7 @@ export default async function RootLayout({
                 brand="nursery"
                 source="footer"
                 label="nursery-general"
+                eyebrow="Newsletter"
                 heading="News from the nursery"
                 description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
                 submitLabel="Sign up"
