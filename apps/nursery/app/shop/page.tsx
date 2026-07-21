@@ -13,6 +13,7 @@ import {
   countByCategory,
 } from "../../data/categories";
 import { parseFacetParams, applyTagFilter, buildTagFacet } from "../../lib/facets";
+import { plantCountLabel, variantCountLabel } from "../../lib/catalog-labels";
 import { FacetSidebar, type TypeOption } from "./facet-sidebar";
 
 // Render on every request so the page reflects current Odoo state and the
@@ -79,7 +80,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         <div className="section-header">
           <h2>{activeCategory ? activeCategory.label : tenantConfig.copy.shopHeading}</h2>
           <span className="section-tag">
-            {products.length} {products.length === 1 ? "variety" : "varieties"}
+            {plantCountLabel(products.length)}
             {base.length !== products.length ? ` · of ${base.length} total` : ""}
           </span>
         </div>
@@ -139,9 +140,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                         <span className="var-latin">{product.categoryName}</span>
                       )}
                       <h3 className="var-name">{product.name}</h3>
-                      {typeof product.variantCount === "number" && product.variantCount > 1 && (
-                        <span className="var-latin">{product.variantCount} varieties</span>
-                      )}
+                      <span className="var-latin">{variantCountLabel(product.variantCount)}</span>
                       <div className="var-foot">
                         <span className="var-price">
                           {typeof product.priceMin === "number"

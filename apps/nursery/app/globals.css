@@ -182,9 +182,23 @@ h1 em, h2 em, h3 em {
 .pano-hero::after {
   content: '';
   position: absolute; inset: 0;
+  /* Legibility scrim (GOL-681). Hero text — eyebrow, headline, CTAs, stats — sits
+     over a bright, high-luminance orchard photo; parchment (#F2EBD9) needs a very
+     dark backdrop to clear WCAG 4.5:1 over the blossom/grass highlights. Darken the
+     full bottom text band, plus a left wash under the headline column. The blossom
+     canopy in the top ~18% stays clear, so the image still reads. */
   background:
-    linear-gradient(to bottom, rgba(17,35,24,0.2) 0%, transparent 30%, transparent 50%, rgba(17,35,24,0.85) 100%),
-    linear-gradient(to right, rgba(17,35,24,0.5) 0%, transparent 40%);
+    linear-gradient(to top,
+      rgba(17,35,24,0.95) 0%,
+      rgba(17,35,24,0.88) 30%,
+      rgba(17,35,24,0.70) 52%,
+      rgba(17,35,24,0.42) 68%,
+      rgba(17,35,24,0.15) 82%,
+      transparent 100%),
+    linear-gradient(to right,
+      rgba(17,35,24,0.62) 0%,
+      rgba(17,35,24,0.28) 40%,
+      transparent 72%);
 }
 .pano-content {
   position: relative;
@@ -206,6 +220,10 @@ h1 em, h2 em, h3 em {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  /* Backstop for the highest hero line, which can ride over a bright blossom
+     patch above the strongest part of the scrim. Not counted toward WCAG, but
+     it sharpens real legibility. — GOL-681 */
+  text-shadow: 0 1px 3px rgba(10, 20, 14, 0.85);
 }
 .pano-eyebrow::before { content: '◐'; font-size: 14px; }
 .pano-hero h1 {
@@ -216,6 +234,7 @@ h1 em, h2 em, h3 em {
   letter-spacing: -0.025em;
   font-variation-settings: "opsz" 144;
   color: var(--parchment);
+  text-shadow: 0 1px 2px rgba(10, 20, 14, 0.55), 0 3px 18px rgba(10, 20, 14, 0.35);
 }
 .pano-hero h1 em { font-style: italic; color: var(--orange); }
 .pano-stats {
@@ -235,14 +254,20 @@ h1 em, h2 em, h3 em {
   line-height: 1;
   color: var(--parchment);
   font-variation-settings: "opsz" 144;
+  text-shadow: 0 1px 3px rgba(10, 20, 14, 0.6);
 }
 .pano-stat .label {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--leaf);
+  /* Was --leaf (#8AAB6E): ~3.9:1 on the scrim — fails 4.5:1 for 10px text. The
+     muted-parchment token clears it while keeping the num brighter than the label
+     for hierarchy. Color is not the only signal here (size + weight carry it too),
+     so this stays color-blind safe. — GOL-681 */
+  color: var(--parchment-deep);
   margin-top: 6px;
+  text-shadow: 0 1px 3px rgba(10, 20, 14, 0.6);
 }
 
 /* Quick-search filter row */
@@ -694,6 +719,26 @@ h1 em, h2 em, h3 em {
   }
   .qsearch h3, .qsearch button { white-space: normal; }
   .field-notes { position: static; }
+  /* On a tall, narrow phone the bottom-anchored hero pushes the headline UP into
+     the bright blossom canopy, where a bottom-weighted scrim is too weak. Swap in
+     a near-full, strong scrim so the whole text column clears 4.5:1; the orchard
+     still reads as a dark, textured backdrop. — GOL-681 */
+  .pano-hero::after {
+    background: linear-gradient(to top,
+      rgba(17,35,24,0.95) 0%,
+      rgba(17,35,24,0.90) 40%,
+      rgba(17,35,24,0.80) 66%,
+      rgba(17,35,24,0.55) 82%,
+      rgba(17,35,24,0.32) 100%);
+  }
+  /* Single-column hero: keep the stat block a clearly separate module below the
+     headline/CTA so the two never read as one cramped stack. — GOL-681 */
+  .pano-content { gap: 2.25rem; }
+  .pano-stats {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(213, 100, 26, 0.35);
+  }
 }
 
 /* Mobile-tight refinements (≤480px, covers 390px iPhone width).
@@ -710,6 +755,9 @@ h1 em, h2 em, h3 em {
     gap: 0.75rem;
   }
   .pano-stat .num { font-size: 1.8rem; }
+  /* A touch more leading so the four-line headline breathes on a narrow column
+     and never visually collides with the CTA/stats below. — GOL-681 */
+  .pano-hero h1 { line-height: 1.05; }
   /* Anchor card collapses back to a normal card on mobile — it's a desktop
      hierarchy device, not a mobile one. */
   .var-grid > .var-card.is-anchor {
