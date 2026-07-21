@@ -36,6 +36,22 @@ function emptyToNull(value: string): string | null {
   return value ? value : null;
 }
 
+/**
+ * grove_headless always emits an `image_url` path — even for products with no
+ * real photo. Odoo then serves its own gray placeholder at HTTP 200 for those,
+ * which is indistinguishable (over HTTP) from a real image, so the storefront
+ * can't fall back on a load error. The authoritative signal is Odoo's
+ * `image_128` field (base64 when a photo is set, `false` when empty). Collapse
+ * the URL to "" when there's no real image so <ProductImage> renders the
+ * branded botanical placeholder instead of Odoo's gray box (GOL-680).
+ *
+ * Undefined `image_128` (older/partial payload that omits the field) is treated
+ * as "assume the URL is real" so we never blank a genuine photo on a stale API.
+ */
+function photoUrlOrEmpty(imageUrl: string, image128: string | false | undefined): string {
+  return image128 === undefined || image128 ? imageUrl : "";
+}
+
 export function normalizeProductListItem(raw: ApiProductListItem): Product {
   return {
     id: raw.id,
@@ -46,7 +62,7 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     seoDescription: null,
     price: raw.list_price,
     currency: null,
-    imageUrl: raw.image_url,
+    imageUrl: photoUrlOrEmpty(raw.image_url, raw.image_128),
     categoryId: null,
     categoryName: null,
     tags: (raw.tags ?? []).map((t) => t.name),
@@ -60,6 +76,13 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
 }
 
 export function normalizeProductDetail(raw: ApiProductDetail): Product {
+  // Authoritative "has a real photo" flag for this template (see photoUrlOrEmpty).
+  // Variants don't carry their own image_128, and in this catalog a variant only
+  // shows the template photo (or Odoo's inherited gray default) — so when the
+  // template has no photo, blank the variants' URLs too, otherwise the buy box's
+  // variant thumbnail (product-view: hero = variantImage ?? heroImage) would
+  // resurrect Odoo's gray box over the branded placeholder.
+  const hasTemplatePhoto = raw.image_128 === undefined || Boolean(raw.image_128);
   return {
     id: raw.id,
     // The detail endpoint returns `grove_slug`, not the list endpoint's aliased
@@ -74,7 +97,7 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     seoDescription: raw.grove_seo_description || null,
     price: raw.list_price,
     currency: raw.currency_id ? raw.currency_id.name : null,
-    imageUrl: raw.image_url,
+    imageUrl: photoUrlOrEmpty(raw.image_url, raw.image_128),
     categoryId: raw.categ_id ? raw.categ_id.id : null,
     categoryName: raw.categ_id ? raw.categ_id.name : null,
     tags: (raw.tags ?? []).map((t) => t.name),
@@ -84,7 +107,9 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // still distinguishes "out of stock" from "we don't track stock at all".
     available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
     featured: raw.grove_featured,
-    variants: (raw.variants ?? []).map(normalizeVariant),
+    variants: (raw.variants ?? [])
+      .map(normalizeVariant)
+      .map((v) => (hasTemplatePhoto ? v : { ...v, imageUrl: "" })),
     facts: raw.facts ? normalizeFacts(raw.facts) : undefined,
     images: (raw.images ?? []).map(normalizeImage),
   };
