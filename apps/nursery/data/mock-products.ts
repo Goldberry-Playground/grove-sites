@@ -12,9 +12,9 @@
 // IDs in this file rendered unrelated photos (bear, oranges, river) under
 // product names, which broke screen-reader trust as well as visual matching.
 
-import type { Product } from "@grove/odoo-client";
+import type { Product, ProductCategory } from "@grove/odoo-client";
 
-export const mockProducts: Product[] = [
+const mockProductsBase: Product[] = [
   {
     id: 201,
     slug: "honeycrisp-apple",
@@ -178,6 +178,44 @@ export const mockProducts: Product[] = [
     ],
   },
 ];
+
+// Website (public) categories — the browse taxonomy the real catalog carries on
+// `Product.categories` (Trees/Shrubs/Vines, seeded on QA; slugs are
+// `slugify(name)`). The demo set predates that field, so we derive a category
+// from each product's legacy plant-type tag: this keeps the /shop cat-bar counts
+// honest when Odoo is unreachable and the page falls back to this data, instead
+// of showing every pill at `· 0`. REMOVE with the rest of this file once Odoo is
+// the only source.
+const DEMO_CATEGORIES: Record<string, ProductCategory> = {
+  trees: { id: 2, name: "Trees", slug: "trees" },
+  shrubs: { id: 1, name: "Shrubs", slug: "shrubs" },
+  vines: { id: 3, name: "Vines", slug: "vines" },
+};
+
+const TAG_TO_CATEGORY: Record<string, keyof typeof DEMO_CATEGORIES> = {
+  apple: "trees",
+  pear: "trees",
+  stone: "trees",
+  nuts: "trees",
+  rootstock: "trees",
+  "cold-strat": "trees",
+  "bare-root": "trees",
+  berries: "vines", // the only "berries" item in the demo set is Concord Grape
+};
+
+function deriveCategories(tags: string[] | undefined): ProductCategory[] {
+  const keys = new Set<keyof typeof DEMO_CATEGORIES>();
+  for (const tag of tags ?? []) {
+    const key = TAG_TO_CATEGORY[tag];
+    if (key) keys.add(key);
+  }
+  return [...keys].map((key) => DEMO_CATEGORIES[key]);
+}
+
+export const mockProducts: Product[] = mockProductsBase.map((product) => ({
+  ...product,
+  categories: product.categories ?? deriveCategories(product.tags),
+}));
 
 export function getMockProductById(id: number): Product | null {
   return mockProducts.find((p) => p.id === id) ?? null;
