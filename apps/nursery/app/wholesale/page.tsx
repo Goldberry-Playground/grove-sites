@@ -83,8 +83,12 @@ export default function WholesalePage() {
             style={{
               maxWidth: "60ch",
               marginBottom: "1.5rem",
-              paddingLeft: "1.2rem",
+              paddingLeft: "1.4rem",
               lineHeight: 1.7,
+              // globals.css resets list-style on ul/ol; restore decimal markers
+              // so this reads as the numbered sequence it is.
+              listStyleType: "decimal",
+              listStylePosition: "outside",
             }}
           >
             <li>
