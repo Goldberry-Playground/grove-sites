@@ -63,7 +63,7 @@ export default async function HomePage() {
           <div className="pano-stats">
             <div className="pano-stat">
               <div className="num">{total}</div>
-              <div className="label">Varieties in catalog</div>
+              <div className="label">Plants in catalog</div>
             </div>
             <div className="pano-stat">
               <div className="num">USDA 3–7</div>

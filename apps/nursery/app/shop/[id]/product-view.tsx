@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
+import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 
@@ -101,20 +102,12 @@ export function ProductView({
         {/* Gallery */}
         <div>
           <div className="relative aspect-square bg-secondary/20 rounded-lg overflow-hidden">
-            {hero ? (
-              <Image
-                src={hero}
-                alt={name}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 50vw"
-                priority
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-foreground/30 text-sm">
-                No image yet
-              </div>
-            )}
+            <ProductImage
+              src={hero}
+              alt={name}
+              sizes="(max-width: 768px) 100vw, 50vw"
+              priority
+            />
             {featured && (
               <span className="absolute top-3 right-3 bg-accent text-white text-xs font-medium px-2 py-1 rounded">
                 Featured
