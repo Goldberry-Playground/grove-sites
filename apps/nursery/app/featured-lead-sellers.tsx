@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import { mockProducts } from "../data/mock-products";
+import { ProductImage } from "./product-image";
 import {
   selectLeadSellers,
   displayPrice,
@@ -95,14 +95,11 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                 ) : (
                   p.featured && <span className="var-badge">Featured</span>
                 )}
-                {p.imageUrl && (
-                  <Image
-                    src={resolveOdooImageUrl(p.imageUrl, odooBase)}
-                    alt={p.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  />
-                )}
+                <ProductImage
+                  src={resolveOdooImageUrl(p.imageUrl, odooBase)}
+                  alt={p.name}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
               </div>
               <div className="var-info">
                 {p.categoryName && <span className="var-latin">{p.categoryName}</span>}
