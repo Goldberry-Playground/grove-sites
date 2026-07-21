@@ -23,6 +23,12 @@ export interface CaptureFormProps {
   label?: string;
   /** Interest tags applied as Ghost labels on top of the brand. */
   interests?: string[];
+  /**
+   * Small kicker/eyebrow above the heading, e.g. "Newsletter" vs "Back-in-stock
+   * alert". Names the form's purpose so two captures on one page read as
+   * distinct offers rather than the same ask twice (GOL-682 #1).
+   */
+  eyebrow?: string;
   /** Section heading shown above the fields. */
   heading?: string;
   /** Supporting copy under the heading. */
@@ -82,6 +88,7 @@ export function CaptureForm({
   source = "newsletter-signup",
   label,
   interests,
+  eyebrow,
   heading,
   description,
   submitLabel = "Sign up",
@@ -171,6 +178,7 @@ export function CaptureForm({
         role="status"
         aria-live="polite"
       >
+        {eyebrow ? <p className="grove-capture__eyebrow">{eyebrow}</p> : null}
         {heading ? <p className="grove-capture__heading">{heading}</p> : null}
         <p className="grove-capture__success">{successMessage}</p>
       </div>
@@ -183,6 +191,7 @@ export function CaptureForm({
       onSubmit={handleSubmit}
       noValidate
     >
+      {eyebrow ? <p className="grove-capture__eyebrow">{eyebrow}</p> : null}
       {heading ? <p className="grove-capture__heading">{heading}</p> : null}
       {description ? <p className="grove-capture__desc">{description}</p> : null}
 

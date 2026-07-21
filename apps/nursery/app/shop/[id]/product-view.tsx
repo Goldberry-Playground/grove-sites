@@ -236,15 +236,18 @@ export function ProductView({
   );
 }
 
-/** Exact-count stock line per design spec (§7 "Stock display"). */
+/** Exact-count stock line per design spec (§7 "Stock display").
+ *  GOL-682 #4: status now carries colour + glyph + text (not colour alone), and
+ *  the token foregrounds clear 4.5:1 on parchment — the old text-red-600 was
+ *  4.06:1 and failed AA. */
 function stockDisplay(variant: ViewVariant | undefined, inStock: boolean): React.ReactNode {
-  if (!inStock) return <span className="text-red-600">Sold out</span>;
+  if (!inStock) return <span className="stock-line stock-line--out">Sold out</span>;
   if (variant && variant.qtyAvailable != null && variant.qtyAvailable > 0) {
     return (
-      <span className="text-green-700">
+      <span className="stock-line stock-line--in">
         {variant.qtyAvailable} in stock
       </span>
     );
   }
-  return <span className="text-green-700">In stock</span>;
+  return <span className="stock-line stock-line--in">In stock</span>;
 }

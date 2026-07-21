@@ -120,7 +120,11 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                       priceLabel(p)
                     )}
                   </span>
-                  <span className="var-stock">{p.available ? "In stock" : "Sold out"}</span>
+                  <span
+                    className={`var-stock ${p.available ? "var-stock--in" : "var-stock--out"}`}
+                  >
+                    {p.available ? "In stock" : "Sold out"}
+                  </span>
                 </div>
               </div>
             </Link>
