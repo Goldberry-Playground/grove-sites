@@ -11,6 +11,8 @@ export interface StickyAddToCartBarProps {
   imageUrl?: string;
   /** Sold-out / unavailable. */
   disabled?: boolean;
+  /** Idle CTA label (e.g. "Reserve" for preorder formats). Defaults to "Add to Cart". */
+  idleLabel?: string;
   /**
    * Item count for the cart badge. The app passes its cart total (0 during SSR /
    * before hydration so the badge stays hidden until the count is real).
@@ -40,6 +42,7 @@ export function StickyAddToCartBar({
   price,
   imageUrl,
   disabled = false,
+  idleLabel = "Add to Cart",
   cartQuantity = 0,
   onAdd,
   anchorSelector = "[data-add-to-cart-anchor]",
@@ -87,9 +90,9 @@ export function StickyAddToCartBar({
           onClick={handleAdd}
           disabled={disabled}
           className="grove-sticky-atc__btn"
-          aria-label={disabled ? "Sold out" : `Add ${name} to cart`}
+          aria-label={disabled ? "Sold out" : `${idleLabel}: ${name}`}
         >
-          {disabled ? "Sold out" : "Add to Cart"}
+          {disabled ? "Sold out" : idleLabel}
           {cartQuantity > 0 && (
             <span className="grove-sticky-atc__badge">
               {cartQuantity}

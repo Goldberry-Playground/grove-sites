@@ -3,6 +3,7 @@ import {
   cultivarOptions,
   formatOptions,
   pickVariant,
+  stripVariantCode,
   type SelectableVariant,
 } from "./variant-select";
 
@@ -43,5 +44,19 @@ describe("pickVariant", () => {
   });
   it("returns undefined for an empty list", () => {
     expect(pickVariant([], { cultivar: "x" })).toBeUndefined();
+  });
+});
+
+describe("stripVariantCode", () => {
+  it("removes a leading [SKU] prefix (never shown to customers)", () => {
+    expect(stripVariantCode("[FIG-AJ-BR] Fig (Adriatic JH, Bareroot)")).toBe(
+      "Fig (Adriatic JH, Bareroot)",
+    );
+  });
+  it("leaves names without a code prefix unchanged", () => {
+    expect(stripVariantCode("Fig (Adriatic JH, Bareroot)")).toBe("Fig (Adriatic JH, Bareroot)");
+  });
+  it("strips only the leading token, keeping later brackets", () => {
+    expect(stripVariantCode("[GN-APL-001] Honeycrisp [M.111]")).toBe("Honeycrisp [M.111]");
   });
 });

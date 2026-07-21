@@ -5,6 +5,7 @@ import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
+import { buyStateFor, type StockTone } from "../../../lib/buy-state";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
 export interface ViewImage {
@@ -85,12 +86,15 @@ export function ProductView({
     setPinnedImage(null);
   }
 
-  const hint = shippingHintFor({
+  // One buy-state decision drives the stock line, the CTA, and the sticky bar,
+  // so the inline box and the mobile bar can never contradict each other
+  // (GOL-678). A sold-out Bareroot is reservable, not dead.
+  const buy = buyStateFor({
+    available: selected ? selected.available : true,
+    qtyAvailable: selected?.qtyAvailable ?? null,
     shippingTier: selected?.shippingTier ?? null,
     format,
   });
-  const inStock = selected ? selected.available : true;
-  const stockLine = stockDisplay(selected, inStock);
 
   const cartName = selected?.name ?? name;
   const cartVariantId = selected?.id ?? productId;
@@ -206,9 +210,9 @@ export function ProductView({
             </div>
           )}
 
-          <p className="text-sm mb-2">{stockLine}</p>
+          <p className={`text-sm mb-2 ${STOCK_TONE_CLASS[buy.stockTone]}`}>{buy.stockLabel}</p>
 
-          {hint.preorder && (
+          {buy.showDepositNote && (
             <p className="text-xs text-foreground/60 mb-4">
               Bareroot ships in fall — reserve now with a $10 deposit applied to your total.
             </p>
@@ -221,7 +225,8 @@ export function ProductView({
               name={cartName}
               price={price}
               imageUrl={hero}
-              disabled={!inStock}
+              disabled={buy.ctaDisabled}
+              idleLabel={buy.ctaLabel}
             />
           </div>
 
@@ -237,21 +242,17 @@ export function ProductView({
         name={cartName}
         price={price}
         imageUrl={hero}
-        disabled={!inStock}
+        disabled={buy.ctaDisabled}
+        idleLabel={buy.ctaLabel}
       />
     </>
   );
 }
 
-/** Exact-count stock line per design spec (§7 "Stock display"). */
-function stockDisplay(variant: ViewVariant | undefined, inStock: boolean): React.ReactNode {
-  if (!inStock) return <span className="text-red-600">Sold out</span>;
-  if (variant && variant.qtyAvailable != null && variant.qtyAvailable > 0) {
-    return (
-      <span className="text-green-700">
-        {variant.qtyAvailable} in stock
-      </span>
-    );
-  }
-  return <span className="text-green-700">In stock</span>;
-}
+/** Stock-line colour per tone. Colour only reinforces the words in
+ * `buy.stockLabel` — meaning is never carried by colour alone (GOL-678). */
+const STOCK_TONE_CLASS: Record<StockTone, string> = {
+  "in-stock": "text-green-700",
+  reserve: "text-amber-700",
+  "sold-out": "text-red-600",
+};

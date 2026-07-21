@@ -52,6 +52,17 @@ export function pickVariant<T extends SelectableVariant>(
   return byCultivar ?? variants[0];
 }
 
+/**
+ * Strip a leading Odoo internal reference code from a variant display name
+ * (GOL-678). Odoo prefixes variant names with the bracketed `default_code`,
+ * e.g. `[FIG-AJ-BR] Fig (Adriatic JH, Bareroot)` — an internal SKU that must
+ * never reach customers. Removes a single leading `[...]` token and its
+ * following whitespace; names without one pass through unchanged.
+ */
+export function stripVariantCode(name: string): string {
+  return name.replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+}
+
 function distinct(values: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
