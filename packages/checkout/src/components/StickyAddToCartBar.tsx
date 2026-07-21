@@ -10,6 +10,8 @@ type StickyAddToCartBarProps = {
   price: number;
   imageUrl: string;
   disabled?: boolean;
+  /** Idle CTA label (e.g. "Reserve" for preorder formats). Defaults to "Add to Cart". */
+  idleLabel?: string;
   /** CSS selector of the inline Add-to-Cart region; see the kit component. */
   anchorSelector?: string;
 };
@@ -26,6 +28,7 @@ export function StickyAddToCartBar({
   price,
   imageUrl,
   disabled,
+  idleLabel,
   anchorSelector,
 }: StickyAddToCartBarProps) {
   const { add, openDrawer, totalQuantity, hydrated } = useCart();
@@ -36,6 +39,7 @@ export function StickyAddToCartBar({
       price={price}
       imageUrl={imageUrl}
       disabled={disabled}
+      idleLabel={idleLabel}
       anchorSelector={anchorSelector}
       // Hide the badge until the cart is hydrated so SSR and first client render
       // agree (both show 0 → no badge).

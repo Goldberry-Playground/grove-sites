@@ -6,6 +6,7 @@ import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
+import { buyStateFor, type StockTone } from "../../../lib/buy-state";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
 export interface ViewImage {
@@ -86,12 +87,15 @@ export function ProductView({
     setPinnedImage(null);
   }
 
-  const hint = shippingHintFor({
+  // One buy-state decision drives the stock line, the CTA, and the sticky bar,
+  // so the inline box and the mobile bar can never contradict each other
+  // (GOL-678). A sold-out Bareroot is reservable, not dead.
+  const buy = buyStateFor({
+    available: selected ? selected.available : true,
+    qtyAvailable: selected?.qtyAvailable ?? null,
     shippingTier: selected?.shippingTier ?? null,
     format,
   });
-  const inStock = selected ? selected.available : true;
-  const stockLine = stockDisplay(selected, inStock);
 
   const cartName = selected?.name ?? name;
   const cartVariantId = selected?.id ?? productId;
@@ -199,9 +203,14 @@ export function ProductView({
             </div>
           )}
 
-          <p className="text-sm mb-2">{stockLine}</p>
+          <p className="text-sm mb-2">
+            {/* Badge lives on an inner span: .stock-line is inline-flex (it
+                renders the status glyph via ::before), so it must not take
+                over the paragraph's block layout. */}
+            <span className={STOCK_TONE_CLASS[buy.stockTone]}>{buy.stockLabel}</span>
+          </p>
 
-          {hint.preorder && (
+          {buy.showDepositNote && (
             <p className="text-xs text-foreground/60 mb-4">
               Bareroot ships in fall — reserve now with a $10 deposit applied to your total.
             </p>
@@ -214,7 +223,8 @@ export function ProductView({
               name={cartName}
               price={price}
               imageUrl={hero}
-              disabled={!inStock}
+              disabled={buy.ctaDisabled}
+              idleLabel={buy.ctaLabel}
             />
           </div>
 
@@ -230,24 +240,21 @@ export function ProductView({
         name={cartName}
         price={price}
         imageUrl={hero}
-        disabled={!inStock}
+        disabled={buy.ctaDisabled}
+        idleLabel={buy.ctaLabel}
       />
     </>
   );
 }
 
-/** Exact-count stock line per design spec (§7 "Stock display").
- *  GOL-682 #4: status now carries colour + glyph + text (not colour alone), and
- *  the token foregrounds clear 4.5:1 on parchment — the old text-red-600 was
- *  4.06:1 and failed AA. */
-function stockDisplay(variant: ViewVariant | undefined, inStock: boolean): React.ReactNode {
-  if (!inStock) return <span className="stock-line stock-line--out">Sold out</span>;
-  if (variant && variant.qtyAvailable != null && variant.qtyAvailable > 0) {
-    return (
-      <span className="stock-line stock-line--in">
-        {variant.qtyAvailable} in stock
-      </span>
-    );
-  }
-  return <span className="stock-line stock-line--in">In stock</span>;
-}
+/** Stock-line class per tone (GOL-678 buy-state × GOL-682 #4 a11y tokens).
+ *  Colour only reinforces the words in `buy.stockLabel` — meaning is never
+ *  carried by colour alone: each token also renders a distinct glyph (filled
+ *  disc / diamond / hollow disc) and every foreground clears 4.5:1 on all
+ *  three parchment surfaces. Do NOT swap these back to raw Tailwind colours;
+ *  text-red-600 was 4.06:1 and text-amber-700 is 3.93:1 on paper-deep. */
+const STOCK_TONE_CLASS: Record<StockTone, string> = {
+  "in-stock": "stock-line stock-line--in",
+  reserve: "stock-line stock-line--reserve",
+  "sold-out": "stock-line stock-line--out",
+};

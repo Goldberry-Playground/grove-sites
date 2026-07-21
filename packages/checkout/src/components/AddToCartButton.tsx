@@ -11,6 +11,8 @@ type AddToCartButtonProps = {
   price: number;
   imageUrl: string;
   disabled: boolean;
+  /** Idle CTA label (e.g. "Reserve" for preorder formats). Defaults to "Add to Cart". */
+  idleLabel?: string;
 };
 
 /**
@@ -25,12 +27,14 @@ export function AddToCartButton({
   price,
   imageUrl,
   disabled,
+  idleLabel,
 }: AddToCartButtonProps) {
   const { add, openDrawer } = useCart();
 
   return (
     <UIAddToCartButton
       disabled={disabled}
+      idleLabel={idleLabel}
       onAddToCart={(quantity) => {
         add({ variantId, templateId, name, price, imageUrl }, quantity);
         trackAddToCart({ variantId, price, quantity });
