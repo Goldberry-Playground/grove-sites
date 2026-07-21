@@ -221,7 +221,14 @@ h1 em, h2 em, h3 em {
   font-size: 11px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--orange);
+  /* Eyebrow text must clear WCAG 4.5:1 over the hero photo. Orange (#D5641A,
+     rel. luminance ~0.23) measured 2.7:1 desktop / 1.1:1 mobile on nursery.qa —
+     it can't pass without a near-black scrim that would kill the image, so the
+     failing body-text role moves to parchment (measured 8.3:1 desktop; 4.9:1
+     mobile once the top scrim is held higher, see the ≤900px block below). The
+     orange accent is kept as the ◐ glyph below.
+     Brand sign-off: GOL-685 (Abigail/brand approved parchment). — GOL-683 */
+  color: var(--parchment);
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
@@ -231,7 +238,10 @@ h1 em, h2 em, h3 em {
      it sharpens real legibility. — GOL-681 */
   text-shadow: 0 1px 3px rgba(10, 20, 14, 0.85);
 }
-.pano-eyebrow::before { content: '◐'; font-size: 14px; }
+/* Decorative glyph keeps the orange brand accent. Icons need only 3:1; the
+   orange ◐ clears 3.68:1 on the darkest scrim band. Pinned explicitly because
+   the parent .pano-eyebrow now inherits parchment. — GOL-685 */
+.pano-eyebrow::before { content: '◐'; font-size: 14px; color: var(--orange); }
 .pano-hero h1 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -784,14 +794,19 @@ h1 em, h2 em, h3 em {
   /* On a tall, narrow phone the bottom-anchored hero pushes the headline UP into
      the bright blossom canopy, where a bottom-weighted scrim is too weak. Swap in
      a near-full, strong scrim so the whole text column clears 4.5:1; the orchard
-     still reads as a dark, textured backdrop. — GOL-681 */
+     still reads as a dark, textured backdrop. — GOL-681
+     GOL-685: the eyebrow is the topmost line and lands ~65px down over the
+     brightest fog/sky, where the original .32 top stop left even parchment at
+     2.75:1. Hold the scrim higher toward the top (.55 at the crown) so the
+     eyebrow clears 4.5:1 (measured 4.87:1 on nursery.qa). This is the minimal
+     darkening that passes; the blossom canopy still reads (mean L 0.31→0.15). */
   .pano-hero::after {
     background: linear-gradient(to top,
       rgba(17,35,24,0.95) 0%,
       rgba(17,35,24,0.90) 40%,
-      rgba(17,35,24,0.80) 66%,
-      rgba(17,35,24,0.55) 82%,
-      rgba(17,35,24,0.32) 100%);
+      rgba(17,35,24,0.82) 66%,
+      rgba(17,35,24,0.70) 84%,
+      rgba(17,35,24,0.55) 100%);
   }
   /* Single-column hero: keep the stat block a clearly separate module below the
      headline/CTA so the two never read as one cramped stack. — GOL-681 */
