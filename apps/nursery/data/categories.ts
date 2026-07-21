@@ -8,20 +8,26 @@ import type { Product } from "@grove/odoo-client";
  * that matches a product against the category.
  *
  * ── Taxonomy: website (public) categories, not free-form tags ──────────
- *   The browse taxonomy is the nursery's **website categories** — Trees,
- *   Shrubs, Vines — maintained in Odoo as `product.public.category`. The
- *   grove_headless catalog API serializes them on every product as
+ *   The browse taxonomy is the nursery's **website categories** — Josh's
+ *   five use-type buckets (Fruit Trees, Berries, Fruiting Vines, Nut Trees,
+ *   Natives & Ornamentals) confirmed on GOL-658 — maintained in Odoo as
+ *   `product.public.category` (`public_categ_ids`). The grove_headless
+ *   catalog API serializes them on every product as
  *   `categories: [{ id, name, slug }]` (grove-odoo-modules#31), and the
  *   odoo-client normalizer maps them onto `Product.categories`
  *   (`ProductCategory[]`, grove-sites#145). The `slug` is `slugify(name)`
- *   ("Trees" → "trees", "Stone Fruit" → "stone-fruit"), so a category's
- *   `slug` here lines up 1:1 with the API's category slug and with the
- *   server-side `?cat=<slug>` filter.
+ *   ("Fruit Trees" → "fruit-trees", "Natives & Ornamentals" →
+ *   "natives-ornamentals"), so a category's `slug` here lines up 1:1 with
+ *   the API's category slug and with the server-side `?cat=<slug>` filter.
+ *   (grove-odoo-modules#33 repoints each seeded species' `public_categ_ids`
+ *   from the growth-habit accounting bucket to these use-type buckets.)
  *
  *   This replaces the previous mock plant-type tags (apple/pear/stone/…),
  *   which the real catalog never carried — every pill counted `· 0` because
  *   `product.tags` held guild tags (Native/Wildlife/…), not those slugs
- *   (GOL-658).
+ *   (GOL-658). Nut Trees and Natives & Ornamentals have no potted stock yet,
+ *   so those two pills legitimately show `· 0` until such stock is seeded —
+ *   that is the correct taxonomy, not the old all-zero bug.
  *
  * ── How filtering works ────────────────────────────────────────────────
  *   1. CategoryBar links go to `/shop?cat=<slug>`.
@@ -50,8 +56,8 @@ import type { Product } from "@grove/odoo-client";
  *     visible change here so the nav label/description/order stay curated —
  *     but keep each `slug` equal to `slugify(<Odoo category name>)` or the
  *     count + `?cat` filter will silently miss.
- *   • Renaming a slug is a URL change — `/shop?cat=trees` is a contract.
- *     Avoid renaming unless coordinated with SEO + redirects.
+ *   • Renaming a slug is a URL change — `/shop?cat=fruit-trees` is a
+ *     contract. Avoid renaming unless coordinated with SEO + redirects.
  */
 
 export interface NurseryCategory {
@@ -74,31 +80,46 @@ function inCategory(slug: string): (product: Product) => boolean {
  * The ordered list of categories shown in the nav.
  *
  * Order matters — this is the left-to-right order users see in the CategoryBar.
- * Trees → Shrubs → Vines mirrors the food-forest structure (canopy/understory,
- * then the productive edge, then the vertical layer) and the seeded website
- * categories on QA.
+ * Josh's five use-type buckets (GOL-658), ordered stocked-first so the pills a
+ * shopper can actually browse today lead: Fruit Trees → Berries → Fruiting
+ * Vines carry the current potted catalog; Nut Trees and Natives & Ornamentals
+ * round out the range and show `· 0` until stock is seeded.
  */
 export const NURSERY_CATEGORIES: NurseryCategory[] = [
   {
-    slug: "trees",
-    label: "Trees",
+    slug: "fruit-trees",
+    label: "Fruit Trees",
     description:
-      "The canopy and understory of a food forest — fruit and nut trees that anchor a planting for decades. Pears, persimmons, serviceberry, and more, grown for cold-climate homesteads.",
-    matchProduct: inCategory("trees"),
+      "The backbone of a homestead food forest — fig, pear, and persimmon grown for cold-climate orchards. Long-lived trees that anchor a planting for decades and start bearing in a few short years.",
+    matchProduct: inCategory("fruit-trees"),
   },
   {
-    slug: "shrubs",
-    label: "Shrubs",
+    slug: "berries",
+    label: "Berries",
     description:
-      "Berry-bearing shrubs for the productive hedge and forest edge — aronia, fig, and kin. Quick to fruit, generous croppers, and at home in a mixed guild.",
-    matchProduct: inCategory("shrubs"),
+      "Fruiting shrubs for the productive hedge and forest edge — aronia and serviceberry, quick to crop and generous. Handfuls of antioxidant-dense fruit from plants that shrug off a hard winter.",
+    matchProduct: inCategory("berries"),
   },
   {
-    slug: "vines",
-    label: "Vines",
+    slug: "fruiting-vines",
+    label: "Fruiting Vines",
     description:
-      "Perennial fruiting vines for fences, arbors, and vertical space — hardy kiwi and friends. Big yields from a small footprint.",
-    matchProduct: inCategory("vines"),
+      "Perennial vines for fences, arbors, and vertical space — hardy kiwi and kin. Big yields from a small footprint, trained up and out of the way.",
+    matchProduct: inCategory("fruiting-vines"),
+  },
+  {
+    slug: "nut-trees",
+    label: "Nut Trees",
+    description:
+      "Long-game canopy trees grown for the nut harvest — walnut, chestnut, and hazel. Plant once and feed a household for generations. Potted stock is on the way; check back as the nursery grows.",
+    matchProduct: inCategory("nut-trees"),
+  },
+  {
+    slug: "natives-ornamentals",
+    label: "Natives & Ornamentals",
+    description:
+      "Regional natives and pollinator-friendly ornamentals that knit a planting together — the supporting cast of a resilient food forest. Potted stock is on the way; check back as the nursery grows.",
+    matchProduct: inCategory("natives-ornamentals"),
   },
 ];
 
