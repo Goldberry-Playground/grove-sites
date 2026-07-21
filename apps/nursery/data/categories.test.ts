@@ -13,6 +13,11 @@ import {
  * These tests lock the slug contract + the category-based matching.
  */
 
+// No `as Product` here on purpose: the return-type annotation is what keeps
+// this fixture honest. The cast was hiding four missing required fields
+// (seoDescription / imageUrl / categoryId / categoryName) and TS2352'd the
+// build. Left uncast, adding a required field to Product fails this file
+// loudly instead of silently producing a half-built object at runtime.
 function product(id: number, slugs: string[]): Product {
   return {
     id,
@@ -20,13 +25,17 @@ function product(id: number, slugs: string[]): Product {
     name: `Product ${id}`,
     sku: `SKU-${id}`,
     description: "",
+    seoDescription: null,
     price: 10,
     currency: "USD",
+    imageUrl: "",
+    categoryId: null,
+    categoryName: null,
     categories: slugs.map((slug, i) => ({ id: i + 1, name: slug, slug })),
     available: true,
     featured: false,
     variants: [],
-  } as Product;
+  };
 }
 
 const catalog: Product[] = [
