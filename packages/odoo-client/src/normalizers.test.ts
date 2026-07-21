@@ -65,6 +65,19 @@ describe("normalizeProductListItem", () => {
     });
     expect(result.tags).toEqual([]);
   });
+
+  it("maps website categories to {id,name,slug} for the cat-bar (GOL-658)", () => {
+    const result = normalizeProductListItem(honeycrispListItem);
+    expect(result.categories).toEqual([{ id: 2, name: "Trees", slug: "trees" }]);
+  });
+
+  it("tolerates a payload without categories (older API) → empty categories", () => {
+    const result = normalizeProductListItem({
+      ...honeycrispListItem,
+      categories: undefined as unknown as [],
+    });
+    expect(result.categories).toEqual([]);
+  });
 });
 
 describe("normalizeProductDetail — stock module absent (production today)", () => {
@@ -161,6 +174,12 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
         url: "/web/image/product.image/5/image_1024",
         thumbUrl: "/web/image/product.image/5/image_256",
       },
+    ]);
+  });
+
+  it("maps detail website categories to {id,name,slug} (GOL-658)", () => {
+    expect(normalizeProductDetail(honeycrispDetail).categories).toEqual([
+      { id: 2, name: "Trees", slug: "trees" },
     ]);
   });
 

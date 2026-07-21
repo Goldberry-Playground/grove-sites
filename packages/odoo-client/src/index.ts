@@ -4,6 +4,7 @@ export type {
   ProductVariant,
   GrowingFacts,
   ProductImage,
+  ProductCategory,
   ShippingTier,
   ProductListResult,
   Cart,
