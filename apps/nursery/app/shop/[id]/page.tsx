@@ -81,20 +81,32 @@ export default async function ProductDetailPage({
     imageUrl: resolveOdooImageUrl(v.imageUrl, odooBase),
   }));
 
+  // Breadcrumb category trail (GOL-679). Odoo's `categoryName` may arrive as a
+  // slash-joined path (e.g. "Plants / Shrubs") — split it into real crumbs so
+  // the whole trail uses one separator (›). Drop any segment equal to the
+  // product name so a product whose category shares its name doesn't render as
+  // "Fig › Fig".
+  const categoryCrumbs = (product.categoryName ?? "")
+    .split("/")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.toLowerCase() !== product.name.trim().toLowerCase());
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       <nav className="text-sm text-foreground/60 mb-4" aria-label="Breadcrumb">
         <Link href="/shop" className="hover:text-primary transition-colors">
           Shop
         </Link>
-        {product.categoryName && (
-          <>
-            <span className="mx-2">›</span>
-            <span>{product.categoryName}</span>
-          </>
-        )}
-        <span className="mx-2">›</span>
-        <span className="text-foreground/80">{product.name}</span>
+        {categoryCrumbs.map((crumb, i) => (
+          <span key={`${crumb}-${i}`}>
+            <span className="mx-2" aria-hidden="true">›</span>
+            <span>{crumb}</span>
+          </span>
+        ))}
+        <span className="mx-2" aria-hidden="true">›</span>
+        <span className="text-foreground/80" aria-current="page">
+          {product.name}
+        </span>
       </nav>
 
       {product.tags && product.tags.length > 0 && (
