@@ -120,6 +120,16 @@ h1 em, h2 em, h3 em {
   --rust: var(--orange-deep);
   /* nursery-only mid-green — no --grove-* role covers it (see note above). */
   --moss: #355A45;
+  /* Stock-status foregrounds (GOL-682 #4). Both clear WCAG AA 4.5:1 on the
+     parchment card ground (moss 6.5:1, brick 6.9:1) and are always paired with
+     a distinct glyph + text, so meaning never rides on colour alone (WCAG 1.4.1)
+     and survives greyscale / red-green colour-blindness (● vs ✕). */
+  --stock-in: var(--moss);
+  --stock-out: #9A1C11;
+  /* Reservable (bareroot preorder) — GOL-678. Amber-800, NOT Tailwind
+     amber-700: #B45309 is only 3.93:1 on --paper-deep and fails AA there.
+     This clears 4.5:1 on all three parchment surfaces (5.55:1 worst case). */
+  --stock-reserve: #92400E;
 }
 
 /* ─────────────────────────────────────────────
@@ -215,7 +225,14 @@ h1 em, h2 em, h3 em {
   font-size: 11px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--orange);
+  /* Eyebrow text must clear WCAG 4.5:1 over the hero photo. Orange (#D5641A,
+     rel. luminance ~0.23) measured 2.7:1 desktop / 1.1:1 mobile on nursery.qa —
+     it can't pass without a near-black scrim that would kill the image, so the
+     failing body-text role moves to parchment (measured 8.3:1 desktop; 4.9:1
+     mobile once the top scrim is held higher, see the ≤900px block below). The
+     orange accent is kept as the ◐ glyph below.
+     Brand sign-off: GOL-685 (Abigail/brand approved parchment). — GOL-683 */
+  color: var(--parchment);
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
@@ -225,7 +242,10 @@ h1 em, h2 em, h3 em {
      it sharpens real legibility. — GOL-681 */
   text-shadow: 0 1px 3px rgba(10, 20, 14, 0.85);
 }
-.pano-eyebrow::before { content: '◐'; font-size: 14px; }
+/* Decorative glyph keeps the orange brand accent. Icons need only 3:1; the
+   orange ◐ clears 3.68:1 on the darkest scrim band. Pinned explicitly because
+   the parent .pano-eyebrow now inherits parchment. — GOL-685 */
+.pano-eyebrow::before { content: '◐'; font-size: 14px; color: var(--orange); }
 .pano-hero h1 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -528,8 +548,74 @@ h1 em, h2 em, h3 em {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--moss);
+  color: var(--stock-in);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
 }
+/* Colour + shape + text, never colour alone (GOL-682 #4). The mark is drawn in
+   CSS (not a font glyph, which tofu'd in IBM Plex Mono) so it always renders and
+   inherits the status colour: in-stock is a FILLED disc, sold-out a HOLLOW ring
+   — distinguishable by fill in greyscale and under red-green colour-blindness. */
+.var-stock--in { color: var(--stock-in); }
+.var-stock--out { color: var(--stock-out); }
+.var-stock--in::before,
+.var-stock--out::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.var-stock--in::before { background: currentColor; }
+.var-stock--out::before { border: 1.5px solid currentColor; }
+
+/* Larger inline stock line for the product page (§7 "Stock display"). Shares the
+   two status tokens + the filled/hollow disc rule with the card badge above. */
+.stock-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-weight: 600;
+}
+.stock-line--in { color: var(--stock-in); }
+.stock-line--out { color: var(--stock-out); }
+.stock-line--reserve { color: var(--stock-reserve); }
+.stock-line--in::before,
+.stock-line--out::before,
+.stock-line--reserve::before {
+  content: "";
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.stock-line--in::before { background: currentColor; }
+.stock-line--out::before { border: 2px solid currentColor; }
+/* Reserve gets a filled DIAMOND — a third glyph distinct from the filled and
+   hollow discs, so in-stock / reserve / sold-out stay separable in greyscale
+   and for colour-blind readers (WCAG 1.4.1), not just by hue. */
+.stock-line--reserve::before {
+  background: currentColor;
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+/* Mobile facet-disclosure caret (GOL-682 #3) — CSS triangle, not a font glyph
+   (▸ tofu'd in the mono face). Points right when collapsed, rotates down on
+   open. Decorative: the button's aria-expanded carries the state for AT. */
+.facet-caret {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  transition: transform 0.15s ease;
+  flex: none;
+}
+.facet-caret[data-open="true"] { transform: rotate(90deg); }
 
 /* With-sidebar layout (field notes) */
 .with-sidebar {
@@ -722,14 +808,19 @@ h1 em, h2 em, h3 em {
   /* On a tall, narrow phone the bottom-anchored hero pushes the headline UP into
      the bright blossom canopy, where a bottom-weighted scrim is too weak. Swap in
      a near-full, strong scrim so the whole text column clears 4.5:1; the orchard
-     still reads as a dark, textured backdrop. — GOL-681 */
+     still reads as a dark, textured backdrop. — GOL-681
+     GOL-685: the eyebrow is the topmost line and lands ~65px down over the
+     brightest fog/sky, where the original .32 top stop left even parchment at
+     2.75:1. Hold the scrim higher toward the top (.55 at the crown) so the
+     eyebrow clears 4.5:1 (measured 4.87:1 on nursery.qa). This is the minimal
+     darkening that passes; the blossom canopy still reads (mean L 0.31→0.15). */
   .pano-hero::after {
     background: linear-gradient(to top,
       rgba(17,35,24,0.95) 0%,
       rgba(17,35,24,0.90) 40%,
-      rgba(17,35,24,0.80) 66%,
-      rgba(17,35,24,0.55) 82%,
-      rgba(17,35,24,0.32) 100%);
+      rgba(17,35,24,0.82) 66%,
+      rgba(17,35,24,0.70) 84%,
+      rgba(17,35,24,0.55) 100%);
   }
   /* Single-column hero: keep the stat block a clearly separate module below the
      headline/CTA so the two never read as one cramped stack. — GOL-681 */

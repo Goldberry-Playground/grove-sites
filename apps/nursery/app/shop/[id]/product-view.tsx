@@ -203,7 +203,12 @@ export function ProductView({
             </div>
           )}
 
-          <p className={`text-sm mb-2 ${STOCK_TONE_CLASS[buy.stockTone]}`}>{buy.stockLabel}</p>
+          <p className="text-sm mb-2">
+            {/* Badge lives on an inner span: .stock-line is inline-flex (it
+                renders the status glyph via ::before), so it must not take
+                over the paragraph's block layout. */}
+            <span className={STOCK_TONE_CLASS[buy.stockTone]}>{buy.stockLabel}</span>
+          </p>
 
           {buy.showDepositNote && (
             <p className="text-xs text-foreground/60 mb-4">
@@ -242,10 +247,14 @@ export function ProductView({
   );
 }
 
-/** Stock-line colour per tone. Colour only reinforces the words in
- * `buy.stockLabel` — meaning is never carried by colour alone (GOL-678). */
+/** Stock-line class per tone (GOL-678 buy-state × GOL-682 #4 a11y tokens).
+ *  Colour only reinforces the words in `buy.stockLabel` — meaning is never
+ *  carried by colour alone: each token also renders a distinct glyph (filled
+ *  disc / diamond / hollow disc) and every foreground clears 4.5:1 on all
+ *  three parchment surfaces. Do NOT swap these back to raw Tailwind colours;
+ *  text-red-600 was 4.06:1 and text-amber-700 is 3.93:1 on paper-deep. */
 const STOCK_TONE_CLASS: Record<StockTone, string> = {
-  "in-stock": "text-green-700",
-  reserve: "text-amber-700",
-  "sold-out": "text-red-600",
+  "in-stock": "stock-line stock-line--in",
+  reserve: "stock-line stock-line--reserve",
+  "sold-out": "stock-line stock-line--out",
 };
