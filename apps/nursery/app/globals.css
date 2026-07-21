@@ -120,6 +120,12 @@ h1 em, h2 em, h3 em {
   --rust: var(--orange-deep);
   /* nursery-only mid-green — no --grove-* role covers it (see note above). */
   --moss: #355A45;
+  /* Stock-status foregrounds (GOL-682 #4). Both clear WCAG AA 4.5:1 on the
+     parchment card ground (moss 6.5:1, brick 6.9:1) and are always paired with
+     a distinct glyph + text, so meaning never rides on colour alone (WCAG 1.4.1)
+     and survives greyscale / red-green colour-blindness (● vs ✕). */
+  --stock-in: var(--moss);
+  --stock-out: #9A1C11;
 }
 
 /* ─────────────────────────────────────────────
@@ -462,8 +468,64 @@ h1 em, h2 em, h3 em {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--moss);
+  color: var(--stock-in);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
 }
+/* Colour + shape + text, never colour alone (GOL-682 #4). The mark is drawn in
+   CSS (not a font glyph, which tofu'd in IBM Plex Mono) so it always renders and
+   inherits the status colour: in-stock is a FILLED disc, sold-out a HOLLOW ring
+   — distinguishable by fill in greyscale and under red-green colour-blindness. */
+.var-stock--in { color: var(--stock-in); }
+.var-stock--out { color: var(--stock-out); }
+.var-stock--in::before,
+.var-stock--out::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.var-stock--in::before { background: currentColor; }
+.var-stock--out::before { border: 1.5px solid currentColor; }
+
+/* Larger inline stock line for the product page (§7 "Stock display"). Shares the
+   two status tokens + the filled/hollow disc rule with the card badge above. */
+.stock-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-weight: 600;
+}
+.stock-line--in { color: var(--stock-in); }
+.stock-line--out { color: var(--stock-out); }
+.stock-line--in::before,
+.stock-line--out::before {
+  content: "";
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.stock-line--in::before { background: currentColor; }
+.stock-line--out::before { border: 2px solid currentColor; }
+
+/* Mobile facet-disclosure caret (GOL-682 #3) — CSS triangle, not a font glyph
+   (▸ tofu'd in the mono face). Points right when collapsed, rotates down on
+   open. Decorative: the button's aria-expanded carries the state for AT. */
+.facet-caret {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  transition: transform 0.15s ease;
+  flex: none;
+}
+.facet-caret[data-open="true"] { transform: rotate(90deg); }
 
 /* With-sidebar layout (field notes) */
 .with-sidebar {
