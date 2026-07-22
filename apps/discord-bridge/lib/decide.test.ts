@@ -9,15 +9,17 @@ const CHANNELS: BufferChannel[] = [
   { id: "chFb", service: "facebook", name: "Grove FB" },
 ];
 
-function mockBuffer(): BufferLike & { drafts: Array<{ text: string; channelId: string }> } {
-  const drafts: Array<{ text: string; channelId: string }> = [];
+type Draft = { text: string; channelId: string; media?: unknown };
+
+function mockBuffer(): BufferLike & { drafts: Draft[] } {
+  const drafts: Draft[] = [];
   return {
     drafts,
     async listChannels() {
       return CHANNELS;
     },
-    async createDraft(text, channelId) {
-      drafts.push({ text, channelId });
+    async createDraft(text, channelId, media) {
+      drafts.push({ text, channelId, media });
       return { id: `draft_${drafts.length}`, status: "draft" };
     },
   };
@@ -35,6 +37,76 @@ const card = buildApprovalCard({
 function deps(buffer: BufferLike, extra?: Partial<DecideDeps>): DecideDeps {
   return { buffer, mirror: {}, now: "2026-07-22T20:00:00.000Z", ...extra };
 }
+
+describe("executeDecision — approve (text-only preserves today's behaviour)", () => {
+  it("calls createDraft with no media for every target when the suggestion has none", async () => {
+    const buffer = mockBuffer();
+    await executeDecision(
+      { decision: "approve", suggestionId: "cs_1", actor: "u1", message: card },
+      deps(buffer),
+    );
+    // Instagram is still attempted with undefined media — exactly as before
+    // GOL-718 (Buffer's live media requirement is what skips it in prod).
+    expect(buffer.drafts.map((d) => [d.channelId, d.media])).toEqual([
+      ["chThreads", undefined],
+      ["chIg", undefined],
+    ]);
+  });
+});
+
+describe("executeDecision — media threading (GOL-718)", () => {
+  const media = {
+    url: "https://cdn.goldberrygrove.farm/media/pawpaw.jpg",
+    type: "image" as const,
+    source: "canva" as const,
+    igPostType: "post" as const,
+    altText: "Ripe pawpaw fruit on the branch",
+  };
+  const mediaCard = buildApprovalCard({
+    id: "cs_2",
+    content: "Pawpaw season is here.",
+    targets: ["threads", "instagram"],
+    species: ["Pawpaw"],
+    media,
+  });
+
+  it("attaches media to the Instagram draft only, never to Threads", async () => {
+    const buffer = mockBuffer();
+    const { event } = await executeDecision(
+      { decision: "approve", suggestionId: "cs_2", actor: "u1", message: mediaCard },
+      deps(buffer),
+    );
+    const byChannel = Object.fromEntries(buffer.drafts.map((d) => [d.channelId, d.media]));
+    expect(byChannel.chThreads).toBeUndefined();
+    expect(byChannel.chIg).toEqual(media);
+    // Both drafted, audit unchanged in shape.
+    expect(event.platforms).toEqual(["threads", "instagram"]);
+    expect(event.failed_platforms).toEqual([]);
+  });
+
+  it("round-trips media through the stateless card (survives the codec)", async () => {
+    // Re-serialise the card the way Discord would echo it back, then decide off it.
+    const echoed = JSON.parse(JSON.stringify(mediaCard));
+    const buffer = mockBuffer();
+    await executeDecision(
+      { decision: "approve", suggestionId: "cs_2", actor: "u1", message: echoed },
+      deps(buffer),
+    );
+    const ig = buffer.drafts.find((d) => d.channelId === "chIg");
+    expect(ig?.media).toEqual(media);
+  });
+
+  it("revise carries the original card's media to the IG draft", async () => {
+    const buffer = mockBuffer();
+    await executeRevise(
+      { suggestionId: "cs_2", actor: "u1", targets: ["instagram"], text: "Pawpaw! #TreeFacts", message: mediaCard },
+      deps(buffer),
+    );
+    expect(buffer.drafts).toEqual([
+      { text: "Pawpaw! #TreeFacts", channelId: "chIg", media },
+    ]);
+  });
+});
 
 describe("executeDecision — approve", () => {
   it("creates one draft per target with platform-capped hashtags", async () => {

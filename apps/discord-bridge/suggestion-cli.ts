@@ -8,13 +8,17 @@
  *   `echo '{...}' | pnpm --filter @grove/discord-bridge suggest`
  *
  * Suggestion shape (see ContentSuggestion): { id, content, targets:[...],
- * species?, places?, practices?, extraTags?, headline? }. Hashtags are composed
- * per-platform at approval time — the card only shows the pool.
+ * species?, places?, practices?, extraTags?, headline?, media? }. Hashtags are
+ * composed per-platform at approval time — the card only shows the pool. The
+ * optional `media` (GOL-716 contract: { url, type, source, igPostType?, altText? })
+ * makes Instagram draft a real post; omit it and IG stays a skipped-but-audited
+ * target (GOL-714) while Threads still drafts.
  */
 import { readFileSync } from "node:fs";
 import { buildApprovalCard, PLATFORMS, type ContentSuggestion, type Platform } from "./lib/approval.ts";
 import { loadConfig } from "./lib/config.ts";
 import { postChannelMessage } from "./lib/discord.ts";
+import { validateMediaAsset } from "./lib/media.ts";
 
 function readInput(): string {
   const fileArg = process.argv[2];
@@ -42,6 +46,9 @@ function parseSuggestion(raw: string): ContentSuggestion {
     practices: strList(obj.practices),
     extraTags: strList(obj.extraTags),
     headline: typeof obj.headline === "string" ? obj.headline : undefined,
+    // Optional (GOL-716/718): validated strictly here so a bad asset fails loud
+    // at post time, not later at Buffer. Absent ⇒ text-only / IG-skip path.
+    media: validateMediaAsset(obj.media),
   };
 }
 

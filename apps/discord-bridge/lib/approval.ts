@@ -15,9 +15,11 @@
  * Pure/synchronous — no I/O; the server performs the Buffer/audit side effects.
  */
 import { ANCHOR_TAG, buildHashtagPool, type HashtagInput, type Platform } from "./hashtags.ts";
+import { readMediaAsset, type MediaAsset } from "./media.ts";
 import type { DiscordEmbed, DiscordMessage } from "./render.ts";
 
 export type { Platform } from "./hashtags.ts";
+export type { MediaAsset } from "./media.ts";
 
 /** Grove green (embed accent) — matches the digest card. */
 const GROVE_GREEN = 0x3f7d4e;
@@ -33,6 +35,13 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 /** Embed field names — load-bearing: the codec parses context back by these. */
 const FIELD_TARGETS = "Targets";
 const FIELD_POOL = "Hashtag pool";
+/**
+ * Media field — carries the media asset as JSON so the stateless card is the
+ * sole source of truth for the (possibly minutes-later) decision. The image is
+ * ALSO surfaced via `embed.image` for a human preview, but the JSON here is what
+ * the codec reads back — the preview URL alone loses type/source/igPostType.
+ */
+const FIELD_MEDIA = "Media";
 
 /** custom_id namespace for content-suggestion components (distinct from `insights:`). */
 export const CS_PREFIX = "cs";
@@ -55,6 +64,12 @@ export interface ContentSuggestion {
   extraTags?: string[];
   /** Optional headline shown as the card title. */
   headline?: string;
+  /**
+   * Optional media asset (GOL-716/718). When present, Instagram drafts a real
+   * post carrying this asset; when absent, IG stays a skipped-but-audited target
+   * (GOL-714) and only Threads drafts. Never applied to Threads.
+   */
+  media?: MediaAsset;
 }
 
 /** The three terminal decisions an approver can take. */
@@ -65,6 +80,8 @@ export interface CardContext {
   body: string;
   pool: string[];
   targets: Platform[];
+  /** Media recovered from the card (undefined ⇒ text-only / IG-skip path). */
+  media?: MediaAsset;
 }
 
 function hashtagInput(s: ContentSuggestion): HashtagInput {
@@ -76,15 +93,23 @@ export function buildApprovalCard(suggestion: ContentSuggestion): DiscordMessage
   const pool = buildHashtagPool(hashtagInput(suggestion));
   const targets = suggestion.targets.length ? suggestion.targets : PLATFORMS;
 
+  const fields = [
+    { name: FIELD_TARGETS, value: targets.map((t) => PLATFORM_LABEL[t]).join(" · "), inline: true },
+    { name: FIELD_POOL, value: pool.join(" "), inline: false },
+  ];
+  if (suggestion.media) {
+    // JSON is the machine-readable source of truth the codec reads back; the
+    // preview image (below) is for the human approver only.
+    fields.push({ name: FIELD_MEDIA, value: JSON.stringify(suggestion.media), inline: false });
+  }
+
   const embed: DiscordEmbed = {
     title: suggestion.headline?.trim() || "🌱 Content suggestion — awaiting review",
     description: suggestion.content.trim(),
     color: GROVE_GREEN,
     footer: { text: `id:${suggestion.id}` },
-    fields: [
-      { name: FIELD_TARGETS, value: targets.map((t) => PLATFORM_LABEL[t]).join(" · "), inline: true },
-      { name: FIELD_POOL, value: pool.join(" "), inline: false },
-    ],
+    fields,
+    ...(suggestion.media?.type === "image" ? { image: { url: suggestion.media.url } } : {}),
   };
 
   return {
@@ -186,9 +211,11 @@ export function parseCardContext(message: unknown): CardContext {
 
   let poolStr = "";
   let targetsStr = "";
+  let mediaStr = "";
   for (const f of fields) {
     if (f.name === FIELD_POOL) poolStr = f.value ?? "";
     else if (f.name === FIELD_TARGETS) targetsStr = f.value ?? "";
+    else if (f.name === FIELD_MEDIA) mediaStr = f.value ?? "";
   }
 
   const pool = poolStr.split(/\s+/).filter((t) => t.startsWith("#"));
@@ -197,7 +224,20 @@ export function parseCardContext(message: unknown): CardContext {
   const lower = targetsStr.toLowerCase();
   const targets = PLATFORMS.filter((p) => lower.includes(p));
 
-  return { body, pool, targets: targets.length ? targets : PLATFORMS };
+  // Lenient decode: a garbled/absent media field degrades to the IG-skip path,
+  // never throws — a decision must survive a mangled card.
+  const media = mediaStr ? readMediaAsset(safeJson(mediaStr)) : undefined;
+
+  return { body, pool, targets: targets.length ? targets : PLATFORMS, media };
+}
+
+/** Parse JSON without throwing (returns undefined on any error). */
+function safeJson(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
