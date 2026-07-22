@@ -55,6 +55,67 @@ describe("executeDecision — approve", () => {
   });
 });
 
+describe("executeDecision — resilient per-platform failure (GOL-714)", () => {
+  // Buffer rejects a text-only Instagram draft (needs media + a post type). One
+  // bad target must not abort the whole approve: Threads still drafts, the audit
+  // still emits, and the failure is recorded — never a partial+audit-less state.
+  function igRejectingBuffer(): BufferLike & { drafts: Array<{ text: string; channelId: string }> } {
+    const drafts: Array<{ text: string; channelId: string }> = [];
+    return {
+      drafts,
+      async listChannels() {
+        return CHANNELS;
+      },
+      async createDraft(text, channelId) {
+        if (channelId === "chIg") {
+          throw new Error(
+            "Buffer createDraft failed: Invalid post: Instagram posts require at least one image or video.,\nInstagram posts require a type (post, story, or reel).",
+          );
+        }
+        drafts.push({ text, channelId });
+        return { id: `draft_${drafts.length}`, status: "draft" };
+      },
+    };
+  }
+
+  it("drafts the platforms that succeed, records the failure, and still audits", async () => {
+    const buffer = igRejectingBuffer();
+    const { card: edited, event } = await executeDecision(
+      { decision: "approve", suggestionId: "cs_1", actor: "u1", message: card },
+      deps(buffer),
+    );
+    // Threads drafted; Instagram skipped — not thrown.
+    expect(buffer.drafts.map((d) => d.channelId)).toEqual(["chThreads"]);
+    expect(event.action).toBe("content_approved");
+    expect(event.buffer_draft_ids).toEqual(["draft_1"]);
+    expect(event.platforms).toEqual(["threads"]);
+    expect(event.failed_platforms).toEqual(["instagram"]);
+    expect(event.publish_mode).toBe("draft_only");
+    // Card is still the terminal (buttons removed) card, footer notes the skip.
+    expect(edited.components).toEqual([]);
+    expect(edited.embeds?.[0].footer?.text).toContain("instagram");
+  });
+
+  it("all targets failing still emits an audit with no drafts (never throws)", async () => {
+    const buffer: BufferLike = {
+      async listChannels() {
+        return CHANNELS;
+      },
+      async createDraft() {
+        throw new Error("Buffer GraphQL error: RATE_LIMIT_EXCEEDED — retry after 24h");
+      },
+    };
+    const { event } = await executeDecision(
+      { decision: "approve", suggestionId: "cs_1", actor: "u1", message: card },
+      deps(buffer),
+    );
+    expect(event.action).toBe("content_approved");
+    expect(event.buffer_draft_ids).toEqual([]);
+    expect(event.platforms).toEqual([]);
+    expect(event.failed_platforms).toEqual(["threads", "instagram"]);
+  });
+});
+
 describe("executeDecision — reject", () => {
   it("creates no drafts and audits the rejection", async () => {
     const buffer = mockBuffer();

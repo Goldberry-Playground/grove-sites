@@ -65,6 +65,63 @@ function resolveChannels(
   return out;
 }
 
+/** One platform's draft attempt (either an id on success or a short reason). */
+interface DraftResult {
+  successes: Array<{ platform: Platform; id: string }>;
+  failures: Array<{ platform: Platform; reason: string }>;
+}
+
+/** Trim a thrown error to one compact, human-readable line for the card/audit. */
+function shortReason(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Buffer surfaces multi-line business errors (e.g. IG media/type requirements)
+  // and rate-limit dumps — keep the first line and cap it so cards stay tidy.
+  return msg.split("\n")[0].trim().slice(0, 180);
+}
+
+/**
+ * Draft each resolved channel independently: a per-platform failure (e.g. Buffer
+ * rejecting a text-only Instagram draft for missing media, or a 429 rate limit)
+ * is recorded and skipped — it never aborts the other platforms. This keeps one
+ * bad target from leaving a partial draft with no audit line (GOL-714).
+ */
+async function draftEach(
+  resolved: Array<{ platform: Platform; channelId: string }>,
+  textFor: (platform: Platform) => string,
+  buffer: BufferLike,
+): Promise<DraftResult> {
+  const successes: DraftResult["successes"] = [];
+  const failures: DraftResult["failures"] = [];
+  for (const { platform, channelId } of resolved) {
+    try {
+      const draft = await buffer.createDraft(textFor(platform), channelId);
+      successes.push({ platform, id: draft.id });
+    } catch (err) {
+      failures.push({ platform, reason: shortReason(err) });
+    }
+  }
+  return { successes, failures };
+}
+
+/** Human-readable card footer summarising what drafted and what didn't. */
+function outcomeDetail(prefix: string, result: DraftResult): string {
+  const parts: string[] = [];
+  if (result.successes.length) {
+    parts.push(
+      `${result.successes.length} Buffer draft(s) on ${result.successes
+        .map((s) => s.platform)
+        .join(", ")} (draft-only)`,
+    );
+  }
+  if (result.failures.length) {
+    parts.push(
+      `skipped ${result.failures.map((f) => `${f.platform} (${f.reason})`).join("; ")}`,
+    );
+  }
+  if (!parts.length) return `${prefix}no matching Buffer channels — no drafts created.`;
+  return `${prefix}${parts.join(" — ")}.`;
+}
+
 async function finish(
   event: AuditEvent,
   card: DiscordMessage,
@@ -93,28 +150,18 @@ export async function executeDecision(
 
   const { body, pool, targets } = parseCardContext(input.message);
   const resolved = resolveChannels(await deps.buffer.listChannels(), targets);
-
-  const draftIds: string[] = [];
-  const donePlatforms: Platform[] = [];
-  for (const { platform, channelId } of resolved) {
-    const text = composePost(body, pool, platform);
-    const draft = await deps.buffer.createDraft(text, channelId);
-    draftIds.push(draft.id);
-    donePlatforms.push(platform);
-  }
+  const result = await draftEach(resolved, (platform) => composePost(body, pool, platform), deps.buffer);
 
   const event = buildAuditEvent({
     action: "content_approved" as AuditAction,
     actor: input.actor,
     ts: deps.now,
     suggestion_id: input.suggestionId,
-    platforms: donePlatforms,
-    buffer_draft_ids: draftIds,
+    platforms: result.successes.map((s) => s.platform),
+    buffer_draft_ids: result.successes.map((s) => s.id),
+    failed_platforms: result.failures.map((f) => f.platform),
   });
-  const detail = draftIds.length
-    ? `${draftIds.length} Buffer draft(s) on ${donePlatforms.join(", ")} (draft-only).`
-    : "No matching Buffer channels — no drafts created.";
-  const card = decisionCard(input.message, "approve", input.actor, detail);
+  const card = decisionCard(input.message, "approve", input.actor, outcomeDetail("", result));
   return finish(event, card, deps);
 }
 
@@ -124,26 +171,17 @@ export async function executeRevise(
   deps: DecideDeps,
 ): Promise<{ card: DiscordMessage; event: AuditEvent }> {
   const resolved = resolveChannels(await deps.buffer.listChannels(), input.targets);
-
-  const draftIds: string[] = [];
-  const donePlatforms: Platform[] = [];
-  for (const { platform, channelId } of resolved) {
-    const draft = await deps.buffer.createDraft(input.text, channelId);
-    draftIds.push(draft.id);
-    donePlatforms.push(platform);
-  }
+  const result = await draftEach(resolved, () => input.text, deps.buffer);
 
   const event = buildAuditEvent({
     action: "content_revised",
     actor: input.actor,
     ts: deps.now,
     suggestion_id: input.suggestionId,
-    platforms: donePlatforms,
-    buffer_draft_ids: draftIds,
+    platforms: result.successes.map((s) => s.platform),
+    buffer_draft_ids: result.successes.map((s) => s.id),
+    failed_platforms: result.failures.map((f) => f.platform),
   });
-  const detail = draftIds.length
-    ? `Revised — ${draftIds.length} Buffer draft(s) on ${donePlatforms.join(", ")} (draft-only).`
-    : "Revised — no matching Buffer channels, no drafts created.";
-  const card = decisionCard(input.message, "revise", input.actor, detail);
+  const card = decisionCard(input.message, "revise", input.actor, outcomeDetail("Revised — ", result));
   return finish(event, card, deps);
 }

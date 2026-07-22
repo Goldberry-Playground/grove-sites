@@ -28,6 +28,8 @@ export interface AuditEventInput {
   platforms?: string[];
   /** Phase 2: Buffer draft ids created (approve/revise). */
   buffer_draft_ids?: string[];
+  /** Phase 2: platforms whose draft was skipped on a per-platform failure (GOL-714). */
+  failed_platforms?: string[];
 }
 
 export interface AuditEvent extends AuditEventInput {
@@ -69,6 +71,7 @@ export function renderMirrorComment(event: AuditEvent): string {
   if (event.suggestion_id) parts.push(`suggestion: \`${event.suggestion_id}\``);
   if (event.platforms?.length) parts.push(`platforms: ${event.platforms.join(", ")}`);
   if (event.buffer_draft_ids?.length) parts.push(`buffer drafts: ${event.buffer_draft_ids.join(", ")}`);
+  if (event.failed_platforms?.length) parts.push(`skipped: ${event.failed_platforms.join(", ")}`);
   if (event.reason) parts.push(`reason: ${event.reason}`);
   if (event.discord_message_link) parts.push(event.discord_message_link);
   return parts.join(" · ");
