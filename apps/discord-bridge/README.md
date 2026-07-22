@@ -12,13 +12,33 @@ Implements the CMO payload contract frozen in
 [GOL-233 §1](https://.../GOL-233) (Sora) against the architecture from
 [GOL-234](https://.../GOL-234) (Alice). Board go/no-go accepted 2026-07-11.
 
+## Phase 2 (GOL-470) — content-approval loop (draft-only)
+
+1. **Approval cards** — `suggestion-cli.ts` posts a Sora `content_suggestion` to
+   `#cmo-approvals` with **✅ Approve / ✏️ Revise / 🚫 Reject** buttons. The card
+   carries the post body + the hashtag pool + target platforms, so a click works
+   even after the (stateless) server restarts.
+2. **Approver allowlist** — only Macy + Josh may act (`interaction.member.user.id`
+   against `DISCORD_APPROVER_IDS`; Macy is baked in). Everyone else gets an
+   ephemeral deny with no state change.
+3. **Approve → Buffer drafts** — one **draft** (`saveToDraft:true`) per target
+   platform via `createPost` on `api.buffer.com`, each with platform-appropriate
+   hashtags. Never publishes. **Revise** opens a prefilled modal; the edited text
+   is drafted verbatim. **Reject** creates nothing.
+4. **Hashtags** — anchor `#TreeFacts` first, then species → place/practice;
+   Threads leans 1–3, Instagram 4–6; `#WoodWideWeb` is banned everywhere.
+5. **Audit** — every decision writes an immutable `evt_` record (draft-only) to
+   stdout and best-effort mirrors it to Paperclip via the scoped bridge key.
+
+The Buffer draft path uses the **same** `cmo_buffer_key` token as reads — it
+carries draft scope on the new GraphQL API (validated in GOL-590); no separate
+write token is needed.
+
 ## What it does NOT do (later phases)
 
-- Content-suggestion cards / approve-revise-reject flow → Phase 2 (GOL-259).
-- `/idea` intake → Phase 3 (GOL-260).
-- Buffer **write/schedule** scope → Phase 2 gate (a *separate* write-scoped
-  token; this app uses only the read-only insights token and never mutates).
-- Auto-publish → off by design (`publish_mode: draft_only`).
+- `/idea` intake → Phase 3 (GOL-471).
+- Media upload / caption+schedule spike → Phase 4 (GOL-472).
+- Auto-publish → off by design (`publish_mode: draft_only`), every phase.
 
 ## Design notes
 
@@ -44,12 +64,17 @@ lib/
   digest.ts        assembles the weekly_digest payload (GOL-233 §1c)
   render.ts        weekly_digest → Discord embed + period buttons
   verify.ts        Ed25519 request verification (node:crypto)
-  interactions.ts  routes verified interactions (PING / /insights / buttons)
+  interactions.ts  routes verified interactions (PING / /insights / approvals)
   discord.ts       Discord REST (post message, edit interaction, register cmds)
   insights.ts      orchestrator: pull Buffer → build digest
-  audit.ts         immutable evt_ audit records (GOL-233 §5b)
+  audit.ts         immutable evt_ audit records + Paperclip mirror (GOL-233 §5b)
+  hashtags.ts      Phase 2: hashtag pool + per-platform caps + ban list
+  allowlist.ts     Phase 2: approver allowlist (Macy + Josh)
+  approval.ts      Phase 2: card/modal builders + stateless card-context codec
+  decide.ts        Phase 2: approve/revise/reject → Buffer drafts + audit
 server.ts          HTTP interactions endpoint (deploy target)
 digest-cli.ts      scheduled/weekly digest entrypoint (cron target)
+suggestion-cli.ts  post a content_suggestion approval card (Phase 2)
 register-commands.ts  one-time /insights registration
 ```
 

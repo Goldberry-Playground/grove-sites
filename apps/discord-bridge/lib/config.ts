@@ -6,6 +6,8 @@
  * 1P item key → env var mapping is documented in `.env.example`.
  */
 
+import { parseApproverIds } from "./allowlist.ts";
+
 /** Buffer organization id (Goldberry Grove). Stable, not a secret. */
 export const BUFFER_ORG_ID_DEFAULT = "5a3295c5a73330590e63e1bb";
 
@@ -23,6 +25,20 @@ export interface BridgeConfig {
   discordPublicKey: string;
   /** Channel the weekly digest is auto-posted to (#cmo-approvals — GOL-262). */
   weeklyInsightsChannelId: string;
+  /**
+   * Channel Phase 2 approval cards are posted to. Per GOL-262 this is the same
+   * #cmo-approvals channel as the digest; kept as its own var so the two can be
+   * split later without a code change. Defaults to {@link weeklyInsightsChannelId}.
+   */
+  approvalsChannelId: string;
+  /** Discord user ids allowed to Approve/Revise/Reject (Macy always included). */
+  approverIds: Set<string>;
+  /** Scoped Paperclip bridge service key for the `evt_` audit mirror (GOL-592). */
+  bridgeKey?: string;
+  /** Issue the `evt_` audit records are mirrored onto. */
+  auditIssueId?: string;
+  /** Paperclip API base for the audit mirror (e.g. http://localhost:3100). */
+  paperclipApiBase?: string;
 }
 
 class MissingEnvError extends Error {
@@ -58,7 +74,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
     discordAppId: req(env, "DISCORD_APP_ID", missing),
     discordPublicKey: req(env, "DISCORD_PUBLIC_KEY", missing),
     weeklyInsightsChannelId: req(env, "DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID", missing),
+    // Phase 2 (GOL-470). Optional/defaulted so the digest keeps loading without them.
+    approvalsChannelId: "", // resolved below (defaults to the weekly channel)
+    approverIds: parseApproverIds(env.DISCORD_APPROVER_IDS),
+    bridgeKey: env.PAPERCLIP_BRIDGE_KEY?.trim() || undefined,
+    auditIssueId: env.PAPERCLIP_AUDIT_ISSUE_ID?.trim() || undefined,
+    paperclipApiBase: env.PAPERCLIP_API_BASE?.trim() || undefined,
   };
+  cfg.approvalsChannelId = env.DISCORD_APPROVALS_CHANNEL_ID?.trim() || cfg.weeklyInsightsChannelId;
   if (missing.length) throw new MissingEnvError(missing);
   return cfg;
 }
