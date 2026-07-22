@@ -15,7 +15,7 @@ import {
   type AuditEvent,
   type AuditMirrorConfig,
 } from "./audit.ts";
-import { decisionCard, parseCardContext, type Platform } from "./approval.ts";
+import { decisionCard, parseCardContext, type MediaAsset, type Platform } from "./approval.ts";
 import { composePost } from "./hashtags.ts";
 import type { DiscordMessage } from "./render.ts";
 import type { BufferChannel } from "./types.ts";
@@ -23,7 +23,7 @@ import type { BufferChannel } from "./types.ts";
 /** The minimal Buffer surface the decision flow needs (mockable in tests). */
 export interface BufferLike {
   listChannels(): Promise<BufferChannel[]>;
-  createDraft(text: string, channelId: string): Promise<{ id: string; status: string }>;
+  createDraft(text: string, channelId: string, media?: MediaAsset): Promise<{ id: string; status: string }>;
 }
 
 export interface DecideDeps {
@@ -84,17 +84,24 @@ function shortReason(err: unknown): string {
  * rejecting a text-only Instagram draft for missing media, or a 429 rate limit)
  * is recorded and skipped — it never aborts the other platforms. This keeps one
  * bad target from leaving a partial draft with no audit line (GOL-714).
+ *
+ * `media` (GOL-718) is attached to the Instagram draft only, and only when the
+ * suggestion carries it. Without media, Instagram is drafted exactly as before
+ * (Buffer rejects the media-less IG draft → recorded as a skipped-but-audited
+ * target). Threads is never given media.
  */
 async function draftEach(
   resolved: Array<{ platform: Platform; channelId: string }>,
   textFor: (platform: Platform) => string,
   buffer: BufferLike,
+  media?: MediaAsset,
 ): Promise<DraftResult> {
   const successes: DraftResult["successes"] = [];
   const failures: DraftResult["failures"] = [];
   for (const { platform, channelId } of resolved) {
     try {
-      const draft = await buffer.createDraft(textFor(platform), channelId);
+      const mediaFor = platform === "instagram" ? media : undefined;
+      const draft = await buffer.createDraft(textFor(platform), channelId, mediaFor);
       successes.push({ platform, id: draft.id });
     } catch (err) {
       failures.push({ platform, reason: shortReason(err) });
@@ -148,9 +155,14 @@ export async function executeDecision(
     return finish(event, card, deps);
   }
 
-  const { body, pool, targets } = parseCardContext(input.message);
+  const { body, pool, targets, media } = parseCardContext(input.message);
   const resolved = resolveChannels(await deps.buffer.listChannels(), targets);
-  const result = await draftEach(resolved, (platform) => composePost(body, pool, platform), deps.buffer);
+  const result = await draftEach(
+    resolved,
+    (platform) => composePost(body, pool, platform),
+    deps.buffer,
+    media,
+  );
 
   const event = buildAuditEvent({
     action: "content_approved" as AuditAction,
@@ -171,7 +183,10 @@ export async function executeRevise(
   deps: DecideDeps,
 ): Promise<{ card: DiscordMessage; event: AuditEvent }> {
   const resolved = resolveChannels(await deps.buffer.listChannels(), input.targets);
-  const result = await draftEach(resolved, () => input.text, deps.buffer);
+  // Media rides the original card, not the revise modal — recover it so an IG
+  // revise still carries the asset (else it would skip even with media present).
+  const { media } = parseCardContext(input.message);
+  const result = await draftEach(resolved, () => input.text, deps.buffer, media);
 
   const event = buildAuditEvent({
     action: "content_revised",

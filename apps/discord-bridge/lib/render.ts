@@ -31,6 +31,8 @@ export interface DiscordEmbed {
   color: number;
   footer: { text: string };
   fields?: DiscordEmbedField[];
+  /** Optional media preview (GOL-718 IG media on approval cards). */
+  image?: { url: string };
 }
 
 export interface DiscordButton {

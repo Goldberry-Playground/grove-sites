@@ -102,4 +102,62 @@ describe("BufferClient", () => {
     const client = new BufferClient("tok", "org1", impl);
     await expect(client.listChannels()).rejects.toThrow(/INSUFFICIENT_SCOPE/);
   });
+
+  it("createDraft: text-only mutation is unchanged (no media vars) — preserves GOL-590 shape", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      createPost: { __typename: "PostActionSuccess", post: { id: "p1", status: "draft" } },
+    }));
+    const client = new BufferClient("tok", "org1", impl);
+    const post = await client.createDraft("hello", "chThreads");
+    expect(post).toEqual({ id: "p1", status: "draft" });
+    expect(calls[0].variables).toEqual({ text: "hello" });
+    // No media half emitted on the text-only path.
+    expect(calls[0].query).not.toMatch(/media:/);
+    expect(calls[0].query).toContain('channelId: "chThreads"');
+  });
+
+  it("createDraft: media present emits media + type into the mutation and variables (GOL-718)", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      createPost: { __typename: "PostActionSuccess", post: { id: "p2", status: "draft" } },
+    }));
+    const client = new BufferClient("tok", "org1", impl);
+    await client.createDraft("caption", "chIg", {
+      url: "https://cdn.goldberrygrove.farm/a.jpg",
+      type: "image",
+      source: "canva",
+      igPostType: "post",
+      altText: "a pear",
+    });
+    expect(calls[0].query).toMatch(/media: \$media/);
+    expect(calls[0].query).toMatch(/type: \$type/);
+    expect(calls[0].variables).toEqual({
+      text: "caption",
+      type: "post",
+      media: [{ photo: "https://cdn.goldberrygrove.farm/a.jpg", altText: "a pear" }],
+    });
+  });
+
+  it("createDraft: a video asset is sent under `video`", async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      createPost: { __typename: "PostActionSuccess", post: { id: "p3", status: "draft" } },
+    }));
+    const client = new BufferClient("tok", "org1", impl);
+    await client.createDraft("clip", "chIg", {
+      url: "https://cdn.goldberrygrove.farm/c.mp4",
+      type: "video",
+      source: "manual",
+      igPostType: "reel",
+    });
+    expect(calls[0].variables).toMatchObject({
+      type: "reel",
+      media: [{ video: "https://cdn.goldberrygrove.farm/c.mp4" }],
+    });
+  });
+
+  it("createDraft: rejects an unsafe channelId before any request", async () => {
+    const { impl, calls } = fakeFetch(() => ({}));
+    const client = new BufferClient("tok", "org1", impl);
+    await expect(client.createDraft("x", 'ch"; hack')).rejects.toThrow(/unsafe channelId/);
+    expect(calls).toHaveLength(0);
+  });
 });
