@@ -1,10 +1,13 @@
 /**
- * Minimal Buffer GraphQL client (read-only insights).
+ * Minimal Buffer GraphQL client (insights read + Phase 2 draft create).
  *
- * Endpoint + schema verified live 2026-07-11 against the `buffer_api_token`
- * (X6cz, insights:read) in 1P Grove Infra. Uses the global `fetch` (Node 22+)
- * — no external deps. Write/schedule scope is a SEPARATE token and is out of
- * scope for Phase 1 (GOL-262); this client never mutates.
+ * Endpoint + schema verified live against `cmo_buffer_key` in 1P Grove Infra:
+ *  - read (2026-07-11): `channels` / `aggregatedPostMetrics` / `posts`.
+ *  - write (2026-07-20, GOL-590): the SAME token carries draft scope on the new
+ *    GraphQL API — `createPost(... saveToDraft:true)` stages a draft and never
+ *    publishes. No separate write token / OAuth app is needed. `createDraft`
+ *    below is the ONLY mutation this client performs, and it is draft-only.
+ * Uses the global `fetch` (Node 22+) — no external deps.
  */
 import { BUFFER_GRAPHQL_URL } from "./config.ts";
 import { engagements as sumEngagements, impressions as pickImpressions } from "./metrics.ts";
@@ -50,6 +53,51 @@ export class BufferClient {
     }
     if (!json.data) throw new Error("Buffer GraphQL: empty data");
     return json.data;
+  }
+
+  /**
+   * Create a DRAFT post on a single Buffer channel (Phase 2 approval loop).
+   *
+   * Mutation shape validated live against `api.buffer.com` in GOL-590
+   * (2026-07-20): `createPost` returns a union — `PostActionSuccess { post }`
+   * on success, `MutationError { message }` on a business error. `saveToDraft`
+   * pins it to draft-only; `schedulingType`/`mode` are the enum literals the
+   * live test proved. Post text is passed as a `$text` variable so it can never
+   * break out of the query; `channelId` comes from {@link listChannels} (a
+   * trusted Buffer id) and is validated before interpolation.
+   */
+  async createDraft(text: string, channelId: string): Promise<{ id: string; status: string }> {
+    if (!/^[A-Za-z0-9]+$/.test(channelId)) {
+      throw new Error(`Buffer createDraft: unsafe channelId ${JSON.stringify(channelId)}`);
+    }
+    const data = await this.query<{
+      createPost:
+        | { __typename: "PostActionSuccess"; post: { id: string; status: string } }
+        | { __typename: "MutationError"; message: string }
+        | Record<string, unknown>;
+    }>(
+      `mutation CreateDraft($text: String!) {
+        createPost(input: {
+          text: $text,
+          channelId: "${channelId}",
+          schedulingType: automatic,
+          mode: addToQueue,
+          saveToDraft: true
+        }) {
+          __typename
+          ... on PostActionSuccess { post { id status } }
+          ... on MutationError { message }
+        }
+      }`,
+      { text },
+    );
+    const result = data.createPost as {
+      __typename?: string;
+      post?: { id: string; status: string };
+      message?: string;
+    };
+    if (result?.post?.id) return result.post;
+    throw new Error(`Buffer createDraft failed: ${result?.message ?? "unexpected response"}`);
   }
 
   /** All connected channels for the org. */

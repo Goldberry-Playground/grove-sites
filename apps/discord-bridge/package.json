@@ -9,6 +9,7 @@
     "lint": "echo 'lint placeholder'",
     "start": "node --experimental-strip-types server.ts",
     "digest": "node --experimental-strip-types digest-cli.ts",
+    "suggest": "node --experimental-strip-types suggestion-cli.ts",
     "register-commands": "node --experimental-strip-types register-commands.ts"
   },
   "devDependencies": {
