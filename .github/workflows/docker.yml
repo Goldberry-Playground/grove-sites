@@ -241,8 +241,41 @@ jobs:
       # new exposure — but an app-write-only token would still be better. DO has
       # no API to mint scoped tokens (POST /v2/tokens → 403), so that needs a
       # human in the control panel. Swap the one op:// line below when it lands.
-      - name: Load DO token from 1Password
+      # HARDENING (2026-07-22 SA-outage): a credential/infra failure in the
+      # QA-redeploy leg must NOT red this check — build + smoke + push above
+      # already succeeded, and the image IS on GHCR. A deleted/rotated
+      # OP_CI_SA_TOKEN service account (which 403'd every main build until the
+      # SA was recreated) is an OPS problem, not a code regression, so it
+      # warns-and-skips instead of failing. A GENUINE deploy failure below
+      # (app not found, rollout error) still hard-fails — that is GOL-397's
+      # whole point and is preserved.
+      #
+      # Note the two distinct credential-failure modes, only one of which an
+      # empty-token guard would catch:
+      #   (a) token unset      -> `deploycreds` guard below
+      #   (b) token set but DEAD (SA deleted -> load-secrets 403) -> caught by
+      #       `continue-on-error` on the load step + the `dotoken.outcome` gate.
+      # The 2026-07-22 outage was (b), which is why presence alone is not enough.
+      - name: Check QA-redeploy credentials
+        id: deploycreds
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          # Matrix value via env, never ${{ }} inside run: — same
+          # defense-in-depth convention as the smoke-test + redeploy steps.
+          OP_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          QA_APP: ${{ matrix.qa_app }}
+        run: |
+          if [ -z "$OP_TOKEN" ]; then
+            echo "::warning title=QA redeploy skipped::OP_CI_SA_TOKEN is not set — ${QA_APP} keeps its previous image (:latest was still pushed to GHCR). Provision the CI service account, then re-run this workflow."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load DO token from 1Password
+        id: dotoken
+        if: steps.deploycreds.outputs.run == 'true'
+        continue-on-error: true
         uses: 1password/load-secrets-action@v4
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
@@ -250,15 +283,25 @@ jobs:
         with:
           export-env: true
 
+      # The load step is continue-on-error so a dead SA cannot red the job.
+      # If it failed, say so loudly and skip the deploy; the job still goes
+      # green because the image shipped.
+      - name: QA redeploy skipped — service account unavailable
+        if: steps.deploycreds.outputs.run == 'true' && steps.dotoken.outcome == 'failure'
+        env:
+          QA_APP: ${{ matrix.qa_app }}
+        run: |
+          echo "::warning title=QA redeploy skipped::OP_CI_SA_TOKEN failed to resolve the DO token (service account deleted/rotated, or 1Password unreachable). ${QA_APP} keeps its previous image; :latest was still pushed to GHCR. Fix the SA and re-run this workflow to roll QA forward."
+
       - name: Install doctl
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: steps.deploycreds.outputs.run == 'true' && steps.dotoken.outcome == 'success'
         uses: digitalocean/action-doctl@v2
         with:
           # From the 1Password step above (export-env wrote it to $GITHUB_ENV).
           token: ${{ env.DIGITALOCEAN_ACCESS_TOKEN }}
 
       - name: Redeploy ${{ matrix.qa_app }} onto the new image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: steps.deploycreds.outputs.run == 'true' && steps.dotoken.outcome == 'success'
         env:
           # Same defense-in-depth convention as the smoke-test step: matrix
           # values reach the shell via env, never via ${{ }} inside `run:`.
