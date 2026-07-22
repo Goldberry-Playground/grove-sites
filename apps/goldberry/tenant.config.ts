@@ -31,10 +31,11 @@ export const tenantConfig = {
     plum: "#5A2A4B",               // retained accent outside the brand guide
   },
   /** Exact Origin values accepted on state-changing BFF POSTs. Keep in
-   *  sync with prod hostnames + the dev port from package.json. */
+   *  sync with prod hostnames + the QA host + the dev port from package.json. */
   allowedOrigins: [
     "https://goldberrygrove.farm",
     "https://www.goldberrygrove.farm",
+    "https://goldberry.qa.gatheringatthegrove.com",
     "http://localhost:3001",
   ],
 } as const;
