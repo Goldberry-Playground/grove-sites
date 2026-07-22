@@ -2,7 +2,7 @@
 
 Discord bridge for the Grove CMO loop. **Phase 1 (GOL-262)** ships:
 
-1. **Weekly Buffer digest** — auto-posted to `#weekly-insights` every Monday
+1. **Weekly Buffer digest** — auto-posted to `#cmo-approvals` every Monday
    08:00 ET (GitHub Actions cron → `digest-cli.ts`).
 2. **`/insights [7d|30d|90d]`** slash command — the same digest on demand.
 3. **HTTP Interactions endpoint** — Ed25519-verified, powers the slash command
@@ -77,12 +77,14 @@ pnpm --filter @grove/discord-bridge start
 ## Deploy checklist (blocked on GOL-263 credential provisioning)
 
 1. Josh creates the Discord app + bot, saves `discord_bot_token`,
-   `discord_app_id`, `discord_public_key`, `discord_insights_channel_id` (the
-   `#weekly-insights` channel the digest posts to) and `discord_approvals_channel_id`
-   (the `#cmo-approvals` channel, reserved for Phase 2) to 1P `Grove Infra` (GOL-263).
+   `discord_app_id` and `discord_public_key` to 1P `Grove Infra` (GOL-263).
+   Per GOL-262 (Josh, 2026-07-22) the digest and the Phase 2 approval cards
+   share one channel — `#cmo-approvals` (id `1527338819177938955`), where the
+   bot is already a member. That id is a non-secret snowflake set inline in the
+   digest workflow, so no `discord_*_channel_id` 1P field is required.
 2. Deploy `server.ts` to a droplet; set the Discord **Interactions Endpoint URL**
    to `https://<host>/interactions` (Discord validates it with a PING —
    verification is already implemented).
 3. Run `register-commands` once.
 4. Enable the `discord-digest` GitHub Actions workflow (or a droplet cron).
-5. Verify: `/insights` returns a digest; Monday cron posts to `#weekly-insights`.
+5. Verify: `/insights` returns a digest; Monday cron posts to `#cmo-approvals`.

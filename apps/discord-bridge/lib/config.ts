@@ -21,7 +21,7 @@ export interface BridgeConfig {
   discordBotToken: string;
   discordAppId: string;
   discordPublicKey: string;
-  /** Channel the weekly digest is auto-posted to (#weekly-insights). */
+  /** Channel the weekly digest is auto-posted to (#cmo-approvals — GOL-262). */
   weeklyInsightsChannelId: string;
 }
 

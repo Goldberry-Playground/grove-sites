@@ -85,9 +85,10 @@ services:
         value: REPLACE_ME
       - key: DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID
         scope: RUN_TIME
-        type: SECRET
-        # op://Goldberry Grove - Admin/Grove Infra/discord_insights_channel_id
-        value: REPLACE_ME
+        type: GENERAL
+        # Shared #cmo-approvals channel (GOL-262, Josh 2026-07-22). A Discord
+        # snowflake is not a secret, so it is set inline — no 1P field needed.
+        value: "1527338819177938955"
 
 alerts:
   - rule: DEPLOYMENT_FAILED
