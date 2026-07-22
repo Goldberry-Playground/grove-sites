@@ -2,7 +2,7 @@
  * Scheduled weekly Buffer digest (Phase 1).
  *
  * Invoked Mondays 08:00 ET by the GitHub Actions cron (or a droplet cron):
- * pulls the last-7d digest and posts it to #weekly-insights. Accepts an
+ * pulls the last-7d digest and posts it to #cmo-approvals. Accepts an
  * optional period arg for manual/on-demand runs, e.g.:
  *   `pnpm --filter @grove/discord-bridge digest -- last30d`
  */

@@ -1,8 +1,14 @@
 name: Discord weekly digest
 
 ###############################################################################
-# Posts the weekly Buffer analytics digest to Discord #weekly-insights
-# (GOL-262 Phase 1). Runs Mondays 08:00 ET, or on demand via workflow_dispatch.
+# Posts the weekly Buffer analytics digest to Discord (GOL-262 Phase 1).
+# Runs Mondays 08:00 ET, or on demand via workflow_dispatch.
+#
+# Target channel: #cmo-approvals. Per Josh's 2026-07-22 call on GOL-262 the
+# digest and the (Phase 2) approval cards share one channel for now, so the
+# digest posts where the bot is already a member — no separate #weekly-insights
+# grant needed. The channel id is a Discord snowflake, not a secret (it shows up
+# in channel URLs), so it lives inline rather than in 1Password.
 #
 # Secrets come from 1Password via the service-account token (same pattern as the
 # rest of the Grove stack) — nothing sensitive lives in GitHub. Until the Discord
@@ -86,8 +92,10 @@ jobs:
           DISCORD_BOT_TOKEN: "op://Goldberry Grove - Admin/Grove Infra/discord_bot_token"
           DISCORD_APP_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_app_id"
           DISCORD_PUBLIC_KEY: "op://Goldberry Grove - Admin/Grove Infra/discord_public_key"
-          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "op://Goldberry Grove - Admin/Grove Infra/discord_insights_channel_id"
 
       - name: Post digest
         if: steps.guard.outputs.run == 'true'
+        env:
+          # Shared #cmo-approvals channel (see header). Non-secret snowflake.
+          DISCORD_WEEKLY_INSIGHTS_CHANNEL_ID: "1527338819177938955"
         run: pnpm --filter @grove/discord-bridge digest -- "${{ github.event.inputs.period || 'last7d' }}"
