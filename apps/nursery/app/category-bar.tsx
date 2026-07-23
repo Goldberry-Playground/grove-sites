@@ -70,7 +70,7 @@ export async function CategoryBar({ activeSlug, products: provided }: CategoryBa
     <CategoryBarView
       allItem={allItem}
       items={items}
-      trailing={{ label: "Wholesale", href: "/wholesale" }}
+      // Wholesale intentionally off the cat bar for QA (Josh 2026-07-23); /wholesale page stays routable.
       activeHref={activeHref}
     />
   );
