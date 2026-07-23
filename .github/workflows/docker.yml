@@ -26,6 +26,15 @@ on:
       - "package.json"
       - ".dockerignore"
       - ".github/workflows/docker.yml"
+  # On-demand redeploy of `main` HEAD. Needed because agent PRs are auto-merged
+  # by github-actions[bot] (the Actions GITHUB_TOKEN), and GitHub suppresses the
+  # `push` workflow run for commits made with GITHUB_TOKEN — so the merge that
+  # lands an agent frontend change never fires the build+publish leg and the QA
+  # apps keep serving the previously-deployed image (GOL-768). auto-approve.yml
+  # fires this dispatch after it lands an agent PR; `workflow_dispatch` is the
+  # documented exception to the GITHUB_TOKEN recursion guard, so that call DOES
+  # start a run. Also lets any maintainer re-fire a deploy without a new commit.
+  workflow_dispatch: {}
 
 concurrency:
   group: docker-frontends-${{ github.ref }}
@@ -186,7 +195,7 @@ jobs:
           format: table
 
       - name: Log in to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -194,7 +203,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag and push
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         env:
           IMAGE: ${{ matrix.image_name }}
           TAG: ${{ env.TEST_TAG }}
@@ -258,7 +267,7 @@ jobs:
       # The 2026-07-22 outage was (b), which is why presence alone is not enough.
       - name: Check QA-redeploy credentials
         id: deploycreds
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         env:
           # Matrix value via env, never ${{ }} inside run: — same
           # defense-in-depth convention as the smoke-test + redeploy steps.
