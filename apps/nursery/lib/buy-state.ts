@@ -12,15 +12,21 @@ import { shippingHintFor } from "./shipping-hints";
  * Three modes, derived once here and consumed by BOTH the inline buy box and
  * the mobile sticky bar so the two can never contradict each other:
  *
- *   in-stock   — on hand now                → "Add to Cart", enabled
- *   reservable — 0 on hand but preorderable → "Reserve",     enabled + deposit note
- *   sold-out   — 0 on hand, not preorderable→ "Sold out",    disabled
+ *   in-stock    — on hand now                → "Add to Cart", enabled
+ *   reservable  — 0 on hand but preorderable → "Reserve",     enabled + deposit note
+ *   sold-out    — 0 on hand, not preorderable→ "Sold out",    disabled
+ *   coming-soon — not for sale (sale_ok=False)→ "Coming soon", disabled
+ *
+ * `coming-soon` outranks the stock/preorder logic: a published-but-not-for-sale
+ * placeholder (GOL-760) must never offer a live Add-to-Cart or a Bareroot
+ * "Reserve" deposit, regardless of format or on-hand count. Purchasability
+ * (sale_ok) is a harder gate than availability (stock), so it is checked first.
  *
  * Every mode's `stockLabel` carries the meaning in *words*, not colour alone,
  * so the state survives grayscale / colour-blind reading (accessibility lens:
  * colour-independence).
  */
-export type BuyMode = "in-stock" | "reservable" | "sold-out";
+export type BuyMode = "in-stock" | "reservable" | "sold-out" | "coming-soon";
 
 export type StockTone = "in-stock" | "reserve" | "sold-out";
 
@@ -33,6 +39,13 @@ export interface BuyStateInput {
   shippingTier: ShippingTier | null;
   /** Selected Format axis value ("Bareroot" / "Potted"), for hint fallback. */
   format: string | null;
+  /**
+   * Product-level purchasability (Odoo `sale_ok`). `false` = a "coming soon"
+   * placeholder: published so the page renders, but locked from any purchase
+   * (GOL-760). Optional and defaulted to purchasable so existing callers and
+   * mocks are unaffected.
+   */
+  saleOk?: boolean;
 }
 
 export interface BuyState {
@@ -55,6 +68,22 @@ export interface BuyState {
  * product level — the caller supplies `available: true` in that case.
  */
 export function buyStateFor(input: BuyStateInput): BuyState {
+  // Purchasability (sale_ok) is a harder gate than stock: a "coming soon"
+  // placeholder is published-but-not-for-sale, so it must never surface a live
+  // Add-to-Cart or a Bareroot "Reserve" deposit — check it before the stock /
+  // preorder logic (GOL-760). Only an explicit `false` locks the box; absent /
+  // true keeps the existing behaviour for every other product.
+  if (input.saleOk === false) {
+    return {
+      mode: "coming-soon",
+      ctaDisabled: true,
+      ctaLabel: "Coming soon",
+      stockLabel: "Coming soon",
+      stockTone: "sold-out",
+      showDepositNote: false,
+    };
+  }
+
   const hint = shippingHintFor({
     shippingTier: input.shippingTier,
     format: input.format,

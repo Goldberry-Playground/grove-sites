@@ -134,6 +134,7 @@ export default async function ProductDetailPage({
         images={images}
         variants={variants}
         fallbackPrice={product.price}
+        saleOk={product.saleOk}
       />
 
       {product.description && (
