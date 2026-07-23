@@ -272,6 +272,18 @@ describe("normalizeProductDetail — stock module installed", () => {
   });
 });
 
+describe("normalizeProductDetail — saleOk (purchasability, GOL-760)", () => {
+  it("maps sale_ok=false to saleOk=false (coming-soon placeholder)", () => {
+    const result = normalizeProductDetail({ ...honeycrispDetail, sale_ok: false });
+    expect(result.saleOk).toBe(false);
+  });
+
+  it("defaults saleOk to true when the payload omits sale_ok (older API / purchasable)", () => {
+    const result = normalizeProductDetail(honeycrispDetail);
+    expect(result.saleOk).toBe(true);
+  });
+});
+
 describe("normalizeProductDetail — Odoo's many2one quirks (false instead of null)", () => {
   it("returns null currency when currency_id is false", () => {
     expect(normalizeProductDetail(honeycrispWithMissingFields).currency).toBeNull();

@@ -37,6 +37,11 @@ export interface ProductViewProps {
   variants: ViewVariant[];
   /** Product-level price used when the product has no variants. */
   fallbackPrice: number;
+  /**
+   * Product-level purchasability (Odoo `sale_ok`). `false` on a "coming soon"
+   * placeholder — the page renders but the buy box is locked (GOL-760).
+   */
+  saleOk?: boolean;
 }
 
 /**
@@ -54,6 +59,7 @@ export function ProductView({
   images,
   variants,
   fallbackPrice,
+  saleOk,
 }: ProductViewProps) {
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
   const [cultivar, setCultivar] = useState<string | null>(cultivars[0] ?? null);
@@ -95,6 +101,7 @@ export function ProductView({
     qtyAvailable: selected?.qtyAvailable ?? null,
     shippingTier: selected?.shippingTier ?? null,
     format,
+    saleOk,
   });
 
   const cartName = selected?.name ?? name;

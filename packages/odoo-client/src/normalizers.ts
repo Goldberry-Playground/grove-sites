@@ -115,6 +115,11 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // Fall back to the parent product's website_published flag so the page
     // still distinguishes "out of stock" from "we don't track stock at all".
     available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
+    // sale_ok gates purchasability independently of stock: a "coming soon"
+    // placeholder is published (page renders) but not for sale (buy box locked).
+    // Default true so list items, mocks, and older payloads that omit the field
+    // stay purchasable (GOL-760).
+    saleOk: raw.sale_ok ?? true,
     featured: raw.grove_featured,
     variants: (raw.variants ?? [])
       .map(normalizeVariant)
