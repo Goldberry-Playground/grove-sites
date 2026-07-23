@@ -7,7 +7,7 @@ import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
 import { CategoryBar } from "../category-bar";
 import { filterByCategory, findCategory } from "../../data/categories";
-import { parseFacetParams, applyTagFilter, buildTagFacet } from "../../lib/facets";
+import { parseFacetParams, applyTagFilter } from "../../lib/facets";
 import { plantCountLabel, variantCountLabel } from "../../lib/catalog-labels";
 import { FacetSidebar } from "./facet-sidebar";
 
@@ -61,7 +61,6 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   //    `typeContext` still feeds the bar's cross-faceted counts. The tag counts
   //    respect the current category/zone context so each tag stays togglable.
   const typeContext = applyTagFilter(base, tags);
-  const tagFacet = buildTagFacet(byCategory, tags);
 
   return (
     <>
@@ -89,7 +88,6 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
         <div className="flex flex-col md:flex-row gap-8">
           <FacetSidebar
-            tags={tagFacet}
             activeCat={cat}
             activeZone={zone}
             activeTags={tags}

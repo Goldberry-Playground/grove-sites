@@ -6,7 +6,6 @@ import { trackEvent } from "@grove/analytics";
 import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
 
 export interface FacetSidebarProps {
-  tags: FacetOption[];
   activeCat: string | null;
   activeZone: number | null;
   activeTags: string[];
@@ -27,7 +26,6 @@ function titleCase(value: string): string {
  * custom event — the spec's zero-infra analytics for "which facets get used".
  */
 export function FacetSidebar({
-  tags,
   activeCat,
   activeZone,
   activeTags,
@@ -55,17 +53,6 @@ export function FacetSidebar({
     if (value === null) next.delete(key);
     else next.set(key, value);
     commit(next, facet, value ?? "(cleared)");
-  }
-
-  function toggleTag(tag: string) {
-    const next = new URLSearchParams(searchParams.toString());
-    const current = next.getAll("tag");
-    next.delete("tag");
-    const after = current.includes(tag)
-      ? current.filter((t) => t !== tag)
-      : [...current, tag];
-    for (const t of after) next.append("tag", t);
-    commit(next, "tag", tag);
   }
 
   const activeCount =
@@ -162,29 +149,6 @@ export function FacetSidebar({
         </select>
       </FacetGroup>
 
-      {/* Usage tags */}
-      {tags.length > 0 && (
-        <FacetGroup label="Tags">
-          <ul className="space-y-1">
-            {tags.map((tag) => (
-              <li key={tag.value}>
-                <label className="flex cursor-pointer items-center justify-between rounded px-2 py-1 text-sm text-foreground/75 hover:bg-secondary/20">
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={tag.active}
-                      onChange={() => toggleTag(tag.value)}
-                      className="accent-primary"
-                    />
-                    {tag.value}
-                  </span>
-                  <span className="text-xs text-foreground/40">{tag.count}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </FacetGroup>
-      )}
       </div>
     </aside>
   );
