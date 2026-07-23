@@ -121,6 +121,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                         // paths; cards render far larger, so request the 1024px
                         // rung and let next/image downscale it crisply (GOL-761
                         // — grid was blurry vs the sharp detail page).
+                        // For source images ≤ 1024px (the current nursery photos) this rung is
+                        // byte-identical to the detail page's image_1920, so cards match /shop/[id].
                         src={resolveOdooImageUrl(
                           withOdooImageSize(product.imageUrl, 1024),
                           odooBase,
