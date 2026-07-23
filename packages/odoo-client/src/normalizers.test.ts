@@ -58,6 +58,23 @@ describe("normalizeProductListItem", () => {
     expect(result.imageUrl).toBe("");
   });
 
+  // GOL-684 contract: image_128 is always null; image_url itself is the signal
+  // (real path = photo, null = none). null image_128 must NOT blank a real URL —
+  // that regression hid every uploaded product photo on QA (2026-07-23).
+  it("keeps imageUrl when image_128 is null but image_url is a real path (GOL-684 contract)", () => {
+    const result = normalizeProductListItem({ ...honeycrispListItem, image_128: null });
+    expect(result.imageUrl).toBe("/web/image/product.template/2/image_128");
+  });
+
+  it("blanks imageUrl when image_url is null (GOL-684 imageless product)", () => {
+    const result = normalizeProductListItem({
+      ...honeycrispListItem,
+      image_url: null,
+      image_128: null,
+    });
+    expect(result.imageUrl).toBe("");
+  });
+
   it("keeps imageUrl when image_128 carries a base64 photo", () => {
     const result = normalizeProductListItem({
       ...honeycrispListItem,

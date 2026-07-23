@@ -34,7 +34,7 @@ export interface ApiProductListItem {
   default_code: string | false;
   website_published: boolean;
   grove_featured: boolean;
-  image_url: string;
+  image_url: string | null;
   /**
    * Odoo's `image_128` field — base64 of the stored photo when one is set,
    * `false` when the product has no image. This is the authoritative "has a
@@ -45,7 +45,7 @@ export interface ApiProductListItem {
    * Optional so older/partial payloads that omit it fall back to showing the
    * URL. Inherited by ApiProductDetail.
    */
-  image_128?: string | false;
+  image_128?: string | false | null;
   /** Cross-cutting tags (catalog API v1). Powers the /shop facet sidebar. */
   tags: ApiTag[];
   /** Website (public) categories — the plant-type browse taxonomy that drives
@@ -98,7 +98,7 @@ export interface ApiVariant {
   qty_available: number;
   /** Selection field: `false` only if the compute somehow yielded no tier. */
   shipping_tier: ShippingTier | false;
-  image_url: string;
+  image_url: string | null;
 }
 
 /** Gallery image from the product detail endpoint (catalog API v1). */
