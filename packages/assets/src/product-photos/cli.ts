@@ -119,9 +119,11 @@ function describeOp(p: PlannedFile): string {
   }
 }
 
-function printPlan(plan: IngestPlan, apply: boolean): void {
+// Dry-run only: the live path prints its own OK/skip lines as writes land,
+// so the plan verbs are always prospective.
+function printPlan(plan: IngestPlan): void {
   for (const p of plan.planned) {
-    const verb = p.status === "skip" ? "SKIP " : apply ? "WRITE" : "WOULD";
+    const verb = p.status === "skip" ? "SKIP " : "WOULD";
     const why = p.reason ? `  (${p.reason})` : "";
     console.log(`  ${verb}  ${p.file}  ->  ${describeOp(p)}${why}`);
   }
@@ -213,7 +215,7 @@ export async function runCli(argv: readonly string[]): Promise<number> {
   if (!opts.apply) {
     const plan = planIngest(match.matched, catalog);
     console.log(`\nDry run — nothing will be written (pass --apply for a live run):`);
-    printPlan(plan, false);
+    printPlan(plan);
     for (const u of match.unmatched) console.log(`  UNMATCHED  ${u.file}  (${u.reason})`);
     const bad = plan.problems.length + match.unmatched.length;
     if (bad > 0) console.log(`\n${bad} file(s) need attention before an --apply run.`);
