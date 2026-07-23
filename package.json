@@ -12,7 +12,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "clean": "turbo run clean",
-    "build:design-bundles": "bash scripts/build-design-bundles.sh"
+    "build:design-bundles": "bash scripts/build-design-bundles.sh",
+    "upload-asset": "pnpm --filter @grove/assets run ingest:products"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
