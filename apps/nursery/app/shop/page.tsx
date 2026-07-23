@@ -11,6 +11,9 @@ import { parseFacetParams, applyTagFilter } from "../../lib/facets";
 import { plantCountLabel, variantCountLabel } from "../../lib/catalog-labels";
 import { FacetSidebar } from "./facet-sidebar";
 
+// Deploy retrigger (GOL-768): agent auto-merges to main now re-fire docker.yml
+// via auto-approve.yml's workflow_dispatch, so this touch rolls the pending
+// GOL-761 image_1024 shop-grid fix live on nursery.qa. Safe to remove later.
 // Render on every request so the page reflects current Odoo state and the
 // live facet selection. (Build-time render can't reach Odoo when building
 // inside Docker; ISR returns once Odoo posts a revalidation webhook.)
