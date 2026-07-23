@@ -22,4 +22,5 @@ export type {
   ZoneLookupResult,
 } from "./types";
 export { createOdooClient, OdooApiError } from "./client";
-export { resolveOdooImageUrl } from "./images";
+export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
+export type { OdooImageSize } from "./images";

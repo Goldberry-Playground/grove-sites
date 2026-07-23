@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveOdooImageUrl } from "./images";
+import { resolveOdooImageUrl, withOdooImageSize } from "./images";
 
 const BASE = "https://odoo.qa.gatheringatthegrove.com";
 
@@ -39,5 +39,40 @@ describe("resolveOdooImageUrl", () => {
     expect(resolveOdooImageUrl("web/image/product.template/2/image_128", BASE)).toBe(
       `${BASE}web/image/product.template/2/image_128`,
     );
+  });
+});
+
+describe("withOdooImageSize", () => {
+  it("upgrades the resolution suffix on Odoo image paths (GOL-761)", () => {
+    expect(withOdooImageSize("/web/image/product.template/2/image_128", 1024)).toBe(
+      "/web/image/product.template/2/image_1024",
+    );
+  });
+
+  it("rewrites from any rung of the ladder", () => {
+    expect(withOdooImageSize("/web/image/product.template/2/image_1920", 512)).toBe(
+      "/web/image/product.template/2/image_512",
+    );
+    expect(withOdooImageSize("/web/image/product.product/3/image_256", 1024)).toBe(
+      "/web/image/product.product/3/image_1024",
+    );
+  });
+
+  it("only touches the image_<n> segment, not the id", () => {
+    expect(withOdooImageSize("/web/image/product.template/128/image_128", 512)).toBe(
+      "/web/image/product.template/128/image_512",
+    );
+  });
+
+  it("leaves non-Odoo assets untouched", () => {
+    for (const p of ["/products/tree.webp", "https://images.example.com/x.webp", "data:image/png;base64,abc"]) {
+      expect(withOdooImageSize(p, 1024)).toBe(p);
+    }
+  });
+
+  it("returns empty string for missing images", () => {
+    expect(withOdooImageSize("", 1024)).toBe("");
+    expect(withOdooImageSize(null, 1024)).toBe("");
+    expect(withOdooImageSize(undefined, 1024)).toBe("");
   });
 });

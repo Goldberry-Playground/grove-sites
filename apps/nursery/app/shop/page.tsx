@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { ProductImage } from "../product-image";
-import { resolveOdooImageUrl } from "@grove/odoo-client";
+import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
@@ -117,7 +117,14 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                   >
                     <div className="var-img">
                       <ProductImage
-                        src={resolveOdooImageUrl(product.imageUrl, odooBase)}
+                        // The list endpoint hands back thumbnail (image_128)
+                        // paths; cards render far larger, so request the 1024px
+                        // rung and let next/image downscale it crisply (GOL-761
+                        // — grid was blurry vs the sharp detail page).
+                        src={resolveOdooImageUrl(
+                          withOdooImageSize(product.imageUrl, 1024),
+                          odooBase,
+                        )}
                         alt={product.name}
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       />
