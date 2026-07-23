@@ -9,14 +9,16 @@ import {
 
 /**
  * The /shop cat-bar browses by website category — Josh's five use-type buckets
- * (Fruit Trees / Berries / Fruiting Vines / Nut Trees / Natives & Ornamentals,
- * GOL-658) carried on `Product.categories`, not by the old mock plant-type tags
- * (GOL-662). These tests lock the slug contract + the category-based matching.
+ * carried on `Product.categories`, not by the old mock plant-type tags
+ * (GOL-662). GOL-773 curated the display labels + order (Native · Fruit Tree ·
+ * Nut Tree · Fruit & Nut Shrubs · Vines) while keeping the slugs stable, so the
+ * `label` is now display-only and no longer mirrors the Odoo category name.
+ * These tests lock the slug contract + the category-based matching.
  */
 
 // slugify mirrors the API's `slugify(name)` (grove-odoo-modules#31/#33): lower,
 // drop "&", collapse non-alphanumerics to single hyphens, trim edges. Kept local
-// so the slug↔label contract is verified rather than assumed.
+// so the slug↔Odoo-name contract is verified rather than assumed.
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -24,6 +26,18 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+// The Odoo `product.public.category` names each slug is derived from. GOL-773
+// decoupled the shopper-facing `label` from the slug, so the slug↔label mirror
+// no longer holds — the slug must still equal `slugify(<Odoo category name>)`,
+// which is what actually keeps `?cat=` URLs and API counts aligned.
+const ODOO_CATEGORY_NAMES: Record<string, string> = {
+  "natives-ornamentals": "Natives & Ornamentals",
+  "fruit-trees": "Fruit Trees",
+  "nut-trees": "Nut Trees",
+  berries: "Berries",
+  "fruiting-vines": "Fruiting Vines",
+};
 
 // No `as Product` here on purpose: the return-type annotation is what keeps
 // this fixture honest. The cast was hiding four missing required fields
@@ -60,19 +74,22 @@ const catalog: Product[] = [
 ];
 
 describe("NURSERY_CATEGORIES", () => {
-  it("is Josh's five use-type buckets, stocked-first in nav order", () => {
+  it("is Josh's five use-type buckets, in GOL-773 browse order", () => {
     expect(NURSERY_CATEGORIES.map((c) => c.slug)).toEqual([
+      "natives-ornamentals",
       "fruit-trees",
+      "nut-trees",
       "berries",
       "fruiting-vines",
-      "nut-trees",
-      "natives-ornamentals",
     ]);
   });
 
   it("uses stable slugs that mirror slugify(<Odoo category name>)", () => {
+    // GOL-773: `label` is curated display copy and is NOT expected to slugify
+    // back to the slug (e.g. "Fruit & Nut Shrubs" → "berries"). The slug must
+    // stay pinned to the Odoo category name so `?cat=` filtering never breaks.
     for (const c of NURSERY_CATEGORIES) {
-      expect(c.slug).toBe(slugify(c.label));
+      expect(c.slug).toBe(slugify(ODOO_CATEGORY_NAMES[c.slug]));
     }
   });
 });
@@ -119,7 +136,7 @@ describe("filterByCategory", () => {
 
 describe("findCategory", () => {
   it("resolves known slugs and rejects unknown ones", () => {
-    expect(findCategory("fruit-trees")?.label).toBe("Fruit Trees");
+    expect(findCategory("fruit-trees")?.label).toBe("Fruit Tree");
     expect(findCategory("apple")).toBeNull();
     expect(findCategory(null)).toBeNull();
   });
