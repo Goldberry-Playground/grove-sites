@@ -52,15 +52,21 @@ export async function CategoryBar({ activeSlug, products: provided }: CategoryBa
     count: products.length,
   };
 
-  // Hide empty categories (GOL-682 #5): a pill at `· 0` is a dead end (Nut Trees
-  // and Natives carry no stock yet). Keep the active category visible even at 0
-  // so a shopper who filtered into it still sees the label and can clear it.
-  const items = NURSERY_CATEGORIES.map((category) => ({
-    slug: category.slug,
-    label: category.label,
-    href: `/shop?cat=${category.slug}`,
-    count: countByCategory(products, category.slug),
-  })).filter((item) => item.count > 0 || item.slug === activeSlug);
+  // Show all five canonical buckets (GOL-773 — Josh enumerated the full browse
+  // taxonomy: Native · Fruit Tree · Nut Tree · Fruit & Nut Shrubs · Vines).
+  // Buckets with no assigned stock yet (Native, Fruit & Nut Shrubs until GOL-757
+  // assigns products) drop their count so the pill reads as a clean coming-soon
+  // nav item, not a `· 0` dead end (the earlier GOL-682 #5 concern) — clicking
+  // one lands on a "stock is on the way" empty state rather than a blank grid.
+  const items = NURSERY_CATEGORIES.map((category) => {
+    const count = countByCategory(products, category.slug);
+    return {
+      slug: category.slug,
+      label: category.label,
+      href: `/shop?cat=${category.slug}`,
+      count: count > 0 ? count : undefined,
+    };
+  });
 
   // A category is active when its href matches; the "All" pill is active when
   // no category is selected (its href is "/shop").
