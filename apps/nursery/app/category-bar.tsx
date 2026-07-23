@@ -31,10 +31,19 @@ async function fetchProductsForCounts(): Promise<Product[]> {
 
 interface CategoryBarProps {
   activeSlug?: string | null;
+  /**
+   * Product set the pill counts are derived from. When provided (e.g. /shop with
+   * active zone/layer/sun/tag facets), the counts reflect those filters so the
+   * bar stays honest against the grid. When omitted (the homepage, which has no
+   * facets), CategoryBar fetches the full catalog itself. GOL-658: Josh asked the
+   * counts to "work off filters" — without this the bar always counted the full
+   * unfiltered catalog while the grid filtered server-side.
+   */
+  products?: Product[] | null;
 }
 
-export async function CategoryBar({ activeSlug }: CategoryBarProps) {
-  const products = await fetchProductsForCounts();
+export async function CategoryBar({ activeSlug, products: provided }: CategoryBarProps) {
+  const products = provided ?? (await fetchProductsForCounts());
 
   const allItem = {
     slug: "all",
@@ -43,12 +52,15 @@ export async function CategoryBar({ activeSlug }: CategoryBarProps) {
     count: products.length,
   };
 
+  // Hide empty categories (GOL-682 #5): a pill at `· 0` is a dead end (Nut Trees
+  // and Natives carry no stock yet). Keep the active category visible even at 0
+  // so a shopper who filtered into it still sees the label and can clear it.
   const items = NURSERY_CATEGORIES.map((category) => ({
     slug: category.slug,
     label: category.label,
     href: `/shop?cat=${category.slug}`,
     count: countByCategory(products, category.slug),
-  }));
+  })).filter((item) => item.count > 0 || item.slug === activeSlug);
 
   // A category is active when its href matches; the "All" pill is active when
   // no category is selected (its href is "/shop").

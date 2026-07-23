@@ -1,19 +1,15 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { ProductImage } from "../product-image";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
 import { CategoryBar } from "../category-bar";
-import {
-  NURSERY_CATEGORIES,
-  filterByCategory,
-  findCategory,
-  countByCategory,
-} from "../../data/categories";
+import { filterByCategory, findCategory } from "../../data/categories";
 import { parseFacetParams, applyTagFilter, buildTagFacet } from "../../lib/facets";
-import { FacetSidebar, type TypeOption } from "./facet-sidebar";
+import { plantCountLabel, variantCountLabel } from "../../lib/catalog-labels";
+import { FacetSidebar } from "./facet-sidebar";
 
 // Render on every request so the page reflects current Odoo state and the
 // live facet selection. (Build-time render can't reach Odoo when building
@@ -60,26 +56,22 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const products = applyTagFilter(byCategory, tags);
   const activeCategory = findCategory(cat);
 
-  // 3) Facet option models (cross-faceted counts stay honest: the type counts
-  //    respect the current tag/zone context; the tag counts respect the current
-  //    category/zone context — each ignores its own axis so it stays togglable).
+  // 3) Facet option models. The plant-type axis is the canonical top CategoryBar
+  //    (GOL-682 #2 — the left-rail "Type" list duplicated it, so it was dropped);
+  //    `typeContext` still feeds the bar's cross-faceted counts. The tag counts
+  //    respect the current category/zone context so each tag stays togglable.
   const typeContext = applyTagFilter(base, tags);
-  const types: TypeOption[] = NURSERY_CATEGORIES.map((c) => ({
-    slug: c.slug,
-    label: c.label,
-    count: countByCategory(typeContext, c.slug),
-  })).filter((t) => t.count > 0 || t.slug === cat);
   const tagFacet = buildTagFacet(byCategory, tags);
 
   return (
     <>
-      <CategoryBar activeSlug={cat} />
+      <CategoryBar activeSlug={cat} products={typeContext} />
 
       <section className="section">
         <div className="section-header">
           <h2>{activeCategory ? activeCategory.label : tenantConfig.copy.shopHeading}</h2>
           <span className="section-tag">
-            {products.length} {products.length === 1 ? "variety" : "varieties"}
+            {plantCountLabel(products.length)}
             {base.length !== products.length ? ` · of ${base.length} total` : ""}
           </span>
         </div>
@@ -97,7 +89,6 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
         <div className="flex flex-col md:flex-row gap-8">
           <FacetSidebar
-            types={types}
             tags={tagFacet}
             activeCat={cat}
             activeZone={zone}
@@ -127,14 +118,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                     style={{ animationDelay: `${i * 80}ms` }}
                   >
                     <div className="var-img">
-                      {product.imageUrl && (
-                        <Image
-                          src={resolveOdooImageUrl(product.imageUrl, odooBase)}
-                          alt={product.name}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        />
-                      )}
+                      <ProductImage
+                        src={resolveOdooImageUrl(product.imageUrl, odooBase)}
+                        alt={product.name}
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      />
                       {product.featured && <span className="var-badge">Featured</span>}
                     </div>
                     <div className="var-info">
@@ -142,16 +130,16 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                         <span className="var-latin">{product.categoryName}</span>
                       )}
                       <h3 className="var-name">{product.name}</h3>
-                      {typeof product.variantCount === "number" && product.variantCount > 1 && (
-                        <span className="var-latin">{product.variantCount} varieties</span>
-                      )}
+                      <span className="var-latin">{variantCountLabel(product.variantCount)}</span>
                       <div className="var-foot">
                         <span className="var-price">
                           {typeof product.priceMin === "number"
                             ? `from $${product.priceMin.toFixed(2)}`
                             : `$${product.price.toFixed(2)}`}
                         </span>
-                        <span className="var-stock">
+                        <span
+                          className={`var-stock ${product.available ? "var-stock--in" : "var-stock--out"}`}
+                        >
                           {product.available ? "In stock" : "Sold out"}
                         </span>
                       </div>

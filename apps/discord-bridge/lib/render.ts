@@ -19,11 +19,20 @@ const PERIOD_BUTTON: Record<Period, { emoji: string; label: string }> = {
 
 const BUFFER_ANALYTICS_URL_DEFAULT = "https://publish.buffer.com";
 
+export interface DiscordEmbedField {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
 export interface DiscordEmbed {
   title: string;
   description: string;
   color: number;
   footer: { text: string };
+  fields?: DiscordEmbedField[];
+  /** Optional media preview (GOL-718 IG media on approval cards). */
+  image?: { url: string };
 }
 
 export interface DiscordButton {

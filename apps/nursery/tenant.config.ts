@@ -24,10 +24,11 @@ export const tenantConfig = {
     foreground: "#1A2A1F",         // deep forest
   },
   /** Exact Origin values accepted on state-changing BFF POSTs. Keep in
-   *  sync with prod hostnames + the dev port from package.json. */
+   *  sync with prod hostnames + the QA host + the dev port from package.json. */
   allowedOrigins: [
     "https://atthegrovenursery.com",
     "https://www.atthegrovenursery.com",
+    "https://nursery.qa.gatheringatthegrove.com",
     "http://localhost:3003",
   ],
 } as const;

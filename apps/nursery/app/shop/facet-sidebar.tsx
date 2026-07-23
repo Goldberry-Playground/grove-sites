@@ -1,17 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { trackEvent } from "@grove/analytics";
 import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
 
-export interface TypeOption {
-  slug: string;
-  label: string;
-  count: number;
-}
-
 export interface FacetSidebarProps {
-  types: TypeOption[];
   tags: FacetOption[];
   activeCat: string | null;
   activeZone: number | null;
@@ -33,7 +27,6 @@ function titleCase(value: string): string {
  * custom event — the spec's zero-infra analytics for "which facets get used".
  */
 export function FacetSidebar({
-  types,
   tags,
   activeCat,
   activeZone,
@@ -44,6 +37,12 @@ export function FacetSidebar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Progressive disclosure (GOL-682 #3): on mobile the facet panel used to push
+  // the first product ~1.5 screens down, so it's collapsed behind a "Filter"
+  // toggle below the `md` breakpoint. On `md`+ the `md:block` on the body always
+  // wins over this state, so the panel is permanently open on desktop and the
+  // toggle is hidden — the state only drives the mobile view.
+  const [open, setOpen] = useState(false);
 
   function commit(next: URLSearchParams, facet: string, value: string) {
     trackEvent("filter_applied", { facet, value });
@@ -69,17 +68,34 @@ export function FacetSidebar({
     commit(next, "tag", tag);
   }
 
-  const hasFilters =
-    activeCat !== null ||
-    activeZone !== null ||
-    activeTags.length > 0 ||
-    activeLayer !== null ||
-    activeSun !== null;
+  const activeCount =
+    (activeCat !== null ? 1 : 0) +
+    (activeZone !== null ? 1 : 0) +
+    activeTags.length +
+    (activeLayer !== null ? 1 : 0) +
+    (activeSun !== null ? 1 : 0);
+  const hasFilters = activeCount > 0;
 
   return (
     <aside className="w-full md:w-56 shrink-0" aria-label="Filters">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/70">Filter</h2>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        {/* Mobile: the heading doubles as the disclosure toggle. Desktop: the
+            toggle is hidden (`md:hidden`) and this row is just the label + Clear. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls="facet-panel"
+          className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/70 md:pointer-events-none md:cursor-default"
+        >
+          <span aria-hidden="true" data-open={open} className="facet-caret md:hidden" />
+          <span>Filter</span>
+          {activeCount > 0 && (
+            <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground md:hidden">
+              {activeCount}
+            </span>
+          )}
+        </button>
         {hasFilters && (
           <button
             type="button"
@@ -94,30 +110,7 @@ export function FacetSidebar({
         )}
       </div>
 
-      {/* Type (plant category) */}
-      <FacetGroup label="Type">
-        <ul className="space-y-1">
-          {types.map((t) => {
-            const active = t.slug === activeCat;
-            return (
-              <li key={t.slug}>
-                <button
-                  type="button"
-                  onClick={() => setSingle("cat", active ? null : t.slug, "type")}
-                  aria-pressed={active}
-                  className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm transition ${
-                    active ? "bg-primary/10 text-primary font-medium" : "text-foreground/75 hover:bg-secondary/20"
-                  }`}
-                >
-                  <span>{t.label}</span>
-                  <span className="text-xs text-foreground/40">{t.count}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </FacetGroup>
-
+      <div id="facet-panel" className={`${open ? "block" : "hidden"} md:block`}>
       {/* Zone (server-side filter via catalog API `zone`) */}
       <FacetGroup label="Hardiness zone">
         <select
@@ -192,6 +185,7 @@ export function FacetSidebar({
           </ul>
         </FacetGroup>
       )}
+      </div>
     </aside>
   );
 }

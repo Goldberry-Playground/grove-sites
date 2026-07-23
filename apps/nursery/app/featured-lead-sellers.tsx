@@ -1,14 +1,15 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import { mockProducts } from "../data/mock-products";
+import { ProductImage } from "./product-image";
 import {
   selectLeadSellers,
   displayPrice,
   type LeadSeller,
 } from "../data/featured";
+import { variantCountLabel } from "../lib/catalog-labels";
 
 /**
  * Data-driven lead-seller row for the homepage (GOL-659).
@@ -94,21 +95,16 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                 ) : (
                   p.featured && <span className="var-badge">Featured</span>
                 )}
-                {p.imageUrl && (
-                  <Image
-                    src={resolveOdooImageUrl(p.imageUrl, odooBase)}
-                    alt={p.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  />
-                )}
+                <ProductImage
+                  src={resolveOdooImageUrl(p.imageUrl, odooBase)}
+                  alt={p.name}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                />
               </div>
               <div className="var-info">
                 {p.categoryName && <span className="var-latin">{p.categoryName}</span>}
                 <h3 className="var-name">{p.name}</h3>
-                {typeof p.variantCount === "number" && p.variantCount > 1 && (
-                  <span className="var-latin">{p.variantCount} varieties</span>
-                )}
+                <span className="var-latin">{variantCountLabel(p.variantCount)}</span>
                 <div className="var-foot">
                   <span className="var-price">
                     {p.onSale && p.compareAtPrice != null ? (
@@ -124,7 +120,11 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                       priceLabel(p)
                     )}
                   </span>
-                  <span className="var-stock">{p.available ? "In stock" : "Sold out"}</span>
+                  <span
+                    className={`var-stock ${p.available ? "var-stock--in" : "var-stock--out"}`}
+                  >
+                    {p.available ? "In stock" : "Sold out"}
+                  </span>
                 </div>
               </div>
             </Link>
@@ -134,7 +134,7 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
 
       <div style={{ textAlign: "center", marginTop: "3rem" }}>
         <Link href="/shop" className="btn btn-forest">
-          Browse all {total} varieties &rarr;
+          Browse all {total} plants &rarr;
         </Link>
       </div>
     </section>

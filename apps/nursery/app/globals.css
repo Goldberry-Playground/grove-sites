@@ -120,6 +120,16 @@ h1 em, h2 em, h3 em {
   --rust: var(--orange-deep);
   /* nursery-only mid-green — no --grove-* role covers it (see note above). */
   --moss: #355A45;
+  /* Stock-status foregrounds (GOL-682 #4). Both clear WCAG AA 4.5:1 on the
+     parchment card ground (moss 6.5:1, brick 6.9:1) and are always paired with
+     a distinct glyph + text, so meaning never rides on colour alone (WCAG 1.4.1)
+     and survives greyscale / red-green colour-blindness (● vs ✕). */
+  --stock-in: var(--moss);
+  --stock-out: #9A1C11;
+  /* Reservable (bareroot preorder) — GOL-678. Amber-800, NOT Tailwind
+     amber-700: #B45309 is only 3.93:1 on --paper-deep and fails AA there.
+     This clears 4.5:1 on all three parchment surfaces (5.55:1 worst case). */
+  --stock-reserve: #92400E;
 }
 
 /* ─────────────────────────────────────────────
@@ -182,9 +192,23 @@ h1 em, h2 em, h3 em {
 .pano-hero::after {
   content: '';
   position: absolute; inset: 0;
+  /* Legibility scrim (GOL-681). Hero text — eyebrow, headline, CTAs, stats — sits
+     over a bright, high-luminance orchard photo; parchment (#F2EBD9) needs a very
+     dark backdrop to clear WCAG 4.5:1 over the blossom/grass highlights. Darken the
+     full bottom text band, plus a left wash under the headline column. The blossom
+     canopy in the top ~18% stays clear, so the image still reads. */
   background:
-    linear-gradient(to bottom, rgba(17,35,24,0.2) 0%, transparent 30%, transparent 50%, rgba(17,35,24,0.85) 100%),
-    linear-gradient(to right, rgba(17,35,24,0.5) 0%, transparent 40%);
+    linear-gradient(to top,
+      rgba(17,35,24,0.95) 0%,
+      rgba(17,35,24,0.88) 30%,
+      rgba(17,35,24,0.70) 52%,
+      rgba(17,35,24,0.42) 68%,
+      rgba(17,35,24,0.15) 82%,
+      transparent 100%),
+    linear-gradient(to right,
+      rgba(17,35,24,0.62) 0%,
+      rgba(17,35,24,0.28) 40%,
+      transparent 72%);
 }
 .pano-content {
   position: relative;
@@ -201,13 +225,27 @@ h1 em, h2 em, h3 em {
   font-size: 11px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--orange);
+  /* Eyebrow text must clear WCAG 4.5:1 over the hero photo. Orange (#D5641A,
+     rel. luminance ~0.23) measured 2.7:1 desktop / 1.1:1 mobile on nursery.qa —
+     it can't pass without a near-black scrim that would kill the image, so the
+     failing body-text role moves to parchment (measured 8.3:1 desktop; 4.9:1
+     mobile once the top scrim is held higher, see the ≤900px block below). The
+     orange accent is kept as the ◐ glyph below.
+     Brand sign-off: GOL-685 (Abigail/brand approved parchment). — GOL-683 */
+  color: var(--parchment);
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  /* Backstop for the highest hero line, which can ride over a bright blossom
+     patch above the strongest part of the scrim. Not counted toward WCAG, but
+     it sharpens real legibility. — GOL-681 */
+  text-shadow: 0 1px 3px rgba(10, 20, 14, 0.85);
 }
-.pano-eyebrow::before { content: '◐'; font-size: 14px; }
+/* Decorative glyph keeps the orange brand accent. Icons need only 3:1; the
+   orange ◐ clears 3.68:1 on the darkest scrim band. Pinned explicitly because
+   the parent .pano-eyebrow now inherits parchment. — GOL-685 */
+.pano-eyebrow::before { content: '◐'; font-size: 14px; color: var(--orange); }
 .pano-hero h1 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -216,6 +254,7 @@ h1 em, h2 em, h3 em {
   letter-spacing: -0.025em;
   font-variation-settings: "opsz" 144;
   color: var(--parchment);
+  text-shadow: 0 1px 2px rgba(10, 20, 14, 0.55), 0 3px 18px rgba(10, 20, 14, 0.35);
 }
 .pano-hero h1 em { font-style: italic; color: var(--orange); }
 .pano-stats {
@@ -235,14 +274,20 @@ h1 em, h2 em, h3 em {
   line-height: 1;
   color: var(--parchment);
   font-variation-settings: "opsz" 144;
+  text-shadow: 0 1px 3px rgba(10, 20, 14, 0.6);
 }
 .pano-stat .label {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--leaf);
+  /* Was --leaf (#8AAB6E): ~3.9:1 on the scrim — fails 4.5:1 for 10px text. The
+     muted-parchment token clears it while keeping the num brighter than the label
+     for hierarchy. Color is not the only signal here (size + weight carry it too),
+     so this stays color-blind safe. — GOL-681 */
+  color: var(--parchment-deep);
   margin-top: 6px;
+  text-shadow: 0 1px 3px rgba(10, 20, 14, 0.6);
 }
 
 /* Quick-search filter row */
@@ -309,6 +354,7 @@ h1 em, h2 em, h3 em {
   padding-bottom: 1rem;
   border-bottom: 2px solid var(--forest);
 }
+.section-header h1,
 .section-header h2 {
   font-family: var(--font-display);
   font-weight: 500;
@@ -394,6 +440,47 @@ h1 em, h2 em, h3 em {
 }
 .var-card:hover .var-img img { transform: scale(1.04); }
 
+/* Real product photo (next/image fill) — keep parity with the plain-<img> path
+   so the two never diverge visually. */
+.product-photo { object-fit: cover; }
+
+/* Branded botanical placeholder (GOL-680) — shown when a product has no photo
+   yet or its image fails to load. Replaces the browser's / Odoo's gray
+   broken-image glyph with an intentional, on-brand frame. Fills any positioned
+   parent (.var-img, the detail hero, a companion tile). Monochrome line-art +
+   text label, so it reads the same in grayscale and to color-blind viewers —
+   no color-coded meaning. */
+.product-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  text-align: center;
+  background:
+    radial-gradient(115% 130% at 50% 0%, var(--parch-soft) 0%, var(--parch-deep) 100%);
+}
+.product-ph__mark {
+  width: 32%;
+  min-width: 38px;
+  max-width: 86px;
+  height: auto;
+  color: var(--forest);
+  opacity: 0.92;
+}
+.product-ph__label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--forest);
+  max-width: 100%;
+}
+
 @keyframes card-enter {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -461,8 +548,74 @@ h1 em, h2 em, h3 em {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--moss);
+  color: var(--stock-in);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
 }
+/* Colour + shape + text, never colour alone (GOL-682 #4). The mark is drawn in
+   CSS (not a font glyph, which tofu'd in IBM Plex Mono) so it always renders and
+   inherits the status colour: in-stock is a FILLED disc, sold-out a HOLLOW ring
+   — distinguishable by fill in greyscale and under red-green colour-blindness. */
+.var-stock--in { color: var(--stock-in); }
+.var-stock--out { color: var(--stock-out); }
+.var-stock--in::before,
+.var-stock--out::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.var-stock--in::before { background: currentColor; }
+.var-stock--out::before { border: 1.5px solid currentColor; }
+
+/* Larger inline stock line for the product page (§7 "Stock display"). Shares the
+   two status tokens + the filled/hollow disc rule with the card badge above. */
+.stock-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-weight: 600;
+}
+.stock-line--in { color: var(--stock-in); }
+.stock-line--out { color: var(--stock-out); }
+.stock-line--reserve { color: var(--stock-reserve); }
+.stock-line--in::before,
+.stock-line--out::before,
+.stock-line--reserve::before {
+  content: "";
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: none;
+}
+.stock-line--in::before { background: currentColor; }
+.stock-line--out::before { border: 2px solid currentColor; }
+/* Reserve gets a filled DIAMOND — a third glyph distinct from the filled and
+   hollow discs, so in-stock / reserve / sold-out stay separable in greyscale
+   and for colour-blind readers (WCAG 1.4.1), not just by hue. */
+.stock-line--reserve::before {
+  background: currentColor;
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+/* Mobile facet-disclosure caret (GOL-682 #3) — CSS triangle, not a font glyph
+   (▸ tofu'd in the mono face). Points right when collapsed, rotates down on
+   open. Decorative: the button's aria-expanded carries the state for AT. */
+.facet-caret {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  transition: transform 0.15s ease;
+  flex: none;
+}
+.facet-caret[data-open="true"] { transform: rotate(90deg); }
 
 /* With-sidebar layout (field notes) */
 .with-sidebar {
@@ -652,6 +805,31 @@ h1 em, h2 em, h3 em {
   }
   .qsearch h3, .qsearch button { white-space: normal; }
   .field-notes { position: static; }
+  /* On a tall, narrow phone the bottom-anchored hero pushes the headline UP into
+     the bright blossom canopy, where a bottom-weighted scrim is too weak. Swap in
+     a near-full, strong scrim so the whole text column clears 4.5:1; the orchard
+     still reads as a dark, textured backdrop. — GOL-681
+     GOL-685: the eyebrow is the topmost line and lands ~65px down over the
+     brightest fog/sky, where the original .32 top stop left even parchment at
+     2.75:1. Hold the scrim higher toward the top (.55 at the crown) so the
+     eyebrow clears 4.5:1 (measured 4.87:1 on nursery.qa). This is the minimal
+     darkening that passes; the blossom canopy still reads (mean L 0.31→0.15). */
+  .pano-hero::after {
+    background: linear-gradient(to top,
+      rgba(17,35,24,0.95) 0%,
+      rgba(17,35,24,0.90) 40%,
+      rgba(17,35,24,0.82) 66%,
+      rgba(17,35,24,0.70) 84%,
+      rgba(17,35,24,0.55) 100%);
+  }
+  /* Single-column hero: keep the stat block a clearly separate module below the
+     headline/CTA so the two never read as one cramped stack. — GOL-681 */
+  .pano-content { gap: 2.25rem; }
+  .pano-stats {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(213, 100, 26, 0.35);
+  }
 }
 
 /* Mobile-tight refinements (≤480px, covers 390px iPhone width).
@@ -668,6 +846,9 @@ h1 em, h2 em, h3 em {
     gap: 0.75rem;
   }
   .pano-stat .num { font-size: 1.8rem; }
+  /* A touch more leading so the four-line headline breathes on a narrow column
+     and never visually collides with the CTA/stats below. — GOL-681 */
+  .pano-hero h1 { line-height: 1.05; }
   /* Anchor card collapses back to a normal card on mobile — it's a desktop
      hierarchy device, not a mobile one. */
   .var-grid > .var-card.is-anchor {

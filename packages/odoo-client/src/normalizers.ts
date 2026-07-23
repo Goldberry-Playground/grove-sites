@@ -36,6 +36,31 @@ function emptyToNull(value: string): string | null {
   return value ? value : null;
 }
 
+/**
+ * Which serializer contract is the API speaking? Two generations exist:
+ *
+ *  - GOL-684 (grove-odoo-modules #41) and later: `image_url` is the
+ *    authoritative signal — a real path when a photo exists, `null` when not.
+ *    `image_128` is always `null` (the base64 payload was dropped for size).
+ *  - Pre-GOL-684: `image_url` is ALWAYS a path (Odoo serves a gray placeholder
+ *    at HTTP 200 for photo-less products), so the authoritative signal is
+ *    `image_128`: base64 when a photo is set, `false` when empty (GOL-680).
+ *
+ * Collapse to "" when there's no real photo so <ProductImage> renders the
+ * branded botanical placeholder instead of Odoo's gray box. `null` image_128
+ * (new contract) must NOT be read as "no photo" — that regression blanked
+ * every uploaded product photo on QA (2026-07-23). Undefined `image_128`
+ * (older/partial payload omitting the field) still means "trust the URL".
+ */
+function photoUrlOrEmpty(
+  imageUrl: string | null,
+  image128: string | false | null | undefined,
+): string {
+  if (!imageUrl) return ""; // new contract: null/empty URL = no photo
+  if (image128 === false) return ""; // old contract: explicit no-photo marker
+  return imageUrl; // base64 present, or null/undefined image_128 = trust the URL
+}
+
 export function normalizeProductListItem(raw: ApiProductListItem): Product {
   return {
     id: raw.id,
@@ -46,7 +71,7 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     seoDescription: null,
     price: raw.list_price,
     currency: null,
-    imageUrl: raw.image_url,
+    imageUrl: photoUrlOrEmpty(raw.image_url, raw.image_128),
     categoryId: null,
     categoryName: null,
     tags: (raw.tags ?? []).map((t) => t.name),
@@ -60,6 +85,13 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
 }
 
 export function normalizeProductDetail(raw: ApiProductDetail): Product {
+  // Authoritative "has a real photo" flag for this template (see photoUrlOrEmpty).
+  // Variants don't carry their own image_128, and in this catalog a variant only
+  // shows the template photo (or Odoo's inherited gray default) — so when the
+  // template has no photo, blank the variants' URLs too, otherwise the buy box's
+  // variant thumbnail (product-view: hero = variantImage ?? heroImage) would
+  // resurrect Odoo's gray box over the branded placeholder.
+  const hasTemplatePhoto = raw.image_128 === undefined || Boolean(raw.image_128);
   return {
     id: raw.id,
     // The detail endpoint returns `grove_slug`, not the list endpoint's aliased
@@ -74,7 +106,7 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     seoDescription: raw.grove_seo_description || null,
     price: raw.list_price,
     currency: raw.currency_id ? raw.currency_id.name : null,
-    imageUrl: raw.image_url,
+    imageUrl: photoUrlOrEmpty(raw.image_url, raw.image_128),
     categoryId: raw.categ_id ? raw.categ_id.id : null,
     categoryName: raw.categ_id ? raw.categ_id.name : null,
     tags: (raw.tags ?? []).map((t) => t.name),
@@ -84,7 +116,9 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // still distinguishes "out of stock" from "we don't track stock at all".
     available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
     featured: raw.grove_featured,
-    variants: (raw.variants ?? []).map(normalizeVariant),
+    variants: (raw.variants ?? [])
+      .map(normalizeVariant)
+      .map((v) => (hasTemplatePhoto ? v : { ...v, imageUrl: "" })),
     facts: raw.facts ? normalizeFacts(raw.facts) : undefined,
     images: (raw.images ?? []).map(normalizeImage),
   };
@@ -105,7 +139,8 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     // sends it). null on an older/partial payload that omits qty_available —
     // the page then shows the boolean state only, never a fabricated "0".
     qtyAvailable: raw.qty_available ?? null,
-    imageUrl: raw.image_url,
+    // GOL-684 contract: null image_url = no variant photo → "" renders the placeholder.
+    imageUrl: raw.image_url ?? "",
     cultivar: emptyToNull(raw.cultivar),
     format: emptyToNull(raw.format),
     shippingTier: raw.shipping_tier || null,

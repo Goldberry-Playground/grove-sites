@@ -21,6 +21,7 @@ import { routeInteraction, type DiscordInteraction } from "./lib/interactions.ts
 import { renderDigestMessage } from "./lib/render.ts";
 import { verifyDiscordRequest, ed25519PublicKey } from "./lib/verify.ts";
 import { buildAuditEvent, emitAuditEvent } from "./lib/audit.ts";
+import { executeDecision, executeRevise, type DecideDeps } from "./lib/decide.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BUFFER_ANALYTICS_URL = process.env.BUFFER_ANALYTICS_URL || "https://publish.buffer.com";
@@ -62,15 +63,16 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
     return;
   }
 
-  const result = routeInteraction(interaction);
-  // Reply immediately (PONG / deferred / ephemeral error) — Discord's 3s budget.
+  const result = routeInteraction(interaction, { approverIds: cfg.approverIds });
+  // Reply immediately (PONG / deferred / modal / ephemeral error) — Discord's 3s budget.
   json(res, 200, result.response);
 
   if (!result.followup) return;
 
-  // Deferred: pull the digest and edit the original message. Fire-and-forget;
-  // errors are logged, not surfaced to the (already-answered) request.
-  const { period } = result.followup;
+  // Deferred work: edit the original message once the (Buffer/audit) side
+  // effects complete. Fire-and-forget; errors are logged, not surfaced to the
+  // (already-answered) request.
+  const followup = result.followup;
   const token = (interaction as { token?: string }).token;
   const actor =
     (interaction as { member?: { user?: { id?: string } }; user?: { id?: string } }).member?.user
@@ -80,15 +82,39 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
 
   void (async () => {
     try {
-      const digest = await generateDigest(buffer, period);
-      const message = renderDigestMessage(digest, period, BUFFER_ANALYTICS_URL);
-      if (token) await editInteractionOriginal(cfg.discordAppId, token, message);
-      emitAuditEvent(
-        buildAuditEvent({ action: "digest_pull", actor, ts: new Date().toISOString(), period }),
-      );
+      if (followup.kind === "digest") {
+        const digest = await generateDigest(buffer, followup.period);
+        const message = renderDigestMessage(digest, followup.period, BUFFER_ANALYTICS_URL);
+        if (token) await editInteractionOriginal(cfg.discordAppId, token, message);
+        emitAuditEvent(
+          buildAuditEvent({
+            action: "digest_pull",
+            actor,
+            ts: new Date().toISOString(),
+            period: followup.period,
+          }),
+        );
+        return;
+      }
+
+      const deps: DecideDeps = {
+        buffer,
+        mirror: {
+          bridgeKey: cfg.bridgeKey,
+          auditIssueId: cfg.auditIssueId,
+          apiBase: cfg.paperclipApiBase,
+        },
+        now: new Date().toISOString(),
+      };
+
+      const { card } =
+        followup.kind === "decision"
+          ? await executeDecision(followup, deps)
+          : await executeRevise(followup, deps);
+      if (token) await editInteractionOriginal(cfg.discordAppId, token, card);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("discord-bridge: /insights follow-up failed:", err);
+      console.error("discord-bridge: interaction follow-up failed:", err);
     }
   })();
 }

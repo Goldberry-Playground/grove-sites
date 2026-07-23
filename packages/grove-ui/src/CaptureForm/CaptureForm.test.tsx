@@ -35,6 +35,13 @@ describe("<CaptureForm />", () => {
     expect(screen.getByLabelText("Email")).toBeDefined();
   });
 
+  it("renders the eyebrow kicker when provided (GOL-682 #1 — differentiates two captures on one page)", () => {
+    render(
+      <CaptureForm brand="nursery" eyebrow="Back-in-stock alert" heading="Want us to tell you?" />,
+    );
+    expect(screen.getByText("Back-in-stock alert")).toBeDefined();
+  });
+
   it("POSTs the newsletter payload with brand, label, source and consent", async () => {
     const fetchFn = mockFetch({ ok: true });
     const user = userEvent.setup();

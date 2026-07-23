@@ -2,6 +2,7 @@ import Link from "next/link";
 import { assetPath } from "@grove/ui";
 import { CaptureForm } from "@grove/ui-kit";
 import { CategoryBar } from "./category-bar";
+import { NURSERY_CATEGORIES } from "../data/categories";
 import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
 
 // At The Grove Nursery homepage — port of wireframes/nursery/index.html.
@@ -62,7 +63,7 @@ export default async function HomePage() {
           <div className="pano-stats">
             <div className="pano-stat">
               <div className="num">{total}</div>
-              <div className="label">Varieties in catalog</div>
+              <div className="label">Plants in catalog</div>
             </div>
             <div className="pano-stat">
               <div className="num">USDA 3–7</div>
@@ -99,12 +100,18 @@ export default async function HomePage() {
         </div>
         <div>
           <label htmlFor="qs-cat">Category</label>
-          <select id="qs-cat" name="cat" defaultValue="apple">
-            <option value="apple">Apple</option>
-            <option value="pear">Pear</option>
-            <option value="stone">Plum &amp; Cherry</option>
-            <option value="berries">Berries</option>
-            <option value="nuts">Nuts</option>
+          {/* Options are the live taxonomy slugs (data/categories.ts), so this
+              GET form resolves to a real, filtered /shop?cat=<slug> page. The
+              old apple/pear/stone/nuts values were never real category slugs —
+              filterByCategory fell through to the *full* catalog, so picking
+              "Nuts" and searching returned everything. Data-driven off the same
+              list the cat-bar uses keeps the two in lockstep (GOL-659). */}
+          <select id="qs-cat" name="cat" defaultValue="fruit-trees">
+            {NURSERY_CATEGORIES.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -219,6 +226,7 @@ export default async function HomePage() {
           source="notify-me"
           label="nursery-restock"
           interests={["nursery"]}
+          eyebrow="Back-in-stock alert"
           heading="Want us to tell you when these are back?"
           description="We grow in seasonal batches, so stock comes and goes. Leave your email and we'll send one note the week these trees are ready to ship again — that's it."
           submitLabel="Notify me"

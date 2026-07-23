@@ -51,6 +51,44 @@ describe("normalizeProductListItem", () => {
     ).toBe(false);
   });
 
+  // GOL-680: grove_headless always emits an image_url path; Odoo serves a gray
+  // placeholder at HTTP 200 for imageless products. image_128 is the real signal.
+  it("blanks imageUrl when image_128 is false (no real photo → branded placeholder)", () => {
+    const result = normalizeProductListItem({ ...honeycrispListItem, image_128: false });
+    expect(result.imageUrl).toBe("");
+  });
+
+  // GOL-684 contract: image_128 is always null; image_url itself is the signal
+  // (real path = photo, null = none). null image_128 must NOT blank a real URL —
+  // that regression hid every uploaded product photo on QA (2026-07-23).
+  it("keeps imageUrl when image_128 is null but image_url is a real path (GOL-684 contract)", () => {
+    const result = normalizeProductListItem({ ...honeycrispListItem, image_128: null });
+    expect(result.imageUrl).toBe("/web/image/product.template/2/image_128");
+  });
+
+  it("blanks imageUrl when image_url is null (GOL-684 imageless product)", () => {
+    const result = normalizeProductListItem({
+      ...honeycrispListItem,
+      image_url: null,
+      image_128: null,
+    });
+    expect(result.imageUrl).toBe("");
+  });
+
+  it("keeps imageUrl when image_128 carries a base64 photo", () => {
+    const result = normalizeProductListItem({
+      ...honeycrispListItem,
+      image_128: "iVBORw0KGgoAAAANS...", // truthy base64 → real photo
+    });
+    expect(result.imageUrl).toBe("/web/image/product.template/2/image_128");
+  });
+
+  it("keeps imageUrl when image_128 is absent (older/partial payload — assume real)", () => {
+    const { image_128: _omit, ...withoutFlag } = { ...honeycrispListItem, image_128: false };
+    const result = normalizeProductListItem(withoutFlag);
+    expect(result.imageUrl).toBe("/web/image/product.template/2/image_128");
+  });
+
   it("flattens tags to name strings and carries price_min/variant_count (catalog API v1)", () => {
     const result = normalizeProductListItem(honeycrispListItem);
     expect(result.tags).toEqual(["apple", "pollinator-required"]);
@@ -77,6 +115,26 @@ describe("normalizeProductListItem", () => {
       categories: undefined as unknown as [],
     });
     expect(result.categories).toEqual([]);
+  });
+});
+
+describe("normalizeProductDetail — image_128 photo gating (GOL-680)", () => {
+  it("blanks the hero imageUrl AND every variant imageUrl when image_128 is false", () => {
+    const result = normalizeProductDetail({ ...honeycrispDetail, image_128: false });
+    expect(result.imageUrl).toBe("");
+    // Variants inherit the (missing) template photo, so blank them too — else the
+    // buy box thumbnail resurrects Odoo's gray box over the branded placeholder.
+    expect(result.variants.length).toBeGreaterThan(0);
+    expect(result.variants.every((v) => v.imageUrl === "")).toBe(true);
+  });
+
+  it("keeps hero + variant imageUrls when image_128 carries a real photo", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      image_128: "iVBORw0KGgoAAAANS...",
+    });
+    expect(result.imageUrl).toBe("/web/image/product.template/2/image_1920");
+    expect(result.variants[0].imageUrl).toBe("/web/image/product.product/2/image_128");
   });
 });
 
