@@ -37,19 +37,28 @@ function emptyToNull(value: string): string | null {
 }
 
 /**
- * grove_headless always emits an `image_url` path — even for products with no
- * real photo. Odoo then serves its own gray placeholder at HTTP 200 for those,
- * which is indistinguishable (over HTTP) from a real image, so the storefront
- * can't fall back on a load error. The authoritative signal is Odoo's
- * `image_128` field (base64 when a photo is set, `false` when empty). Collapse
- * the URL to "" when there's no real image so <ProductImage> renders the
- * branded botanical placeholder instead of Odoo's gray box (GOL-680).
+ * Which serializer contract is the API speaking? Two generations exist:
  *
- * Undefined `image_128` (older/partial payload that omits the field) is treated
- * as "assume the URL is real" so we never blank a genuine photo on a stale API.
+ *  - GOL-684 (grove-odoo-modules #41) and later: `image_url` is the
+ *    authoritative signal — a real path when a photo exists, `null` when not.
+ *    `image_128` is always `null` (the base64 payload was dropped for size).
+ *  - Pre-GOL-684: `image_url` is ALWAYS a path (Odoo serves a gray placeholder
+ *    at HTTP 200 for photo-less products), so the authoritative signal is
+ *    `image_128`: base64 when a photo is set, `false` when empty (GOL-680).
+ *
+ * Collapse to "" when there's no real photo so <ProductImage> renders the
+ * branded botanical placeholder instead of Odoo's gray box. `null` image_128
+ * (new contract) must NOT be read as "no photo" — that regression blanked
+ * every uploaded product photo on QA (2026-07-23). Undefined `image_128`
+ * (older/partial payload omitting the field) still means "trust the URL".
  */
-function photoUrlOrEmpty(imageUrl: string, image128: string | false | undefined): string {
-  return image128 === undefined || image128 ? imageUrl : "";
+function photoUrlOrEmpty(
+  imageUrl: string | null,
+  image128: string | false | null | undefined,
+): string {
+  if (!imageUrl) return ""; // new contract: null/empty URL = no photo
+  if (image128 === false) return ""; // old contract: explicit no-photo marker
+  return imageUrl; // base64 present, or null/undefined image_128 = trust the URL
 }
 
 export function normalizeProductListItem(raw: ApiProductListItem): Product {
@@ -130,7 +139,8 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     // sends it). null on an older/partial payload that omits qty_available —
     // the page then shows the boolean state only, never a fabricated "0".
     qtyAvailable: raw.qty_available ?? null,
-    imageUrl: raw.image_url,
+    // GOL-684 contract: null image_url = no variant photo → "" renders the placeholder.
+    imageUrl: raw.image_url ?? "",
     cultivar: emptyToNull(raw.cultivar),
     format: emptyToNull(raw.format),
     shippingTier: raw.shipping_tier || null,
