@@ -32,10 +32,14 @@ on:
     types: [completed]
 
 # contents:write lets github-actions[bot] perform the direct squash merge;
-# pull-requests:write lets it post the approving review.
+# pull-requests:write lets it post the approving review;
+# actions:write lets it re-fire docker.yml via workflow_dispatch after the merge
+# (the merge push itself is made with GITHUB_TOKEN, which GitHub suppresses from
+# starting a `push` run — see the dispatch step below / GOL-768).
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   auto-approve:
@@ -84,7 +88,27 @@ jobs:
                 echo "PR #$PR already merged."; exit 0 ;;
               OPEN:CLEAN|OPEN:UNSTABLE)
                 if gh pr merge "$PR" --repo "$REPO" --squash --delete-branch; then
-                  echo "Merged PR #$PR."; exit 0
+                  echo "Merged PR #$PR."
+
+                  # The merge above was pushed to `main` with GITHUB_TOKEN, so
+                  # GitHub will NOT start docker.yml's `push` run for it — the QA
+                  # apps would keep serving the old image (GOL-768). Re-fire the
+                  # build+publish leg explicitly via workflow_dispatch, which is
+                  # the documented exception to the recursion guard. Only bother
+                  # when the PR actually touched a path docker.yml builds from, so
+                  # pure docs/backend merges don't trigger a redundant 4-image
+                  # build (mirrors docker.yml's own path filter).
+                  FILES=$(gh pr view "$PR" --repo "$REPO" --json files -q '.files[].path')
+                  if echo "$FILES" | grep -qE '^(apps/|packages/|pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|\.dockerignore|\.github/workflows/docker\.yml)'; then
+                    if gh workflow run docker.yml --repo "$REPO" --ref main; then
+                      echo "Dispatched docker.yml to build+deploy main HEAD."
+                    else
+                      echo "::warning::docker.yml dispatch failed; QA may serve the pre-merge image until the next deploy. Re-run docker.yml on main manually."
+                    fi
+                  else
+                    echo "PR #$PR touched no docker.yml-watched paths; skipping deploy dispatch."
+                  fi
+                  exit 0
                 fi ;;
             esac
             sleep 20
