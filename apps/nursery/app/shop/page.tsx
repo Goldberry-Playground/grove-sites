@@ -101,13 +101,31 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <div className="flex-1">
             {products.length === 0 ? (
               <div className="shop-empty">
-                <p>
-                  No products match these filters —{" "}
-                  <Link href="/shop" className="shop-empty__link">
-                    clear filters
-                  </Link>
-                  .
-                </p>
+                {activeCategory &&
+                (!tags || tags.length === 0) &&
+                zone === null &&
+                layer === null &&
+                sun === null ? (
+                  // Coming-soon bucket (GOL-773): the category is the only active
+                  // facet and carries no stock yet (e.g. Native, Fruit & Nut
+                  // Shrubs) — say so plainly instead of "no match / clear filters".
+                  <p>
+                    {activeCategory.label} stock is on the way — nothing ready to
+                    ship just yet.{" "}
+                    <Link href="/shop" className="shop-empty__link">
+                      Browse the full catalog
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <p>
+                    No products match these filters —{" "}
+                    <Link href="/shop" className="shop-empty__link">
+                      clear filters
+                    </Link>
+                    .
+                  </p>
+                )}
               </div>
             ) : (
               <div className="var-grid">
