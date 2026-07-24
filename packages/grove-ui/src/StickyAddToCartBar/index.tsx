@@ -42,13 +42,20 @@ export function StickyAddToCartBar({
   price,
   imageUrl,
   disabled = false,
-  idleLabel = "Add to Cart",
+  idleLabel,
   cartQuantity = 0,
   onAdd,
   anchorSelector = "[data-add-to-cart-anchor]",
 }: StickyAddToCartBarProps) {
   const Image = useGroveImage();
   const [visible, setVisible] = useState(false);
+
+  // Single label seam, mirroring the inline AddToCartButton: render whatever
+  // label the buy-state supplied (e.g. "Coming soon", "Reserve", "Sold out") so
+  // the sticky bar never contradicts the inline buy-box (buy-state 2-consumer
+  // invariant, GOL-760/782). Only fall back to a hardcoded word when a caller
+  // gives no label at all, and let that default track the disabled state.
+  const label = idleLabel ?? (disabled ? "Sold out" : "Add to Cart");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -90,9 +97,9 @@ export function StickyAddToCartBar({
           onClick={handleAdd}
           disabled={disabled}
           className="grove-sticky-atc__btn"
-          aria-label={disabled ? "Sold out" : `${idleLabel}: ${name}`}
+          aria-label={disabled ? label : `${label}: ${name}`}
         >
-          {disabled ? "Sold out" : idleLabel}
+          {label}
           {cartQuantity > 0 && (
             <span className="grove-sticky-atc__badge">
               {cartQuantity}
