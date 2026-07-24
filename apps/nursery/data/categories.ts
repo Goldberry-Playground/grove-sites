@@ -93,16 +93,22 @@ function inCategory(slug: string): (product: Product) => boolean {
  *
  * Order matters — this is the left-to-right order users see in the CategoryBar.
  * Josh's GOL-773 order: Native → Fruit Tree → Nut Tree → Fruit & Nut Shrubs →
- * Vines. Native and Fruit & Nut Shrubs carry no assigned stock yet and render
- * as coming-soon nav items (no count) until GOL-757 assigns products.
+ * Vines.
+ *
+ * Each `slug` MUST equal `slugify(<Odoo public-category name>)` or the pill
+ * silently matches nothing. GOL-760: the Native and Fruit & Nut Shrubs pills
+ * shipped with invented slugs ("natives-ornamentals", "berries") that never
+ * matched the API's `native` / `berry-nut-shrubs`, so their assigned products
+ * (incl. American Persimmon, American Plum, Red Mulberry under Native) fell
+ * through and the pills read as empty coming-soon. Slugs now mirror Odoo.
  */
 export const NURSERY_CATEGORIES: NurseryCategory[] = [
   {
-    slug: "natives-ornamentals",
+    slug: "native",
     label: "Native",
     description:
       "Regional natives that anchor a resilient planting — pollinator forage, wildlife food, and roots that hold Appalachian ground. The supporting cast a food forest leans on. Potted stock is on the way; check back as the nursery grows.",
-    matchProduct: inCategory("natives-ornamentals"),
+    matchProduct: inCategory("native"),
   },
   {
     slug: "fruit-trees",
@@ -119,11 +125,11 @@ export const NURSERY_CATEGORIES: NurseryCategory[] = [
     matchProduct: inCategory("nut-trees"),
   },
   {
-    slug: "berries",
+    slug: "berry-nut-shrubs",
     label: "Fruit & Nut Shrubs",
     description:
       "Fruit- and nut-bearing shrubs for the productive hedge and forest edge — aronia, serviceberry, and hazel, quick to crop and generous. Dense harvests from plants that shrug off a hard winter.",
-    matchProduct: inCategory("berries"),
+    matchProduct: inCategory("berry-nut-shrubs"),
   },
   {
     slug: "fruiting-vines",

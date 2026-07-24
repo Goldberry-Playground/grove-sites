@@ -79,6 +79,10 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     priceMin: raw.price_min,
     variantCount: raw.variant_count,
     available: raw.website_published,
+    // Coming-soon placeholders (sale_ok=false) now appear in the grid and
+    // ?cat= facets (GOL-760). Default true so mocks and older payloads that
+    // omit the field stay purchasable.
+    saleOk: raw.sale_ok ?? true,
     featured: raw.grove_featured,
     variants: [],
   };
