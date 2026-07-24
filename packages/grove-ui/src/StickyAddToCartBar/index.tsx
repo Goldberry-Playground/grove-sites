@@ -11,7 +11,13 @@ export interface StickyAddToCartBarProps {
   imageUrl?: string;
   /** Sold-out / unavailable. */
   disabled?: boolean;
-  /** Idle CTA label (e.g. "Reserve" for preorder formats). Defaults to "Add to Cart". */
+  /**
+   * CTA label supplied by the buy-state. Enabled formats read "Add to Cart" /
+   * "Reserve"; disabled formats read their own reason — "Sold out",
+   * "Coming soon". When omitted the bar falls back to "Add to Cart" (enabled) or
+   * "Sold out" (disabled), so this label must stay in sync with the inline
+   * buy-box's label (the buy-state 2-consumer invariant, GOL-760).
+   */
   idleLabel?: string;
   /**
    * Item count for the cart badge. The app passes its cart total (0 during SSR /
@@ -42,12 +48,19 @@ export function StickyAddToCartBar({
   price,
   imageUrl,
   disabled = false,
-  idleLabel = "Add to Cart",
+  idleLabel,
   cartQuantity = 0,
   onAdd,
   anchorSelector = "[data-add-to-cart-anchor]",
 }: StickyAddToCartBarProps) {
   const Image = useGroveImage();
+  // A disabled bar shows the buy-state's own reason ("Sold out", "Coming soon")
+  // rather than a hardcoded "Sold out", so it can't contradict the inline
+  // buy-box (GOL-782). idleLabel is left undefined by consumers that never
+  // relabel (ggg/goldberry), which fall back to "Sold out" / "Add to Cart".
+  const label = disabled
+    ? (idleLabel ?? "Sold out")
+    : (idleLabel ?? "Add to Cart");
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -90,9 +103,9 @@ export function StickyAddToCartBar({
           onClick={handleAdd}
           disabled={disabled}
           className="grove-sticky-atc__btn"
-          aria-label={disabled ? "Sold out" : `${idleLabel}: ${name}`}
+          aria-label={disabled ? label : `${label}: ${name}`}
         >
-          {disabled ? "Sold out" : idleLabel}
+          {label}
           {cartQuantity > 0 && (
             <span className="grove-sticky-atc__badge">
               {cartQuantity}
