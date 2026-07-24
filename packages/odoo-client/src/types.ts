@@ -141,6 +141,13 @@ export interface ApiProductDetail
   currency_id: ApiMany2One | false;
   /** Only present when the Odoo `stock` module is installed. */
   qty_available?: number;
+  /**
+   * Purchasability flag (grove-odoo-modules #47+). `false` on a published-but-
+   * not-for-sale "coming soon" placeholder (GOL-760) — its detail page still
+   * renders, but the buy box must lock (no Add-to-Cart, no Bareroot "Reserve"
+   * deposit). Optional so older payloads that omit it fall back to purchasable.
+   */
+  sale_ok?: boolean;
   website_url: string | false;
   variants: ApiVariant[];
   /** Growing-facts block (catalog API v1). */
@@ -229,6 +236,14 @@ export interface Product {
    */
   categories?: ProductCategory[];
   available: boolean;
+  /**
+   * Purchasability: `false` on a published-but-not-for-sale "coming soon"
+   * placeholder (Odoo `sale_ok`, GOL-760) — the detail page renders but the buy
+   * box is locked (no Add-to-Cart, no Bareroot "Reserve" deposit). Optional and
+   * defaulted to purchasable in the normalizer, so list items, mocks, and older
+   * payloads that omit it behave exactly as before.
+   */
+  saleOk?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**
