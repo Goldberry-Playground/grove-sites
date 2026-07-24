@@ -56,6 +56,14 @@ export interface ApiProductListItem {
   variant_count: number;
   /** Lowest variant list price — the "from $X" card price (catalog API v1). */
   price_min: number;
+  /**
+   * Purchasability flag (grove-odoo-modules GOL-760). `false` on a published-
+   * but-not-for-sale "coming soon" placeholder — the product still appears in
+   * the grid and `?cat=` facets, but the card renders as coming-soon (not
+   * purchasable). Optional so mocks and older payloads that omit it stay
+   * purchasable.
+   */
+  sale_ok?: boolean;
 }
 
 /** Paginated product list response. */
@@ -141,13 +149,8 @@ export interface ApiProductDetail
   currency_id: ApiMany2One | false;
   /** Only present when the Odoo `stock` module is installed. */
   qty_available?: number;
-  /**
-   * Purchasability flag (grove-odoo-modules #47+). `false` on a published-but-
-   * not-for-sale "coming soon" placeholder (GOL-760) — its detail page still
-   * renders, but the buy box must lock (no Add-to-Cart, no Bareroot "Reserve"
-   * deposit). Optional so older payloads that omit it fall back to purchasable.
-   */
-  sale_ok?: boolean;
+  // `sale_ok` is inherited from ApiProductListItem — the detail endpoint has
+  // served it since grove-odoo-modules #47/#48; the list endpoint since GOL-760.
   website_url: string | false;
   variants: ApiVariant[];
   /** Growing-facts block (catalog API v1). */

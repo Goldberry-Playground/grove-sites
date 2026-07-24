@@ -31,11 +31,17 @@ function slugify(name: string): string {
 // decoupled the shopper-facing `label` from the slug, so the slug↔label mirror
 // no longer holds — the slug must still equal `slugify(<Odoo category name>)`,
 // which is what actually keeps `?cat=` URLs and API counts aligned.
+// The real Odoo `product.public.category` names (verified live on QA,
+// GOL-760). Earlier this map carried invented names ("Natives & Ornamentals",
+// "Berries") whose slugify() diverged from the API's actual `native` /
+// `berry-nut-shrubs` — so the Native / Fruit & Nut Shrubs pills matched nothing
+// and their assigned products (American Persimmon, American Plum, Red Mulberry,
+// American Hazelnut, …) never showed. Slugs now mirror the real names.
 const ODOO_CATEGORY_NAMES: Record<string, string> = {
-  "natives-ornamentals": "Natives & Ornamentals",
+  native: "Native",
   "fruit-trees": "Fruit Trees",
   "nut-trees": "Nut Trees",
-  berries: "Berries",
+  "berry-nut-shrubs": "Berry & Nut Shrubs",
   "fruiting-vines": "Fruiting Vines",
 };
 
@@ -67,7 +73,7 @@ function product(id: number, slugs: string[]): Product {
 const catalog: Product[] = [
   product(1, ["fruit-trees"]),
   product(2, ["fruit-trees"]),
-  product(3, ["berries"]),
+  product(3, ["berry-nut-shrubs"]),
   product(4, ["fruiting-vines"]),
   product(5, ["fruit-trees", "fruiting-vines"]), // a product can belong to more than one category
   product(6, []), // no website category — counts toward nothing
@@ -76,18 +82,19 @@ const catalog: Product[] = [
 describe("NURSERY_CATEGORIES", () => {
   it("is Josh's five use-type buckets, in GOL-773 browse order", () => {
     expect(NURSERY_CATEGORIES.map((c) => c.slug)).toEqual([
-      "natives-ornamentals",
+      "native",
       "fruit-trees",
       "nut-trees",
-      "berries",
+      "berry-nut-shrubs",
       "fruiting-vines",
     ]);
   });
 
   it("uses stable slugs that mirror slugify(<Odoo category name>)", () => {
     // GOL-773: `label` is curated display copy and is NOT expected to slugify
-    // back to the slug (e.g. "Fruit & Nut Shrubs" → "berries"). The slug must
-    // stay pinned to the Odoo category name so `?cat=` filtering never breaks.
+    // back to the slug (e.g. the "Fruit & Nut Shrubs" label → slug
+    // "berry-nut-shrubs"). The slug must stay pinned to the real Odoo category
+    // name so `?cat=` filtering never breaks.
     for (const c of NURSERY_CATEGORIES) {
       expect(c.slug).toBe(slugify(ODOO_CATEGORY_NAMES[c.slug]));
     }
@@ -97,13 +104,13 @@ describe("NURSERY_CATEGORIES", () => {
 describe("countByCategory", () => {
   it("counts by product.categories slug, not tags", () => {
     expect(countByCategory(catalog, "fruit-trees")).toBe(3); // p1, p2, p5
-    expect(countByCategory(catalog, "berries")).toBe(1); // p3
+    expect(countByCategory(catalog, "berry-nut-shrubs")).toBe(1); // p3
     expect(countByCategory(catalog, "fruiting-vines")).toBe(2); // p4, p5
   });
 
   it("returns 0 for a real category with no stock (not the old all-zero bug)", () => {
     expect(countByCategory(catalog, "nut-trees")).toBe(0);
-    expect(countByCategory(catalog, "natives-ornamentals")).toBe(0);
+    expect(countByCategory(catalog, "native")).toBe(0);
   });
 
   it("never counts a product with no categories", () => {
@@ -118,7 +125,7 @@ describe("countByCategory", () => {
 
 describe("filterByCategory", () => {
   it("returns only products carrying that website category", () => {
-    expect(filterByCategory(catalog, "berries").map((p) => p.id)).toEqual([3]);
+    expect(filterByCategory(catalog, "berry-nut-shrubs").map((p) => p.id)).toEqual([3]);
     expect(filterByCategory(catalog, "fruiting-vines").map((p) => p.id)).toEqual([4, 5]);
   });
 

@@ -165,11 +165,21 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                             ? `from $${product.priceMin.toFixed(2)}`
                             : `$${product.price.toFixed(2)}`}
                         </span>
-                        <span
-                          className={`var-stock ${product.available ? "var-stock--in" : "var-stock--out"}`}
-                        >
-                          {product.available ? "In stock" : "Sold out"}
-                        </span>
+                        {product.saleOk === false ? (
+                          // Coming-soon placeholder: published (so it appears in
+                          // the grid + ?cat= facets) but not for sale — the card
+                          // links to a detail page whose buy box is locked
+                          // (GOL-760). Don't claim "In stock".
+                          <span className="var-stock var-stock--soon">
+                            Coming soon
+                          </span>
+                        ) : (
+                          <span
+                            className={`var-stock ${product.available ? "var-stock--in" : "var-stock--out"}`}
+                          >
+                            {product.available ? "In stock" : "Sold out"}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Link>

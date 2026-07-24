@@ -51,6 +51,20 @@ describe("normalizeProductListItem", () => {
     ).toBe(false);
   });
 
+  // GOL-760: coming-soon placeholders (sale_ok=false) now appear in the grid,
+  // so the list normalizer must surface saleOk for the card to render them as
+  // "Coming soon" rather than "In stock".
+  it("maps sale_ok=false to saleOk=false for coming-soon grid cards", () => {
+    expect(
+      normalizeProductListItem({ ...honeycrispListItem, sale_ok: false }).saleOk,
+    ).toBe(false);
+  });
+
+  it("defaults saleOk to true when sale_ok is omitted (purchasable)", () => {
+    const { sale_ok: _omit, ...withoutSaleOk } = honeycrispListItem;
+    expect(normalizeProductListItem(withoutSaleOk).saleOk).toBe(true);
+  });
+
   // GOL-680: grove_headless always emits an image_url path; Odoo serves a gray
   // placeholder at HTTP 200 for imageless products. image_128 is the real signal.
   it("blanks imageUrl when image_128 is false (no real photo → branded placeholder)", () => {

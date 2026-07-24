@@ -559,8 +559,14 @@ h1 em, h2 em, h3 em {
    — distinguishable by fill in greyscale and under red-green colour-blindness. */
 .var-stock--in { color: var(--stock-in); }
 .var-stock--out { color: var(--stock-out); }
+/* Coming-soon (Odoo sale_ok=False, GOL-760): a muted neutral, distinct from
+   both the green in-stock and red sold-out — the product is published but not
+   yet purchasable. Marked with a FILLED SQUARE so it stays distinguishable from
+   the in-stock disc and sold-out ring in greyscale / under colour-blindness. */
+.var-stock--soon { color: var(--ink-soft); }
 .var-stock--in::before,
-.var-stock--out::before {
+.var-stock--out::before,
+.var-stock--soon::before {
   content: "";
   width: 0.5em;
   height: 0.5em;
@@ -570,6 +576,7 @@ h1 em, h2 em, h3 em {
 }
 .var-stock--in::before { background: currentColor; }
 .var-stock--out::before { border: 1.5px solid currentColor; }
+.var-stock--soon::before { background: currentColor; border-radius: 1px; }
 
 /* Larger inline stock line for the product page (§7 "Stock display"). Shares the
    two status tokens + the filled/hollow disc rule with the card badge above. */
