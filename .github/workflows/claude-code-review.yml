@@ -46,9 +46,15 @@ jobs:
           plugins: 'code-review@claude-code-plugins'
           # Paperclip agents open PRs as the AgenticOS GitHub App; the action
           # rejects non-human actors by default ("Workflow initiated by
-          # non-human actor"). Allow exactly our App bot — agent-authored PRs
-          # need this review MORE than human ones (D4 review-lane design).
-          allowed_bots: 'agenticos-developer'
+          # non-human actor"). Allow our App bot (agent-authored PRs need this
+          # review MORE than human ones — D4 review-lane design) and Dependabot
+          # so dependency-bump PRs get reviewed too. The action normalizes each
+          # entry (lowercase, strips the `[bot]` suffix) before matching actor.
+          # NOTE: Dependabot runs use GitHub's isolated Dependabot secret store,
+          # so CLAUDE_CODE_OAUTH_TOKEN must ALSO be set there
+          # (`gh secret set CLAUDE_CODE_OAUTH_TOKEN --app dependabot`) or the
+          # action gets an empty token and fails to authenticate.
+          allowed_bots: 'agenticos-developer,dependabot[bot]'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
