@@ -1,0 +1,241 @@
+/* CheckoutShared — patterns that were byte-for-byte duplicated across
+ * CartPage/CheckoutPage/CheckoutReview, lifted here once (GOL-872) so each
+ * component sheet stays under the @grove/ui per-component ceiling (GOL-866).
+ * Selectors are GROUPED, not renamed — markup is unchanged, so the render is
+ * identical; a component keeps ONLY its own deltas. Colors use the --grove-*
+ * tint roles (contract.css). Excluded from the per-component gate as a shared
+ * (not bespoke) layer; overall weight is bounded by the route.css budget.
+ */
+
+/* ── Page shell (checkout + cart share the 72rem measure; review sets its own) ── */
+.grove-checkout,
+.grove-cart {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-7) var(--grove-space-5);
+}
+.grove-checkout--narrow,
+.grove-cart--narrow {
+  max-width: 56rem;
+}
+
+/* ── Empty state ── */
+.grove-checkout__empty,
+.grove-cart__empty {
+  padding: var(--grove-space-8) var(--grove-space-5);
+  text-align: center;
+  border: 1px solid var(--grove-color-line);
+  border-radius: var(--grove-radius-lg);
+}
+.grove-checkout__empty-text,
+.grove-cart__empty-text {
+  margin: 0 0 var(--grove-space-5);
+  font-size: var(--grove-text-h7);
+  color: var(--grove-color-ink-a60);
+}
+.grove-checkout__empty-cta,
+.grove-cart__empty-cta {
+  text-decoration: none;
+}
+
+/* ── Sticky checkout banner ── */
+.grove-checkout__banner,
+.grove-cart__banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  box-shadow: var(--grove-shadow-md);
+}
+.grove-checkout__banner-inner,
+.grove-cart__banner-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-4) var(--grove-space-5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--grove-space-4);
+}
+.grove-checkout__banner-eyebrow,
+.grove-cart__banner-eyebrow {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+}
+.grove-checkout__banner-total,
+.grove-cart__banner-total {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h5);
+  font-weight: var(--grove-font-weight-semibold);
+  line-height: 1.1;
+}
+.grove-checkout__banner-note,
+.grove-cart__banner-note {
+  font-size: var(--grove-text-xs);
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 0.5rem;
+}
+/* Banner CTA fill — checkout renders a <button>, cart an <a>; the element-only
+   deltas (border/cursor/text-decoration, :disabled) stay in each component. */
+.grove-checkout__banner-cta,
+.grove-cart__banner-cta {
+  flex-shrink: 0;
+  background: var(--grove-color-accent);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: var(--grove-text-sm);
+  padding: var(--grove-space-4) var(--grove-space-6);
+  border-radius: var(--grove-radius-sm);
+  box-shadow: var(--grove-shadow-sm);
+  transition: transform var(--grove-motion-fast);
+}
+.grove-checkout__banner-cta:hover,
+.grove-cart__banner-cta:hover {
+  transform: scale(1.05);
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-checkout__banner-cta:hover,
+  .grove-cart__banner-cta:hover {
+    transform: none;
+  }
+}
+
+/* ── Trust strip ── */
+.grove-checkout__trust,
+.grove-cart__trust {
+  background: color-mix(in srgb, var(--grove-color-secondary) 30%, transparent);
+  border-top: 1px solid var(--grove-color-line);
+  border-bottom: 1px solid var(--grove-color-line);
+}
+.grove-checkout__trust-inner,
+.grove-cart__trust-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--grove-space-3) var(--grove-space-5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+  font-family: var(--grove-font-mono);
+  font-size: var(--grove-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--grove-color-ink-a70);
+}
+.grove-checkout__trust-item,
+.grove-cart__trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Order summary card (checkout + cart) ── */
+.grove-checkout__summary,
+.grove-cart__summary {
+  height: fit-content;
+  padding: var(--grove-space-6);
+  border: 2px solid var(--grove-color-line-heavy);
+  border-radius: var(--grove-radius-lg);
+  background: var(--grove-color-surface);
+  box-shadow: var(--grove-shadow-sm);
+}
+@media (min-width: 1024px) {
+  .grove-checkout__summary,
+  .grove-cart__summary {
+    position: sticky;
+    top: 8rem;
+  }
+}
+.grove-checkout__summary-title,
+.grove-cart__summary-title {
+  font-family: var(--grove-font-display);
+  font-size: var(--grove-text-h7);
+  font-weight: var(--grove-font-weight-semibold);
+  margin: 0 0 var(--grove-space-4);
+}
+.grove-checkout__summary-row dt,
+.grove-cart__summary-row dt {
+  color: var(--grove-color-ink-a70);
+}
+.grove-checkout__summary-total,
+.grove-cart__summary-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 2px solid var(--grove-color-line-strong);
+  padding-top: var(--grove-space-3);
+  margin-top: var(--grove-space-3);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold);
+  font-size: var(--grove-text-h7);
+  color: var(--grove-color-primary);
+}
+
+/* ── Primary action button (checkout submit · cart summary CTA · review pay) ──
+   Shared forest fill; per-element deltas (font-size, hover, disabled, focus)
+   stay local to each component. */
+.grove-checkout__submit,
+.grove-cart__summary-cta,
+.grove-review__pay {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: var(--grove-space-5);
+  padding: var(--grove-space-4);
+  background: var(--grove-color-primary);
+  color: var(--grove-color-primary-foreground);
+  font-family: var(--grove-font-display);
+  font-weight: var(--grove-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--grove-radius-sm);
+  box-shadow: var(--grove-shadow-sm);
+  transition: transform var(--grove-motion-fast);
+}
+.grove-checkout__submit:hover,
+.grove-cart__summary-cta:hover {
+  transform: scale(1.02);
+}
+@media (prefers-reduced-motion: reduce) {
+  .grove-checkout__submit:hover,
+  .grove-cart__summary-cta:hover {
+    transform: none;
+  }
+}
+
+/* ── Reassurance line under the CTA (review overrides margin locally) ── */
+.grove-checkout__reassure,
+.grove-cart__reassure,
+.grove-review__reassure {
+  margin-top: var(--grove-space-4);
+  font-size: var(--grove-text-xs);
+  text-align: center;
+  line-height: 1.5;
+  color: var(--grove-color-ink-a60);
+}
+
+/* ── Error surface (checkout + review) — status token, icon + text, never
+   color alone. ── */
+.grove-checkout__error,
+.grove-review__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem var(--grove-space-3);
+  border: 1px solid var(--grove-color-error-solid);
+  background: var(--grove-color-error-surface);
+  color: var(--grove-color-error-fg);
+  border-radius: var(--grove-radius-sm);
+  font-size: var(--grove-text-sm);
+}
+.grove-checkout__error-icon,
+.grove-review__error-icon {
+  flex-shrink: 0;
+}

@@ -90,10 +90,26 @@ locals {
   # Never-cache dynamic/PII paths regardless of cookie state.
   never_cache_path_expr = "(starts_with(http.request.uri.path, \"/checkout\") or starts_with(http.request.uri.path, \"/account\") or starts_with(http.request.uri.path, \"/cart\") or starts_with(http.request.uri.path, \"/api/\"))"
 
-  # Anonymous cache-eligible remainder. When there are no session cookies the
-  # `not session_cookie_expr` clause is dropped so the expression stays valid
-  # (join over an empty list would yield an empty matcher).
-  anonymous_cache_expr = local.has_session_cookie ? "not ${local.never_cache_path_expr} and not ${local.session_cookie_expr}" : "not ${local.never_cache_path_expr}"
+  # Next.js image optimizer (GOL-873). Cloudflare's edge cache does NOT vary on
+  # `Accept` (only on Accept-Encoding), but /_next/image responses content-
+  # negotiate their format (AVIF/WebP/JPEG) behind a single URL and carry an
+  # image content-type + a long Cache-Control. Without a dedicated bypass the
+  # FIRST client's negotiated format is cached under an Accept-blind key and
+  # served to EVERY later client of that URL, so a Safari<16.4 / legacy visitor
+  # gets an undecodable AVIF for the full TTL. This path is bypassed (Rule 1b in
+  # cache-rules.tf) AND excluded from the anonymous cache matcher below, so the
+  # two never overlap.
+  image_optimizer_path_expr = "(starts_with(http.request.uri.path, \"/_next/image\"))"
+
+  # Anonymous cache-eligible remainder = everything that is NOT one of the
+  # bypass groups. Expressed as a SINGLE negation of an OR-group (De Morgan of
+  # `not A and not B ...`) so it exactly mirrors the proven Rule 1 form and
+  # avoids any `not`/`and` precedence ambiguity at the edge. Always excludes the
+  # never-cache (PII) and image-optimizer paths; folds in the session-cookie
+  # clause only when cookies are configured (else that OR-term is dropped so the
+  # group stays valid).
+  cache_bypass_group_expr = local.has_session_cookie ? "${local.never_cache_path_expr} or ${local.image_optimizer_path_expr} or ${local.session_cookie_expr}" : "${local.never_cache_path_expr} or ${local.image_optimizer_path_expr}"
+  anonymous_cache_expr    = "not (${local.cache_bypass_group_expr})"
 
   # XHR / fetch API traffic vs top-level navigation. Sec-Fetch-Mode is set by all
   # modern browsers: "navigate" for page loads, "cors"/"no-cors"/"same-origin"

@@ -1,0 +1,210 @@
+name: Lighthouse CI
+
+# GOL-866 — Core Web Vitals lab gate for the Grove performance budget
+# (GOL-864 §1a/§1b): LCP <= 2.0s, CLS <= 0.05, TBT <= 200ms (INP lab proxy),
+# total byte weight <= 540 KB. Assertions live in lighthouserc.json.
+#
+# This half of the budget needs a RUNNING page, so it targets a per-PR preview
+# URL. Preview droplets only exist for PRs labeled `qa` (see preview-up.yml /
+# README-preview.md), so it cannot run on every PR the way perf-budget.yml does.
+#
+# ── CI wiring (GOL-871) ──────────────────────────────────────────────────────
+# Iris owns the config + audit runner; Ada owns this wiring. Three triggers:
+#
+#   1. workflow_dispatch — manual audit of an explicit preview URL (unchanged).
+#   2. workflow_run("preview-up") — auto-audit once a preview is up. The audit
+#      recovers the preview URLs from preview-up's PR comment (the
+#      `<!-- grove-preview-bot -->` table is the source of truth for the URLs
+#      terraform actually produced) and posts the "Lighthouse CI" commit status
+#      on the PR head SHA.
+#   3. pull_request (gate shim) — the ruleset can't condition a required check
+#      on a label, so "Lighthouse CI" is required for ALL PRs; this shim keeps
+#      the requirement honest without blocking PRs that have no preview:
+#        - non-`qa` PR -> post "Lighthouse CI" = success (nothing to audit).
+#        - `qa` PR      -> post "Lighthouse CI" = pending; the audit job (fired
+#                          by preview-up via workflow_run) resolves it to the
+#                          real pass/fail. Merge stays blocked until it does.
+#      Net effect: the gate only ever *blocks* on `qa`-labeled PRs, exactly as
+#      GOL-866 asks, while non-`qa` PRs sail through green.
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Preview URL to audit (e.g. https://nursery.pr-123.preview.gatheringatthegrove.com)"
+        required: true
+        type: string
+  workflow_run:
+    workflows: ["preview-up"]
+    types: [completed]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+  statuses: write       # post the "Lighthouse CI" commit status (the required context)
+  pull-requests: read   # read the preview-up comment to recover URLs
+
+concurrency:
+  # Scope by event so the pull_request gate and the workflow_run audit never
+  # cancel each other (same head SHA otherwise collides); within one event type
+  # a newer run for the same SHA supersedes the older.
+  group: lighthouse-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Gate shim — sets the "Lighthouse CI" required status for a PR based on its
+  # label. Runs on every PR (cheap, no build).
+  gate:
+    name: Lighthouse gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const isQa = pr.labels.some(l => l.name === 'qa');
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: pr.head.sha,
+              context: 'Lighthouse CI',
+              state: isQa ? 'pending' : 'success',
+              description: isQa
+                ? 'Preview coming up — Lighthouse audit will run once it is live'
+                : 'No preview (non-qa PR) — nothing to audit',
+            });
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # preview-up failed → the qa PR has no live preview to audit. Flip the pending
+  # status to failure so the PR is clearly red instead of stuck pending forever.
+  #
+  # Match only genuine failure conclusions — NOT `!= 'success'`. `workflow_run`
+  # also fires when preview-up concludes `skipped` (every non-`qa` PR label-gates
+  # its jobs off), and `'skipped' != 'success'` would post "Lighthouse CI" =
+  # failure over the gate shim's green, reddening / blocking every non-qa PR.
+  preview-failed:
+    name: Preview failed
+    if: github.event_name == 'workflow_run' && contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            if (!run.head_sha) return;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: run.head_sha,
+              context: 'Lighthouse CI',
+              state: 'failure',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}`,
+              description: `Preview environment failed to come up (${run.conclusion}) — cannot audit`,
+            });
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Audit — the real Lighthouse run against the preview.
+  audit:
+    name: Lighthouse audit
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # Recover the PR head SHA and the preview URL(s) to audit.
+      #   - workflow_dispatch: the URL is the explicit input.
+      #   - workflow_run: read preview-up's "grove-preview-bot" PR comment and
+      #     parse the per-tenant URL table (the URLs terraform actually output).
+      - id: ctx
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let headSha = '';
+            let prNumber = null;
+            let urls = '';
+
+            if (context.eventName === 'workflow_dispatch') {
+              headSha = context.sha;
+              urls = context.payload.inputs.preview_url || '';
+            } else {
+              const run = context.payload.workflow_run;
+              headSha = run.head_sha;
+              prNumber = run.pull_requests?.[0]?.number ?? null;
+              if (!prNumber) {
+                // pull_requests is empty for some events — recover via head SHA.
+                const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: headSha,
+                });
+                prNumber = data.find(p => p.state === 'open')?.number ?? data[0]?.number ?? null;
+              }
+              if (prNumber) {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                });
+                const c = comments.find(x => x.body && x.body.includes('<!-- grove-preview-bot -->'));
+                if (c) {
+                  // Rows look like: | **nursery** | https://nursery.pr-123.preview... |
+                  urls = [...c.body.matchAll(/\|\s*\*\*[^*|]+\*\*\s*\|\s*(https?:\/\/[^\s|]+)\s*\|/g)]
+                    .map(m => m[1])
+                    .join('\n');
+                }
+              }
+            }
+
+            core.setOutput('headSha', headSha);
+            core.setOutput('urls', urls);
+            if (!urls) {
+              core.warning('No preview URL recovered — see the guard step.');
+            } else {
+              core.info(`Auditing:\n${urls}`);
+            }
+
+      - name: Guard — a preview URL is required
+        if: steps.ctx.outputs.urls == ''
+        run: |
+          echo "::error::No preview URL recovered (no grove-preview-bot comment, or its URL table was empty)."
+          exit 1
+
+      - name: Run Lighthouse CI against the preview
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12.6.2
+        with:
+          urls: ${{ steps.ctx.outputs.urls }}
+          configPath: ./lighthouserc.json
+          # Assertions in lighthouserc.json fail the job on a budget breach.
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      # Post the "Lighthouse CI" status on the PR head SHA (workflow_run path only;
+      # workflow_dispatch has no PR to gate). Runs on both pass and fail.
+      - name: Report Lighthouse status on the PR
+        if: always() && github.event_name == 'workflow_run' && steps.ctx.outputs.headSha != ''
+        uses: actions/github-script@v9
+        env:
+          JOB_STATUS: ${{ job.status }}
+        with:
+          script: |
+            const ok = process.env.JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.ctx.outputs.headSha }}',
+              context: 'Lighthouse CI',
+              state: ok ? 'success' : 'failure',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: ok
+                ? 'Core Web Vitals + byte weight within the GOL-864 §1 budget'
+                : 'Budget breach or audit error — see the run for the failing assertion',
+            });

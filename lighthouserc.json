@@ -1,0 +1,23 @@
+{
+  "//": "Lighthouse CI lab gate for the Grove performance budget (GOL-866, spec GOL-864 §1a/§1b). Runs against a live preview URL. Thresholds mirror perf-budget.config.json → lighthouse; keep the two in sync. INP has no lab equivalent, so total-blocking-time is the documented lab proxy.",
+  "ci": {
+    "collect": {
+      "numberOfRuns": 3,
+      "//settings": "Mobile preset = simulated Slow-4G + mid-tier CPU, matching the '4G mobile' target in §1a. Median of 3 runs absorbs lab variance.",
+      "settings": {
+        "preset": "mobile"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2000, "aggregationMethod": "median" }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.05, "aggregationMethod": "median" }],
+        "total-blocking-time": ["error", { "maxNumericValue": 200, "aggregationMethod": "median" }],
+        "total-byte-weight": ["error", { "maxNumericValue": 552960, "aggregationMethod": "median" }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
