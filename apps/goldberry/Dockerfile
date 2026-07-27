@@ -19,6 +19,7 @@ RUN corepack enable
 
 # Copy only the manifests so this layer caches across source changes.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+COPY patches/ ./patches/
 COPY apps/goldberry/package.json apps/goldberry/
 COPY packages/ui/package.json packages/ui/
 COPY packages/checkout/package.json packages/checkout/
