@@ -82,9 +82,14 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   # preview-up failed → the qa PR has no live preview to audit. Flip the pending
   # status to failure so the PR is clearly red instead of stuck pending forever.
+  #
+  # Match only genuine failure conclusions — NOT `!= 'success'`. `workflow_run`
+  # also fires when preview-up concludes `skipped` (every non-`qa` PR label-gates
+  # its jobs off), and `'skipped' != 'success'` would post "Lighthouse CI" =
+  # failure over the gate shim's green, reddening / blocking every non-qa PR.
   preview-failed:
     name: Preview failed
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+    if: github.event_name == 'workflow_run' && contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion)
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
