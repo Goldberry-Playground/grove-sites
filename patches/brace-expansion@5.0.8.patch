@@ -1,0 +1,20 @@
+diff --git a/dist/commonjs/index.js b/dist/commonjs/index.js
+index be9df86be09c7655787a65c55ae6da01858894c3..b6a2628e95ec0c5f99eee1ca8ba596b3f9439713 100644
+--- a/dist/commonjs/index.js
++++ b/dist/commonjs/index.js
+@@ -260,4 +260,13 @@ function expand_(str, max, maxLength, isTop) {
+     }
+     return acc;
+ }
+-//# sourceMappingURL=index.js.map
+\ No newline at end of file
++//# sourceMappingURL=index.js.map// GOL-841 compat shim: restore a callable CommonJS default export so consumers
++// that predate the 5.x named-export API (e.g. minimatch@3's
++// `require('brace-expansion')(...)`, used by eslint 9's config matching) keep
++// working. The ReDoS-hardened 5.0.8 logic above is unchanged; internal
++// `exports.EXPANSION_MAX*` reads still resolve against the original object.
++module.exports = expand;
++module.exports.expand = expand;
++module.exports.default = expand;
++module.exports.EXPANSION_MAX = exports.EXPANSION_MAX;
++module.exports.EXPANSION_MAX_LENGTH = exports.EXPANSION_MAX_LENGTH;

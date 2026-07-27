@@ -15,6 +15,11 @@ overrides:
   next: ^15.5.21
   postcss: ^8.5.18
 
+patchedDependencies:
+  brace-expansion@5.0.8:
+    hash: b7g6gatgd7rjxhmjafubw36khi
+    path: patches/brace-expansion@5.0.8.patch
+
 importers:
 
   .:
@@ -5457,7 +5462,7 @@ snapshots:
 
   bowser@2.14.1: {}
 
-  brace-expansion@5.0.8:
+  brace-expansion@5.0.8(patch_hash=b7g6gatgd7rjxhmjafubw36khi):
     dependencies:
       balanced-match: 4.0.4
 
@@ -6535,11 +6540,11 @@ snapshots:
 
   minimatch@10.2.5:
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.8(patch_hash=b7g6gatgd7rjxhmjafubw36khi)
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.8(patch_hash=b7g6gatgd7rjxhmjafubw36khi)
 
   minimist@1.2.8: {}
 
