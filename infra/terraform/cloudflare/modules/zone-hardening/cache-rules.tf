@@ -4,8 +4,13 @@
 # NEVER serve a storefront page that could carry session/PII from full-page
 # cache. Rules evaluate top-down; first match wins.
 #
-#   Rule 1 — hard bypass for dynamic/PII paths (/checkout|/account|/cart|/api/*),
+#   Rule 1  — hard bypass for dynamic/PII paths (/checkout|/account|/cart|/api/*),
 #            regardless of cookies. Belt-and-suspenders vs origin cache headers.
+#   Rule 1b — bypass the Next.js image optimizer (/_next/image*). Cloudflare's
+#            edge cache ignores `Vary: Accept`, so a single /_next/image URL would
+#            otherwise cache the first client's negotiated format (e.g. AVIF) and
+#            serve it to every later client — breaking images for non-AVIF
+#            browsers for the full TTL (GOL-873).
 #   Rule 2 — bypass cache whenever a session cookie is present (logged-in / has
 #            cart), so a personalized response is never cached or served shared.
 #            ONLY EMITTED when var.session_cookie_names is non-empty. The Grove
@@ -31,6 +36,25 @@ resource "cloudflare_ruleset" "cache_rules" {
     ref         = "grove_cache_bypass_dynamic"
     description = "Never cache /checkout|/account|/cart|/api/* (${var.zone_name})"
     expression  = local.never_cache_path_expr
+    action      = "set_cache_settings"
+    enabled     = true
+
+    action_parameters {
+      cache = false
+    }
+  }
+
+  # Rule 1b — GOL-873: bypass the Next.js image optimizer. CF's edge cache does
+  # not vary on `Accept`, so /_next/image (which content-negotiates AVIF/WebP/
+  # JPEG behind one URL) must not be edge-cached or one client's format is served
+  # to all. Bypassing lets Next negotiate per request; Next's own on-disk cache
+  # still prevents re-transcode and the browser still caches the image ~31d.
+  # Verified live 2026-07-27 on nursery.qa.gatheringatthegrove.com. This path is
+  # excluded from Rule 3 (local.anonymous_cache_expr) so they never overlap.
+  rules {
+    ref         = "grove_cache_bypass_next_image"
+    description = "Bypass edge cache for /_next/image* — CF ignores Vary:Accept -> AVIF cache-poisoning (GOL-873) (${var.zone_name})"
+    expression  = local.image_optimizer_path_expr
     action      = "set_cache_settings"
     enabled     = true
 
