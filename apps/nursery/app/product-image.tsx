@@ -3,6 +3,21 @@
 import Image from "next/image";
 import { useState } from "react";
 
+/**
+ * GOL-818 — re-encode quality for product photography.
+ *
+ * next/image defaults to `quality={75}`. Our catalog photos are foliage- and
+ * texture-dense (leaves, bark, grass, fruit skin — all high-frequency detail),
+ * exactly the content WebP/AVIF at q75 smears into mush, so real photos read
+ * "soft"/"low-res" on the storefront even when the *source* resolution is fine
+ * (audited on nursery.qa: Apple's 1445px source loads in full at DPR2, yet the
+ * q75 re-encode still looked hazy). Bumping to 82 recovers that crispness for
+ * ~24% more bytes per image — a sound trade for a photo-first plant nursery.
+ * 90+ was double the payload for a marginal gain. This is the rendering-side
+ * lever; low-resolution *source* photos still need higher-res uploads to Odoo.
+ */
+export const PRODUCT_IMAGE_QUALITY = 82;
+
 export interface ProductImageProps {
   /** Resolved image URL, or empty/null when the catalog has no photo yet. */
   src?: string | null;
@@ -42,6 +57,7 @@ export function ProductImage({ src, alt, sizes, priority }: ProductImageProps) {
         fill
         sizes={sizes}
         priority={priority}
+        quality={PRODUCT_IMAGE_QUALITY}
         className="product-photo"
         onError={() => setErrored(true)}
       />
