@@ -97,7 +97,7 @@ export default async function RootLayout({
             <div className="footer-copy">
               <p>
                 &copy; {new Date().getFullYear()}{" "}
-                {tenantConfig.name}. All rights reserved.
+                {tenantConfig.legalName}. All rights reserved.
               </p>
             </div>
           </footer>

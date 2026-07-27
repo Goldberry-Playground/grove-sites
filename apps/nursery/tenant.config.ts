@@ -5,7 +5,12 @@
 
 export const tenantConfig = {
   tenantId: "nursery",
-  name: "At The Grove Nursery, LLC",
+  // Customer-facing brand name — used for the browser <title> and header
+  // wordmark. Keep the legal ", LLC" out of these surfaces; it belongs only
+  // in the footer legal line (see `legalName`). — GOL-868 (GOL-867 F4)
+  name: "At The Grove Nursery",
+  // Registered legal entity — footer copyright / legal line only.
+  legalName: "At The Grove Nursery, LLC",
   domain: "atthegrovenursery.com",
   description:
     "Trees, shrubs, and seasonal plantings — grown in West Virginia, ready for your land",

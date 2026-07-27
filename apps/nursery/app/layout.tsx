@@ -73,7 +73,7 @@ export default async function RootLayout({
                 hubOptIn
               />
               <p className="text-center">
-                &copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.
+                &copy; {new Date().getFullYear()} {tenantConfig.legalName}. All rights reserved.
               </p>
             </div>
           </footer>
