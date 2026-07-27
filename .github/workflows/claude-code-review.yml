@@ -17,7 +17,11 @@ concurrency:
 jobs:
   claude-review:
     # Drafts get reviewed when marked ready (ready_for_review trigger above).
-    if: github.event.pull_request.draft == false
+    # Skip Dependabot PRs: they run with GitHub's isolated Dependabot secret
+    # store, so `secrets.CLAUDE_CODE_OAUTH_TOKEN` is empty and the action fails
+    # to authenticate (red X on every dep bump). Dependabot is also not in
+    # `allowed_bots` below, so these PRs were never meant to be Claude-reviewed.
+    if: github.event.pull_request.draft == false && github.actor != 'dependabot[bot]'
 
     runs-on: ubuntu-latest
     permissions:
