@@ -296,6 +296,71 @@ h1 em, h2 em, h3 em {
   transition: transform 0.6s;
 }
 .cat-card:hover .cat-img img { transform: scale(1.05); }
+
+/* ─── Imagery placeholders (GOL-869 F2) ───────────────────────────────
+   Real product photography is pending the GOL-235 shoot. Until it lands we
+   show an honest, branded placeholder rather than hotlinking stock photos of
+   other makers' work as GGG's one-of-one pieces. Labelled (not encoded by
+   colour alone) → WCAG 1.1.1 / colour independence; parchment-on-walnut label
+   clears 4.5:1. */
+.photo-pending {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 1rem;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(177, 120, 57, 0.16), transparent 62%),
+    repeating-linear-gradient(
+      115deg,
+      var(--walnut) 0 13px,
+      var(--walnut-deep) 13px 26px
+    );
+}
+.photo-pending__mark {
+  width: 34px; height: 34px;
+  border: 2px solid var(--amber);
+  border-radius: 50%;
+  position: relative;
+}
+.photo-pending__mark::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px solid var(--amber);
+  border-radius: 50%;
+}
+.photo-pending__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--parchment);
+}
+/* Keep the piece-number badge above the placeholder fill. */
+.cat-num { z-index: 2; }
+
+/* Decorative wood-tone panel for the large hero / maker's-note areas that
+   previously carried a stock background photo. Purely presentational
+   (aria-hidden); the H1 / blockquote carry the meaning. */
+.wood-panel {
+  background:
+    linear-gradient(135deg, transparent 55%, rgba(31, 18, 10, 0.55)),
+    repeating-linear-gradient(
+      115deg,
+      var(--walnut) 0 15px,
+      var(--walnut-deep) 15px 30px
+    );
+}
+/* These panels have no intrinsic height once the <img>/bg-image is gone;
+   give them a floor so they never collapse when the fl/grid parent stacks. */
+.hero-img { min-height: 44vh; }
+.mn-img { min-height: 240px; }
 .cat-num {
   position: absolute;
   top: 14px; left: 14px;
