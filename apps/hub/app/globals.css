@@ -269,6 +269,19 @@ a { color: inherit; text-decoration: none; }
   gap: 1.5rem;
 }
 
+/* Featured is a curated 1–3 picks, not a full vendor catalog. On desktop the
+   1fr tracks above stretch a single pick to the full ~1220px container — an
+   aspect-ratio:1 image then swallows the viewport as a full-bleed square. Cap
+   the track width and left-align so a lone pick reads as a card, and multi-pick
+   rows stay tidy. Below the 720px mobile breakpoint we keep the inherited 1fr
+   so the card fills the single column edge-to-edge. (GOL-439 / GOL-400) */
+@media (min-width: 721px) {
+  .marketplace__featured .marketplace__grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 300px));
+    justify-content: start;
+  }
+}
+
 /* .product-card* lifted to @grove/ui-kit (GOL-139). */
 
 /* ─────── Manifesto (slow editorial close) ─────── */
