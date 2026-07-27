@@ -1,0 +1,56 @@
+name: Lighthouse CI
+
+# GOL-866 — Core Web Vitals lab gate for the Grove performance budget
+# (GOL-864 §1a/§1b): LCP <= 2.0s, CLS <= 0.05, TBT <= 200ms (INP lab proxy),
+# total byte weight <= 540 KB. Assertions live in lighthouserc.json.
+#
+# This half of the budget needs a RUNNING page, so it targets a per-PR preview
+# URL. Preview droplets only exist for PRs labeled `qa` (see preview-up.yml /
+# README-preview.md), so this cannot run on every PR the way perf-budget.yml
+# does — it runs on demand and after a preview is up.
+#
+# ── Owner split (GOL-866) ────────────────────────────────────────────────────
+# Iris owns the config + this runner. Ada owns the CI wiring that remains:
+#   1. Auto-trigger after preview-up: uncomment the `workflow_run` trigger below
+#      and wire the preview URL source. preview-up.yml exposes the per-tenant
+#      URLs as a `preview_urls_json` job output and comments them on the PR; a
+#      `workflow_run`-triggered job must recover one of those URLs (re-derive
+#      from the PR's preview domain, or have preview-up publish it as an
+#      artifact this job downloads).
+#   2. Make "Lighthouse CI" a required check in the grove-sites ruleset only for
+#      `qa`-labeled PRs (GOL-392) — do NOT require it on every PR, or PRs without
+#      a preview would block forever.
+#
+# Until then the manual `workflow_dispatch` path below is fully functional.
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Preview URL to audit (e.g. https://nursery.pr-123.preview.gatheringatthegrove.com)"
+        required: true
+        type: string
+  # --- Ada: auto-trigger. Preview URL recovery is the wiring to add (see header).
+  # workflow_run:
+  #   workflows: ["preview-up"]
+  #   types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run Lighthouse CI against the preview
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12.6.2
+        with:
+          urls: ${{ inputs.preview_url }}
+          configPath: ./lighthouserc.json
+          # Assertions in lighthouserc.json fail the job on a budget breach.
+          uploadArtifacts: true
+          temporaryPublicStorage: true

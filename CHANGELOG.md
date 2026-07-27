@@ -4,6 +4,29 @@ A running log of meaningful changes to the four-app monorepo. Entries are in
 reverse chronological order. Each session block lists what shipped and the
 follow-ups it surfaced.
 
+## 2026-07-27 — CI performance-budget gate (GOL-866)
+
+### CI / tooling
+
+- **Enforces the GOL-864 §1 performance budget on every PR** — the Angular
+  `budgets` analog Josh asked for. Three gates, all reading one config
+  (`perf-budget.config.json`):
+  - **Route byte budget** (`scripts/perf-budget.mjs`) — reads each app's built
+    `.next/` manifests and fails a route over its first-load **JS** (warn 150 KB
+    / error 400 KB gz) or **CSS** (error 60 KB gz) budget.
+  - **Component CSS ceiling** (`scripts/css-component-budget.mjs`) — the direct
+    Angular per-component analog: warn 2 KB / error 6 KB per bespoke `@grove/ui`
+    stylesheet. Four already-over files are grandfathered via a shrink-only
+    ratchet baseline so the introducing PR stays green; refactor is a follow-up.
+  - **Lighthouse CI** (`lighthouserc.json`) — LCP ≤ 2.0s, CLS ≤ 0.05, TBT ≤
+    200ms (INP lab proxy), total ≤ 540 KB against a preview URL.
+- Workflows `perf-budget.yml` (every PR) and `lighthouse-ci.yml` (preview URL).
+  `node --test scripts/test/perf-budget.test.mjs` covers both scripts (10 tests).
+  See `docs/perf-budget.md`.
+- Follow-ups: **Ada** wires these as required checks (GOL-392 ruleset) + the
+  Lighthouse preview-URL auto-trigger; refactor the four baselined stylesheets
+  under 6 KB.
+
 ## 2026-07-09 — Lift cart-coupled checkout components into @grove/ui-kit (GOL-115)
 
 ### Design system
