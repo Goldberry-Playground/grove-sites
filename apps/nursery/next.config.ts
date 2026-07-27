@@ -19,6 +19,16 @@ const nextConfig: NextConfig = {
     "@grove/otel",
   ],
   images: {
+    // Frontend performance standard (GOL-864): negotiate AVIF first, then WebP.
+    // next/image already transcodes source JPEG/PNG to WebP on demand; adding
+    // AVIF gives ~20-30% smaller bytes to browsers that accept it, at no source
+    // change. WebP stays as the universal fallback.
+    formats: ["image/avif", "image/webp"],
+    // Optimized variants are immutable per product-photo revision, so raise the
+    // optimizer/CDN cache floor from Next's 60s default to 31 days. Stops the
+    // droplet re-transcoding the same photo on every cache miss (see
+    // odoo-client/images.ts production note).
+    minimumCacheTTL: 2678400,
     remotePatterns: [
       // Level 3 QA Odoo -- product photos on the qa.* storefronts
       {
