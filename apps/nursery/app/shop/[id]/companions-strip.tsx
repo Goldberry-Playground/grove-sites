@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
-import { resolveOdooImageUrl } from "@grove/odoo-client";
+import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { ProductImage } from "../../product-image";
 
 /**
@@ -28,7 +28,10 @@ export function CompanionsStrip({
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {companions.map((c) => {
-          const img = resolveOdooImageUrl(c.imageUrl, odooBase);
+          // Companions come off the list endpoint (image_128 thumbnail); request
+          // the 1024 rung so these cards match /shop crispness instead of
+          // upscaling a thumbnail (GOL-818, same lever as GOL-761).
+          const img = resolveOdooImageUrl(withOdooImageSize(c.imageUrl, 1024), odooBase);
           return (
             <Link
               key={c.id}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
-import { resolveOdooImageUrl } from "@grove/odoo-client";
+import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import { mockProducts } from "../data/mock-products";
 import { ProductImage } from "./product-image";
@@ -96,7 +96,14 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                   p.featured && <span className="var-badge">Featured</span>
                 )}
                 <ProductImage
-                  src={resolveOdooImageUrl(p.imageUrl, odooBase)}
+                  // The catalog list endpoint hands back the thumbnail rung
+                  // (image_128). Rendered raw it upscaled ~128px into ~480px
+                  // cards, so the homepage looked visibly softer than the same
+                  // products on /shop (GOL-818). Request the 1024 rung and let
+                  // next/image downscale it crisply — the same lever the shop
+                  // grid already uses (GOL-761). Byte-identical for source
+                  // images ≤ 1024px (the current nursery photos).
+                  src={resolveOdooImageUrl(withOdooImageSize(p.imageUrl, 1024), odooBase)}
                   alt={p.name}
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 />
