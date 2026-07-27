@@ -10,8 +10,13 @@ export const tenantConfig = {
   tenantId: "goldberry",
   name: "Goldberry Grove Farm",
   domain: "goldberrygrove.farm",
+  // Educational hub first, agrotourism farm — NOT a genetic-stock nursery
+  // (2026-05-29 positioning correction). Leads with the farm / educational /
+  // agrotourism + chestnut-heritage identity; "tree nursery" dropped so it no
+  // longer blurs into the sibling At the Grove Nursery brand. — GOL-868
+  // (GOL-867 F3). Final wording pending CMO (Sora) sign-off.
   description:
-    "A tree nursery and agrotourism orchard rooted in the shared history of the chestnut — Appalachian land, Korean heritage.",
+    "A regenerative agroforestry farm and educational orchard above Summersville, WV, rooted in the shared history of the chestnut across Appalachian land and Korean heritage.",
   copy: {
     shopHeading: "Farm Shop",
     blogHeading: "From the Grove",
