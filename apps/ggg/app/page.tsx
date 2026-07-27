@@ -1,34 +1,32 @@
 import Link from "next/link";
-import { HeroSlideshow } from "./hero-slideshow";
 
 // GGG Woodworking homepage — port of wireframes/ggg/index.html structure.
 // Sections in wireframe order: hero (split) → spec-strip → catalog →
 // maker's note → wood library.
 
-// Unsplash image IDs — verified woodworking / furniture / workshop photos.
-// Replace with self-hosted product photography when available.
-const img = {
-  walnutTable:
-    "https://images.unsplash.com/photo-1604074131665-7a4b13870ab3?w=900&auto=format&fit=crop&q=80",
-  diningChair:
-    "https://images.unsplash.com/photo-1503602642458-232111445657?w=900&auto=format&fit=crop&q=80",
-  cuttingBoard:
-    "https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=900&auto=format&fit=crop&q=80",
-  shelf:
-    "https://images.unsplash.com/photo-1594026112284-02bb6f3352fe?w=900&auto=format&fit=crop&q=80",
-  bench:
-    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&auto=format&fit=crop&q=80",
-  stool:
-    "https://images.unsplash.com/photo-1503602642458-232111445657?w=900&auto=format&fit=crop&q=80&crop=entropy",
-  maker:
-    "https://images.unsplash.com/photo-1542178243-bc20204b769f?w=1200&auto=format&fit=crop&q=80",
-};
+// Honest imagery placeholder (GOL-869 F2). The live catalog previously
+// hotlinked 19 Unsplash stock photos of other makers' furniture to
+// illustrate GGG's "one of one" pieces — a brand-integrity + photography-
+// standard violation (and raw <img> hotlinks with no CDN, §2b). Until the
+// real product shoot lands (GOL-235) we render a branded, labelled
+// placeholder rather than misrepresent the work. Labelled (not color-coded)
+// so it satisfies WCAG 1.1.1 / color independence.
+function PhotoPending({ label = "Photography in progress" }: { label?: string }) {
+  return (
+    <span className="photo-pending" role="img" aria-label={label}>
+      <span className="photo-pending__mark" aria-hidden="true" />
+      <span className="photo-pending__label">{label}</span>
+    </span>
+  );
+}
 
 export default function HomePage() {
   return (
     <>
       <section className="hero">
-        <HeroSlideshow />
+        {/* Real hero photography is pending the GOL-235 shoot; a decorative
+            branded panel stands in rather than stock/fabricated slides. */}
+        <div className="hero-img wood-panel" aria-hidden="true" />
         <div className="hero-text">
           <span className="hero-eyebrow">
             Workshop № 04 · Appalachian WV
@@ -106,8 +104,7 @@ export default function HomePage() {
           >
             <div className="cat-img">
               <span className="cat-num">№ 04-18</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.walnutTable} alt="Walnut slab table" />
+              <PhotoPending />
             </div>
             <div className="cat-info">
               <div className="cat-spec">
@@ -132,8 +129,7 @@ export default function HomePage() {
           <Link href="/shop/holler-dining-chair" className="cat-card">
             <div className="cat-img">
               <span className="cat-num">№ 03-22</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.diningChair} alt="Cherry dining chair" />
+              <PhotoPending />
             </div>
             <div className="cat-info">
               <div className="cat-spec">
@@ -158,8 +154,7 @@ export default function HomePage() {
           >
             <div className="cat-img">
               <span className="cat-num">№ 04-04</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.cuttingBoard} alt="Cutting board" />
+              <PhotoPending />
             </div>
             <div className="cat-info">
               <div className="cat-spec">
@@ -184,8 +179,7 @@ export default function HomePage() {
           >
             <div className="cat-img">
               <span className="cat-num">№ 02-31</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.shelf} alt="Cherry mantle shelf" />
+              <PhotoPending />
             </div>
             <div className="cat-info">
               <div className="cat-spec">
@@ -207,8 +201,7 @@ export default function HomePage() {
           <Link href="/shop/the-ridge-bench" className="cat-card">
             <div className="cat-img">
               <span className="cat-num">№ 03-09</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.bench} alt="Oak entryway bench" />
+              <PhotoPending />
             </div>
             <div className="cat-info">
               <div className="cat-spec">
@@ -233,8 +226,7 @@ export default function HomePage() {
           >
             <div className="cat-img">
               <span className="cat-num">№ 04-22</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.stool} alt="Workshop stool" />
+              <PhotoPending />
             </div>
             <div className="cat-info">
               <div className="cat-spec">
@@ -262,14 +254,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Maker's note — cinematic image + blockquote */}
+      {/* Maker's note — cinematic panel + blockquote. Photography pending
+          the GOL-235 shoot; a decorative branded panel stands in. */}
       <section className="makers-note">
-        <div
-          className="mn-img"
-          style={{
-            backgroundImage: `url('${img.maker}')`,
-          }}
-        />
+        <div className="mn-img wood-panel" aria-hidden="true" />
         <div className="mn-text">
           <div className="mn-eyebrow">— A Note from the Bench</div>
           <blockquote>

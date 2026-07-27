@@ -59,13 +59,6 @@ const nextConfig: NextConfig = {
         hostname: "erp.gatheringatthegrove.com",
         pathname: "/web/image/**",
       },
-      // Demo / placeholder catalog images while Odoo is still being set up.
-      // Remove this entry once the mock-products module is deleted.
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
-      },
       // Grove assets CDN — future-proofed even though ggg has no public
       // assets today. Cloudflare vanity host is canonical; raw DO CDN
       // hostname is kept for direct fetches during migration probing.
