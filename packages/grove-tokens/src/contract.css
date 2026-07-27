@@ -30,6 +30,25 @@
   --grove-color-paper-deep: #efe3c2;         /* sunk surface / divider */
   --grove-color-paper-soft: #fbf4dd;         /* raised surface / hover bg */
 
+  /* ── Derived alpha tints (GOL-872) ──────────────────────────────────────────
+   *    The color-mix(...ink/primary/secondary…%, transparent) one-offs that
+   *    recurred across the cart/checkout components, promoted to roles so they
+   *    stay consistent and get replaced in one place. Each tracks a BASE role,
+   *    so a brand theme that reassigns --grove-color-ink/primary/secondary
+   *    cascades into these automatically — no per-theme redefinition needed.
+   *    `ink-a*` = muted body/label text · `line*` = hairline borders/dividers
+   *    (primary-tinted) · `surface*` = soft card fills (secondary-tinted). ── */
+  --grove-color-ink-a50: color-mix(in srgb, var(--grove-color-ink) 50%, transparent);
+  --grove-color-ink-a60: color-mix(in srgb, var(--grove-color-ink) 60%, transparent);
+  --grove-color-ink-a70: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
+  --grove-color-line: color-mix(in srgb, var(--grove-color-primary) 10%, transparent);
+  --grove-color-line-soft: color-mix(in srgb, var(--grove-color-primary) 15%, transparent);
+  --grove-color-line-strong: color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  --grove-color-line-heavy: color-mix(in srgb, var(--grove-color-primary) 30%, transparent);
+  --grove-color-surface: color-mix(in srgb, var(--grove-color-secondary) 10%, transparent);
+  --grove-color-surface-raised: color-mix(in srgb, var(--grove-color-secondary) 12%, transparent);
+  --grove-color-surface-border: color-mix(in srgb, var(--grove-color-secondary) 40%, transparent);
+
   /* ── Cross-brand cohesion (constant across all four) ── */
   --grove-color-plum: #5a2a4b;               /* sibling-strip band */
   --grove-color-plum-deep: #3d1a33;
@@ -91,6 +110,10 @@
   --grove-duration-slow: 400ms;
   --grove-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --grove-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  /* Composite <duration> <easing> pair (GOL-872) for the ubiquitous
+     `transition: <prop> var(--grove-duration-fast) var(--grove-ease-standard)`
+     — collapses the two-token tail into one. */
+  --grove-motion-fast: var(--grove-duration-fast) var(--grove-ease-standard);
 
   /* ── Focus ring — global, tokenized. Forest (4.91:1 on paper) replaces the old
    *    gold ring (1.35:1, WCAG-fail). Meets 3:1 non-text UI contrast. ── */
