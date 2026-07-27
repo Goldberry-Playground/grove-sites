@@ -17,7 +17,15 @@ concurrency:
 jobs:
   claude-review:
     # Drafts get reviewed when marked ready (ready_for_review trigger above).
-    if: github.event.pull_request.draft == false
+    # Dependabot version bumps are skipped: they are mechanical, already covered
+    # by the full CI suite (build/test/dependency-review) + agent-review/ada, and
+    # a full Claude Code session per bump is exactly the capacity spend the
+    # concurrency note above guards against. The action also hard-rejects the
+    # dependabot[bot] actor unless allow-listed, so without this skip every
+    # Dependabot PR red-fails claude-review (non-required, but noisy).
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
 
     runs-on: ubuntu-latest
     permissions:
