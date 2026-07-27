@@ -24,6 +24,8 @@
 @import "./Button/Button.css";
 
 /* Cart-coupled checkout components (GOL-115). */
+/* Shared cart→checkout→review patterns first, so components carry only deltas (GOL-872). */
+@import "./CheckoutShared/CheckoutShared.css";
 @import "./AddToCartButton/AddToCartButton.css";
 @import "./StickyAddToCartBar/StickyAddToCartBar.css";
 @import "./MiniCartDrawer/MiniCartDrawer.css";
