@@ -9,7 +9,7 @@
 # Deployed as a DigitalOcean App Platform service — see infra/do/discord-bridge.yaml.
 # The build context is the monorepo root (spec `source_dir: /`); this file is
 # referenced via `dockerfile_path: apps/discord-bridge/Dockerfile`.
-FROM node:24-alpine
+FROM node:26-alpine
 
 # Run as the built-in non-root `node` user. The service only reads its own
 # source and writes audit records to stdout — it needs no filesystem writes.
