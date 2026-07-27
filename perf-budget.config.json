@@ -1,0 +1,36 @@
+{
+  "$comment": "GOL-866 / GOL-864 §1 performance budget. Byte budgets are gzip-transferred unless noted. 1 KB = 1024 B. Edit here, not in the scripts — scripts/perf-budget.mjs and scripts/css-component-budget.mjs both read this file.",
+  "route": {
+    "$comment": "Per-route budget from GOL-864 §1b. Measured off each app's built .next/ manifests (the same chunk data @next/bundle-analyzer visualizes). JS = first-load JS (shared runtime + route chunks), CSS = route stylesheets, both gzipped.",
+    "js": {
+      "budgetBytes": 153600,
+      "ceilingBytes": 409600,
+      "$comment": "budget 150 KB (warn), ceiling 400 KB (error) — the outer limit for heavy interactive routes."
+    },
+    "css": {
+      "errorBytes": 61440,
+      "$comment": "60 KB per route (error). Tailwind is purged; a route over this signals un-purged or one-off CSS."
+    }
+  },
+  "componentCss": {
+    "$comment": "GOL-864 §1c per-component CSS ceiling — the Angular `budgets` analog. Targets bespoke component stylesheets in @grove/ui, where drift and bloat accumulate. App globals.css, generated ds-theme.*.css, and token contract.css are app-wide/generated, not per-component, so they are excluded. Sizes are UNCOMPRESSED bytes.",
+    "include": ["packages/grove-ui/src/**/*.css"],
+    "exclude": ["packages/grove-ui/src/styles.css"],
+    "warnBytes": 2048,
+    "errorBytes": 6144,
+    "baseline": {
+      "$comment": "Ratchet: files already over the 6 KB ceiling when this gate landed (GOL-866). Each is grandfathered at its recorded size — it may only SHRINK, never grow, and new files get the strict 6 KB ceiling. Refactor tracked in the GOL-866 follow-up child issue; drop an entry here once its file is back under 6 KB. Regenerate with: node scripts/css-component-budget.mjs --update-baseline",
+      "packages/grove-ui/src/CheckoutPage/CheckoutPage.css": 11729,
+      "packages/grove-ui/src/CartPage/CartPage.css": 10876,
+      "packages/grove-ui/src/MiniCartDrawer/MiniCartDrawer.css": 7853,
+      "packages/grove-ui/src/CheckoutReview/CheckoutReview.css": 6815
+    }
+  },
+  "lighthouse": {
+    "$comment": "GOL-864 §1a lab targets + §1b total weight. Enforced by lighthouserc.json against a preview URL. INP is a field-only metric (no lab equivalent), so total-blocking-time is the lab proxy documented in the perf standards doc.",
+    "lcpMs": 2000,
+    "clsMax": 0.05,
+    "totalBlockingTimeMs": 200,
+    "totalByteWeightBytes": 552960
+  }
+}

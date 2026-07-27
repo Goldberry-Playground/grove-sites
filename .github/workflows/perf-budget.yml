@@ -1,0 +1,82 @@
+name: Performance budget
+
+# GOL-866 — enforce the GOL-864 §1 performance budget on every PR so weight
+# regressions fail the build (the Angular `budgets` analog Josh asked for).
+#
+# Two independent gates run here; each is its own required check so Ada can add
+# them to the grove-sites ruleset (GOL-392 currently requires only
+# Lint/Type/Test):
+#   - "Component CSS budget"  — fast, no build; scans @grove/ui component CSS.
+#   - "Route byte budget"     — builds the apps, measures per-route JS/CSS gz.
+#
+# The Core Web Vitals + 540 KB total-load half of the budget needs a running
+# page and lives in lighthouse-ci.yml (against a preview URL).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: perf-budget-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+
+jobs:
+  component-css-budget:
+    name: Component CSS budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Guard the gate logic itself (dedupe, ceilings, ratchet) — no install needed.
+      - name: Test the budget scripts
+        run: node --test scripts/test/perf-budget.test.mjs
+
+      # Pure filesystem scan — no install, no build. Reads perf-budget.config.json.
+      - name: Per-component CSS ceiling (GOL-864 §1c)
+        run: node scripts/css-component-budget.mjs
+
+  route-byte-budget:
+    name: Route byte budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Same build the CI `build` job runs; the budget reads each app's .next/
+      # manifests, so the apps must be built first.
+      - name: Build all apps
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          ODOO_URL: "http://localhost:8069"
+          GHOST_URL: "http://localhost:2368"
+          GHOST_CONTENT_KEY: "build-placeholder"
+        run: pnpm build
+
+      - name: Per-route JS/CSS byte budget (GOL-864 §1b)
+        run: node scripts/perf-budget.mjs
