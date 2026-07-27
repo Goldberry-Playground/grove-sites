@@ -47,8 +47,10 @@ permissions:
   pull-requests: read   # read the preview-up comment to recover URLs
 
 concurrency:
-  # One audit per PR head; a new push supersedes the previous audit/gate.
-  group: lighthouse-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.run_id }}
+  # Scope by event so the pull_request gate and the workflow_run audit never
+  # cancel each other (same head SHA otherwise collides); within one event type
+  # a newer run for the same SHA supersedes the older.
+  group: lighthouse-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.run_id }}
   cancel-in-progress: true
 
 jobs:
