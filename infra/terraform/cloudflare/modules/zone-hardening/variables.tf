@@ -101,11 +101,15 @@ locals {
   # two never overlap.
   image_optimizer_path_expr = "(starts_with(http.request.uri.path, \"/_next/image\"))"
 
-  # Anonymous cache-eligible remainder. Always excludes the never-cache and
-  # image-optimizer paths; drops the `not session_cookie_expr` clause when no
-  # session cookies are configured (join over an empty list would yield an empty
-  # matcher).
-  anonymous_cache_expr = local.has_session_cookie ? "not ${local.never_cache_path_expr} and not ${local.image_optimizer_path_expr} and not ${local.session_cookie_expr}" : "not ${local.never_cache_path_expr} and not ${local.image_optimizer_path_expr}"
+  # Anonymous cache-eligible remainder = everything that is NOT one of the
+  # bypass groups. Expressed as a SINGLE negation of an OR-group (De Morgan of
+  # `not A and not B ...`) so it exactly mirrors the proven Rule 1 form and
+  # avoids any `not`/`and` precedence ambiguity at the edge. Always excludes the
+  # never-cache (PII) and image-optimizer paths; folds in the session-cookie
+  # clause only when cookies are configured (else that OR-term is dropped so the
+  # group stays valid).
+  cache_bypass_group_expr = local.has_session_cookie ? "${local.never_cache_path_expr} or ${local.image_optimizer_path_expr} or ${local.session_cookie_expr}" : "${local.never_cache_path_expr} or ${local.image_optimizer_path_expr}"
+  anonymous_cache_expr    = "not (${local.cache_bypass_group_expr})"
 
   # XHR / fetch API traffic vs top-level navigation. Sec-Fetch-Mode is set by all
   # modern browsers: "navigate" for page loads, "cors"/"no-cors"/"same-origin"
