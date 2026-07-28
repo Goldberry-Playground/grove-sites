@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
+import { CaptureForm } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
@@ -234,6 +235,27 @@ export function ProductView({
               idleLabel={buy.ctaLabel}
             />
           </div>
+
+          {(buy.mode === "sold-out" || buy.mode === "coming-soon") && (
+            <div className="mt-6 rounded-lg border border-primary/10 bg-secondary/10 p-5">
+              <CaptureForm
+                brand="nursery"
+                source="notify-me"
+                label={`nursery-restock-${productId}`}
+                interests={["nursery", "restock"]}
+                eyebrow={buy.mode === "coming-soon" ? "Coming soon" : "Back-in-stock alert"}
+                heading={
+                  buy.mode === "coming-soon"
+                    ? "Be the first to know when it's available."
+                    : "Want to know when it's back in stock?"
+                }
+                description="We'll send one email when it's ready to ship — that's it."
+                submitLabel="Notify me"
+                successMessage="You're on the list. We'll email you when it's ready."
+                consentText="We'll only email you about this. Unsubscribe anytime."
+              />
+            </div>
+          )}
 
           <p className="mt-4 text-xs text-foreground/55">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
