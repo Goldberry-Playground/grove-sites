@@ -28,6 +28,8 @@ export const honeycrispListItem: ApiProductListItem = {
   ],
   categories: [{ id: 2, name: "Trees", slug: "trees" }],
   variant_count: 2,
+  // One Honeycrisp cultivar × Potted/Bareroot Format = 2 variants, 1 variety.
+  cultivar_count: 1,
   // Bareroot is the cheaper Format, so price_min < list_price.
   price_min: 32.0,
 };

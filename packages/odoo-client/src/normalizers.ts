@@ -78,6 +78,7 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     categories: (raw.categories ?? []).map(normalizeCategory),
     priceMin: raw.price_min,
     variantCount: raw.variant_count,
+    cultivarCount: raw.cultivar_count,
     available: raw.website_published,
     // Coming-soon placeholders (sale_ok=false) now appear in the grid and
     // ?cat= facets (GOL-760). Default true so mocks and older payloads that

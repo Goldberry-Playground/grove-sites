@@ -54,6 +54,14 @@ export interface ApiProductListItem {
   categories: ApiCategory[];
   /** Number of purchasable variants (catalog API v1). */
   variant_count: number;
+  /**
+   * Distinct cultivar count — the storefront "N varieties" figure (GOL-919).
+   * A single-cultivar plant with a Potted/Bareroot Format axis has two
+   * `variant_count` but is one variety, so the card must key its count on this
+   * (cultivars), not the Cultivar × Format variant grid. Optional so mocks and
+   * pre-GOL-919 payloads that omit it fall back to `variant_count`.
+   */
+  cultivar_count?: number;
   /** Lowest variant list price — the "from $X" card price (catalog API v1). */
   price_min: number;
   /**
@@ -257,6 +265,14 @@ export interface Product {
   priceMin?: number;
   /** Purchasable variant count (list endpoint). Undefined for mockProducts. */
   variantCount?: number;
+  /**
+   * Distinct cultivar count — the "N varieties" card figure (GOL-919). Counts
+   * unique cultivars, NOT the Cultivar × Format variant grid, so a plant with
+   * only a Potted/Bareroot Format axis reads "1 variety". Present on list-
+   * endpoint products; undefined for mocks and pre-GOL-919 payloads (the label
+   * falls back to `variantCount` there).
+   */
+  cultivarCount?: number;
   /** Growing-facts block (detail endpoint). Undefined on list items/mocks. */
   facts?: GrowingFacts;
   /** Ordered gallery (detail endpoint). Undefined on list items/mocks. */

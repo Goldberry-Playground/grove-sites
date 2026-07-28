@@ -13,16 +13,18 @@
 
 /**
  * Metadata subtitle for a catalog card. Always returns a line so a single-
- * variant product (e.g. Aronia, pending its potted/bareroot data) keeps the
- * card's vertical rhythm aligned with its multi-variety neighbours.
+ * variety product (e.g. Aronia) keeps the card's vertical rhythm aligned with
+ * its multi-variety neighbours.
  *
- * Note: `variantCount` counts Odoo *variants* (cultivar × format), which is why
- * the label is "varieties" (breadth), not "cultivars" (a stricter, unavailable
- * count on the list card).
+ * Pass the DISTINCT CULTIVAR count (`Product.cultivarCount`), not the raw Odoo
+ * variant count. Every plant carries a Potted/Bareroot Format axis, so the
+ * variant grid is cultivar × format — a single-cultivar plant has two variants
+ * but is one variety (GOL-919). Callers fall back to `variantCount` only for
+ * mocks / pre-GOL-919 payloads that predate the `cultivarCount` field.
  */
-export function variantCountLabel(variantCount?: number): string {
-  return typeof variantCount === "number" && variantCount > 1
-    ? `${variantCount} varieties`
+export function varietyCountLabel(cultivarCount?: number): string {
+  return typeof cultivarCount === "number" && cultivarCount > 1
+    ? `${cultivarCount} varieties`
     : "1 variety";
 }
 

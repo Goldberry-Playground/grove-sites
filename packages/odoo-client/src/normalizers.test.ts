@@ -110,6 +110,20 @@ describe("normalizeProductListItem", () => {
     expect(result.variantCount).toBe(2);
   });
 
+  it("carries cultivar_count as the distinct-variety figure (GOL-919)", () => {
+    // One Honeycrisp cultivar across a Potted/Bareroot Format axis: two
+    // variants, but one variety. The card keys "N varieties" on this, not the
+    // cultivar × format variant grid.
+    const result = normalizeProductListItem(honeycrispListItem);
+    expect(result.cultivarCount).toBe(1);
+  });
+
+  it("leaves cultivarCount undefined on a pre-GOL-919 payload (label falls back)", () => {
+    const { cultivar_count: _omit, ...withoutCultivarCount } = honeycrispListItem;
+    const result = normalizeProductListItem(withoutCultivarCount);
+    expect(result.cultivarCount).toBeUndefined();
+  });
+
   it("tolerates a payload without tags (older API) → empty tags", () => {
     const result = normalizeProductListItem({
       ...honeycrispListItem,
