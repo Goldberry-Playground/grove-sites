@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { ShippingTier } from "@grove/odoo-client";
+import { CaptureForm } from "@grove/ui-kit";
 import {
   US_STATE_NAMES,
   ZONE_BY_STATE,
@@ -37,9 +38,12 @@ export interface ShippingEstimatorProps {
  * State is lifted to the parent so the Format cards can echo the same number,
  * and remembered in localStorage so a returning shopper doesn't re-enter it.
  *
- * Accessibility: the select is labelled; every eligibility state pairs an icon
- * *and* words (colour is never the only signal — colour-blind / grayscale safe);
- * all copy clears WCAG AA contrast on the parchment surface.
+ * Accessibility: the select is labelled; the result region is aria-live; every
+ * eligibility state pairs an icon *and* words (colour is never the only signal —
+ * colour-blind / grayscale safe). Primary copy clears WCAG AA on the parchment
+ * surface; the muted "· timing" / "/ tree" / disclaimer suffixes use the house
+ * `text-foreground/55`–`/60` convention (~3–4:1), tracked for the app-wide
+ * muted-token sweep — they're supporting text, never the sole carrier of meaning.
  */
 export function ShippingEstimator({ state, onStateChange, tiers }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
@@ -96,15 +100,16 @@ export function ShippingEstimator({ state, onStateChange, tiers }: ShippingEstim
       <div aria-live="polite" className="mt-3">
         {state === "" && (
           <p className="text-xs text-foreground/60">
-            We ship living trees to 21 states — pick yours to see the per-tree rate.
-            Each tree ships in its own box; your exact rate is confirmed at checkout.
+            We ship living trees to {GREEN_STATE_COUNT} states — pick yours to see the
+            per-tree rate. Each tree ships in its own box; your exact rate is confirmed
+            at checkout.
           </p>
         )}
 
         {state !== "" && eligible && (
           <div>
             <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-              <span aria-hidden="true" className="text-leaf">✓</span>
+              <span aria-hidden="true" className="text-secondary">✓</span>
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -142,15 +147,26 @@ export function ShippingEstimator({ state, onStateChange, tiers }: ShippingEstim
             </p>
             <p className="mt-1.5 text-xs text-foreground/70">
               We’re expanding our nursery certifications state by state. You can still
-              pick your trees up free at the farm — or tell us where you are and we’ll
-              email you the moment {stateName} opens up.
+              pick your trees up free at the farm — or leave your email below and we’ll
+              tell you the moment {stateName} opens up.
             </p>
-            <a
-              href={`/newsletter?state=${state}`}
-              className="mt-2 inline-block text-xs font-semibold text-accent underline underline-offset-2 hover:no-underline"
-            >
-              Notify me when you ship to {stateName}
-            </a>
+            <div className="mt-3">
+              {/* Real capture path (POSTs to /api/newsletter/subscribe). The chosen
+                  state rides along in `label` so "which states want us?" is a
+                  measurable signal, not a dead link. Mirrors the back-in-stock
+                  CaptureForm pattern in product-view.tsx. */}
+              <CaptureForm
+                brand="nursery"
+                source="notify-me"
+                label={`nursery-ship-request-${state}`}
+                interests={["nursery", "ship-request"]}
+                heading={`Notify me when you ship to ${stateName}`}
+                description="One email when we open your state — nothing else."
+                submitLabel="Notify me"
+                successMessage={`You’re on the list. We’ll email you the moment ${stateName} opens up.`}
+                consentText="We’ll only email you about shipping to your state. Unsubscribe anytime."
+              />
+            </div>
           </div>
         )}
       </div>

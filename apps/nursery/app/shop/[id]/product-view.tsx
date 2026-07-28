@@ -8,7 +8,7 @@ import { CaptureForm } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
-import { estimateShipping, tierFor } from "../../../lib/shipping-estimate";
+import { estimateShipping, shipsTo, tierFor } from "../../../lib/shipping-estimate";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 
@@ -206,8 +206,9 @@ export function ProductView({
                     shippingTier: fVariant?.shippingTier ?? null,
                     format: f,
                   });
-                  // Once a state is picked, echo its exact estimate here; else
-                  // fall back to the generic "from" hint.
+                  // Once a state is picked, echo its exact estimate here. For a
+                  // state we don't reach, say so (don't dangle a "from ~$X" the
+                  // estimator just said we can't fulfil); otherwise the generic hint.
                   const fTier = tierFor({
                     shippingTier: fVariant?.shippingTier ?? null,
                     format: f,
@@ -216,7 +217,9 @@ export function ProductView({
                   const shipText =
                     fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
-                      : `ships from ~$${fHint.fromShipping}`;
+                      : shipState && !shipsTo(shipState)
+                        ? `not shipping to ${shipState} yet`
+                        : `ships from ~$${fHint.fromShipping}`;
                   const isActive = f === format;
                   return (
                     <button
