@@ -17,6 +17,35 @@ const STRIPE_PAYMENT_METHOD = [
 ];
 
 /**
+ * Read a fetch Response as JSON without letting a non-JSON body blow up.
+ *
+ * The session route always answers `application/json` — on success and on
+ * every handled error. But a request that never reaches the handler (a 404
+ * for an undeployed route, a framework 500 page, a CDN/proxy 502) comes back
+ * as HTML. Calling `response.json()` on that throws a raw
+ * `JSON.parse: unexpected character` / `Unexpected token '<'` whose message
+ * would otherwise surface verbatim in the buyer's checkout error box. Returns
+ * the parsed object, or `null` when the body is empty or not JSON.
+ */
+async function readJsonBody(
+  response: Response,
+): Promise<Record<string, unknown> | null> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const CHECKOUT_ERROR =
+  "We couldn't start secure checkout. Please try again.";
+
+/**
  * Cart-connected checkout with the Stripe hand-off. Two phases:
  *
  *   1. Form — the presentational `@grove/ui-kit` CheckoutPage collects contact +
@@ -40,28 +69,37 @@ export function CheckoutPage() {
     trackBeginCheckout({ itemCount: totalQuantity, subtotal });
 
     const origin = window.location.origin;
-    const response = await fetch("/api/checkout/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contact: order.contact,
-        shipping: order.shipping,
-        billing: null,
-        paymentMethod: "card",
-        items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-        successUrl: `${origin}/checkout/success`,
-        cancelUrl: `${origin}/checkout/cancel`,
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
+    let response: Response;
+    try {
+      response = await fetch("/api/checkout/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact: order.contact,
+          shipping: order.shipping,
+          billing: null,
+          paymentMethod: "card",
+          items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+          successUrl: `${origin}/checkout/success`,
+          cancelUrl: `${origin}/checkout/cancel`,
+        }),
+      });
+    } catch {
+      // fetch rejects before any response on a network failure / offline.
       throw new Error(
-        data.error || "We couldn't start secure checkout. Please try again.",
+        "We couldn't reach secure checkout. Check your connection and try again.",
       );
     }
 
-    setSession(data as CheckoutSession);
+    // Tolerate a non-JSON body (HTML 404/500/proxy page) instead of leaking a
+    // raw JSON.parse error to the buyer on the final checkout step.
+    const data = await readJsonBody(response);
+    if (!response.ok || !data) {
+      const serverError = typeof data?.error === "string" ? data.error : null;
+      throw new Error(serverError || CHECKOUT_ERROR);
+    }
+
+    setSession(data as unknown as CheckoutSession);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
