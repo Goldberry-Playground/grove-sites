@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { assetPath } from "@grove/ui";
-import { CaptureForm } from "@grove/ui-kit";
 import { CategoryBar } from "./category-bar";
 import { NURSERY_CATEGORIES } from "../data/categories";
 import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
@@ -158,11 +157,12 @@ export default async function HomePage() {
             pushing leaves it can't yet support.
           </p>
           {/* GOL-659 — /blog/planting-guide and /videos/bare-root were 404s.
-              Point at real routes: the live blog hub, and the on-page lead
-              form. Dedicated guide article + how-to video are a follow-up. */}
+              Point at real routes: the live blog hub and the catalog (GOL-931
+              removed the on-page #notify CTA — back-in-stock alerts now live
+              on individual product pages when stock is unavailable). */}
           <div style={{ display: "flex", gap: "1rem", marginTop: "2rem", flexWrap: "wrap" }}>
             <Link href="/blog" className="btn btn-forest">Read the field guide</Link>
-            <Link href="#notify" className="btn btn-outline">Get the ship-window alert</Link>
+            <Link href="/shop" className="btn btn-outline">Browse the catalog</Link>
           </div>
         </div>
 
@@ -207,33 +207,15 @@ export default async function HomePage() {
             harvest preferences, and we'll send back a three-tree plan and the
             partner-pollination calendar.
           </p>
-          {/* /planting-plan was a 404 — no such route. Route the lead-gen CTA
-              to the on-page email form (real, in-page); a dedicated
-              planting-plan request form is a follow-up (see GOL-659 comment). */}
-          <Link href="#notify" className="btn" style={{ marginTop: "1rem" }}>
-            Request a planting plan &rarr;
+          {/* /planting-plan was a 404 — no such route. GOL-931 removed the
+              on-page #notify CTA; route this to the catalog instead. A
+              dedicated planting-plan request form is a follow-up. */}
+          <Link href="/shop" className="btn" style={{ marginTop: "1rem" }}>
+            Browse the catalog &rarr;
           </Link>
         </div>
       </section>
 
-      <section
-        id="notify"
-        className="with-sidebar"
-        style={{ padding: "3rem 1.5rem", display: "flex", justifyContent: "center", scrollMarginTop: "2rem" }}
-      >
-        <CaptureForm
-          brand="nursery"
-          source="notify-me"
-          label="nursery-restock"
-          interests={["nursery"]}
-          eyebrow="Back-in-stock alert"
-          heading="Want us to tell you when these are back?"
-          description="We grow in seasonal batches, so stock comes and goes. Leave your email and we'll send one note the week these trees are ready to ship again — that's it."
-          submitLabel="Notify me"
-          successMessage="You're on the list. We'll email you the week they're back."
-          consentText="We'll only email you about this. Unsubscribe anytime."
-        />
-      </section>
     </>
   );
 }
