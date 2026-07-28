@@ -9,7 +9,7 @@ import {
   displayPrice,
   type LeadSeller,
 } from "../data/featured";
-import { variantCountLabel } from "../lib/catalog-labels";
+import { varietyCountLabel } from "../lib/catalog-labels";
 
 /**
  * Data-driven lead-seller row for the homepage (GOL-659).
@@ -111,7 +111,7 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
               <div className="var-info">
                 {p.categoryName && <span className="var-latin">{p.categoryName}</span>}
                 <h3 className="var-name">{p.name}</h3>
-                <span className="var-latin">{variantCountLabel(p.variantCount)}</span>
+                <span className="var-latin">{varietyCountLabel(p.cultivarCount ?? p.variantCount)}</span>
                 <div className="var-foot">
                   <span className="var-price">
                     {p.onSale && p.compareAtPrice != null ? (

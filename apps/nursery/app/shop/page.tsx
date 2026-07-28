@@ -8,7 +8,7 @@ import { mockProducts } from "../../data/mock-products";
 import { CategoryBar } from "../category-bar";
 import { filterByCategory, findCategory } from "../../data/categories";
 import { parseFacetParams, applyTagFilter } from "../../lib/facets";
-import { plantCountLabel, variantCountLabel } from "../../lib/catalog-labels";
+import { plantCountLabel, varietyCountLabel } from "../../lib/catalog-labels";
 import { FacetSidebar } from "./facet-sidebar";
 
 // Deploy retrigger (GOL-768): agent auto-merges to main now re-fire docker.yml
@@ -158,7 +158,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                         <span className="var-latin">{product.categoryName}</span>
                       )}
                       <h3 className="var-name">{product.name}</h3>
-                      <span className="var-latin">{variantCountLabel(product.variantCount)}</span>
+                      <span className="var-latin">
+                        {varietyCountLabel(product.cultivarCount ?? product.variantCount)}
+                      </span>
                       <div className="var-foot">
                         <span className="var-price">
                           {typeof product.priceMin === "number"
