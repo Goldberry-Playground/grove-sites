@@ -157,7 +157,7 @@ export function FacetSidebar({
 function FacetGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/50">{label}</h3>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">{label}</h3>
       {children}
     </div>
   );

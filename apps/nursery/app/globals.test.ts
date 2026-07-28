@@ -126,6 +126,8 @@ describe("nursery globals.css — one colour system (GOL-380)", () => {
     expect(block).toMatch(/--color-accent:\s*var\(--grove-color-accent\)/);
     expect(block).toMatch(/--color-background:\s*var\(--grove-color-paper\)/);
     expect(block).toMatch(/--color-foreground:\s*var\(--grove-color-ink\)/);
+    // Muted-copy role: exposes text-ink-soft for AA-safe secondary text (GOL-953).
+    expect(block).toMatch(/--color-ink-soft:\s*var\(--grove-color-ink-soft\)/);
     expect(block).toMatch(/--font-display:\s*var\(--grove-font-display\)/);
   });
 

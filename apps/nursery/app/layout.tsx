@@ -57,7 +57,7 @@ export default async function RootLayout({
             </nav>
           </header>
           <main>{children}</main>
-          <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-foreground/60">
+          <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-ink-soft">
             <div className="mx-auto flex max-w-6xl flex-col items-center gap-6">
               <CaptureForm
                 brand="nursery"

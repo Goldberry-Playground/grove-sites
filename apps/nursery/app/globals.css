@@ -43,6 +43,12 @@
   --color-accent: var(--grove-color-accent);
   --color-background: var(--grove-color-paper);
   --color-foreground: var(--grove-color-ink);
+  /* Solid muted ink for secondary/caption copy. --grove-color-ink-soft measures
+     ~10:1 on the parchment ground — replaces the opacity-diluted
+     text-foreground/{40,50,55,60} that measured 2.3–3.9:1, below WCAG AA 4.5:1
+     (GOL-953). Registered here (not just the :root alias below) so Tailwind emits
+     a real `text-ink-soft` utility. */
+  --color-ink-soft: var(--grove-color-ink-soft);
 
   --font-sans: var(--grove-font-body);
   --font-display: var(--grove-font-display);

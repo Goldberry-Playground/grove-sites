@@ -36,13 +36,13 @@ export function SpecBlock({ facts }: { facts?: GrowingFacts }) {
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 rounded-lg border border-primary/10 bg-secondary/10 p-5">
         {present.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-4 border-b border-primary/5 pb-2 last:border-0">
-            <dt className="text-sm text-foreground/60">{label}</dt>
+            <dt className="text-sm text-ink-soft">{label}</dt>
             <dd className="text-sm font-medium text-foreground text-right">{value}</dd>
           </div>
         ))}
       </dl>
       {facts.botanicalName && (
-        <p className="mt-3 text-xs italic text-foreground/50">{facts.botanicalName}</p>
+        <p className="mt-3 text-xs italic text-ink-soft">{facts.botanicalName}</p>
       )}
     </section>
   );

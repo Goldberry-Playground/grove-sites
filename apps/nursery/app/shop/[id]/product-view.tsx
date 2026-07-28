@@ -200,7 +200,7 @@ export function ProductView({
                       }`}
                     >
                       <span className="block font-medium text-foreground">{f}</span>
-                      <span className="block text-xs text-foreground/55">
+                      <span className="block text-xs text-ink-soft">
                         {fVariant ? `$${fVariant.price.toFixed(2)}` : ""} · {fHint.fulfillment} ·
                         ships from ~${fHint.fromShipping}
                       </span>
@@ -219,7 +219,7 @@ export function ProductView({
           </p>
 
           {buy.showDepositNote && (
-            <p className="text-xs text-foreground/60 mb-4">
+            <p className="text-xs text-ink-soft mb-4">
               Bareroot ships in fall — reserve now with a $10 deposit applied to your total.
             </p>
           )}
@@ -257,7 +257,7 @@ export function ProductView({
             </div>
           )}
 
-          <p className="mt-4 text-xs text-foreground/55">
+          <p className="mt-4 text-xs text-ink-soft">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
           </p>
         </div>

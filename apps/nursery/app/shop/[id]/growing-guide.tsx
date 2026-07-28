@@ -21,7 +21,7 @@ export function GrowingGuide({ html }: { html: string | null }) {
           dangerouslySetInnerHTML={{ __html: html }}
         />
       ) : (
-        <p className="text-sm text-foreground/50 italic">
+        <p className="text-sm text-ink-soft italic">
           Growing guide coming soon — we’re writing one for every species.
         </p>
       )}
