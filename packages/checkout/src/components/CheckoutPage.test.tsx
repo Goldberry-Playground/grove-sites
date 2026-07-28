@@ -1,0 +1,156 @@
+// @vitest-environment happy-dom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { CheckoutPage } from "./CheckoutPage";
+import { CartProvider } from "../cart-store";
+
+// GOL-942: the checkout "Continue to payment" step POSTs to
+// /api/checkout/session and expected JSON. When that request never reaches the
+// route handler (an undeployed-route 404, a framework 500, or a CDN/proxy 502)
+// the body is HTML, and the old code called `response.json()` unconditionally —
+// so a raw "JSON.parse: unexpected character" / "Unexpected token '<'" leaked
+// straight into the buyer's checkout error box on the final step. These tests
+// pin the graceful behavior: a friendly, human error instead of a parser dump.
+
+vi.mock("@grove/analytics", () => ({
+  trackBeginCheckout: vi.fn(),
+}));
+
+// Seed a single cart line so the checkout form (not the empty state) renders.
+// STORAGE_KEY resolves to `${NEXT_PUBLIC_TENANT_ID ?? "grove"}-cart-v1`.
+function seedCart() {
+  window.localStorage.setItem(
+    "grove-cart-v1",
+    JSON.stringify([
+      {
+        variantId: 2,
+        templateId: 2,
+        name: "Mulberry (AU Rubrum, Bareroot)",
+        price: 15.0,
+        imageUrl: "/web/image/product.product/2/image_128",
+        quantity: 1,
+      },
+    ]),
+  );
+}
+
+function textResponse(status: number, ok: boolean, body: string): Response {
+  return { ok, status, text: async () => body } as unknown as Response;
+}
+
+async function fillFormAndSubmit() {
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText(/Full name/), "Martin Westlund");
+  await user.type(screen.getByLabelText(/Email/), "buyer@example.com");
+  await user.type(screen.getByLabelText(/Street/), "1 Discord Avenue");
+  await user.type(screen.getByLabelText(/City/), "Bluefield");
+  await user.type(screen.getByLabelText(/ZIP/), "24701");
+  // State (WV) and Country (US) are pre-filled defaults.
+  const submit = document.querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  );
+  fireEvent.click(submit!);
+}
+
+async function renderCheckout() {
+  render(
+    <CartProvider>
+      <CheckoutPage />
+    </CartProvider>,
+  );
+  // Wait past cart hydration (loading → form).
+  await screen.findByLabelText(/Full name/);
+}
+
+describe("<CheckoutPage /> — session error handling (GOL-942)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    seedCart();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows a friendly error (not a JSON.parse dump) when the endpoint returns an HTML page", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      textResponse(
+        404,
+        false,
+        "<!DOCTYPE html><html><body>Not Found</body></html>",
+      ),
+    );
+
+    await renderCheckout();
+    await fillFormAndSubmit();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "We couldn't start secure checkout. Please try again.",
+    );
+    // The raw parser error must never reach the buyer.
+    expect(alert.textContent).not.toMatch(/JSON\.parse|Unexpected token|DOCTYPE/i);
+  });
+
+  it("surfaces the server's sanitized error message on a 502 JSON body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      textResponse(
+        502,
+        false,
+        JSON.stringify({
+          error: "Service temporarily unavailable. Please try again.",
+        }),
+      ),
+    );
+
+    await renderCheckout();
+    await fillFormAndSubmit();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "Service temporarily unavailable. Please try again.",
+    );
+  });
+
+  it("shows a connection error when the fetch itself rejects (offline)", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new TypeError("Failed to fetch"),
+    );
+
+    await renderCheckout();
+    await fillFormAndSubmit();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "We couldn't reach secure checkout. Check your connection and try again.",
+    );
+  });
+
+  it("advances to the review step when the session is minted", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      textResponse(
+        200,
+        true,
+        JSON.stringify({
+          orderId: 101,
+          accessToken: "tok_abc",
+          checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_123",
+          amountDueToday: 16.05,
+          amountTotal: 16.05,
+          hasPreorder: false,
+          currency: "usd",
+        }),
+      ),
+    );
+
+    await renderCheckout();
+    await fillFormAndSubmit();
+
+    // CheckoutReview renders a "Pay $… with card →" action; no error alert.
+    await waitFor(() =>
+      expect(screen.getByText(/Pay .* with card/)).toBeDefined(),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
