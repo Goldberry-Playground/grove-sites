@@ -194,19 +194,16 @@ export default function ShippingWarrantyPage() {
             and grow.
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
-            <strong>
-              If you notify us by July 1st of the same year you received your
-              tree
-            </strong>
-            , we will replace any tree that fails to grow by issuing a{" "}
+            <strong>If you notify us within 14 days of delivery</strong>, we
+            will replace any tree that fails to grow by issuing a{" "}
             <strong>store credit</strong> for the price you paid for the tree
             (not including shipping). We may ask you to return the tree for
             inspection or to email photos.
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
-            After July 1st there are too many variables outside our control —
-            extreme weather, rodent damage, disease, soil deficiencies, and
-            individual care — for us to guarantee a tree.
+            After that 14-day window there are too many variables outside our
+            control (extreme weather, rodent damage, disease, soil deficiencies,
+            and individual care) for us to guarantee a tree.
           </p>
           <p style={{ maxWidth: "60ch" }}>
             Any tree that proves to be a different variety than the one you
@@ -244,7 +241,7 @@ export default function ShippingWarrantyPage() {
             </li>
             <li>
               <span>Warranty claim</span>
-              <strong>By July 1st</strong>
+              <strong>Within 14 days of delivery</strong>
             </li>
           </ul>
         </aside>
