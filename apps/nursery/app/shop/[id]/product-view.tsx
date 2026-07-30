@@ -11,6 +11,7 @@ import { shippingHintFor } from "../../../lib/shipping-hints";
 import { estimateShipping, shipsTo, tierFor } from "../../../lib/shipping-estimate";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
+import { PolicyLink } from "./policy-link";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
 export interface ViewImage {
@@ -301,6 +302,10 @@ export function ProductView({
 
           <p className="mt-4 text-xs text-ink-soft">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
+          </p>
+          <p className="mt-1 text-xs text-ink-soft">
+            Ships to 21 states, priced live at checkout. <PolicyLink /> for full
+            shipping and warranty terms.
           </p>
         </div>
       </div>
