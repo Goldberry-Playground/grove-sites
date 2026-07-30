@@ -16,6 +16,8 @@ import type {
   ApiCheckoutSessionResponse,
   ApiZoneResponse,
   ZoneLookupResult,
+  ApiShippingRatesResponse,
+  ShippingRateTable,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -40,6 +42,14 @@ export class OdooApiError extends Error {
   }
 }
 
+/** `RequestInit` plus Next.js's `next` cache directive. Declared locally so this
+ * framework-agnostic package can request ISR-style revalidation without taking
+ * a dependency on `next` — the field is a plain extra property that a non-Next
+ * `fetch` simply ignores. */
+type NextFetchOptions = RequestInit & {
+  next?: { revalidate?: number | false; tags?: string[] };
+};
+
 /**
  * Fetch from the grove_headless REST API.
  * All endpoints are plain HTTP JSON (not Odoo JSON-RPC).
@@ -47,7 +57,7 @@ export class OdooApiError extends Error {
 async function api<T>(
   config: TenantConfig,
   path: string,
-  options: RequestInit = {}
+  options: NextFetchOptions = {}
 ): Promise<T> {
   const url = `${config.odooUrl}${path}`;
 
@@ -155,6 +165,29 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         if (err instanceof OdooApiError && err.status === 404) return null;
         throw err;
       }
+    },
+
+    shipping: {
+      async rates(): Promise<ShippingRateTable | null> {
+        // Read-only feed (GOL-952). Cache reasonably: the backend rate-checker
+        // rewrites the table at most daily, so a 6-hour revalidate keeps the
+        // storefront estimate fresh without hammering Odoo on every product view.
+        try {
+          const raw = await api<ApiShippingRatesResponse>(
+            config,
+            "/grove/api/v1/shipping/rates",
+            { next: { revalidate: 21600 } }
+          );
+          const zones = raw?.zones;
+          // Empty/absent table → null so the caller's resolveRateTable() falls
+          // back to the bundled snapshot rather than pricing everything to null.
+          return zones && Object.keys(zones).length > 0 ? zones : null;
+        } catch {
+          // Feed unreachable (network / 5xx / not-configured): degrade to the
+          // bundled snapshot. A missing rate feed must never break a product page.
+          return null;
+        }
+      },
     },
 
     cart: {
