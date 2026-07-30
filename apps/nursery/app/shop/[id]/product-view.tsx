@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ShippingTier } from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { CaptureForm } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
+import { estimateShipping, shipsTo, tierFor } from "../../../lib/shipping-estimate";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
+import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
 export interface ViewImage {
@@ -68,6 +71,23 @@ export function ProductView({
   const [format, setFormat] = useState<string | null>(formats[0] ?? null);
   // Thumbnail the buyer explicitly clicked; null → follow the selected variant.
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
+  // Destination state for the shipping estimator ("" = not chosen yet).
+  const [shipState, setShipState] = useState<string>("");
+
+  // Distinct shipping tiers this product offers, for the state estimator.
+  const estimatorTiers = useMemo<EstimatorTier[]>(() => {
+    const seen = new Set<ShippingTier>();
+    const out: EstimatorTier[] = [];
+    for (const f of formats) {
+      const v = pickVariant(variants, { cultivar, format: f });
+      const tier = tierFor({ shippingTier: v?.shippingTier ?? null, format: f });
+      if (seen.has(tier)) continue;
+      seen.add(tier);
+      const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
+      out.push({ tier, label: TIER_LABEL[tier], fulfillment: hint.fulfillment });
+    }
+    return out;
+  }, [formats, variants, cultivar]);
 
   const selected = pickVariant(variants, { cultivar, format });
   const price = selected?.price ?? fallbackPrice;
@@ -186,6 +206,20 @@ export function ProductView({
                     shippingTier: fVariant?.shippingTier ?? null,
                     format: f,
                   });
+                  // Once a state is picked, echo its exact estimate here. For a
+                  // state we don't reach, say so (don't dangle a "from ~$X" the
+                  // estimator just said we can't fulfil); otherwise the generic hint.
+                  const fTier = tierFor({
+                    shippingTier: fVariant?.shippingTier ?? null,
+                    format: f,
+                  });
+                  const fEst = shipState ? estimateShipping(shipState, fTier) : null;
+                  const shipText =
+                    fEst != null
+                      ? `ship $${fEst.toFixed(0)} to ${shipState}`
+                      : shipState && !shipsTo(shipState)
+                        ? `not shipping to ${shipState} yet`
+                        : `ships from ~$${fHint.fromShipping}`;
                   const isActive = f === format;
                   return (
                     <button
@@ -201,14 +235,22 @@ export function ProductView({
                     >
                       <span className="block font-medium text-foreground">{f}</span>
                       <span className="block text-xs text-ink-soft">
-                        {fVariant ? `$${fVariant.price.toFixed(2)}` : ""} · {fHint.fulfillment} ·
-                        ships from ~${fHint.fromShipping}
+                        {fVariant ? `$${fVariant.price.toFixed(2)}` : ""} · {fHint.fulfillment} ·{" "}
+                        {shipText}
                       </span>
                     </button>
                   );
                 })}
               </div>
             </div>
+          )}
+
+          {estimatorTiers.length > 0 && (
+            <ShippingEstimator
+              state={shipState}
+              onStateChange={setShipState}
+              tiers={estimatorTiers}
+            />
           )}
 
           <p className="text-sm mb-2">
@@ -286,4 +328,10 @@ const STOCK_TONE_CLASS: Record<StockTone, string> = {
   "in-stock": "stock-line stock-line--in",
   reserve: "stock-line stock-line--reserve",
   "sold-out": "stock-line stock-line--out",
+};
+
+/** Friendly per-tier label for the shipping estimator rows. */
+const TIER_LABEL: Record<ShippingTier, string> = {
+  potted: "Potted",
+  bareroot: "Bareroot",
 };
