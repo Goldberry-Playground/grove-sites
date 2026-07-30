@@ -23,7 +23,7 @@ export function CompanionsStrip({
       <h2 id="companions-heading" className="text-lg font-display font-semibold text-foreground mb-1">
         Plant it with
       </h2>
-      <p className="text-sm text-foreground/55 mb-4">
+      <p className="text-sm text-ink-soft mb-4">
         Guild companions that share this plant’s conditions.
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -46,7 +46,7 @@ export function CompanionsStrip({
                   {c.name}
                 </p>
                 {typeof c.priceMin === "number" && (
-                  <p className="text-xs text-foreground/50 mt-1">from ${c.priceMin.toFixed(2)}</p>
+                  <p className="text-xs text-ink-soft mt-1">from ${c.priceMin.toFixed(2)}</p>
                 )}
               </div>
             </Link>

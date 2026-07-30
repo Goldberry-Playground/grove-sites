@@ -31,7 +31,7 @@ export default async function BlogPage() {
       )}
 
       {posts.length === 0 && !error && (
-        <p className="text-foreground/60 mb-8">
+        <p className="text-ink-soft mb-8">
           No posts published yet. Check back soon!
         </p>
       )}
@@ -59,11 +59,11 @@ export default async function BlogPage() {
                 {post.title}
               </h2>
               {post.excerpt && (
-                <p className="text-foreground/60 text-sm line-clamp-2">
+                <p className="text-ink-soft text-sm line-clamp-2">
                   {post.excerpt}
                 </p>
               )}
-              <div className="flex items-center gap-4 mt-3 text-xs text-foreground/40">
+              <div className="flex items-center gap-4 mt-3 text-xs text-ink-soft">
                 {post.authors?.[0] && <span>{post.authors[0].name}</span>}
                 <span>
                   {new Date(post.published_at).toLocaleDateString("en-US", {
@@ -81,7 +81,7 @@ export default async function BlogPage() {
                   {post.tags.map((tag) => (
                     <span
                       key={tag.id}
-                      className="text-xs bg-secondary/40 text-foreground/60 px-2 py-0.5 rounded"
+                      className="text-xs bg-secondary/40 text-ink-soft px-2 py-0.5 rounded"
                     >
                       {tag.name}
                     </span>

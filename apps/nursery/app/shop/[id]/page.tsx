@@ -96,7 +96,7 @@ export default async function ProductDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
-      <nav className="text-sm text-foreground/60 mb-4" aria-label="Breadcrumb">
+      <nav className="text-sm text-ink-soft mb-4" aria-label="Breadcrumb">
         <Link href="/shop" className="hover:text-primary transition-colors">
           Shop
         </Link>

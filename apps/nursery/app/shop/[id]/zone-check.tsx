@@ -75,10 +75,10 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
           placeholder="Your ZIP or USDA zone"
           className="w-40 rounded border border-primary/20 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
         />
-        <span className="text-xs text-foreground/50">Hardy in {range}.</span>
+        <span className="text-xs text-ink-soft">Hardy in {range}.</span>
       </div>
       {status === "loading" && (
-        <p className="mt-2 text-sm text-foreground/60">Looking up your zone…</p>
+        <p className="mt-2 text-sm text-ink-soft">Looking up your zone…</p>
       )}
       {status === "unknown" && (
         <p className="mt-2 text-sm text-amber-700">
@@ -86,7 +86,7 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
         </p>
       )}
       {resolvedZone != null && /^\d{5}$/.test(input) && (
-        <p className="mt-2 text-xs text-foreground/50">
+        <p className="mt-2 text-xs text-ink-soft">
           ZIP {input} is in USDA zone {resolvedZone}.
         </p>
       )}
