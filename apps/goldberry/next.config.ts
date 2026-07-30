@@ -54,13 +54,6 @@ const nextConfig: NextConfig = {
         hostname: "goldberrygrove.farm",
         pathname: "/web/image/**",
       },
-      // Demo / placeholder catalog images while Odoo is still being set up.
-      // Remove this entry once the mock-products module is deleted.
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
-      },
       // Grove assets CDN — hero images, brand imagery, backgrounds.
       // Cloudflare-fronted vanity host is the canonical URL; the raw DO CDN
       // hostname is here for direct fetches during migration probing.
