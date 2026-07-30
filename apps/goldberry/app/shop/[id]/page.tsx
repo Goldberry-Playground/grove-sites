@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
+import { ghost } from "../../../lib/ghost";
 import { getMockProductById, isDataUri } from "../../../data/mock-products";
 import { AddToCartButton } from "./add-to-cart-button";
+import { GuideBlock } from "./guide-block";
 import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +33,18 @@ export default async function ProductDetailPage({
   }
 
   if (!product) notFound();
+
+  // Growing guide from this tenant's Ghost, joined by slug (== grove_slug).
+  // Commerce never blocks on content: any failure / missing post → the
+  // coming-soon collapse. `ghost.posts.get` throws when the slug has no post,
+  // so the try/catch is load-bearing, not defensive dressing.
+  let guideHtml: string | null = null;
+  try {
+    const post = await ghost.posts.get(product.slug);
+    guideHtml = post?.html ?? null;
+  } catch {
+    guideHtml = null;
+  }
 
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   // Build the absolute image URL only when the product actually has an image
@@ -183,6 +197,9 @@ export default async function ProductDetailPage({
           </div>
         </div>
       </div>
+
+      <GuideBlock html={guideHtml} />
+
       <StickyAddToCartBar
         variantId={
           product.variants.length > 0 ? product.variants[0].id : product.id

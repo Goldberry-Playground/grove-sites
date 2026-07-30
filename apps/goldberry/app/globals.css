@@ -2200,3 +2200,39 @@ h1 em, h2 em, h3 em, h4 em {
 @media (min-width: 1024px) {
   .shop-card__name { font-size: 1.2rem; }
 }
+
+/* ─────────────────────────────────────────────
+   Product growing-guide block (GOL-1002 / GOL-986 Part A)
+
+   The guide renders trusted Ghost HTML (h3/p/ul) inside `.grove-guide`. This
+   app's global heading scale is display-sized (h2 ≈ 55px, h3 ≈ 48px) — far too
+   loud for an in-page reference section, and it hijacks the headings baked into
+   the injected guide markup. Scope a restrained editorial rhythm to the guide
+   so it reads at parity with the nursery storefront's GrowingGuide, WITHOUT
+   touching the site-wide heading scale. Unlayered like the heading rules above,
+   so `.grove-guide h2` (0,1,1) wins on specificity over `h2` (0,0,1).
+   ───────────────────────────────────────────── */
+.grove-guide h2 {
+  font-size: 1.125rem; /* text-lg — the section label, not a page title */
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.grove-guide :is(h3, h4, h5, h6) {
+  font-size: 1.05rem;
+  line-height: 1.4;
+  margin: 1.25rem 0 0.35rem;
+}
+.grove-guide p,
+.grove-guide li {
+  font-size: 0.875rem; /* prose-sm body */
+  line-height: 1.65;
+}
+.grove-guide ul,
+.grove-guide ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+.grove-guide ul { list-style: disc; }
+.grove-guide ol { list-style: decimal; }
+.grove-guide li { margin: 0.15rem 0; }
+.grove-guide li::marker { color: var(--color-primary, currentColor); }
