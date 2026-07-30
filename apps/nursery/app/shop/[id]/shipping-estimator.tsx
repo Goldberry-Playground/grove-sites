@@ -6,8 +6,10 @@ import { CaptureForm } from "@grove/ui-kit";
 import {
   US_STATE_NAMES,
   ZONE_BY_STATE,
+  ZONE_RATE_TABLE,
   estimateShipping,
   shipsTo,
+  type RateTable,
 } from "../../../lib/shipping-estimate";
 
 const STORAGE_KEY = "grove:ship-state";
@@ -27,6 +29,10 @@ export interface ShippingEstimatorProps {
   onStateChange: (state: string) => void;
   /** Distinct shipping tiers this product offers (deduped, in display order). */
   tiers: EstimatorTier[];
+  /** Rate table to price against — the live backend feed resolved by the parent
+   *  (GOL-969), or the bundled snapshot when the feed is absent. Defaults to the
+   *  snapshot so the component still works standalone (e.g. in tests). */
+  rates?: RateTable;
 }
 
 /**
@@ -45,7 +51,12 @@ export interface ShippingEstimatorProps {
  * `text-foreground/55`–`/60` convention (~3–4:1), tracked for the app-wide
  * muted-token sweep — they're supporting text, never the sole carrier of meaning.
  */
-export function ShippingEstimator({ state, onStateChange, tiers }: ShippingEstimatorProps) {
+export function ShippingEstimator({
+  state,
+  onStateChange,
+  tiers,
+  rates = ZONE_RATE_TABLE,
+}: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
     if (state) return;
@@ -114,7 +125,7 @@ export function ShippingEstimator({ state, onStateChange, tiers }: ShippingEstim
             </p>
             <ul className="mt-2 space-y-1.5">
               {tiers.map(({ tier, label, fulfillment }) => {
-                const amount = estimateShipping(state, tier);
+                const amount = estimateShipping(state, tier, rates);
                 return (
                   <li
                     key={tier}

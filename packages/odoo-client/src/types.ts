@@ -177,6 +177,30 @@ export interface ApiZoneResponse {
   zone: number;
 }
 
+/** A per-zone, per-tier shipping rate. Mirrors one entry of grove_headless
+ * `data/shipping_rates.json`; `base` is the per-tree charge in dollars. */
+export interface ShippingZoneTierRate {
+  base: number;
+}
+
+/** Zone id → tier → rate, the `zones` map from GET /grove/api/v1/shipping/rates.
+ * Structurally identical to the storefront estimator's `RateTable`
+ * (`apps/nursery/lib/shipping-estimate.ts`) so a fetched table drops straight
+ * into `resolveRateTable()` and overrides the bundled snapshot. */
+export type ShippingRateTable = Record<
+  string,
+  Partial<Record<ShippingTier, ShippingZoneTierRate>>
+>;
+
+/** Raw response from GET /grove/api/v1/shipping/rates — grove_headless
+ * `rate_feed()` (GOL-952). A read-only snapshot of the live rate table plus the
+ * compliance zone map the backend prices checkout with. */
+export interface ApiShippingRatesResponse {
+  zones: ShippingRateTable;
+  zone_by_state: Record<string, string>;
+  green_states: string[];
+}
+
 /** Cart line from /grove/api/v1/cart. */
 export interface ApiCartLine {
   id: number;
@@ -518,6 +542,14 @@ export interface OdooClient {
   /** Resolve a US ZIP to its USDA hardiness zone. Returns null for a ZIP the
    * USDA matrix doesn't cover (the endpoint 404s) or a malformed ZIP. */
   zone(zip: string): Promise<ZoneLookupResult | null>;
+  shipping: {
+    /** Live per-zone shipping-rate table (GOL-952): a read-only mirror of the
+     * engine that prices checkout. Feed the result to the estimator's
+     * `resolveRateTable()` so quotes never drift from the actual charge.
+     * Returns null when the feed is unreachable or empty — callers then fall
+     * back to the bundled snapshot, so this can never break the page. */
+    rates(): Promise<ShippingRateTable | null>;
+  };
   cart: {
     get(): Promise<Cart>;
     addItem(productId: number, quantity?: number): Promise<Cart>;

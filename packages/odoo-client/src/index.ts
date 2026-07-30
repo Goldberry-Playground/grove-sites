@@ -20,6 +20,9 @@ export type {
   CheckoutSessionInput,
   CheckoutSession,
   ZoneLookupResult,
+  ShippingZoneTierRate,
+  ShippingRateTable,
+  ApiShippingRatesResponse,
 } from "./types";
 export { createOdooClient, OdooApiError } from "./client";
 export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
