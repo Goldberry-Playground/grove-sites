@@ -13,5 +13,10 @@ export {
   createCheckoutRoute,
   createCheckoutSessionRoute,
 } from "./api/createCheckoutRoute";
+export {
+  createPublishWebhookRoute,
+  type PublishTenant,
+  type PublishWebhookOptions,
+} from "./api/createPublishWebhookRoute";
 export { createOrderSuccessPage } from "./components/createOrderSuccessPage";
 export { createCheckoutSuccessPage } from "./components/createCheckoutSuccessPage";

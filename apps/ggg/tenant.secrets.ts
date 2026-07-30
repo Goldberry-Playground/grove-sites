@@ -35,4 +35,9 @@ export const tenantSecrets = {
   odooApiKey: requireEnv("ODOO_API_KEY", ""),
   ghostUrl: requireEnv("GHOST_URL", "http://localhost:2369"),
   ghostContentKey: requireEnv("GHOST_CONTENT_KEY", ""),
+  // Guides publish webhook (GOL-985/986). Read WITHOUT requireEnv: the
+  // secret is provisioned by DevOps and may be absent until then. An empty
+  // value makes the receiver fail closed (401 on every delivery) rather
+  // than crash the app at boot.
+  grovePublishWebhookSecret: process.env.GROVE_PUBLISH_WEBHOOK_SECRET ?? "",
 } as const;
