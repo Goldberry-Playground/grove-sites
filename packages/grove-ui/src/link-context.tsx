@@ -18,6 +18,8 @@ export type GroveLinkProps = {
   href: string;
   className?: string;
   "aria-current"?: boolean | "page";
+  /** Fired on activation — lets callers collapse overlays (e.g. the mini-cart) before navigating. */
+  onClick?: () => void;
   children: ReactNode;
 };
 

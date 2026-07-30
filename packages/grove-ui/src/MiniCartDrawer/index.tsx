@@ -175,12 +175,17 @@ export function MiniCartDrawer({
               </button>
               <Link
                 href={checkoutHref}
+                onClick={onClose}
                 className="grove-minicart__checkout"
               >
                 Checkout →
               </Link>
             </div>
-            <Link href={cartHref} className="grove-minicart__view-cart">
+            <Link
+              href={cartHref}
+              onClick={onClose}
+              className="grove-minicart__view-cart"
+            >
               View full cart
             </Link>
           </footer>
