@@ -44,6 +44,12 @@ export default async function ProductDetailPage({
   }
   if (catalog.length === 0) catalog = mockProducts;
 
+  // Live shipping-rate table (GOL-969) — overrides the estimator's bundled
+  // snapshot so quotes track the backend feed. Best-effort and drift-safe:
+  // rates() already returns null when the feed is unreachable, and the client's
+  // resolveRateTable() then falls back to the snapshot, so this never blocks.
+  const shippingRates = await odoo.shipping.rates();
+
   // Growing guide from Ghost, joined by slug (== grove_slug). Commerce never
   // blocks on content: any failure / missing post → coming-soon collapse.
   let guideHtml: string | null = null;
@@ -135,6 +141,7 @@ export default async function ProductDetailPage({
         variants={variants}
         fallbackPrice={product.price}
         saleOk={product.saleOk}
+        shippingRates={shippingRates}
       />
 
       {product.description && (

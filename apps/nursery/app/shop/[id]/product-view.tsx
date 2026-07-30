@@ -1,14 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ShippingTier } from "@grove/odoo-client";
+import type { ShippingTier, ShippingRateTable } from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { CaptureForm } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
-import { estimateShipping, shipsTo, tierFor } from "../../../lib/shipping-estimate";
+import {
+  estimateShipping,
+  resolveRateTable,
+  shipsTo,
+  tierFor,
+} from "../../../lib/shipping-estimate";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import { PolicyLink } from "./policy-link";
@@ -47,6 +52,12 @@ export interface ProductViewProps {
    * placeholder — the page renders but the buy box is locked (GOL-760).
    */
   saleOk?: boolean;
+  /**
+   * Live shipping-rate table from the backend feed (GOL-969), fetched in the
+   * SSR product load. `null` when the feed is unreachable — the estimator then
+   * falls back to its bundled snapshot via `resolveRateTable()`.
+   */
+  shippingRates?: ShippingRateTable | null;
 }
 
 /**
@@ -65,6 +76,7 @@ export function ProductView({
   variants,
   fallbackPrice,
   saleOk,
+  shippingRates,
 }: ProductViewProps) {
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
   const [cultivar, setCultivar] = useState<string | null>(cultivars[0] ?? null);
@@ -74,6 +86,12 @@ export function ProductView({
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
   // Destination state for the shipping estimator ("" = not chosen yet).
   const [shipState, setShipState] = useState<string>("");
+
+  // Live backend rate table when available, else the bundled snapshot (GOL-969).
+  // resolveRateTable() is drift-safe: null/empty fetch → snapshot, so the
+  // estimate degrades gracefully and both the Format cards and the estimator
+  // panel below price against the same table.
+  const rateTable = useMemo(() => resolveRateTable(shippingRates), [shippingRates]);
 
   // Distinct shipping tiers this product offers, for the state estimator.
   const estimatorTiers = useMemo<EstimatorTier[]>(() => {
@@ -214,7 +232,9 @@ export function ProductView({
                     shippingTier: fVariant?.shippingTier ?? null,
                     format: f,
                   });
-                  const fEst = shipState ? estimateShipping(shipState, fTier) : null;
+                  const fEst = shipState
+                    ? estimateShipping(shipState, fTier, rateTable)
+                    : null;
                   const shipText =
                     fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
@@ -251,6 +271,7 @@ export function ProductView({
               state={shipState}
               onStateChange={setShipState}
               tiers={estimatorTiers}
+              rates={rateTable}
             />
           )}
 
