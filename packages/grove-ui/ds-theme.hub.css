@@ -316,6 +316,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+/* flex-basis is a min-*width* for the row (inline) layout only. In the default
+   stacked layout the main axis is vertical, so a 12rem basis would become a
+   ~192px min-height per field — a large empty gap between input and button
+   (GOL-962). Scope it to the inline variant. */
+.grove-capture--inline .grove-capture__field {
   flex: 1 1 12rem;
 }
 
