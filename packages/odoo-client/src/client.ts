@@ -18,6 +18,7 @@ import type {
   ZoneLookupResult,
   ApiShippingRatesResponse,
   ShippingRateTable,
+  ShippingRateFeed,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -185,6 +186,26 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         } catch {
           // Feed unreachable (network / 5xx / not-configured): degrade to the
           // bundled snapshot. A missing rate feed must never break a product page.
+          return null;
+        }
+      },
+
+      async feed(): Promise<ShippingRateFeed | null> {
+        // Schema-2 counterpart of rates() (Box Engine v2, GOL-1037): the same
+        // read-only endpoint, but surfaced whole — box-keyed zone rates plus the
+        // packing rules a client needs to replay pack_order. Same daily-ish
+        // revalidate and the same fail-safe: null → caller falls back.
+        try {
+          const raw = await api<ShippingRateFeed>(
+            config,
+            "/grove/api/v1/shipping/rates",
+            { next: { revalidate: 21600 } }
+          );
+          // No zones → treat as not-configured so the caller degrades to its
+          // bundled snapshot rather than pricing against an empty table.
+          if (!raw?.zones || Object.keys(raw.zones).length === 0) return null;
+          return raw;
+        } catch {
           return null;
         }
       },

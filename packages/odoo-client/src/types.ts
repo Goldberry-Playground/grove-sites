@@ -216,6 +216,84 @@ export interface ApiShippingRatesResponse {
   green_states: string[];
 }
 
+/* ------------------------------------------------------------------ *
+ * Schema-2 shipping rate feed (Box Engine v2 — GOL-1037/1038).
+ *
+ * Checkout no longer prices per tree/tier; it packs the order into physical
+ * boxes and charges the per-zone rate of each packed box. The live feed at
+ * GET /grove/api/v1/shipping/rates therefore switched from the schema-1
+ * `zone → tier → rate` map to `zone → box_id → rate`, and now also ships the
+ * box catalog + packing rules so the storefront can replay `pack_order`
+ * exactly. Source of truth: grove-odoo-modules `grove_headless`
+ * `models/shipping_zones.py::rate_feed()` + `models/shipping_boxes.py`.
+ * The legacy `ShippingRateTable` / `rates()` above stay for the current
+ * estimator; the frontend migration onto this feed is tracked in GOL-1039.
+ * ------------------------------------------------------------------ */
+
+/** Physical box the packer can pick, keyed by id from grove_headless
+ * `shipping_boxes.py` BOXES. `br16` = single dormant whip; `s*` = standard
+ * 8×8 boxes (dormant + leafed); `b*` = 12×12 bulk boxes (dormant only).
+ * `b46` is deliberately not stocked yet. */
+export type ShippingBoxId = "br16" | "s20" | "s32" | "s46" | "b20" | "b32";
+
+/** Packing mode — dormant stock packs denser than leafed. Mirrors
+ * `shipping_boxes.MODES`. */
+export type ShippingMode = "dormant" | "leafed";
+
+/** A committed per-zone, per-box rate. `base` (USD) is the whole charge for
+ * shipping that box to that zone; the daily rate-checker owns the value.
+ * `per_lb`/`free_over` are optional feed extras (see the zone-engine spec) and
+ * are absent while the checker is active. Mirrors one entry of grove_headless
+ * `data/shipping_rates.json` (schema 2). */
+export interface ShippingBoxRate {
+  base: number;
+  per_lb?: number;
+  free_over?: number;
+}
+
+/** Zone id (`zone_1`…`zone_5`) → box id → rate: the schema-2 `zones` map from
+ * GET /grove/api/v1/shipping/rates. Replaces the schema-1 tier-keyed
+ * `ShippingRateTable`. A box only appears in a zone it can ship to. */
+export type ShippingBoxRateTable = Record<
+  string,
+  Partial<Record<ShippingBoxId, ShippingBoxRate>>
+>;
+
+/** Box geometry + per-mode capacity, mirrored from `shipping_boxes.BOXES` so
+ * the storefront can replay `pack_order` without a server round-trip. Dims are
+ * inches; `capacity` maps a packing mode to how many length-class units fit
+ * (a box absent from a mode — e.g. bulk boxes have no `leafed` — can't be used
+ * in it). */
+export interface ShippingBoxSpec {
+  length: number;
+  width: number;
+  height: number;
+  capacity: Partial<Record<ShippingMode, number>>;
+}
+
+/** Packing rules block from the schema-2 feed — the box catalog plus the inputs
+ * `pack_order` needs, so a client can pick the same boxes the backend bills.
+ * `dormant_window` is `[[startMonth, startDay], [endMonth, endDay]]`. */
+export interface ShippingPacking {
+  boxes: Record<ShippingBoxId, ShippingBoxSpec>;
+  length_classes: number[];
+  modes: ShippingMode[];
+  dormant_window: [[number, number], [number, number]];
+}
+
+/** Full schema-2 response from GET /grove/api/v1/shipping/rates —
+ * grove_headless `rate_feed()` v2 (GOL-1037). A read-only snapshot of the
+ * box-keyed rate table, the authoritative green-list zone map, and the packing
+ * rules, all served from the same in-memory tables checkout prices with (so it
+ * can never disagree with the charge). `schema` is `2`. */
+export interface ShippingRateFeed {
+  schema: number;
+  zones: ShippingBoxRateTable;
+  zone_by_state: Record<string, string>;
+  green_states: string[];
+  packing: ShippingPacking;
+}
+
 /** Cart line from /grove/api/v1/cart. */
 export interface ApiCartLine {
   id: number;
@@ -581,6 +659,12 @@ export interface OdooClient {
      * Returns null when the feed is unreachable or empty — callers then fall
      * back to the bundled snapshot, so this can never break the page. */
     rates(): Promise<ShippingRateTable | null>;
+    /** Full schema-2 rate feed (Box Engine v2 — GOL-1037): box-keyed zone
+     * rates plus the packing rules needed to replay `pack_order`. Returns null
+     * when the feed is unreachable or has no zones (caller then falls back to
+     * its bundled snapshot). Supersedes `rates()` for box-aware pricing; the
+     * frontend migration onto it is GOL-1039. */
+    feed(): Promise<ShippingRateFeed | null>;
   };
   cart: {
     get(): Promise<Cart>;
