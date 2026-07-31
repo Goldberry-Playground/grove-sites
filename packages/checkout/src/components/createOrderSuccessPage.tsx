@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@grove/ui";
 import type { OdooClient } from "@grove/odoo-client";
 import { PurchaseTracker } from "./PurchaseTracker";
+import { CheckoutSuccessEffects } from "./CheckoutSuccessEffects";
 
 function formatPrice(amount: number, currency: string): string {
   return amount.toLocaleString("en-US", {
@@ -45,6 +46,10 @@ export function createOrderSuccessPage({ odoo }: { odoo: OdooClient }) {
 
     return (
       <div className="mx-auto max-w-4xl px-6 py-12">
+        {/* GOL-1039: order placed successfully, so empty the cart. Mirrors the
+            Stripe /checkout/success route; without this the cart survived a
+            completed pickup order. Gated on cart hydration inside the effect. */}
+        <CheckoutSuccessEffects />
         {/* Fires the `purchase` funnel event once, client-side (hashes the order
             id + POSTs from the browser — can't run in this Server Component). */}
         <PurchaseTracker
