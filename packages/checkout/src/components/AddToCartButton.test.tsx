@@ -23,9 +23,13 @@ describe("<AddToCartButton /> — quantity stepper", () => {
     window.localStorage.clear();
   });
 
+  function qtyInput() {
+    return screen.getByLabelText("Quantity") as HTMLInputElement;
+  }
+
   it("starts at quantity 1", () => {
     renderWithCart(<AddToCartButton {...baseProps} />);
-    expect(screen.getByText("1")).toBeDefined();
+    expect(qtyInput().value).toBe("1");
   });
 
   it("plus button increments past 1", async () => {
@@ -33,15 +37,37 @@ describe("<AddToCartButton /> — quantity stepper", () => {
     renderWithCart(<AddToCartButton {...baseProps} />);
     await user.click(screen.getByLabelText("Increase quantity"));
     await user.click(screen.getByLabelText("Increase quantity"));
-    expect(screen.getByText("3")).toBeDefined();
+    expect(qtyInput().value).toBe("3");
   });
 
-  it("minus button never goes below 1 (clamp)", async () => {
+  it("minus button is disabled at 1 (never goes below 1)", () => {
+    renderWithCart(<AddToCartButton {...baseProps} />);
+    const minus = screen.getByLabelText("Decrease quantity");
+    expect(minus.hasAttribute("disabled")).toBe(true);
+    expect(qtyInput().value).toBe("1");
+  });
+
+  it("accepts a typed quantity", async () => {
     const user = userEvent.setup();
     renderWithCart(<AddToCartButton {...baseProps} />);
-    await user.click(screen.getByLabelText("Decrease quantity"));
-    await user.click(screen.getByLabelText("Decrease quantity"));
-    expect(screen.getByText("1")).toBeDefined();
+    const input = qtyInput();
+    await user.clear(input);
+    await user.type(input, "12");
+    expect(input.value).toBe("12");
+  });
+
+  it("clamps a non-integer / empty entry back to a valid quantity on blur", async () => {
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} />);
+    const input = qtyInput();
+    await user.clear(input);
+    await user.tab(); // blur an empty field
+    expect(input.value).toBe("1");
+    // A non-integer text entry never sticks either.
+    await user.clear(input);
+    await user.type(input, "0");
+    await user.tab();
+    expect(input.value).toBe("1");
   });
 });
 
