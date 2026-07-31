@@ -115,6 +115,11 @@ export const mockProducts: Product[] = [
     description:
       "Stone-ground from our own chestnuts, naturally gluten-free, with a sweet nutty character and the dense crumb the Italians built whole pastry traditions on. One pound, kraft pouch. Keep refrigerated after opening.",
     seoDescription: "Gluten-free stone-ground chestnut flour, 1 lb.",
+    // Guide-ready fixture: exercises the Odoo `website_description` guide path
+    // (GOL-1024). HTML mirrors what Odoo's eCommerce Description editor emits.
+    guideReady: true,
+    websiteDescription:
+      "<h3>Baking with chestnut flour</h3><p>Chestnut flour is naturally gluten-free and a little sweet, so it behaves less like wheat flour and more like almond flour. Start by swapping it for a quarter of the wheat flour in a recipe and work up from there.</p><ul><li><strong>Storage:</strong> keep refrigerated after opening; it is higher in oils than wheat flour and will go rancid at room temperature.</li><li><strong>Best for:</strong> castagnaccio, crepes, pancakes, and enriching a shortbread crumb.</li></ul><p>A pinch of salt and a splash of good olive oil are the traditional Tuscan pairing.</p>",
     price: 14,
     currency: "USD",
     imageUrl: "/photos/farm-activities/activity-09.webp",

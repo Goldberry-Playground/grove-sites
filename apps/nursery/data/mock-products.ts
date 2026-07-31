@@ -23,6 +23,12 @@ const mockProductsBase: Product[] = [
     description:
       "The dessert apple that pretends to be a cooking apple. Crisp, juicy, sweet-tart, and shockingly cold-hardy. Grafted onto M.111 semi-dwarf rootstock — 12-15ft mature, bears in year 3-4, harvests in late September.",
     seoDescription: "Honeycrisp apple, bare-root, grafted on M.111.",
+    // Guide-ready fixture: exercises the Odoo `website_description` guide path
+    // (GOL-1024). `guideReady: true` opens the gate; the HTML mirrors what Odoo's
+    // eCommerce Description editor emits so the rendered prose can be verified.
+    guideReady: true,
+    websiteDescription:
+      "<h3>Planting your Honeycrisp</h3><p>Set the graft union 2-3 inches above the soil line and water deeply the day you plant. Bare-root whips establish fastest when they go in while still dormant, late fall through early spring.</p><ul><li><strong>Zones:</strong> 3-7, needs 800-1000 chill hours.</li><li><strong>Pollination:</strong> not self-fertile — pair with a Bartlett or a crabapple within 50 feet.</li><li><strong>Spacing:</strong> 12-15 feet on M.111 semi-dwarf rootstock.</li></ul><p>Expect the first real crop in year three or four. Thin fruit to one apple per cluster in June for larger, sweeter fruit.</p>",
     price: 42,
     currency: "USD",
     imageUrl: "/products/honeycrisp-apple.webp",
