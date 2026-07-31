@@ -233,15 +233,39 @@
 .grove-atc__step:hover {
   color: var(--grove-color-ink);
 }
+.grove-atc__step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
+/* Typed quantity input — reads like the old static count but is editable, so a
+ * shopper can type "12" instead of tapping +. Native spinners are hidden (the
+ * −/+ buttons are the affordance); side borders delineate it from the steps. */
 .grove-atc__qty {
-  padding: var(--grove-space-2, 0.5rem) var(--grove-space-3, 0.75rem);
-  min-width: 2rem;
+  width: 3rem;
+  padding: var(--grove-space-2, 0.5rem) var(--grove-space-1, 0.25rem);
   text-align: center;
+  background: transparent;
+  border: none;
+  border-left: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-radius: 0;
   font-family: var(--grove-font-sans);
   font-size: var(--grove-text-sm, 0.875rem);
   font-weight: var(--grove-font-weight-medium, 500);
   color: var(--grove-color-ink);
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.grove-atc__qty:focus {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: -2px;
+}
+.grove-atc__qty::-webkit-outer-spin-button,
+.grove-atc__qty::-webkit-inner-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
 }
 .grove-btn:focus-visible {
   outline: 2px solid var(--grove-color-accent);
@@ -564,12 +588,33 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Typed quantity input — editable count between the −/+ steps. Native spinners
+ * hidden (the buttons are the affordance); side borders delineate it. */
 .grove-cart__qty {
-  padding: 0.375rem var(--grove-space-3);
-  min-width: 2rem;
+  width: 2.75rem;
+  padding: 0.375rem var(--grove-space-1);
   text-align: center;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--grove-color-line-strong);
+  border-right: 1px solid var(--grove-color-line-strong);
+  border-radius: 0;
+  color: var(--grove-color-ink);
+  font-family: var(--grove-font-sans);
   font-size: var(--grove-text-sm);
   font-weight: var(--grove-font-weight-medium);
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.grove-cart__qty:focus {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: -2px;
+}
+.grove-cart__qty::-webkit-outer-spin-button,
+.grove-cart__qty::-webkit-inner-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
 }
 .grove-cart__line-right {
   display: flex;
@@ -773,6 +818,33 @@
 }
 .grove-checkout__input:invalid:not(:placeholder-shown) {
   border-color: var(--grove-color-error-solid);
+}
+
+/* Constrained selects (State, Country) — same box as text inputs, with a chevron
+ * so it reads as a picker, and room so the glyph never overlaps the value. */
+.grove-checkout__select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: var(--grove-space-6);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%232d3a30' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--grove-space-3) center;
+  cursor: pointer;
+}
+/* Empty (unchosen) state reads as a muted placeholder, matching text inputs. */
+.grove-checkout__select:required:invalid {
+  color: var(--grove-color-ink-a50);
+}
+.grove-checkout__select option {
+  color: var(--grove-color-ink);
+}
+
+/* Small helper note under a field (e.g. the ship-to-states caption). */
+.grove-checkout__field-note {
+  margin: 0;
+  font-size: var(--grove-text-sm);
+  color: var(--grove-color-ink-a60);
 }
 
 /* Payment */
