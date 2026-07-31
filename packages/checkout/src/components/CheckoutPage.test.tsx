@@ -46,7 +46,9 @@ async function fillFormAndSubmit() {
   await user.type(screen.getByLabelText(/Street/), "1 Discord Avenue");
   await user.type(screen.getByLabelText(/City/), "Bluefield");
   await user.type(screen.getByLabelText(/ZIP/), "24701");
-  // State (WV) and Country (US) are pre-filled defaults.
+  // State is a required select (no silent default) — pick a supported one.
+  // Country defaults to US (first/only option).
+  await user.selectOptions(screen.getByLabelText(/State/), "WV");
   const submit = document.querySelector<HTMLButtonElement>(
     'button[type="submit"]',
   );
@@ -152,5 +154,78 @@ describe("<CheckoutPage /> — session error handling (GOL-942)", () => {
       expect(screen.getByText(/Pay .* with card/)).toBeDefined(),
     );
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("<CheckoutPage /> — state & country selects (GOL-1055)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    seedCart();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders State and Country as constrained selects, not free text", async () => {
+    await renderCheckout();
+    const state = screen.getByLabelText(/State/);
+    const country = screen.getByLabelText(/Country/);
+    expect(state.tagName).toBe("SELECT");
+    expect(country.tagName).toBe("SELECT");
+  });
+
+  it("offers only supported ship-to states — an unsupported state can't be picked", async () => {
+    await renderCheckout();
+    const state = screen.getByLabelText(/State/) as HTMLSelectElement;
+    const codes = Array.from(state.options).map((o) => o.value);
+    // Supported greens are present (kills the "Ohio" vs "OH" bug — value is "OH").
+    expect(codes).toContain("OH");
+    expect(codes).toContain("WV");
+    // Non-green / non-code values are simply not options, so unselectable.
+    expect(codes).not.toContain("TX");
+    expect(codes).not.toContain("CA");
+    expect(codes).not.toContain("Ohio");
+  });
+
+  it("starts with no state chosen (required forces an explicit valid pick)", async () => {
+    await renderCheckout();
+    const state = screen.getByLabelText(/State/) as HTMLSelectElement;
+    expect(state.value).toBe("");
+    expect(state.required).toBe(true);
+  });
+
+  it("defaults Country to US", async () => {
+    await renderCheckout();
+    const country = screen.getByLabelText(/Country/) as HTMLSelectElement;
+    expect(country.value).toBe("US");
+  });
+
+  it("submits the picked 2-letter state code to the session route", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      textResponse(
+        200,
+        true,
+        JSON.stringify({
+          orderId: 1,
+          accessToken: "t",
+          checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_1",
+          amountDueToday: 1,
+          amountTotal: 1,
+          hasPreorder: false,
+          currency: "usd",
+        }),
+      ),
+    );
+
+    await renderCheckout();
+    await fillFormAndSubmit();
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const body = JSON.parse(
+      (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.shipping.state).toBe("WV");
+    expect(body.shipping.country).toBe("US");
   });
 });

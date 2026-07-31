@@ -29,6 +29,19 @@ export interface GroveCheckoutOrder {
   paymentMethod: string;
 }
 
+/** A selectable ship-to state or country: 2-letter `code` sent to the server,
+ *  human `name` shown in the dropdown. */
+export interface GroveShipToOption {
+  code: string;
+  name: string;
+}
+
+/** Fallback country list when the app supplies none. US-only today; a select
+ *  (not free text) so `shipping.country` is always a clean code. */
+const DEFAULT_COUNTRIES: GroveShipToOption[] = [
+  { code: "US", name: "United States" },
+];
+
 export interface GroveCheckoutPaymentMethod {
   value: string;
   label: string;
@@ -76,6 +89,15 @@ export interface CheckoutPageProps {
   shopHref?: string;
   /** Cart route (back link). */
   cartHref?: string;
+  /**
+   * Supported ship-to states. When provided, the State field is a `<select>`
+   * limited to these codes — an unsupported/free-typed state (the "Ohio" vs
+   * "OH" bug class) becomes impossible to submit (GOL-1055). Omit to fall back
+   * to a 2-letter free-text field.
+   */
+  shipStates?: GroveShipToOption[];
+  /** Supported ship-to countries. Rendered as a `<select>` (default: US only). */
+  countries?: GroveShipToOption[];
 }
 
 const DEFAULT_TRUST_ITEMS = [
@@ -110,6 +132,8 @@ export function CheckoutPage({
   trustItems = DEFAULT_TRUST_ITEMS,
   shopHref = "/shop",
   cartHref = "/cart",
+  shipStates,
+  countries = DEFAULT_COUNTRIES,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -123,9 +147,11 @@ export function CheckoutPage({
     street: "",
     street2: "",
     city: "",
-    state: "WV",
+    // With a state <select>, start unset so the shopper makes an explicit,
+    // valid choice (no silent default to WV). Free-text fallback keeps WV.
+    state: shipStates ? "" : "WV",
     zip: "",
-    country: "US",
+    country: countries[0]?.code ?? "US",
   });
   const [paymentMethod, setPaymentMethod] = useState<string>(
     paymentMethods[0]?.value ?? "",
@@ -277,14 +303,26 @@ export function CheckoutPage({
                   onChange={(v) => setShipping({ ...shipping, city: v })}
                   autoComplete="address-level2"
                 />
-                <Field
-                  label="State"
-                  required
-                  value={shipping.state}
-                  onChange={(v) => setShipping({ ...shipping, state: v.toUpperCase() })}
-                  autoComplete="address-level1"
-                  maxLength={2}
-                />
+                {shipStates ? (
+                  <SelectField
+                    label="State"
+                    required
+                    value={shipping.state}
+                    onChange={(v) => setShipping({ ...shipping, state: v })}
+                    autoComplete="address-level1"
+                    placeholder="Select a state"
+                    options={shipStates.map((s) => ({ value: s.code, label: s.name }))}
+                  />
+                ) : (
+                  <Field
+                    label="State"
+                    required
+                    value={shipping.state}
+                    onChange={(v) => setShipping({ ...shipping, state: v.toUpperCase() })}
+                    autoComplete="address-level1"
+                    maxLength={2}
+                  />
+                )}
                 <Field
                   label="ZIP"
                   required
@@ -292,14 +330,20 @@ export function CheckoutPage({
                   onChange={(v) => setShipping({ ...shipping, zip: v })}
                   autoComplete="postal-code"
                 />
-                <Field
+                <SelectField
                   label="Country"
                   required
                   value={shipping.country}
-                  onChange={(v) => setShipping({ ...shipping, country: v.toUpperCase() })}
+                  onChange={(v) => setShipping({ ...shipping, country: v })}
                   autoComplete="country"
-                  maxLength={2}
+                  options={countries.map((c) => ({ value: c.code, label: c.name }))}
                 />
+                {shipStates && (
+                  <p className="grove-checkout__field-note grove-checkout__field--span2">
+                    We currently ship live trees to {shipStates.length} states.
+                    Don&apos;t see yours? It&apos;s not on our route yet.
+                  </p>
+                )}
               </div>
             </fieldset>
 
@@ -422,6 +466,64 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         className="grove-checkout__input"
       />
+    </label>
+  );
+}
+
+/**
+ * Constrained field: a `<select>` matched to `Field`'s look. Only listed option
+ * values are choosable, so an unsupported/unparseable value can't be submitted.
+ * A `placeholder` renders a disabled empty option so `required` forces a real
+ * choice when the field starts unset.
+ */
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  span2 = false,
+  required,
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  span2?: boolean;
+  required?: boolean;
+  autoComplete?: string;
+}) {
+  return (
+    <label className={`grove-checkout__field${span2 ? " grove-checkout__field--span2" : ""}`}>
+      <span className="grove-checkout__field-label">
+        {label}
+        {required && (
+          <span className="grove-checkout__required" aria-hidden="true">
+            {" "}
+            *
+          </span>
+        )}
+      </span>
+      <select
+        required={required}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="grove-checkout__input grove-checkout__select"
+      >
+        {placeholder && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
