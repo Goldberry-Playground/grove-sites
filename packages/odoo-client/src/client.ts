@@ -31,11 +31,18 @@ import {
 
 /** Thrown when the grove_headless API returns a non-2xx status. Carries the
  * HTTP `status` so callers can branch on it — e.g. the ZIP→zone lookup treats
- * 404 as "unknown ZIP" (null) rather than a hard failure. */
+ * 404 as "unknown ZIP" (null) rather than a hard failure.
+ *
+ * `body` is the upstream response body parsed as JSON when possible (else
+ * undefined). grove_headless returns deliberate, shopper-safe gating errors as
+ * `{ error: "human message" }` with a 4xx status (unsupported ship-to state,
+ * potted-block, $0-shipping breaker, …); the checkout BFF forwards that message
+ * to the browser instead of masking every failure as a generic 502. */
 export class OdooApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly body?: unknown
   ) {
     super(message);
     this.name = "OdooApiError";
@@ -75,9 +82,19 @@ async function api<T>(
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    // Parse the body as JSON so callers can read grove_headless's structured
+    // `{ error }` gating message. Non-JSON bodies (Werkzeug HTML, tracebacks)
+    // leave `parsed` undefined — those never get forwarded to the browser.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      parsed = undefined;
+    }
     throw new OdooApiError(
       response.status,
-      `Odoo API error: ${response.status} ${response.statusText} — ${body}`
+      `Odoo API error: ${response.status} ${response.statusText} — ${body}`,
+      parsed
     );
   }
 
