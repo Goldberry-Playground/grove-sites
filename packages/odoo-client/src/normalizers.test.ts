@@ -312,6 +312,35 @@ describe("normalizeProductDetail — saleOk (purchasability, GOL-760)", () => {
   });
 });
 
+describe("normalizeProductDetail — guide prose (publish-pipeline v2, GOL-1012)", () => {
+  it("maps website_description → websiteDescription and grove_guide_ready → guideReady", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      website_description: "<p>Honeycrisp guide prose from Odoo.</p>",
+      grove_guide_ready: true,
+    });
+    expect(result.websiteDescription).toBe("<p>Honeycrisp guide prose from Odoo.</p>");
+    expect(result.guideReady).toBe(true);
+  });
+
+  it("collapses website_description=false to null (Odoo empty-HTML quirk)", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      website_description: false,
+      grove_guide_ready: true,
+    });
+    expect(result.websiteDescription).toBeNull();
+  });
+
+  it("gates CLOSED by default: omitting the fields yields guideReady=false, websiteDescription=null", () => {
+    // A grove_headless build that predates the guide fields must never leak an
+    // un-reviewed draft as a live guide — the gate defaults false.
+    const result = normalizeProductDetail(honeycrispDetail);
+    expect(result.guideReady).toBe(false);
+    expect(result.websiteDescription).toBeNull();
+  });
+});
+
 describe("normalizeProductDetail — Odoo's many2one quirks (false instead of null)", () => {
   it("returns null currency when currency_id is false", () => {
     expect(normalizeProductDetail(honeycrispWithMissingFields).currency).toBeNull();

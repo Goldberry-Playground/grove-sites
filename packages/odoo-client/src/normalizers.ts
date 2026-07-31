@@ -109,6 +109,13 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     sku: raw.default_code || null,
     description: raw.description_sale || null,
     seoDescription: raw.grove_seo_description || null,
+    // Guide prose from Odoo's eCommerce Description (publish-pipeline v2 SoR).
+    // `false`/"" collapse to null so the UI can `??`-fall-back uniformly.
+    websiteDescription: raw.website_description || null,
+    // Two-tier guide gate — default CLOSED when the field is absent so a
+    // grove_headless build that predates `grove_guide_ready` can't leak an
+    // un-reviewed draft as a live guide (GOL-888 / GOL-1012).
+    guideReady: raw.grove_guide_ready ?? false,
     price: raw.list_price,
     currency: raw.currency_id ? raw.currency_id.name : null,
     imageUrl: photoUrlOrEmpty(raw.image_url, raw.image_128),

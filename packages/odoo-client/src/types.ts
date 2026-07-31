@@ -153,6 +153,21 @@ export interface ApiProductDetail
   grove_slug: string;
   description_sale: string | false;
   grove_seo_description: string | false;
+  /**
+   * eCommerce Description HTML (Odoo `website_description`) — the single source
+   * of truth for guide prose under publish-pipeline v2 (vault: "Grove
+   * publish-pipeline design", 2026-07-26; GOL-1012 / grove-sites#341). `false`
+   * or "" when unset. Optional so a payload from a grove_headless build that
+   * predates the field (grove-odoo-modules PR A / GOL-888) doesn't break.
+   */
+  website_description?: string | false;
+  /**
+   * Two-tier guide gate (Odoo `grove_guide_ready`, grove-odoo-modules PR A /
+   * GOL-888). Only when true should the storefront render `website_description`
+   * as the plant guide; false/absent → no guide yet ("coming soon"). Optional so
+   * older payloads gate closed by default.
+   */
+  grove_guide_ready?: boolean;
   categ_id: ApiMany2One | false;
   currency_id: ApiMany2One | false;
   /** Only present when the Odoo `stock` module is installed. */
@@ -239,6 +254,23 @@ export interface Product {
   sku: string | null;
   description: string | null;
   seoDescription: string | null;
+  /**
+   * Plant-guide prose — Odoo's eCommerce Description (`website_description`),
+   * null when unset. Publish-pipeline v2 makes Odoo the single source of truth
+   * for guide copy; Ghost is OFF the product path (GOL-1012 / grove-sites#341,
+   * correcting PR #338's Ghost fallback). Render this behind `guideReady`; never
+   * fall back to Ghost for the product guide. Optional/undefined on list items
+   * and mocks (the list endpoint doesn't carry guide prose) — the detail
+   * normalizer populates it.
+   */
+  websiteDescription?: string | null;
+  /**
+   * Two-tier guide gate (Odoo `grove_guide_ready`, GOL-888). Only render
+   * `websiteDescription` as the plant guide when true; false → "coming soon".
+   * The detail normalizer defaults it to false, so list items, mocks, and
+   * pre-field payloads gate closed and no un-reviewed draft leaks to the page.
+   */
+  guideReady?: boolean;
   price: number;
   currency: string | null;
   imageUrl: string;
