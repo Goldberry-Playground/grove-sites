@@ -23,6 +23,13 @@ export type {
   ShippingZoneTierRate,
   ShippingRateTable,
   ApiShippingRatesResponse,
+  ShippingBoxId,
+  PackingMode,
+  ShippingBoxRate,
+  ShippingBoxRateTable,
+  ShippingBoxSpec,
+  ShippingPackingSpec,
+  ShippingRateFeed,
 } from "./types";
 export { createOdooClient, OdooApiError } from "./client";
 export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
