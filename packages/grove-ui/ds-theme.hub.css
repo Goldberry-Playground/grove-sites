@@ -709,13 +709,8 @@
   color: var(--grove-color-gold);
   border-bottom-color: var(--grove-color-gold);
 }
-/* CheckoutPage — contact/shipping/payment form + order summary with a sticky
- * place-order banner. Token-mapped per TOKEN-MAP.md. Validation/error surfaces use
- * the status tokens and pair an icon + text, so they never signal by color alone.
- * Shell / banner / trust strip / summary card / primary CTA / error surface are
- * shared with CartPage/CheckoutReview via CheckoutShared.css; only the checkout
- * form's own rules live here.
- */
+/* CheckoutPage form — token-mapped (TOKEN-MAP.md). Errors pair icon + text, never
+ * color alone. Shell/banner/summary/CTA/error shared via CheckoutShared.css. */
 
 .grove-checkout__title {
   font-family: var(--grove-font-display);
@@ -729,12 +724,14 @@
   color: var(--grove-color-ink-a50);
 }
 
-/* Sticky banner CTA — shared fill (CheckoutShared.css); <button> deltas only. */
-.grove-checkout__banner-cta {
+/* Banner + place-order CTAs — shared fill (CheckoutShared.css); <button> deltas. */
+.grove-checkout__banner-cta,
+.grove-checkout__submit {
   border: none;
   cursor: pointer;
 }
-.grove-checkout__banner-cta:disabled {
+.grove-checkout__banner-cta:disabled,
+.grove-checkout__submit:disabled {
   opacity: 0.6;
   cursor: default;
   transform: none;
@@ -820,8 +817,7 @@
   border-color: var(--grove-color-error-solid);
 }
 
-/* Constrained selects (State, Country) — same box as text inputs, with a chevron
- * so it reads as a picker, and room so the glyph never overlaps the value. */
+/* State/Country selects — text-input box + chevron; padding-right clears glyph. */
 .grove-checkout__select {
   appearance: none;
   -webkit-appearance: none;
@@ -832,7 +828,7 @@
   background-position: right var(--grove-space-3) center;
   cursor: pointer;
 }
-/* Empty (unchosen) state reads as a muted placeholder, matching text inputs. */
+/* Unchosen state reads as a muted placeholder, matching text inputs. */
 .grove-checkout__select:required:invalid {
   color: var(--grove-color-ink-a50);
 }
@@ -878,15 +874,18 @@
   color: var(--grove-color-ink-a50);
 }
 
-/* Summary — card/title/total shared (CheckoutShared.css); order list local. */
-.grove-checkout__order-list {
-  list-style: none;
-  margin: 0 0 var(--grove-space-4);
-  padding: 0;
+/* Summary — card/title/total shared (CheckoutShared.css); lists local. */
+.grove-checkout__order-list,
+.grove-checkout__summary-list {
   display: flex;
   flex-direction: column;
   gap: var(--grove-space-2);
   font-size: var(--grove-text-sm);
+}
+.grove-checkout__order-list {
+  list-style: none;
+  margin: 0 0 var(--grove-space-4);
+  padding: 0;
 }
 .grove-checkout__order-row {
   display: flex;
@@ -901,10 +900,6 @@
 }
 .grove-checkout__summary-list {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--grove-space-2);
-  font-size: var(--grove-text-sm);
   border-top: 1px solid var(--grove-color-line);
   padding-top: var(--grove-space-3);
 }
@@ -921,16 +916,9 @@
   font-weight: 700;
 }
 
-/* Place-order CTA — shared forest fill (CheckoutShared.css); <button> deltas. */
+/* Place-order CTA font size (base fill/disabled shared with banner CTA above). */
 .grove-checkout__submit {
-  border: none;
-  cursor: pointer;
   font-size: var(--grove-text-body);
-}
-.grove-checkout__submit:disabled {
-  opacity: 0.6;
-  cursor: default;
-  transform: none;
 }
 .grove-checkout__back {
   display: block;
