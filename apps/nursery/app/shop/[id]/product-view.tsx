@@ -86,6 +86,9 @@ export function ProductView({
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
   // Destination state for the shipping estimator ("" = not chosen yet).
   const [shipState, setShipState] = useState<string>("");
+  // Chosen quantity, lifted so the inline stepper and the mobile sticky bar add
+  // the SAME count — tapping the bar no longer silently adds just 1 (GOL-1055).
+  const [quantity, setQuantity] = useState(1);
 
   // Live backend rate table when available, else the bundled snapshot (GOL-969).
   // resolveRateTable() is drift-safe: null/empty fetch → snapshot, so the
@@ -297,6 +300,8 @@ export function ProductView({
               imageUrl={hero}
               disabled={buy.ctaDisabled}
               idleLabel={buy.ctaLabel}
+              quantity={quantity}
+              onQuantityChange={setQuantity}
             />
           </div>
 
@@ -339,6 +344,7 @@ export function ProductView({
         imageUrl={hero}
         disabled={buy.ctaDisabled}
         idleLabel={buy.ctaLabel}
+        quantity={quantity}
       />
     </>
   );
