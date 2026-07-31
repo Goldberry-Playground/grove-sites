@@ -208,12 +208,94 @@ export type ShippingRateTable = Record<
 >;
 
 /** Raw response from GET /grove/api/v1/shipping/rates — grove_headless
- * `rate_feed()` (GOL-952). A read-only snapshot of the live rate table plus the
- * compliance zone map the backend prices checkout with. */
+ * `rate_feed()` (GOL-952, schema 1). A read-only snapshot of the tier-keyed
+ * rate table plus the compliance zone map the backend prices checkout with.
+ *
+ * Superseded by the schema-2 Box Engine v2 feed ({@link ShippingRateFeed},
+ * grove-odoo-modules #60): the same endpoint now returns `schema: 2`, box-keyed
+ * `zones`, and a `packing` catalog. The legacy `shipping.rates()` accessor still
+ * consumes this shape for a not-yet-upgraded Odoo, and returns null once it sees
+ * `schema >= 2` so a tier-keyed caller falls back to its snapshot rather than
+ * reading every box id as a missing tier. */
 export interface ApiShippingRatesResponse {
   zones: ShippingRateTable;
   zone_by_state: Record<string, string>;
   green_states: string[];
+  /** Present from Box Engine v2 (schema 2); absent on the legacy schema-1 feed. */
+  schema?: number;
+}
+
+// ── Schema-2 rate feed — Box Engine v2 (GOL-1038) ───────────────────────────
+// Box Engine v2 (grove-odoo-modules #60) reprices bareroot shipping PER PACKED
+// BOX instead of per tree, because under UPS DIM billing the box drives the cost.
+// The feed below is a faithful, strongly-typed mirror of grove_headless
+// `models/shipping_zones.py::rate_feed()` — the same in-memory tables
+// `compute_order_shipping` prices checkout with — so a fetched feed can never
+// disagree with the actual charge. Source of truth: `shipping_boxes.py` (box
+// catalog + packer) and `data/shipping_rates.json` (rates). Wire keys are kept
+// snake_case to match the payload exactly (parity guarantee). Potted has no rates
+// by design — potted is farm pickup only.
+
+/** Box-catalog id from grove_headless `models/shipping_boxes.py` BOXES:
+ * `br16` (single small whip), `s20`/`s32`/`s46` (8×8 boxes by length class),
+ * `b20`/`b32` (12×12 dormant bulk boxes). A union so a fetched feed is checked
+ * against the known catalog — the backend rate-checker only ever emits these. */
+export type ShippingBoxId = "br16" | "s20" | "s32" | "s46" | "b20" | "b32";
+
+/** Packing mode from `shipping_boxes.py` MODES. Trees are dormant or leafed-out
+ * at the nursery by season, which drives per-box capacity. */
+export type PackingMode = "dormant" | "leafed";
+
+/** A single per-box shipping rate. `base` is the flat dollar charge for one
+ * packed box of a given size to a given zone (v2 prices per box, not per tree). */
+export interface ShippingBoxRate {
+  base: number;
+}
+
+/** Zone id → box id → rate: the schema-2 `zones` map. Mirrors
+ * `data/shipping_rates.json` (v2). Box-keyed, so it is NOT interchangeable with
+ * the legacy tier-keyed {@link ShippingRateTable}. */
+export type ShippingBoxRateTable = Record<
+  string,
+  Partial<Record<ShippingBoxId, ShippingBoxRate>>
+>;
+
+/** One box in the catalog, as surfaced by the feed's `packing.boxes` — a subset
+ * of `shipping_boxes.py` BOXES (dimensions + capacity only; packaging/tare are
+ * backend-internal). Dimensions in inches; `capacity` is trees-per-box by mode,
+ * omitting any mode the box is never used in (`br16`/`b20`/`b32` have no
+ * `leafed` capacity). */
+export interface ShippingBoxSpec {
+  length: number;
+  width: number;
+  height: number;
+  capacity: Partial<Record<PackingMode, number>>;
+}
+
+/** The `packing` block of the schema-2 feed (`rate_feed().packing`): the box
+ * catalog plus the constants a client needs to mirror `pack_order` exactly. */
+export interface ShippingPackingSpec {
+  boxes: Partial<Record<ShippingBoxId, ShippingBoxSpec>>;
+  /** Minimum box length (in) a tree's height class can require: e.g. [16,20,32,46]. */
+  length_classes: number[];
+  modes: PackingMode[];
+  /** Dormant-packing window as [[startMonth, startDay], [endMonth, endDay]]. */
+  dormant_window: [[number, number], [number, number]];
+}
+
+/** Schema-2 rate feed from GET /grove/api/v1/shipping/rates — grove_headless
+ * `rate_feed()` after Box Engine v2 (grove-odoo-modules #60). A read-only,
+ * strongly-typed mirror of the in-memory tables the checkout engine prices with;
+ * served from the same module globals, so it can never disagree with the charge
+ * within a running instance. `zone_by_state` is the authoritative 21-state green
+ * list the frontend eligibility gate must stay in lockstep with. */
+export interface ShippingRateFeed {
+  /** Feed schema version. 2 for Box Engine v2. */
+  schema: number;
+  zones: ShippingBoxRateTable;
+  zone_by_state: Record<string, string>;
+  green_states: string[];
+  packing: ShippingPackingSpec;
 }
 
 /** Cart line from /grove/api/v1/cart. */
@@ -575,12 +657,20 @@ export interface OdooClient {
    * USDA matrix doesn't cover (the endpoint 404s) or a malformed ZIP. */
   zone(zip: string): Promise<ZoneLookupResult | null>;
   shipping: {
-    /** Live per-zone shipping-rate table (GOL-952): a read-only mirror of the
-     * engine that prices checkout. Feed the result to the estimator's
-     * `resolveRateTable()` so quotes never drift from the actual charge.
-     * Returns null when the feed is unreachable or empty — callers then fall
-     * back to the bundled snapshot, so this can never break the page. */
+    /** Legacy schema-1 tier-keyed rate table (GOL-952): a read-only mirror of
+     * the per-tree engine that priced checkout before Box Engine v2. Feed the
+     * result to the estimator's `resolveRateTable()` so quotes never drift from
+     * the actual charge. Returns null when the feed is unreachable, empty, OR
+     * already on schema 2 (box-keyed) — in every case the caller falls back to
+     * the bundled snapshot, so this can never break the page. New callers should
+     * use `rateFeed()`; this remains for a not-yet-upgraded Odoo. */
     rates(): Promise<ShippingRateTable | null>;
+    /** Live schema-2 Box Engine v2 feed (GOL-1038): a read-only, strongly-typed
+     * mirror of `rate_feed()` — box-keyed `zones`, the green-list `zone_by_state`
+     * map, and the `packing` catalog the frontend needs to mirror the packer.
+     * Returns null when the feed is unreachable, empty, or still schema 1 (Odoo
+     * not yet upgraded), so a caller can safely fall back to its snapshot. */
+    rateFeed(): Promise<ShippingRateFeed | null>;
   };
   cart: {
     get(): Promise<Cart>;
