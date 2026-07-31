@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
-import { ghost } from "../../../lib/ghost";
 import { getMockProductById, mockProducts } from "../../../data/mock-products";
+import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { inferCompanions, toCompanionInput } from "../../../lib/companions";
 import { stripVariantCode } from "../../../lib/variant-select";
 import { ProductView, type ViewImage, type ViewVariant } from "./product-view";
@@ -50,15 +50,16 @@ export default async function ProductDetailPage({
   // resolveRateTable() then falls back to the snapshot, so this never blocks.
   const shippingRates = await odoo.shipping.rates();
 
-  // Growing guide from Ghost, joined by slug (== grove_slug). Commerce never
-  // blocks on content: any failure / missing post → coming-soon collapse.
-  let guideHtml: string | null = null;
-  try {
-    const post = await ghost.posts.get(product.slug);
-    guideHtml = post?.html ?? null;
-  } catch {
-    guideHtml = null;
-  }
+  // Growing guide from Odoo's eCommerce Description (`website_description`),
+  // gated by `grove_guide_ready`. Publish-pipeline v2 makes Odoo the single
+  // source of truth for guide prose; Ghost is OFF the product path (GOL-1019 /
+  // grove-sites#341, correcting #338's Ghost fallback) — Ghost stays wired for
+  // /blog only. Commerce never blocks on content: no prose or gate closed →
+  // coming-soon collapse. HTML is sanitized server-side before injection.
+  const guideHtml =
+    product.guideReady && product.websiteDescription
+      ? sanitizeGuideHtml(product.websiteDescription)
+      : null;
 
   // Tag-inferred guild companions (shared tags ∩ overlapping zone range).
   const companionIds = new Set(

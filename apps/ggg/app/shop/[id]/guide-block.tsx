@@ -1,16 +1,18 @@
 /**
  * Guide-display block for the GGG (George George George Woodworking)
  * storefront — tenant-parity with the nursery's `GrowingGuide` (GOL-1002 /
- * GOL-986 Part A). The guide narrative lives in this tenant's own Ghost
- * instance, joined by `post.slug === product.slug`. Commerce never blocks on
- * content: when Ghost is down or has no post for the slug, the caller passes
- * `html={null}` and we render the coming-soon collapse.
+ * GOL-986 Part A). The guide narrative comes from Odoo's eCommerce Description
+ * (`website_description`), gated by `grove_guide_ready` — under publish-pipeline
+ * v2 Odoo is the single source of truth for guide prose and Ghost is off the
+ * product path (GOL-1019 / grove-sites#341, correcting #338's Ghost fallback).
+ * Commerce never blocks on content: when the gate is closed or there is no
+ * prose, the caller passes `html={null}` and we render the coming-soon collapse.
  *
  * GGG sells woodwork, not plants, so the label is a maker's care/use guide
  * rather than nursery's "Growing guide" — the shared *shape* travels across
- * tenants, the *copy* follows the brand. The HTML is authored in our own Ghost
- * (trusted CMS), the same trust boundary as /blog, so it's injected with
- * `dangerouslySetInnerHTML`.
+ * tenants, the *copy* follows the brand. The caller sanitizes the Odoo HTML
+ * server-side (see `lib/sanitize.ts`) before passing it here, so `html` is a
+ * trusted, allowlisted string injected with `dangerouslySetInnerHTML`.
  *
  * Styling note: uses `text-foreground/70` for the muted coming-soon copy rather
  * than nursery's `text-ink-soft` (that token only resolves in the nursery app).
