@@ -6,7 +6,7 @@ import type {
 } from "@grove/odoo-client";
 import { isOriginAllowed, rejectOrigin } from "./origins";
 import { requireJsonContentType } from "./contentType";
-import { sanitizeUpstreamError } from "./upstreamError";
+import { forwardCheckoutError, sanitizeUpstreamError } from "./upstreamError";
 import { validateOrderInput, validateRedirectUrl } from "./validation";
 
 export interface CheckoutRouteOptions {
@@ -47,7 +47,9 @@ export function createCheckoutRoute(
       const order = await odoo.orders.create(payload as OrderCreateInput);
       return NextResponse.json(order);
     } catch (e) {
-      return sanitizeUpstreamError(e, "checkout/create-order");
+      // A stock/potted/ship-to rejection carries a shopper-facing message and
+      // status — relay it so the cart can be fixed. Everything else → 502.
+      return forwardCheckoutError(e) ?? sanitizeUpstreamError(e, "checkout/create-order");
     }
   };
 }
@@ -91,7 +93,9 @@ export function createCheckoutSessionRoute(
       );
       return NextResponse.json(session);
     } catch (e) {
-      return sanitizeUpstreamError(e, "checkout/create-session");
+      // A stock/potted/ship-to rejection carries a shopper-facing message and
+      // status — relay it so the cart can be fixed. Everything else → 502.
+      return forwardCheckoutError(e) ?? sanitizeUpstreamError(e, "checkout/create-session");
     }
   };
 }
