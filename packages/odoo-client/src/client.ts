@@ -31,11 +31,15 @@ import {
 
 /** Thrown when the grove_headless API returns a non-2xx status. Carries the
  * HTTP `status` so callers can branch on it — e.g. the ZIP→zone lookup treats
- * 404 as "unknown ZIP" (null) rather than a hard failure. */
+ * 404 as "unknown ZIP" (null) rather than a hard failure. `body` is the raw
+ * response text so a caller can recover the backend's `{ "error": … }` payload
+ * (the checkout route forwards friendly 4xx/409 stock/potted messages) without
+ * re-parsing it out of the composed `message`. */
 export class OdooApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly body = ""
   ) {
     super(message);
     this.name = "OdooApiError";
@@ -77,7 +81,8 @@ async function api<T>(
     const body = await response.text().catch(() => "");
     throw new OdooApiError(
       response.status,
-      `Odoo API error: ${response.status} ${response.statusText} — ${body}`
+      `Odoo API error: ${response.status} ${response.statusText} — ${body}`,
+      body
     );
   }
 
