@@ -165,7 +165,7 @@ export function CheckoutPage() {
         trustItems={[
           { icon: "✦", text: "Card entered on Stripe — never stored by us" },
           { icon: "◐", text: "Deposit today on preorders, balance at ship time" },
-          { icon: "✓", text: "Satisfaction or refund" },
+          { icon: "✓", text: "Arrive-alive guarantee" },
         ]}
       />
     </WithGroveNext>

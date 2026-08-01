@@ -103,7 +103,7 @@ export interface CheckoutPageProps {
 const DEFAULT_TRUST_ITEMS = [
   { icon: "✦", text: "Secure · we never store card data" },
   { icon: "◐", text: "Email confirmation before charge" },
-  { icon: "✓", text: "Satisfaction or refund" },
+  { icon: "✓", text: "Arrive-alive guarantee" },
 ];
 
 function formatPrice(amount: number): string {

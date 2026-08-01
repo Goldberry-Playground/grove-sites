@@ -195,7 +195,7 @@ export function CheckoutReview({
             </div>
           </div>
           <p className="grove-review__split-note">
-            Includes shipping and tax. You pay this once on the next screen —
+            Includes any shipping and sales tax. You pay this once on the next screen —
             nothing is stored on our servers.
           </p>
         </div>
