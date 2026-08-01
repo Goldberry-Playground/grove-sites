@@ -116,7 +116,7 @@ export function CartPage({
             <span aria-hidden="true">◐</span> Made by us, on our land
           </span>
           <span className="grove-cart__trust-item">
-            <span aria-hidden="true">✓</span> Satisfaction or refund
+            <span aria-hidden="true">✓</span> Arrive-alive guarantee
           </span>
           <span className="grove-cart__trust-item">
             <span aria-hidden="true">♦</span> No payment until we confirm
