@@ -28,3 +28,6 @@ dist-bundles/
 ds-bundle/
 .design-sync/.cache/
 apps/qa-portal/public/bundles/
+
+# local render/QA scratch harnesses (see GOL-1081)
+_render/
