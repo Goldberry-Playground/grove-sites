@@ -18,6 +18,7 @@ export { MiniCartDrawer } from "./components/MiniCartDrawer";
 export { StickyAddToCartBar } from "./components/StickyAddToCartBar";
 export { CartPage } from "./components/CartPage";
 export { CheckoutPage } from "./components/CheckoutPage";
+export { BRAND_TRUST, type GroveBrand } from "./brand-trust";
 export { CheckoutCancelPage } from "./components/CheckoutCancelPage";
 export {
   SHIP_TO_STATES,

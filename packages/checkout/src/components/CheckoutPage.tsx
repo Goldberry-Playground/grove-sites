@@ -9,6 +9,7 @@ import {
   type GroveCheckoutOrder,
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
+import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
 import { SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
@@ -60,7 +61,9 @@ const CHECKOUT_ERROR =
  * The cart is intentionally NOT cleared here — a cancelled payment must keep the
  * cart (see the cancel page). It's cleared on the success page after payment.
  */
-export function CheckoutPage() {
+export function CheckoutPage({
+  brand = "nursery",
+}: { brand?: GroveBrand } = {}) {
   const { items, hydrated, subtotal } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
@@ -162,11 +165,7 @@ export function CheckoutPage() {
         submitLabel="Continue to payment →"
         submitPendingLabel="Starting secure checkout…"
         reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
-        trustItems={[
-          { icon: "✦", text: "Card entered on Stripe — never stored by us" },
-          { icon: "◐", text: "Deposit today on preorders, balance at ship time" },
-          { icon: "✓", text: "Arrive-alive guarantee" },
-        ]}
+        trustItems={BRAND_TRUST[brand].checkout}
       />
     </WithGroveNext>
   );
