@@ -182,6 +182,15 @@ export const checkoutSessionResponse: ApiCheckoutSessionResponse = {
   amount_due_today: 15.7,
   amount_total: 43.7,
   currency: "USD",
+  // Mixed cart: an in-stock unit charged in full, a per-unit deposit for the
+  // short unit, shipping, and WV tax on the goods billed today. The four lines
+  // sum to amount_due_today (8.00 + 5.00 + 2.00 + 0.70 = 15.70).
+  line_items: [
+    { name: "Pawpaw 'Shenandoah'", kind: "goods", unit_amount: 8.0, quantity: 1 },
+    { name: "Deposit — Persimmon 'Prok'", kind: "deposit", unit_amount: 5.0, quantity: 1 },
+    { name: "Shipping", kind: "shipping", unit_amount: 2.0, quantity: 1 },
+    { name: "Sales tax (WV)", kind: "tax", unit_amount: 0.7, quantity: 1 },
+  ],
 };
 
 export const orderDetail: ApiOrderDetail = {

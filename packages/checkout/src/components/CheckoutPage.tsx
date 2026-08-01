@@ -80,6 +80,11 @@ export function CheckoutPage() {
           shipping: order.shipping,
           billing: null,
           paymentMethod: "card",
+          // The nursery form is ship-only today (a ship-to state is required),
+          // so assert the shipment explicitly — the server then rejects a
+          // missing state instead of settling it as a silent $0-ship pickup
+          // (GOL-1057). A pickup toggle sends "pickup" when it lands.
+          fulfillment: "ship",
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
           successUrl: `${origin}/checkout/success`,
           cancelUrl: `${origin}/checkout/cancel`,
@@ -130,6 +135,7 @@ export function CheckoutPage() {
             quantity: i.quantity,
             price: i.price,
           }))}
+          lineItems={session.lineItems}
           amountDueToday={session.amountDueToday}
           amountTotal={session.amountTotal}
           hasPreorder={session.hasPreorder}

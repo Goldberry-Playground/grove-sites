@@ -250,6 +250,12 @@ export function normalizeCheckoutSession(
     amountDueToday: raw.amount_due_today,
     amountTotal: raw.amount_total,
     currency: raw.currency,
+    lineItems: (raw.line_items ?? []).map((li) => ({
+      name: li.name,
+      kind: li.kind,
+      unitAmount: li.unit_amount,
+      quantity: li.quantity,
+    })),
   };
 }
 
