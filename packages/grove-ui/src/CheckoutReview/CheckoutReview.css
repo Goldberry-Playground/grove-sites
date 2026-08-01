@@ -209,6 +209,6 @@
   color: var(--grove-color-ink-a70);
 }
 .grove-review__badge--reserve {
-  border-color: var(--grove-color-accent);
-  color: var(--grove-color-accent);
+  border-color: var(--grove-color-accent); /* border: fill token, >=3:1 */
+  color: var(--grove-color-accent-fg); /* 12px label text needs >=4.5:1 */
 }
