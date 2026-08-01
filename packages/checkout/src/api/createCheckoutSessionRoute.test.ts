@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { OdooClient, CheckoutSession } from "@grove/odoo-client";
+import { OdooApiError } from "@grove/odoo-client";
 import { createCheckoutSessionRoute } from "./createCheckoutRoute";
 
 const ALLOWED = [
@@ -129,5 +130,59 @@ describe("createCheckoutSessionRoute", () => {
     expect(res.status).toBeGreaterThanOrEqual(500);
     const body = await res.json();
     expect(JSON.stringify(body)).not.toContain("sk_live_x");
+  });
+
+  it("forwards a backend 400 potted-block as a targeted 400 (not the generic 502)", async () => {
+    const potted = new OdooApiError(
+      400,
+      "Odoo API error: 400 Bad Request — …",
+      JSON.stringify({
+        error:
+          "Potted trees are available for farm pickup only — remove them from the cart to ship, or choose pickup for the whole order.",
+      }),
+    );
+    const handler = createCheckoutSessionRoute(makeOdoo(potted), {
+      allowedOrigins: ALLOWED,
+    });
+
+    const res = await handler(postReq(validPayload()));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("farm pickup only");
+  });
+
+  it("forwards a backend 409 shipping-gap breaker at 409", async () => {
+    const gap = new OdooApiError(
+      409,
+      "Odoo API error: 409 Conflict — …",
+      JSON.stringify({
+        error:
+          "We couldn't calculate shipping for this order right now. No payment was taken — please try again shortly or contact us.",
+      }),
+    );
+    const handler = createCheckoutSessionRoute(makeOdoo(gap), {
+      allowedOrigins: ALLOWED,
+    });
+
+    const res = await handler(postReq(validPayload()));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("couldn't calculate shipping");
+  });
+
+  it("keeps a bare 500 upstream generic — no traceback reaches the buyer", async () => {
+    const boom = new OdooApiError(
+      500,
+      "Odoo API error: 500 — Traceback",
+      "Traceback (most recent call last): File /odoo/sale.py",
+    );
+    const handler = createCheckoutSessionRoute(makeOdoo(boom), {
+      allowedOrigins: ALLOWED,
+    });
+
+    const res = await handler(postReq(validPayload()));
+
+    expect(res.status).toBe(502);
+    expect(JSON.stringify(await res.json())).not.toContain("Traceback");
   });
 });

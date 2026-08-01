@@ -18,6 +18,7 @@ import type {
   ZoneLookupResult,
   ApiShippingRatesResponse,
   ShippingRateTable,
+  ShippingRateFeed,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -31,11 +32,15 @@ import {
 
 /** Thrown when the grove_headless API returns a non-2xx status. Carries the
  * HTTP `status` so callers can branch on it — e.g. the ZIP→zone lookup treats
- * 404 as "unknown ZIP" (null) rather than a hard failure. */
+ * 404 as "unknown ZIP" (null) rather than a hard failure. `body` is the raw
+ * response text so a caller can recover the backend's `{ "error": … }` payload
+ * (the checkout route forwards friendly 4xx/409 stock/potted messages) without
+ * re-parsing it out of the composed `message`. */
 export class OdooApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly body = ""
   ) {
     super(message);
     this.name = "OdooApiError";
@@ -77,7 +82,8 @@ async function api<T>(
     const body = await response.text().catch(() => "");
     throw new OdooApiError(
       response.status,
-      `Odoo API error: ${response.status} ${response.statusText} — ${body}`
+      `Odoo API error: ${response.status} ${response.statusText} — ${body}`,
+      body
     );
   }
 
@@ -178,6 +184,13 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             "/grove/api/v1/shipping/rates",
             { next: { revalidate: 21600 } }
           );
+          // Box Engine v2 (schema 2) re-keys `zones` by box id, not ShippingTier.
+          // A tier-keyed caller (resolveRateTable) would read every tier as
+          // missing and price all green states to null — strictly worse than the
+          // snapshot. So surface the table only for the legacy schema-1 feed; on
+          // schema 2 return null and let the caller keep its snapshot until it
+          // migrates to rateFeed(). (Wave 2 of GOL-1035.)
+          if (raw?.schema && raw.schema >= 2) return null;
           const zones = raw?.zones;
           // Empty/absent table → null so the caller's resolveRateTable() falls
           // back to the bundled snapshot rather than pricing everything to null.
@@ -185,6 +198,34 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         } catch {
           // Feed unreachable (network / 5xx / not-configured): degrade to the
           // bundled snapshot. A missing rate feed must never break a product page.
+          return null;
+        }
+      },
+      async rateFeed(): Promise<ShippingRateFeed | null> {
+        // Schema-2 Box Engine v2 feed (GOL-1038). Same endpoint + cache posture
+        // as rates(); this accessor keeps the full typed payload (box-keyed
+        // zones + packing catalog) instead of collapsing to the legacy table.
+        try {
+          const raw = await api<ShippingRateFeed>(
+            config,
+            "/grove/api/v1/shipping/rates",
+            { next: { revalidate: 21600 } }
+          );
+          // Only a well-formed schema-2 feed is usable as a box feed. A schema-1
+          // feed (Odoo not yet upgraded) has no `packing` and tier-keyed zones,
+          // an empty table means "not configured", and an unreachable feed throws
+          // below — every case returns null so the caller keeps its snapshot.
+          if (
+            !raw ||
+            (raw.schema ?? 1) < 2 ||
+            !raw.packing ||
+            !raw.zones ||
+            Object.keys(raw.zones).length === 0
+          ) {
+            return null;
+          }
+          return raw;
+        } catch {
           return null;
         }
       },

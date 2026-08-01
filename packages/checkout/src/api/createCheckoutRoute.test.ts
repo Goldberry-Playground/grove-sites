@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { OdooClient, OrderSummary } from "@grove/odoo-client";
+import { OdooApiError } from "@grove/odoo-client";
 import { createCheckoutRoute } from "./createCheckoutRoute";
 
 const ALLOWED = [
@@ -264,5 +265,23 @@ describe("createCheckoutRoute payload validation", () => {
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/JSON object/);
     expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+
+  it("forwards a backend 400 unsupported-state rejection with its friendly message", async () => {
+    const rejection = new OdooApiError(
+      400,
+      "Odoo API error: 400 Bad Request — …",
+      JSON.stringify({
+        error:
+          "We can't ship live trees to Florida. Shipping is limited to our 21-state region for plant-health compliance — choose a supported ship-to state or farm pickup.",
+      }),
+    );
+    const odoo = makeOdoo({ create: vi.fn().mockRejectedValue(rejection) });
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(postReq(validPayload()));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("21-state region");
   });
 });
