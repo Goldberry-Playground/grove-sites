@@ -13,6 +13,11 @@ type AddToCartButtonProps = {
   disabled: boolean;
   /** Idle CTA label (e.g. "Reserve" for preorder formats). Defaults to "Add to Cart". */
   idleLabel?: string;
+  /** Controlled quantity — lift it into the page to share with a sticky bar
+   *  (GOL-1055). Pass with `onQuantityChange`; omit both for a self-contained
+   *  stepper. */
+  quantity?: number;
+  onQuantityChange?: (quantity: number) => void;
 };
 
 /**
@@ -28,6 +33,8 @@ export function AddToCartButton({
   imageUrl,
   disabled,
   idleLabel,
+  quantity,
+  onQuantityChange,
 }: AddToCartButtonProps) {
   const { add, openDrawer } = useCart();
 
@@ -35,6 +42,8 @@ export function AddToCartButton({
     <UIAddToCartButton
       disabled={disabled}
       idleLabel={idleLabel}
+      quantity={quantity}
+      onQuantityChange={onQuantityChange}
       onAddToCart={(quantity) => {
         add({ variantId, templateId, name, price, imageUrl }, quantity);
         trackAddToCart({ variantId, price, quantity });

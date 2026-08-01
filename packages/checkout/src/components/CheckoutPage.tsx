@@ -11,6 +11,7 @@ import {
 import { useCart } from "../cart-store";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
+import { SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
 
 const STRIPE_PAYMENT_METHOD = [
   { value: "card", label: "Pay by card — secure Stripe checkout" },
@@ -148,6 +149,8 @@ export function CheckoutPage() {
         subtotal={subtotal}
         loading={!hydrated}
         onPlaceOrder={createSession}
+        shipStates={SHIP_TO_STATES}
+        countries={SHIP_TO_COUNTRIES}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
         submitLabel="Continue to payment →"

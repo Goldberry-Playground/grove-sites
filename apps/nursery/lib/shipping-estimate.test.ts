@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { SHIP_TO_STATES } from "@grove/checkout";
 import {
   ZONE_BY_STATE,
   estimateShipping,
@@ -7,6 +8,25 @@ import {
   resolveRateTable,
   ZONE_RATE_TABLE,
 } from "./shipping-estimate";
+
+// GOL-1055 drift guard: the checkout State <select> (SHIP_TO_STATES) and the
+// shipping estimator (ZONE_BY_STATE) must offer the SAME states. If they drift,
+// a shopper could either be offered a state we don't price, or be priced for a
+// state the checkout won't let them pick. This fails the build on divergence.
+describe("checkout state select ⟷ estimator green list (GOL-1055)", () => {
+  it("SHIP_TO_STATES codes exactly match the estimator's green states", () => {
+    const selectCodes = SHIP_TO_STATES.map((s) => s.code).sort();
+    const zoneCodes = Object.keys(ZONE_BY_STATE).sort();
+    expect(selectCodes).toEqual(zoneCodes);
+  });
+
+  it("every ship-to option is a real 2-letter code with a name", () => {
+    for (const s of SHIP_TO_STATES) {
+      expect(s.code).toMatch(/^[A-Z]{2}$/);
+      expect(s.name.length).toBeGreaterThan(0);
+    }
+  });
+});
 
 describe("shipping-estimate zone map", () => {
   it("covers exactly the 21 green states", () => {

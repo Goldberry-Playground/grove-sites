@@ -14,6 +14,12 @@ type StickyAddToCartBarProps = {
   idleLabel?: string;
   /** CSS selector of the inline Add-to-Cart region; see the kit component. */
   anchorSelector?: string;
+  /**
+   * Quantity to add on tap. Wire this to the inline stepper's current value so
+   * the sticky bar adds the SAME quantity the shopper chose above, instead of
+   * silently adding 1 (GOL-1055). Defaults to 1.
+   */
+  quantity?: number;
 };
 
 /**
@@ -30,8 +36,11 @@ export function StickyAddToCartBar({
   disabled,
   idleLabel,
   anchorSelector,
+  quantity = 1,
 }: StickyAddToCartBarProps) {
   const { add, openDrawer, totalQuantity, hydrated } = useCart();
+  // Never let a stray fractional/NaN quantity reach the cart from the bar.
+  const addQuantity = Number.isInteger(quantity) && quantity >= 1 ? quantity : 1;
 
   return (
     <UIStickyAddToCartBar
@@ -45,7 +54,7 @@ export function StickyAddToCartBar({
       // agree (both show 0 → no badge).
       cartQuantity={hydrated ? totalQuantity : 0}
       onAdd={() => {
-        add({ variantId, templateId, name, price, imageUrl }, 1);
+        add({ variantId, templateId, name, price, imageUrl }, addQuantity);
         openDrawer(variantId);
       }}
     />

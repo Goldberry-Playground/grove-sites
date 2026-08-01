@@ -34,13 +34,37 @@
 .grove-atc__step:hover {
   color: var(--grove-color-ink);
 }
+.grove-atc__step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
+/* Typed quantity input — reads like the old static count but is editable, so a
+ * shopper can type "12" instead of tapping +. Native spinners are hidden (the
+ * −/+ buttons are the affordance); side borders delineate it from the steps. */
 .grove-atc__qty {
-  padding: var(--grove-space-2, 0.5rem) var(--grove-space-3, 0.75rem);
-  min-width: 2rem;
+  width: 3rem;
+  padding: var(--grove-space-2, 0.5rem) var(--grove-space-1, 0.25rem);
   text-align: center;
+  background: transparent;
+  border: none;
+  border-left: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--grove-color-primary) 20%, transparent);
+  border-radius: 0;
   font-family: var(--grove-font-sans);
   font-size: var(--grove-text-sm, 0.875rem);
   font-weight: var(--grove-font-weight-medium, 500);
   color: var(--grove-color-ink);
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.grove-atc__qty:focus {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: -2px;
+}
+.grove-atc__qty::-webkit-outer-spin-button,
+.grove-atc__qty::-webkit-inner-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
 }

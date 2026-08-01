@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
+
 import { Button } from "../Button";
 import {
   DEFAULT_TAX_RATE_ESTIMATE,
   type GroveCartLineItem,
 } from "../cart-contract";
 import { useGroveImage, useGroveLink } from "../link-context";
+import { clampQuantity } from "../quantity";
 
 export interface CartPageProps {
   /** Cart lines. */
@@ -151,26 +154,11 @@ export function CartPage({
                   </div>
 
                   <div className="grove-cart__line-controls">
-                    <div className="grove-cart__stepper">
-                      <button
-                        type="button"
-                        className="grove-cart__step"
-                        onClick={() => onSetQuantity(item.variantId, item.quantity - 1)}
-                        aria-label={`Decrease quantity of ${item.name}`}
-                        disabled={item.quantity <= 1}
-                      >
-                        &minus;
-                      </button>
-                      <span className="grove-cart__qty">{item.quantity}</span>
-                      <button
-                        type="button"
-                        className="grove-cart__step"
-                        onClick={() => onSetQuantity(item.variantId, item.quantity + 1)}
-                        aria-label={`Increase quantity of ${item.name}`}
-                      >
-                        +
-                      </button>
-                    </div>
+                    <CartLineQuantity
+                      name={item.name}
+                      quantity={item.quantity}
+                      onSetQuantity={(q) => onSetQuantity(item.variantId, q)}
+                    />
 
                     <div className="grove-cart__line-right">
                       <span className="grove-cart__line-total">
@@ -229,5 +217,75 @@ export function CartPage({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * A cart line's quantity control: −/+ steppers plus a real typed number input,
+ * so a shopper can set "12" directly. Every commit path runs through
+ * `clampQuantity`, so a fractional, NaN, or < 1 value can never reach the store
+ * (GOL-1055). The field can be transiently empty while typing; on blur it snaps
+ * back to a valid integer. Removal stays the explicit Remove button — an emptied
+ * field never silently deletes the line.
+ */
+function CartLineQuantity({
+  name,
+  quantity,
+  onSetQuantity,
+}: {
+  name: string;
+  quantity: number;
+  onSetQuantity: (quantity: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(quantity));
+
+  // Follow the committed quantity when it changes (stepper, or an external
+  // update) so the field never disagrees with the line total.
+  useEffect(() => {
+    setDraft(String(quantity));
+  }, [quantity]);
+
+  function commit(next: number) {
+    const clamped = clampQuantity(next);
+    if (clamped !== quantity) onSetQuantity(clamped);
+    return clamped;
+  }
+
+  return (
+    <div className="grove-cart__stepper">
+      <button
+        type="button"
+        className="grove-cart__step"
+        onClick={() => commit(quantity - 1)}
+        aria-label={`Decrease quantity of ${name}`}
+        disabled={quantity <= 1}
+      >
+        &minus;
+      </button>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        step={1}
+        className="grove-cart__qty"
+        value={draft}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setDraft(raw);
+          const parsed = Number.parseInt(raw, 10);
+          if (Number.isInteger(parsed) && parsed >= 1) commit(parsed);
+        }}
+        onBlur={() => setDraft(String(commit(Number.parseInt(draft, 10))))}
+        aria-label={`Quantity of ${name}`}
+      />
+      <button
+        type="button"
+        className="grove-cart__step"
+        onClick={() => commit(quantity + 1)}
+        aria-label={`Increase quantity of ${name}`}
+      >
+        +
+      </button>
+    </div>
   );
 }
