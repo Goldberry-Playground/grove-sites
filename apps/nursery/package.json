@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start --port 3003",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:no-stripe": "playwright test --grep-invert @stripe"
   },
   "dependencies": {
     "@grove/analytics": "workspace:*",
@@ -29,6 +31,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@next/eslint-plugin-next": "^16.2.1",
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
