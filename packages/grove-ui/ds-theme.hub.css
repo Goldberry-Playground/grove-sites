@@ -1124,6 +1124,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Ship/reserve badge on itemized lines (GOL-1057). Fee rows (shipping/tax)
+   carry no badge and read muted. Badge never signals by color alone — it has
+   a text label so it survives grayscale and color-blind viewing. */
+.grove-review__line--fee .grove-review__line-name {
+  color: var(--grove-color-ink-a50);
+}
+.grove-review__badge {
+  display: inline-block;
+  margin-left: var(--grove-space-2);
+  padding: 0 var(--grove-space-2);
+  border-radius: var(--grove-radius-sm);
+  font-size: var(--grove-text-xs);
+  line-height: 1.5;
+  vertical-align: middle;
+  border: 1px solid var(--grove-color-line);
+  color: var(--grove-color-ink-a70);
+}
+.grove-review__badge--reserve {
+  border-color: var(--grove-color-accent);
+  color: var(--grove-color-accent);
+}
 /* CheckoutShared — patterns that were byte-for-byte duplicated across
  * CartPage/CheckoutPage/CheckoutReview, lifted here once (GOL-872) so each
  * component sheet stays under the @grove/ui per-component ceiling (GOL-866).
