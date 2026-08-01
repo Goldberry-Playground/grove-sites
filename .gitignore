@@ -31,3 +31,8 @@ apps/qa-portal/public/bundles/
 
 # local render/QA scratch harnesses (see GOL-1081)
 _render/
+
+# Playwright E2E outputs (GOL-1074)
+playwright-report/
+test-results/
+apps/*/e2e/.artifacts/

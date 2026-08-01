@@ -258,6 +258,16 @@ jobs:
           echo "preview_urls_json=$(cat /tmp/urls.json)" >> "$GITHUB_OUTPUT"
           echo "droplet_ip=$(terraform output -raw droplet_ip)" >> "$GITHUB_OUTPUT"
 
+      # Persist the per-tenant URL map so downstream automation (e.g. the
+      # nursery E2E suite, GOL-1074) can read the `nursery` URL from a
+      # workflow_run without re-parsing the PR comment. Additive/no-op today.
+      - name: Upload preview URLs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-urls
+          path: /tmp/urls.json
+          retention-days: 7
+
       - name: Comment URLs on PR (idempotent — updates existing if present)
         uses: actions/github-script@v9
         env:
