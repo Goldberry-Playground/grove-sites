@@ -523,6 +523,11 @@ export interface OrderCreateInput {
   billing?: Address | null;
   /** Informational — real payment integration lands in a later sprint. */
   paymentMethod?: string;
+  /** How the order is fulfilled. `"pickup"` is the one legitimate $0-shipping
+   * case (farm pickup); `"ship"` asserts a shipment, so the server rejects a
+   * missing ship-to state rather than settling it as a silent $0-ship pickup
+   * (GOL-1057). Omit to let the server infer from the ship-to state. */
+  fulfillment?: "ship" | "pickup";
   items: OrderItemInput[];
 }
 
@@ -589,6 +594,17 @@ export interface CheckoutSessionInput extends OrderCreateInput {
   cancelUrl: string;
 }
 
+/** The four kinds of charged-today line the checkout session itemizes. */
+export type CheckoutLineItemKind = "goods" | "deposit" | "shipping" | "tax";
+
+/** Raw itemized line in the session response (`line_items[]`). */
+export interface ApiCheckoutLineItem {
+  name: string;
+  kind: CheckoutLineItemKind;
+  unit_amount: number;
+  quantity: number;
+}
+
 /** Raw response from POST /grove/api/v1/checkout/session. */
 export interface ApiCheckoutSessionResponse {
   session_id: string;
@@ -600,6 +616,10 @@ export interface ApiCheckoutSessionResponse {
   amount_due_today: number;
   amount_total: number;
   currency: string;
+  /** The exact array Stripe Checkout renders — goods / per-unit deposit /
+   * shipping / WV tax. Optional: absent from an Odoo not yet on the GOL-1057
+   * build, in which case the review falls back to the cart lines. */
+  line_items?: ApiCheckoutLineItem[];
 }
 
 export interface CheckoutSession {
@@ -616,6 +636,18 @@ export interface CheckoutSession {
   /** Full order value; `amountTotal - amountDueToday` is due at ship time. */
   amountTotal: number;
   currency: string;
+  /** Itemized charged-today breakdown — the exact array Stripe renders, tagged
+   * by `kind`. `amountDueToday` == Σ(unitAmount·quantity). Empty when the Odoo
+   * build predates GOL-1057; callers fall back to the cart lines. */
+  lineItems: CheckoutLineItem[];
+}
+
+/** One itemized charged-today line (camelCase mirror of ApiCheckoutLineItem). */
+export interface CheckoutLineItem {
+  name: string;
+  kind: CheckoutLineItemKind;
+  unitAmount: number;
+  quantity: number;
 }
 
 export interface OrderDetail {

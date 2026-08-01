@@ -135,6 +135,14 @@ export function validateOrderInput(payload: unknown): string | null {
     return "Each item needs a positive integer variantId and finite quantity";
   }
 
+  if (
+    p.fulfillment !== undefined &&
+    p.fulfillment !== "ship" &&
+    p.fulfillment !== "pickup"
+  ) {
+    return 'fulfillment must be "ship" or "pickup"';
+  }
+
   return null;
 }
 

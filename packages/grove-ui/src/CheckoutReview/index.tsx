@@ -9,9 +9,28 @@ export interface CheckoutReviewLine {
   price: number;
 }
 
+/** One itemized charged-today line — the exact breakdown Stripe charges. */
+export interface CheckoutReviewItemizedLine {
+  name: string;
+  /** goods = in-stock unit billed in full; deposit = per-unit preorder deposit;
+   * shipping / tax = the fee lines. Drives the ship/reserve badge. */
+  kind: "goods" | "deposit" | "shipping" | "tax";
+  /** Per-unit amount charged today; the component multiplies by quantity. */
+  unitAmount: number;
+  quantity: number;
+}
+
 export interface CheckoutReviewProps {
   /** Order lines, for a last-look before payment. */
   items: CheckoutReviewLine[];
+  /**
+   * Authoritative charged-today breakdown from the checkout session — the SAME
+   * array Stripe renders (goods / per-unit deposit / shipping / WV tax). When
+   * present, the review lists these (with ship/reserve badges) so its math is
+   * byte-identical to the card page and the confirmation. Omitted by an Odoo
+   * build predating GOL-1057 — the review then falls back to `items`.
+   */
+  lineItems?: CheckoutReviewItemizedLine[];
   /** Charged today: deposits + in-stock goods + shipping + tax on those. */
   amountDueToday: number;
   /** Full order value; `amountTotal - amountDueToday` is due at ship time. */
@@ -46,8 +65,20 @@ function formatPrice(amount: number, currency: string): string {
  * each amount carries a label + icon and the "due later" line is described in
  * words, so it reads in grayscale and for color-blind buyers.
  */
+/** Short ship/reserve badge for an itemized line, or null for fee lines. */
+const KIND_BADGE: Record<
+  CheckoutReviewItemizedLine["kind"],
+  { label: string; modifier: string } | null
+> = {
+  goods: { label: "Ships now", modifier: "ship" },
+  deposit: { label: "Reserve", modifier: "reserve" },
+  shipping: null,
+  tax: null,
+};
+
 export function CheckoutReview({
   items,
+  lineItems,
   amountDueToday,
   amountTotal,
   hasPreorder,
@@ -58,6 +89,7 @@ export function CheckoutReview({
   onBack,
 }: CheckoutReviewProps) {
   const dueLater = Math.max(0, amountTotal - amountDueToday);
+  const itemized = lineItems && lineItems.length > 0 ? lineItems : null;
   const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
 
   return (
@@ -71,17 +103,49 @@ export function CheckoutReview({
       </div>
 
       <ul className="grove-review__lines">
-        {items.map((item) => (
-          <li key={item.variantId} className="grove-review__line">
-            <span className="grove-review__line-name">
-              {item.name}
-              <span className="grove-review__line-qty"> × {item.quantity}</span>
-            </span>
-            <span className="grove-review__line-price">
-              {formatPrice(item.price * item.quantity, currency)}
-            </span>
-          </li>
-        ))}
+        {itemized
+          ? itemized.map((line, i) => {
+              const badge = KIND_BADGE[line.kind];
+              return (
+                <li
+                  key={`${line.kind}-${line.name}-${i}`}
+                  className={`grove-review__line${
+                    badge ? "" : " grove-review__line--fee"
+                  }`}
+                >
+                  <span className="grove-review__line-name">
+                    {line.name}
+                    {line.quantity > 1 && (
+                      <span className="grove-review__line-qty">
+                        {" "}
+                        × {line.quantity}
+                      </span>
+                    )}
+                    {badge && (
+                      <span
+                        className={`grove-review__badge grove-review__badge--${badge.modifier}`}
+                      >
+                        {badge.label}
+                      </span>
+                    )}
+                  </span>
+                  <span className="grove-review__line-price">
+                    {formatPrice(line.unitAmount * line.quantity, currency)}
+                  </span>
+                </li>
+              );
+            })
+          : items.map((item) => (
+              <li key={item.variantId} className="grove-review__line">
+                <span className="grove-review__line-name">
+                  {item.name}
+                  <span className="grove-review__line-qty"> × {item.quantity}</span>
+                </span>
+                <span className="grove-review__line-price">
+                  {formatPrice(item.price * item.quantity, currency)}
+                </span>
+              </li>
+            ))}
       </ul>
 
       {hasPreorder ? (

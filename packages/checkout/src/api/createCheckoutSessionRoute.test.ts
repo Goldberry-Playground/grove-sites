@@ -18,6 +18,10 @@ const FAKE_SESSION: CheckoutSession = {
   amountDueToday: 43.7,
   amountTotal: 43.7,
   currency: "USD",
+  lineItems: [
+    { name: "Pawpaw 'Shenandoah'", kind: "goods", unitAmount: 41.95, quantity: 1 },
+    { name: "Sales tax (WV)", kind: "tax", unitAmount: 1.75, quantity: 1 },
+  ],
 };
 
 /** Minimal OdooClient stub — only checkout.createSession is exercised here. */

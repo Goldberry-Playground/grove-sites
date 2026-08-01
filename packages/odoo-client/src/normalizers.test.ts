@@ -489,6 +489,12 @@ describe("normalizeCheckoutSession", () => {
       amountDueToday: 15.7,
       amountTotal: 43.7,
       currency: "USD",
+      lineItems: [
+        { name: "Pawpaw 'Shenandoah'", kind: "goods", unitAmount: 8.0, quantity: 1 },
+        { name: "Deposit — Persimmon 'Prok'", kind: "deposit", unitAmount: 5.0, quantity: 1 },
+        { name: "Shipping", kind: "shipping", unitAmount: 2.0, quantity: 1 },
+        { name: "Sales tax (WV)", kind: "tax", unitAmount: 0.7, quantity: 1 },
+      ],
     });
   });
 
@@ -497,6 +503,26 @@ describe("normalizeCheckoutSession", () => {
     // the difference as due-at-shipping.
     const result = normalizeCheckoutSession(checkoutSessionResponse);
     expect(result.amountTotal - result.amountDueToday).toBeCloseTo(28.0, 2);
+  });
+
+  it("itemizes charged-today lines that sum to amountDueToday", () => {
+    // Parity guarantee: the review renders these lines verbatim, so their sum
+    // must reconcile with the headline amount charged today.
+    const result = normalizeCheckoutSession(checkoutSessionResponse);
+    const summed = result.lineItems.reduce(
+      (n, li) => n + li.unitAmount * li.quantity,
+      0,
+    );
+    expect(summed).toBeCloseTo(result.amountDueToday, 2);
+  });
+
+  it("defaults lineItems to an empty array when the Odoo build omits them", () => {
+    // Back-compat: a pre-GOL-1057 Odoo returns no `line_items`; the review then
+    // falls back to the cart lines rather than crashing.
+    const { line_items, ...legacy } = checkoutSessionResponse;
+    void line_items;
+    const result = normalizeCheckoutSession(legacy);
+    expect(result.lineItems).toEqual([]);
   });
 });
 
