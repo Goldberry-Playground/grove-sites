@@ -1,0 +1,98 @@
+name: e2e-nursery
+
+###############################################################################
+# Nursery checkout Playwright E2E acceptance suite (GOL-1074).
+#
+# This runs against a *deployed* nursery instance (normally a per-PR preview
+# droplet from preview-up.yml), not a Playwright-bundled dev server.
+#
+# It is deliberately MANUAL (workflow_dispatch) and NOT a required check:
+#   - it needs a live preview + QA Odoo backend, and
+#   - the Stripe-session specs need TEST keys on the QA droplet (GOL-899,
+#     currently blocked) — without them /api/checkout/session 503s.
+# Making it required would block every unrelated PR. Once GOL-899 lands, wire
+# this to `workflow_run` after a successful preview-up and read the nursery URL
+# from the `preview-urls` artifact (see apps/nursery/e2e/README.md).
+###############################################################################
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployed nursery base URL to test against (e.g. https://nursery.pr-123.preview...)"
+        required: true
+        type: string
+      skip_stripe:
+        description: "Exclude @stripe specs (use while GOL-899 Stripe test keys are blocked)"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: e2e-nursery-${{ github.ref }}-${{ inputs.base_url }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+
+jobs:
+  e2e:
+    name: Nursery checkout E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium)
+        run: pnpm --filter @grove/nursery exec playwright install --with-deps chromium
+
+      - name: Sanity — target is reachable
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE_URL" || echo 000)
+          echo "GET $BASE_URL -> $code"
+          if [ "$code" = "000" ]; then
+            echo "::error::$BASE_URL is unreachable — is the preview droplet up? (preview-up.yml, qa label)"
+            exit 1
+          fi
+
+      - name: Run Playwright suite
+        env:
+          CI: "true"
+          E2E_NURSERY_BASE_URL: ${{ inputs.base_url }}
+        run: |
+          if [ "${{ inputs.skip_stripe }}" = "true" ]; then
+            echo "Skipping @stripe specs (GOL-899 blocked)."
+            pnpm --filter @grove/nursery run test:e2e:no-stripe
+          else
+            pnpm --filter @grove/nursery run test:e2e
+          fi
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-nursery
+          path: apps/nursery/playwright-report
+          retention-days: 14
+          if-no-files-found: warn
