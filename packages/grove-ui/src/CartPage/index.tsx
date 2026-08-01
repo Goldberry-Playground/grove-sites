@@ -7,6 +7,20 @@ import {
 } from "../cart-contract";
 import { useGroveImage, useGroveLink } from "../link-context";
 import { clampQuantity } from "../quantity";
+import type { GroveTrustItem } from "../trust-items";
+
+/**
+ * Default trust strip — the live-nursery set (board-approved; the only strip
+ * that carries the arrive-alive promise). Consumers on other brands pass their
+ * own `trustItems` so no storefront makes a claim false for its products
+ * (GOL-1090). Pass `[]` to omit the strip entirely.
+ */
+export const DEFAULT_CART_TRUST_ITEMS: GroveTrustItem[] = [
+  { icon: "✦", text: "Ships from our farm" },
+  { icon: "◐", text: "Made by us, on our land" },
+  { icon: "✓", text: "Arrive-alive guarantee" },
+  { icon: "♦", text: "No payment until we confirm" },
+];
 
 export interface CartPageProps {
   /** Cart lines. */
@@ -32,6 +46,12 @@ export interface CartPageProps {
   checkoutHref?: string;
   /** Build a product-detail href from a template id. */
   productHref?: (templateId: number) => string;
+  /**
+   * Trust-strip badges (icon + text; the icon is decorative). Defaults to the
+   * nursery set. Pass a brand-appropriate set — or `[]` to omit the strip —
+   * so a storefront never shows a claim untrue for its products (GOL-1090).
+   */
+  trustItems?: GroveTrustItem[];
 }
 
 function formatPrice(amount: number): string {
@@ -54,6 +74,7 @@ export function CartPage({
   shopHref = "/shop",
   checkoutHref = "/checkout",
   productHref = (templateId) => `/shop/${templateId}`,
+  trustItems = DEFAULT_CART_TRUST_ITEMS,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -106,23 +127,19 @@ export function CartPage({
         </div>
       </div>
 
-      {/* Trust strip — each signal carries an icon AND text (never color alone). */}
-      <div className="grove-cart__trust">
-        <div className="grove-cart__trust-inner">
-          <span className="grove-cart__trust-item">
-            <span aria-hidden="true">✦</span> Ships from our farm
-          </span>
-          <span className="grove-cart__trust-item">
-            <span aria-hidden="true">◐</span> Made by us, on our land
-          </span>
-          <span className="grove-cart__trust-item">
-            <span aria-hidden="true">✓</span> Arrive-alive guarantee
-          </span>
-          <span className="grove-cart__trust-item">
-            <span aria-hidden="true">♦</span> No payment until we confirm
-          </span>
+      {/* Trust strip — each signal carries an icon AND text (never color
+          alone). Copy is per-brand (GOL-1090); an empty set omits the strip. */}
+      {trustItems.length > 0 && (
+        <div className="grove-cart__trust">
+          <div className="grove-cart__trust-inner">
+            {trustItems.map((t, i) => (
+              <span key={i} className="grove-cart__trust-item">
+                <span aria-hidden="true">{t.icon}</span> {t.text}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grove-cart">
         <div className="grove-cart__head">

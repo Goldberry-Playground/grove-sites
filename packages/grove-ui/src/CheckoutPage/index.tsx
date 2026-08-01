@@ -6,6 +6,7 @@ import {
   type GroveCartLineItem,
 } from "../cart-contract";
 import { useGroveLink } from "../link-context";
+import type { GroveTrustItem } from "../trust-items";
 
 export interface GroveCheckoutContact {
   name: string;
@@ -83,8 +84,8 @@ export interface CheckoutPageProps {
   paymentNote?: React.ReactNode;
   /** Reassurance line under the summary submit button. */
   reassure?: React.ReactNode;
-  /** Trust-strip badges (icon + text; the icon is decorative). */
-  trustItems?: { icon: string; text: string }[];
+  /** Trust-strip badges (icon + text; the icon is decorative). Pass `[]` to omit. */
+  trustItems?: GroveTrustItem[];
   /** Shop route (empty state). */
   shopHref?: string;
   /** Cart route (back link). */
@@ -234,15 +235,17 @@ export function CheckoutPage({
         </div>
       </div>
 
-      <div className="grove-checkout__trust">
-        <div className="grove-checkout__trust-inner">
-          {trustItems.map((t, i) => (
-            <span key={i} className="grove-checkout__trust-item">
-              <span aria-hidden="true">{t.icon}</span> {t.text}
-            </span>
-          ))}
+      {trustItems.length > 0 && (
+        <div className="grove-checkout__trust">
+          <div className="grove-checkout__trust-inner">
+            {trustItems.map((t, i) => (
+              <span key={i} className="grove-checkout__trust-item">
+                <span aria-hidden="true">{t.icon}</span> {t.text}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grove-checkout">
         <h1 className="grove-checkout__title">Checkout</h1>

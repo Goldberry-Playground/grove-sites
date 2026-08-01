@@ -29,7 +29,12 @@ export { type GroveCartLineItem, DEFAULT_TAX_RATE_ESTIMATE } from "./cart-contra
 export { AddToCartButton, type AddToCartButtonProps } from "./AddToCartButton";
 export { StickyAddToCartBar, type StickyAddToCartBarProps } from "./StickyAddToCartBar";
 export { MiniCartDrawer, type MiniCartDrawerProps } from "./MiniCartDrawer";
-export { CartPage, type CartPageProps } from "./CartPage";
+export { type GroveTrustItem } from "./trust-items";
+export {
+  CartPage,
+  type CartPageProps,
+  DEFAULT_CART_TRUST_ITEMS,
+} from "./CartPage";
 export {
   CheckoutPage,
   type CheckoutPageProps,
