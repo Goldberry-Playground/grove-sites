@@ -2,6 +2,7 @@ import type { Product } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import { mockProducts } from "../data/mock-products";
 import { NURSERY_CATEGORIES, countByCategory } from "../data/categories";
+import { shopHref, type FacetParams } from "../lib/facets";
 import { CategoryBarView } from "./category-bar-view";
 
 /**
@@ -40,15 +41,37 @@ interface CategoryBarProps {
    * unfiltered catalog while the grid filtered server-side.
    */
   products?: Product[] | null;
+  /**
+   * Active /shop facet selection. When provided, each pill's href MERGES the
+   * category patch onto the current facets (GOL-1111 filter-param merge) so
+   * switching category preserves zone/tag/layer/sun/q instead of resetting the
+   * query string. Omitted on the homepage (no facets → plain `/shop?cat=` links).
+   */
+  facets?: FacetParams | null;
 }
 
-export async function CategoryBar({ activeSlug, products: provided }: CategoryBarProps) {
+const NO_FACETS: FacetParams = {
+  cat: null,
+  zone: null,
+  tags: [],
+  layer: null,
+  sun: null,
+  q: null,
+};
+
+export async function CategoryBar({
+  activeSlug,
+  products: provided,
+  facets,
+}: CategoryBarProps) {
   const products = provided ?? (await fetchProductsForCounts());
+  const current = facets ?? NO_FACETS;
 
   const allItem = {
     slug: "all",
     label: "All Catalog",
-    href: "/shop",
+    // "All" clears the category but keeps the rest of the selection.
+    href: shopHref(current, { cat: null }),
     count: products.length,
   };
 
@@ -63,14 +86,18 @@ export async function CategoryBar({ activeSlug, products: provided }: CategoryBa
     return {
       slug: category.slug,
       label: category.label,
-      href: `/shop?cat=${category.slug}`,
+      // Merge this category onto the active facets (keep zone/tag/layer/sun/q).
+      href: shopHref(current, { cat: category.slug }),
       count: count > 0 ? count : undefined,
     };
   });
 
   // A category is active when its href matches; the "All" pill is active when
-  // no category is selected (its href is "/shop").
-  const activeHref = activeSlug ? `/shop?cat=${activeSlug}` : "/shop";
+  // no category is selected. Match on the merged hrefs so highlight tracks the
+  // real (facet-preserving) links.
+  const activeHref = activeSlug
+    ? shopHref(current, { cat: activeSlug })
+    : shopHref(current, { cat: null });
 
   return (
     <CategoryBarView
