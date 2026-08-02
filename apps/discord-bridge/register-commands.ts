@@ -4,13 +4,17 @@
  *   `pnpm --filter @grove/discord-bridge register-commands`
  */
 import { loadRegisterConfig } from "./lib/config.ts";
-import { registerGlobalCommands, INSIGHTS_COMMAND } from "./lib/discord.ts";
+import { registerGlobalCommands, INSIGHTS_COMMAND, IDEA_COMMAND } from "./lib/discord.ts";
 
 async function main(): Promise<void> {
   const cfg = loadRegisterConfig();
-  await registerGlobalCommands(cfg.discordBotToken, cfg.discordAppId, [INSIGHTS_COMMAND]);
+  // PUT overwrites the full global command set, so register every command here.
+  await registerGlobalCommands(cfg.discordBotToken, cfg.discordAppId, [
+    INSIGHTS_COMMAND,
+    IDEA_COMMAND,
+  ]);
   // eslint-disable-next-line no-console
-  console.log("discord-bridge: registered /insights command.");
+  console.log("discord-bridge: registered /insights, /idea commands.");
 }
 
 main().catch((err) => {
