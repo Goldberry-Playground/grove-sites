@@ -1,4 +1,9 @@
-import type { ShippingTier } from "@grove/odoo-client";
+import type {
+  ShippingTier,
+  ShippingRateFeed,
+  ShippingBoxId,
+  PackingMode,
+} from "@grove/odoo-client";
 
 /**
  * Client-side "estimate shipping to your state" calculator (GOL-943).
@@ -129,4 +134,93 @@ export function estimateShipping(
  *  the estimator drift-safe once GOL-943's backend endpoint lands. */
 export function resolveRateTable(fetched?: RateTable | null): RateTable {
   return fetched && Object.keys(fetched).length > 0 ? fetched : ZONE_RATE_TABLE;
+}
+
+// ── Box Engine v2 (schema-2) estimator leg — GOL-1114 ────────────────────────
+// Box Engine v2 (grove-odoo-modules #60) reprices bareroot shipping PER PACKED
+// BOX, not per tree, and drops potted from shipping entirely (potted is farm
+// pickup only — see `shipping_zones.py` SHIPPABLE_TIERS = {"bareroot"}). When
+// the backend serves the schema-2 `rateFeed()`, the legacy tier-keyed
+// `rates()` returns null, so the product page prices bareroot off the box feed
+// below and no longer has (or needs) a potted ship rate.
+
+/** Tree length class (min box length in inches its height requires) for the
+ *  product-card estimate. Mirrors backend `shipping_boxes.DEFAULT_LENGTH` — the
+ *  20-in class fits the current 1–2 yr inventory. A taller product can pass its
+ *  own class; a longer box is always usable, never a shorter one. */
+export const DEFAULT_LENGTH_CLASS = 20;
+
+/** Packing mode for the product-card estimate. Leafed is the conservative
+ *  choice — it excludes the cheap single-whip (`br16`) and the dormant-only
+ *  bulk boxes, so a single-tree quote never *under*-states the season's cost.
+ *  Mirrors backend `single_tree_rate(..., mode="leafed")`. Real season is
+ *  resolved server-side at checkout; here we only need a "from $X" floor. */
+const DEFAULT_MODE: PackingMode = "leafed";
+
+/**
+ * Cheapest bareroot shipping for ONE tree to `state` under Box Engine v2, in
+ * whole dollars, or `null` when unshippable (state outside the green list, no
+ * box long enough, or no rate configured). Faithful client mirror of
+ * grove_headless `single_tree_rate()`: for a single tree the min-cost pack is
+ * simply the cheapest *rated* box that is (a) at least as long as the tree's
+ * length class and (b) used in the given packing mode. Multi-tree consolidation
+ * (the DP packer) is priced by the backend at checkout — this is the product
+ * card's honest floor, exactly like the tier-keyed `estimateShipping` it
+ * supersedes.
+ *
+ * Potted is never priced here: potted has no shippable box by design (it is
+ * farm pickup only). Callers render potted as a pickup-only card instead.
+ */
+export function estimateBoxShipping(
+  state: string | null | undefined,
+  feed: ShippingRateFeed,
+  opts: { lengthClass?: number; mode?: PackingMode } = {},
+): number | null {
+  const zone = feed.zone_by_state[normalizeState(state)];
+  if (!zone) return null;
+  const rates = feed.zones[zone];
+  if (!rates) return null;
+  const lengthClass = opts.lengthClass ?? DEFAULT_LENGTH_CLASS;
+  const mode = opts.mode ?? DEFAULT_MODE;
+
+  let cheapest: number | null = null;
+  for (const [boxId, spec] of Object.entries(feed.packing.boxes)) {
+    if (!spec) continue;
+    if (spec.length < lengthClass) continue; // box too short for this tree
+    if (spec.capacity[mode] == null) continue; // box unused in this mode
+    const rate = rates[boxId as ShippingBoxId]?.base;
+    if (typeof rate !== "number") continue; // no rate configured for this box
+    if (cheapest == null || rate < cheapest) cheapest = rate;
+  }
+  return cheapest == null ? null : Math.round(cheapest);
+}
+
+/**
+ * Per-tier shipping estimate for the product page, in whole dollars or `null`.
+ * The single seam both the Format cards and the estimator panel price through,
+ * so they can never disagree. Bareroot prices off the schema-2 box feed when
+ * one is present (Box Engine v2), else off the legacy tier-keyed snapshot;
+ * potted always uses the tier-keyed path — until the potted=farm-pickup-only
+ * flip is ratified (GOL-1114 gate), potted keeps its existing behaviour and is
+ * never routed through the box feed (which has no potted rate by design).
+ */
+export function estimateTierShipping(
+  state: string | null | undefined,
+  tier: ShippingTier,
+  opts: { feed?: ShippingRateFeed | null; rates?: RateTable } = {},
+): number | null {
+  if (tier === "bareroot" && hasBoxFeed(opts.feed)) {
+    return estimateBoxShipping(state, opts.feed);
+  }
+  return estimateShipping(state, tier, opts.rates ?? ZONE_RATE_TABLE);
+}
+
+/** True when `feed` is a usable schema-2 Box Engine v2 feed (has box-keyed
+ *  zones and a packing catalog). The client's `rateFeed()` already returns null
+ *  for a legacy schema-1 payload, so this is a light null/shape guard for the
+ *  render path. */
+export function hasBoxFeed(
+  feed: ShippingRateFeed | null | undefined,
+): feed is ShippingRateFeed {
+  return !!feed && !!feed.packing?.boxes && Object.keys(feed.zones ?? {}).length > 0;
 }

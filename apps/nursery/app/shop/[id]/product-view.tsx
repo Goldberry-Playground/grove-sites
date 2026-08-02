@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ShippingTier, ShippingRateTable } from "@grove/odoo-client";
+import type { ShippingTier, ShippingRateTable, ShippingRateFeed } from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { CaptureForm } from "@grove/ui-kit";
@@ -9,7 +9,7 @@ import { ProductImage } from "../../product-image";
 import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
-  estimateShipping,
+  estimateTierShipping,
   resolveRateTable,
   shipsTo,
   tierFor,
@@ -58,6 +58,13 @@ export interface ProductViewProps {
    * falls back to its bundled snapshot via `resolveRateTable()`.
    */
   shippingRates?: ShippingRateTable | null;
+  /**
+   * Schema-2 Box Engine v2 feed (GOL-1114), fetched in the SSR product load.
+   * Present once the backend is on Box Engine v2; `null` on the legacy backend.
+   * When present, bareroot is priced per packed box off this feed; potted keeps
+   * its legacy tier behaviour until the pickup-only flip is ratified.
+   */
+  shippingFeed?: ShippingRateFeed | null;
 }
 
 /**
@@ -77,6 +84,7 @@ export function ProductView({
   fallbackPrice,
   saleOk,
   shippingRates,
+  shippingFeed,
 }: ProductViewProps) {
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
   const [cultivar, setCultivar] = useState<string | null>(cultivars[0] ?? null);
@@ -236,7 +244,10 @@ export function ProductView({
                     format: f,
                   });
                   const fEst = shipState
-                    ? estimateShipping(shipState, fTier, rateTable)
+                    ? estimateTierShipping(shipState, fTier, {
+                        feed: shippingFeed,
+                        rates: rateTable,
+                      })
                     : null;
                   const shipText =
                     fEst != null
@@ -275,6 +286,7 @@ export function ProductView({
               onStateChange={setShipState}
               tiers={estimatorTiers}
               rates={rateTable}
+              feed={shippingFeed}
             />
           )}
 

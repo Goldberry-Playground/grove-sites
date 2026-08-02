@@ -44,11 +44,19 @@ export default async function ProductDetailPage({
   }
   if (catalog.length === 0) catalog = mockProducts;
 
-  // Live shipping-rate table (GOL-969) — overrides the estimator's bundled
-  // snapshot so quotes track the backend feed. Best-effort and drift-safe:
-  // rates() already returns null when the feed is unreachable, and the client's
-  // resolveRateTable() then falls back to the snapshot, so this never blocks.
-  const shippingRates = await odoo.shipping.rates();
+  // Live shipping data. Two feeds share one endpoint by schema version:
+  //   • rates()    — legacy tier-keyed table (schema 1); null once the backend
+  //                  is on Box Engine v2. Drives the potted/bareroot snapshot.
+  //   • rateFeed() — schema-2 Box Engine v2 feed (box-keyed zones + packing
+  //                  catalog); null on the legacy backend. Drives bareroot's
+  //                  per-box estimate and carries the pickup-only truth for
+  //                  potted (no potted box by design). GOL-1114.
+  // Exactly one is non-null on a configured backend; both null → the client's
+  // bundled snapshot. Best-effort and drift-safe — neither call ever blocks.
+  const [shippingRates, shippingFeed] = await Promise.all([
+    odoo.shipping.rates(),
+    odoo.shipping.rateFeed(),
+  ]);
 
   // Growing guide from Odoo's eCommerce Description (`website_description`),
   // gated by `grove_guide_ready`. Publish-pipeline v2 makes Odoo the single
@@ -143,6 +151,7 @@ export default async function ProductDetailPage({
         fallbackPrice={product.price}
         saleOk={product.saleOk}
         shippingRates={shippingRates}
+        shippingFeed={shippingFeed}
       />
 
       {product.description && (

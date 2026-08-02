@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import type { ShippingTier } from "@grove/odoo-client";
+import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
   US_STATE_NAMES,
   ZONE_BY_STATE,
   ZONE_RATE_TABLE,
-  estimateShipping,
+  estimateTierShipping,
   shipsTo,
   type RateTable,
 } from "../../../lib/shipping-estimate";
@@ -33,6 +33,9 @@ export interface ShippingEstimatorProps {
    *  (GOL-969), or the bundled snapshot when the feed is absent. Defaults to the
    *  snapshot so the component still works standalone (e.g. in tests). */
   rates?: RateTable;
+  /** Schema-2 Box Engine v2 feed (GOL-1114). When present, bareroot rows price
+   *  per packed box off this feed; potted stays on the tier-keyed `rates`. */
+  feed?: ShippingRateFeed | null;
 }
 
 /**
@@ -56,6 +59,7 @@ export function ShippingEstimator({
   onStateChange,
   tiers,
   rates = ZONE_RATE_TABLE,
+  feed,
 }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
@@ -125,7 +129,7 @@ export function ShippingEstimator({
             </p>
             <ul className="mt-2 space-y-1.5">
               {tiers.map(({ tier, label, fulfillment }) => {
-                const amount = estimateShipping(state, tier, rates);
+                const amount = estimateTierShipping(state, tier, { feed, rates });
                 return (
                   <li
                     key={tier}
