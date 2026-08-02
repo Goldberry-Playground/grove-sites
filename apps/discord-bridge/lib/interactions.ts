@@ -16,6 +16,12 @@ import {
   type Platform,
 } from "./approval.ts";
 import { parsePeriod } from "./period.ts";
+import {
+  IDEA_COMMAND_NAME,
+  IDEA_MODAL_ID,
+  buildIdeaModal,
+  parseIdeaModal,
+} from "./idea.ts";
 import type { Period } from "./types.ts";
 
 /** Discord interaction request types. */
@@ -57,6 +63,13 @@ export interface DiscordInteraction extends ActorCarrier {
 /** Deferred work the server must perform after the synchronous ack. */
 export type Followup =
   | { kind: "digest"; period: Period }
+  | {
+      kind: "idea_submit";
+      headline: string;
+      body: string;
+      links?: string;
+      actor: string;
+    }
   | {
       kind: "decision";
       decision: "approve" | "reject";
@@ -110,6 +123,12 @@ export function routeInteraction(
         response: { type: ResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE },
         followup: { kind: "digest", period },
       };
+    }
+    if (interaction.data?.name === IDEA_COMMAND_NAME) {
+      // Phase 3 (GOL-471): only the CMO allowlist (Macy + Josh) may file ideas —
+      // the modal itself is the input surface, so gate before opening it.
+      if (!isApprover(interaction, ctx.approverIds)) return ideaDenied();
+      return { response: { type: ResponseType.MODAL, data: buildIdeaModal() } };
     }
     return ephemeral(`Unknown command: /${interaction.data?.name ?? "?"}`);
   }
@@ -172,7 +191,31 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
 }
 
 function routeModalSubmit(interaction: DiscordInteraction, ctx: RouteContext): InteractionResult {
-  const parsed = parseModalId(interaction.data?.custom_id ?? "");
+  const customId = interaction.data?.custom_id ?? "";
+
+  // Phase 3 (GOL-471): the `/idea` intake modal.
+  if (customId === IDEA_MODAL_ID) {
+    if (!isApprover(interaction, ctx.approverIds)) return ideaDenied();
+    const fields = parseIdeaModal(interaction.data?.components);
+    if (!fields) return ephemeral("Nothing to file — a headline and the idea are both required.");
+    return {
+      // Ephemeral deferred ack: the server files the idea, then edits this
+      // reply with the outcome (only the submitter sees it).
+      response: {
+        type: ResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: { flags: EPHEMERAL },
+      },
+      followup: {
+        kind: "idea_submit",
+        headline: fields.headline,
+        body: fields.body,
+        links: fields.links,
+        actor: actorId(interaction) ?? "unknown",
+      },
+    };
+  }
+
+  const parsed = parseModalId(customId);
   if (!parsed) return ephemeral("Unknown submission.");
   if (!isApprover(interaction, ctx.approverIds)) return denied();
 
@@ -203,4 +246,8 @@ function ephemeral(message: string): InteractionResult {
 
 function denied(): InteractionResult {
   return ephemeral("🚫 Only Macy and Josh can act on content suggestions.");
+}
+
+function ideaDenied(): InteractionResult {
+  return ephemeral("🚫 Only Macy and Josh can file content ideas via /idea.");
 }
