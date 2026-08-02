@@ -43,6 +43,9 @@ export interface FacetParams {
   layer: string | null;
   /** Sun requirement — applied server-side via `products.list({sun})`. */
   sun: string | null;
+  /** Free-text catalog search (`?q=`) — matched client-side against product
+   *  name + category name. `null` when absent/blank so it never narrows. */
+  q: string | null;
 }
 
 type RawParam = string | string[] | undefined;
@@ -64,6 +67,7 @@ export function parseFacetParams(sp: Record<string, RawParam>): FacetParams {
   const zone = rawZone !== null && /^\d+$/.test(rawZone) ? Number(rawZone) : null;
   const rawLayer = firstString(sp.layer);
   const rawSun = firstString(sp.sun);
+  const rawQ = (firstString(sp.q) ?? "").trim();
   return {
     cat: firstString(sp.cat),
     zone: zone !== null && ZONE_OPTIONS.includes(zone as (typeof ZONE_OPTIONS)[number]) ? zone : null,
@@ -71,6 +75,7 @@ export function parseFacetParams(sp: Record<string, RawParam>): FacetParams {
     layer:
       rawLayer !== null && (LAYER_OPTIONS as readonly string[]).includes(rawLayer) ? rawLayer : null,
     sun: rawSun !== null && (SUN_OPTIONS as readonly string[]).includes(rawSun) ? rawSun : null,
+    q: rawQ.length > 0 ? rawQ : null,
   };
 }
 
@@ -81,6 +86,65 @@ export function applyTagFilter(products: Product[], tags: string[]): Product[] {
     const owned = new Set(p.tags ?? []);
     return tags.every((t) => owned.has(t));
   });
+}
+
+/**
+ * Free-text catalog search (GOL-1111). Case- and accent-insensitive substring
+ * match against the shopper-visible strings on each product — its name and its
+ * category name — so "fig", "apple", or "nut tree" all narrow the grid. Blank
+ * / null query is a no-op (returns the list unchanged), so an empty `?q=` never
+ * hides the catalog. List items carry no descriptions, so name + category is the
+ * honest match surface; the query is always AND-combined with the active facets
+ * by the caller (search ∩ category ∩ zone ∩ tags).
+ */
+export function applySearchFilter(products: Product[], q: string | null): Product[] {
+  const needle = normalizeText(q ?? "");
+  if (needle.length === 0) return products;
+  return products.filter((p) => {
+    const haystack = normalizeText(`${p.name ?? ""} ${p.categoryName ?? ""}`);
+    return haystack.includes(needle);
+  });
+}
+
+/** Lowercase + strip diacritics so "Aronia" matches "aronia" and accented Latin
+ *  names match their unaccented typing. */
+function normalizeText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Build a `/shop` href that MERGES a facet patch onto the current selection
+ * (GOL-1111 filter-param merge). Category-bar pills and any server-built link
+ * use this so navigating one axis (e.g. picking a category) preserves the
+ * others (zone / tag / layer / sun / q) instead of resetting the query string.
+ * A patch value of `null` clears that axis; an omitted key leaves it untouched.
+ * Keys are emitted in a stable order so hrefs are deterministic (SSR-safe).
+ */
+export function shopHref(
+  current: FacetParams,
+  patch: Partial<{
+    cat: string | null;
+    zone: number | null;
+    tags: string[];
+    layer: string | null;
+    sun: string | null;
+    q: string | null;
+  }> = {},
+): string {
+  const merged: FacetParams = { ...current, ...patch };
+  const sp = new URLSearchParams();
+  if (merged.cat) sp.set("cat", merged.cat);
+  if (merged.zone !== null) sp.set("zone", String(merged.zone));
+  for (const t of merged.tags) sp.append("tag", t);
+  if (merged.layer) sp.set("layer", merged.layer);
+  if (merged.sun) sp.set("sun", merged.sun);
+  if (merged.q) sp.set("q", merged.q);
+  const qs = sp.toString();
+  return qs ? `/shop?${qs}` : "/shop";
 }
 
 export interface FacetOption {

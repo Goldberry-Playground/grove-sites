@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { trackEvent } from "@grove/analytics";
 import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
@@ -41,11 +41,20 @@ export function FacetSidebar({
   // wins over this state, so the panel is permanently open on desktop and the
   // toggle is hidden — the state only drives the mobile view.
   const [open, setOpen] = useState(false);
+  // Pending state (GOL-1111): a facet change re-renders the server grid, so wrap
+  // the navigation in a transition and surface `isPending` as a text "Updating…"
+  // cue + `aria-busy` — <400ms feedback (Doherty Threshold), never colour-alone.
+  const [isPending, startTransition] = useTransition();
 
   function commit(next: URLSearchParams, facet: string, value: string) {
     trackEvent("filter_applied", { facet, value });
+    // A new facet selection is a new result set — start it capped again so the
+    // grid-cap reveal (?all=1) doesn't leak across an unrelated filter change.
+    next.delete("all");
     const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   }
 
   function setSingle(key: string, value: string | null, facet: string) {
@@ -64,7 +73,7 @@ export function FacetSidebar({
   const hasFilters = activeCount > 0;
 
   return (
-    <aside className="w-full md:w-56 shrink-0" aria-label="Filters">
+    <aside className="w-full md:w-56 shrink-0" aria-label="Filters" aria-busy={isPending}>
       <div className="flex items-center justify-between gap-3 mb-4">
         {/* Mobile: the heading doubles as the disclosure toggle. Desktop: the
             toggle is hidden (`md:hidden`) and this row is just the label + Clear. */}
@@ -83,18 +92,37 @@ export function FacetSidebar({
             </span>
           )}
         </button>
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={() => {
-              trackEvent("filter_applied", { facet: "clear", value: "all" });
-              router.push(pathname, { scroll: false });
-            }}
-            className="text-xs text-primary hover:underline"
+        <div className="flex items-center gap-2">
+          {/* aria-live so the pending state is announced; text + spinner, never
+              colour alone (colour-blind / grayscale safe). */}
+          <span
+            aria-live="polite"
+            className={`facet-pending${isPending ? " is-pending" : ""}`}
           >
-            Clear all
-          </button>
-        )}
+            {isPending ? (
+              <>
+                <span aria-hidden="true" className="facet-pending__dot" />
+                Updating…
+              </>
+            ) : (
+              ""
+            )}
+          </span>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                trackEvent("filter_applied", { facet: "clear", value: "all" });
+                startTransition(() => {
+                  router.push(pathname, { scroll: false });
+                });
+              }}
+              className="text-xs text-primary hover:underline"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       <div id="facet-panel" className={`${open ? "block" : "hidden"} md:block`}>
