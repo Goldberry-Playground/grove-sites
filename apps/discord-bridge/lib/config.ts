@@ -37,6 +37,12 @@ export interface BridgeConfig {
   bridgeKey?: string;
   /** Issue the `evt_` audit records are mirrored onto. */
   auditIssueId?: string;
+  /**
+   * CMO intake issue the Phase-3 `/idea` command files onto (GOL-471). Owned by
+   * CMO-Sora so the intake comment wakes her. When unset, `/idea` tells the
+   * submitter it couldn't file (rather than silently dropping the idea).
+   */
+  ideaIntakeIssueId?: string;
   /** Paperclip API base for the audit mirror (e.g. http://localhost:3100). */
   paperclipApiBase?: string;
 }
@@ -79,6 +85,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
     approverIds: parseApproverIds(env.DISCORD_APPROVER_IDS),
     bridgeKey: env.PAPERCLIP_BRIDGE_KEY?.trim() || undefined,
     auditIssueId: env.PAPERCLIP_AUDIT_ISSUE_ID?.trim() || undefined,
+    ideaIntakeIssueId: env.PAPERCLIP_IDEA_INTAKE_ISSUE_ID?.trim() || undefined,
     paperclipApiBase: env.PAPERCLIP_API_BASE?.trim() || undefined,
   };
   cfg.approvalsChannelId = env.DISCORD_APPROVALS_CHANNEL_ID?.trim() || cfg.weeklyInsightsChannelId;
