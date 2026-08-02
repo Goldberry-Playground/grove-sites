@@ -380,8 +380,204 @@ h1 em, h2 em, h3 em {
 }
 .var-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  /* auto-FILL (not auto-fit): keep the empty tracks so a 1-2 item bucket
+     (Vines → Kiwi) renders at standard card size instead of one card stretched
+     edge-to-edge with a blown-up, blurry image (QA 2026-07-31). The upper bound
+     caps a lone card's width so it never balloons past a normal card. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 340px));
+  justify-content: center;
   gap: 1.5rem;
+}
+@media (min-width: 720px) {
+  /* Left-align once there's room for 2+ columns so a partial final row hugs the
+     start edge rather than centring into a lopsided gap. */
+  .var-grid { justify-content: start; }
+}
+
+/* Catalog free-text search (?q=) — sits above the grid, full width of the
+   content column. Brand parchment field, leaf focus ring, ink text. */
+.catalog-search {
+  margin-bottom: 1.75rem;
+}
+.catalog-search__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft, #2d3a30);
+  margin-bottom: 0.4rem;
+}
+.catalog-search__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.catalog-search__icon {
+  position: absolute;
+  left: 0.85rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--color-ink-soft, #2d3a30);
+  pointer-events: none;
+}
+.catalog-search__input {
+  width: 100%;
+  padding: 0.7rem 2.4rem 0.7rem 2.6rem;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--parchment-soft);
+  border: 1px solid var(--parchment-deep);
+  border-radius: 0.6rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.catalog-search__input::placeholder { color: var(--color-ink-soft, #2d3a30); opacity: 0.75; }
+.catalog-search__input:focus {
+  outline: none;
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(31, 63, 43, 0.18);
+}
+/* Hide the WebKit native "x" so we can render our own, larger tap target. */
+.catalog-search__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.catalog-search__clear {
+  position: absolute;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--color-ink-soft, #2d3a30);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.catalog-search__clear:hover,
+.catalog-search__clear:focus-visible {
+  color: var(--orange-deep);
+  background: rgba(31, 63, 43, 0.08);
+  outline: none;
+}
+.catalog-search__status {
+  min-height: 1.2rem;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--color-ink-soft, #2d3a30);
+}
+
+/* Grid card-count cap (GOL-1111) — "Showing N of M" + reveal below the grid.
+   Centred control block with a clear primary action; the count is text so the
+   truncation is never silent. */
+.grid-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--parchment-deep);
+}
+.grid-reveal__status {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft, #2d3a30);
+}
+.grid-reveal__btn {
+  padding: 0.6rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  /* Match the shipped primary CTA (.btn-forest): --forest (#3d2810) ground with
+     --parchment text clears AA comfortably; --leaf is a sage that failed 4.5:1. */
+  color: var(--parchment);
+  background: var(--forest);
+  border: 1px solid var(--forest);
+  border-radius: 0.6rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.grid-reveal__btn:hover {
+  background: var(--forest-deep);
+}
+.grid-reveal__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 63, 43, 0.28);
+}
+.grid-reveal__btn--ghost {
+  color: var(--forest);
+  background: transparent;
+}
+.grid-reveal__btn--ghost:hover {
+  background: rgba(31, 63, 43, 0.08);
+}
+
+/* Facet pending cue (GOL-1111) — Doherty <400ms feedback while the server page
+   re-renders after a facet change. Spinner shape + text (never colour alone);
+   present only while pending, so it collapses to nothing when idle. */
+.facet-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  /* ink-soft (~10:1 on parchment) for the text — sage --leaf was only ~2.3:1. */
+  color: var(--color-ink-soft, #2d3a30);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.facet-pending[data-pending="true"] {
+  height: auto;
+  margin-bottom: 0.75rem;
+  opacity: 1;
+}
+.facet-pending__spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  border: 2px solid rgba(31, 63, 43, 0.28);
+  border-top-color: var(--leaf-deep);
+  border-radius: 999px;
+  animation: grove-spin 0.7s linear infinite;
+}
+
+/* Category-pill pending dot (GOL-1111) — appears only while that pill's Link is
+   navigating. Presence is the signal, so it survives grayscale/color-blindness;
+   the spin is a reduced-motion-optional enhancement on top. */
+.cat-pill-pending {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-left: 0.45rem;
+  vertical-align: middle;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 999px;
+  animation: grove-spin 0.7s linear infinite;
+}
+
+@keyframes grove-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .facet-pending__spinner,
+  .cat-pill-pending {
+    animation: none;
+  }
+  /* Motion off, but the ring stays visible — presence still signals pending. */
+  .cat-pill-pending {
+    border-top-color: currentColor;
+    opacity: 0.6;
+  }
+  .facet-pending__spinner {
+    border-top-color: var(--leaf-deep);
+    opacity: 0.7;
+  }
 }
 /* Anchor card — give the homepage's first featured variety editorial weight.
    On desktop (≥1100px) it spans two grid columns with a taller image so it

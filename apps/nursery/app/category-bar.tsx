@@ -2,6 +2,7 @@ import type { Product } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import { mockProducts } from "../data/mock-products";
 import { NURSERY_CATEGORIES, countByCategory } from "../data/categories";
+import { buildShopHref, type FacetParams } from "../lib/facets";
 import { CategoryBarView } from "./category-bar-view";
 
 /**
@@ -40,15 +41,28 @@ interface CategoryBarProps {
    * unfiltered catalog while the grid filtered server-side.
    */
   products?: Product[] | null;
+  /**
+   * The current /shop facet selection. When provided, each pill href keeps the
+   * active zone/layer/sun/tag/search axes and only swaps the category — so
+   * switching plant type with `zone=5` active stays on zone 5 (QA 2026-07-31).
+   * Omitted on the homepage and other pages that carry no facets, which keep the
+   * bare `/shop?cat=<slug>` links.
+   */
+  facets?: FacetParams | null;
 }
 
-export async function CategoryBar({ activeSlug, products: provided }: CategoryBarProps) {
+export async function CategoryBar({
+  activeSlug,
+  products: provided,
+  facets,
+}: CategoryBarProps) {
   const products = provided ?? (await fetchProductsForCounts());
 
   const allItem = {
     slug: "all",
     label: "All Catalog",
-    href: "/shop",
+    // "All" clears the category axis but keeps every other active facet.
+    href: buildShopHref({ cat: null }, facets),
     count: products.length,
   };
 
@@ -63,14 +77,18 @@ export async function CategoryBar({ activeSlug, products: provided }: CategoryBa
     return {
       slug: category.slug,
       label: category.label,
-      href: `/shop?cat=${category.slug}`,
+      // Preserve the current zone/layer/sun/tag/search selection; only swap cat.
+      href: buildShopHref({ cat: category.slug }, facets),
       count: count > 0 ? count : undefined,
     };
   });
 
   // A category is active when its href matches; the "All" pill is active when
-  // no category is selected (its href is "/shop").
-  const activeHref = activeSlug ? `/shop?cat=${activeSlug}` : "/shop";
+  // no category is selected. Match on the same param-preserving hrefs above so
+  // highlighting stays correct once other facets are in the query string.
+  const activeHref = activeSlug
+    ? buildShopHref({ cat: activeSlug }, facets)
+    : allItem.href;
 
   return (
     <CategoryBarView

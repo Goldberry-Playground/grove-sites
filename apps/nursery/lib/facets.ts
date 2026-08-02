@@ -43,6 +43,13 @@ export interface FacetParams {
   layer: string | null;
   /** Sun requirement — applied server-side via `products.list({sun})`. */
   sun: string | null;
+  /**
+   * Free-text catalog search (`?q=`) — a shareable, indexable query applied
+   * CLIENT-SIDE against the fetched set (name + botanical + tags). Deep catalogs
+   * (the Apple bucket alone carries dozens of varieties) need find-by-name so a
+   * shopper isn't forced to scroll or facet their way to a known cultivar.
+   */
+  q: string | null;
 }
 
 type RawParam = string | string[] | undefined;
@@ -71,7 +78,64 @@ export function parseFacetParams(sp: Record<string, RawParam>): FacetParams {
     layer:
       rawLayer !== null && (LAYER_OPTIONS as readonly string[]).includes(rawLayer) ? rawLayer : null,
     sun: rawSun !== null && (SUN_OPTIONS as readonly string[]).includes(rawSun) ? rawSun : null,
+    q: normalizeQuery(firstString(sp.q)),
   };
+}
+
+/** Trim a raw `q` param to a bounded search string, or null when blank. Bounded
+ *  so a pathological URL can't drive an unbounded scan. */
+export function normalizeQuery(raw: string | null): string | null {
+  const q = (raw ?? "").trim().slice(0, 80);
+  return q.length > 0 ? q : null;
+}
+
+/**
+ * AND-filter a product list by a free-text query. Each whitespace-separated term
+ * must appear (case-insensitively) somewhere in the product's searchable text —
+ * name, botanical/plant-type (`categoryName`), or its cross-cutting tags — so
+ * "dwarf apple" narrows to dwarf apples rather than matching either word alone.
+ * Empty/blank query is a no-op. Botanical + cultivar names live on the variant
+ * payload (not list items), so deep cultivar-name matching is a backend
+ * follow-up; name + type + tags covers the QA "find a variety" case today.
+ */
+export function applySearchFilter(products: Product[], q: string | null): Product[] {
+  const query = (q ?? "").trim().toLowerCase();
+  if (!query) return products;
+  const terms = query.split(/\s+/).filter(Boolean);
+  return products.filter((p) => {
+    const haystack = [p.name, p.categoryName, ...(p.tags ?? [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return terms.every((t) => haystack.includes(t));
+  });
+}
+
+/**
+ * Build a `/shop` href that PRESERVES the current facet selection while changing
+ * one axis. The CategoryBar pills used to link to a bare `/shop?cat=<slug>`,
+ * silently dropping an active zone/layer/sun/tag/search selection — switching
+ * plant type wiped the shopper's other filters (QA 2026-07-31). This merges the
+ * kept axes so only the patched one changes; an axis set to `null` in `patch`
+ * is cleared. Omitting `preserve` (the homepage, which has no facets) yields the
+ * previous bare hrefs.
+ */
+export function buildShopHref(
+  patch: { cat?: string | null },
+  preserve?: Partial<FacetParams> | null,
+): string {
+  const params = new URLSearchParams();
+  const cat = "cat" in patch ? patch.cat : preserve?.cat ?? null;
+  if (cat) params.set("cat", cat);
+  if (preserve) {
+    if (preserve.zone != null) params.set("zone", String(preserve.zone));
+    if (preserve.layer) params.set("layer", preserve.layer);
+    if (preserve.sun) params.set("sun", preserve.sun);
+    if (preserve.q) params.set("q", preserve.q);
+    for (const t of preserve.tags ?? []) params.append("tag", t);
+  }
+  const qs = params.toString();
+  return qs ? `/shop?${qs}` : "/shop";
 }
 
 /** AND-filter a product list by selected usage tags. Empty selection → no-op. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { trackEvent } from "@grove/analytics";
 import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
@@ -35,6 +35,12 @@ export function FacetSidebar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Doherty Threshold (GOL-1111): a facet change re-renders the server page, so
+  // there's a beat before the grid updates. `useTransition` surfaces that beat
+  // as an explicit pending cue (<400ms feedback) instead of a dead click — the
+  // shopper sees the filter is working. The cue is a spinner + "Updating…" text
+  // (shape + word, never colour alone) so it reads for every vision profile.
+  const [isPending, startTransition] = useTransition();
   // Progressive disclosure (GOL-682 #3): on mobile the facet panel used to push
   // the first product ~1.5 screens down, so it's collapsed behind a "Filter"
   // toggle below the `md` breakpoint. On `md`+ the `md:block` on the body always
@@ -45,7 +51,9 @@ export function FacetSidebar({
   function commit(next: URLSearchParams, facet: string, value: string) {
     trackEvent("filter_applied", { facet, value });
     const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   }
 
   function setSingle(key: string, value: string | null, facet: string) {
@@ -64,7 +72,18 @@ export function FacetSidebar({
   const hasFilters = activeCount > 0;
 
   return (
-    <aside className="w-full md:w-56 shrink-0" aria-label="Filters">
+    <aside className="w-full md:w-56 shrink-0" aria-label="Filters" aria-busy={isPending}>
+      {/* Color-independent pending cue (spinner shape + text), announced politely
+          for screen readers. Present only mid-navigation, absent when idle. */}
+      <p
+        className="facet-pending"
+        data-pending={isPending}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="facet-pending__spinner" aria-hidden="true" />
+        {isPending ? "Updating results…" : ""}
+      </p>
       <div className="flex items-center justify-between gap-3 mb-4">
         {/* Mobile: the heading doubles as the disclosure toggle. Desktop: the
             toggle is hidden (`md:hidden`) and this row is just the label + Clear. */}
@@ -88,7 +107,7 @@ export function FacetSidebar({
             type="button"
             onClick={() => {
               trackEvent("filter_applied", { facet: "clear", value: "all" });
-              router.push(pathname, { scroll: false });
+              startTransition(() => router.push(pathname, { scroll: false }));
             }}
             className="text-xs text-primary hover:underline"
           >

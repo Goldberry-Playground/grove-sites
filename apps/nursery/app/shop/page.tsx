@@ -7,9 +7,11 @@ import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
 import { CategoryBar } from "../category-bar";
 import { filterByCategory, findCategory } from "../../data/categories";
-import { parseFacetParams, applyTagFilter } from "../../lib/facets";
+import { parseFacetParams, applyTagFilter, applySearchFilter } from "../../lib/facets";
 import { plantCountLabel, varietyCountLabel } from "../../lib/catalog-labels";
 import { FacetSidebar } from "./facet-sidebar";
+import { CatalogSearch } from "./catalog-search";
+import { ProductGrid } from "./product-grid";
 
 // Deploy retrigger (GOL-768): agent auto-merges to main now re-fire docker.yml
 // via auto-approve.yml's workflow_dispatch, so this touch rolls the pending
@@ -26,7 +28,8 @@ interface ShopPageProps {
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   const sp = await searchParams;
-  const { cat, zone, tags, layer, sun } = parseFacetParams(sp);
+  const facets = parseFacetParams(sp);
+  const { cat, zone, tags, layer, sun, q } = facets;
 
   // 1) Fetch products. The `zone`, `layer`, and `sun` facets are applied
   //    SERVER-SIDE via the catalog API (list items carry no facts, so they
@@ -54,20 +57,20 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     usingMockData = true;
   }
 
-  // 2) Apply category + tag facets. Displayed = zone ∩ category ∩ tags.
+  // 2) Apply category + tag + search facets. Displayed = zone ∩ category ∩ tags ∩ q.
   const byCategory = filterByCategory(base, cat);
-  const products = applyTagFilter(byCategory, tags);
+  const products = applySearchFilter(applyTagFilter(byCategory, tags), q);
   const activeCategory = findCategory(cat);
 
   // 3) Facet option models. The plant-type axis is the canonical top CategoryBar
   //    (GOL-682 #2 — the left-rail "Type" list duplicated it, so it was dropped);
   //    `typeContext` still feeds the bar's cross-faceted counts. The tag counts
   //    respect the current category/zone context so each tag stays togglable.
-  const typeContext = applyTagFilter(base, tags);
+  const typeContext = applySearchFilter(applyTagFilter(base, tags), q);
 
   return (
     <>
-      <CategoryBar activeSlug={cat} products={typeContext} />
+      <CategoryBar activeSlug={cat} products={typeContext} facets={facets} />
 
       <section className="section">
         <div className="section-header">
@@ -77,6 +80,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             {base.length !== products.length ? ` · of ${base.length} total` : ""}
           </span>
         </div>
+
+        <CatalogSearch initialQuery={q ?? ""} resultCount={products.length} />
 
         {activeCategory?.description && (
           <p className="section-lede">{activeCategory.description}</p>
@@ -101,7 +106,17 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <div className="flex-1">
             {products.length === 0 ? (
               <div className="shop-empty">
-                {activeCategory &&
+                {q ? (
+                  // A search that matched nothing — echo the term back so the
+                  // shopper knows the query ran, and offer a one-tap reset.
+                  <p>
+                    No varieties match &ldquo;{q}&rdquo; —{" "}
+                    <Link href="/shop" className="shop-empty__link">
+                      clear search
+                    </Link>
+                    .
+                  </p>
+                ) : activeCategory &&
                 (!tags || tags.length === 0) &&
                 zone === null &&
                 layer === null &&
@@ -128,8 +143,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                 )}
               </div>
             ) : (
-              <div className="var-grid">
-                {products.map((product, i) => (
+              <ProductGrid
+                cards={products.map((product, i) => (
                   <Link
                     key={product.id}
                     href={`/shop/${product.id}`}
@@ -186,7 +201,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                     </div>
                   </Link>
                 ))}
-              </div>
+              />
             )}
           </div>
         </div>
