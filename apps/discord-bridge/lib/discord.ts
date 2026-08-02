@@ -75,6 +75,17 @@ export const INSIGHTS_COMMAND = {
   ],
 };
 
+/**
+ * The `/idea` slash-command definition (Phase 3, GOL-471). No options — it opens
+ * a modal to collect the idea (headline + body + optional sources). Gated to the
+ * CMO allowlist (Macy + Josh) in the interactions router.
+ */
+export const IDEA_COMMAND = {
+  name: "idea",
+  description: "File a content idea for the CMO (Sora enriches → approval card).",
+  type: 1,
+};
+
 /** Register global application (slash) commands. Overwrites the full set. */
 export async function registerGlobalCommands(
   botToken: string,

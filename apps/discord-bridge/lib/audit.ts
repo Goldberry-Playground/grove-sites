@@ -12,7 +12,8 @@ export type AuditAction =
   | "digest_scheduled"
   | "content_approved"
   | "content_revised"
-  | "content_rejected";
+  | "content_rejected"
+  | "idea_submitted";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -24,6 +25,8 @@ export interface AuditEventInput {
   reason?: string;
   /** Phase 2: the content-suggestion id the decision applies to. */
   suggestion_id?: string;
+  /** Phase 3 (GOL-471): the `/idea` intake id filed for Sora. */
+  idea_id?: string;
   /** Phase 2: platforms drafted to (approve/revise). */
   platforms?: string[];
   /** Phase 2: Buffer draft ids created (approve/revise). */
@@ -68,6 +71,7 @@ export function renderMirrorComment(event: AuditEvent): string {
   const parts = [
     `**\`${event.event_id}\`** — ${event.action} by <@${event.actor}> (${event.publish_mode})`,
   ];
+  if (event.idea_id) parts.push(`idea: \`${event.idea_id}\``);
   if (event.suggestion_id) parts.push(`suggestion: \`${event.suggestion_id}\``);
   if (event.platforms?.length) parts.push(`platforms: ${event.platforms.join(", ")}`);
   if (event.buffer_draft_ids?.length) parts.push(`buffer drafts: ${event.buffer_draft_ids.join(", ")}`);
