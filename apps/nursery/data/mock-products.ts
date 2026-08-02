@@ -38,7 +38,9 @@ const mockProductsBase: Product[] = [
     available: true,
     featured: true,
     variants: [
-      { id: 2011, name: "Bare-root, 4-5ft whip", sku: "GN-APL-001-BR", price: 42, available: true, imageUrl: "" },
+      // Grafted on M.111 per this product's own copy — carries the rootstock
+      // axis so the dev/preview fallback exercises the GOL-1112 metadata pill.
+      { id: 2011, name: "Bare-root, 4-5ft whip", sku: "GN-APL-001-BR", price: 42, available: true, imageUrl: "", rootstock: "M.111" },
     ],
   },
   {
@@ -58,7 +60,7 @@ const mockProductsBase: Product[] = [
     available: true,
     featured: false,
     variants: [
-      { id: 2021, name: "Bare-root, 4-5ft whip", sku: "GN-PER-002-BR", price: 38, available: true, imageUrl: "" },
+      { id: 2021, name: "Bare-root, 4-5ft whip", sku: "GN-PER-002-BR", price: 38, available: true, imageUrl: "", rootstock: "OHxF 87" },
     ],
   },
   {

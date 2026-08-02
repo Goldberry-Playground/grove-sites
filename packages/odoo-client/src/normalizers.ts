@@ -32,7 +32,7 @@ import type {
 
 /** Odoo Selection/Char fields serialize "" when unset — collapse to null so
  * the UI can `??`-fall-back uniformly instead of testing for empty strings. */
-function emptyToNull(value: string): string | null {
+function emptyToNull(value: string | undefined): string | null {
   return value ? value : null;
 }
 
@@ -160,6 +160,7 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     imageUrl: raw.image_url ?? "",
     cultivar: emptyToNull(raw.cultivar),
     format: emptyToNull(raw.format),
+    rootstock: emptyToNull(raw.rootstock),
     shippingTier: raw.shipping_tier || null,
   };
 }
