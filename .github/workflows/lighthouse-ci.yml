@@ -39,6 +39,7 @@ on:
     types: [completed]
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+  merge_group:
     branches: [main]
 
 permissions:
@@ -54,6 +55,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Merge-queue gate — queue branches fire `merge_group`, where no PR (and no
+  # preview) exists. The real audit already ran on the PR before it queued, so
+  # post success on the queue SHA to satisfy the required "Lighthouse CI"
+  # context; without this every queue entry times out.
+  queue-gate:
+    name: Lighthouse queue gate
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.merge_group.head_sha,
+              context: 'Lighthouse CI',
+              state: 'success',
+              description: 'Merge queue - audit ran on the PR; queue branches have no preview',
+            });
   # ───────────────────────────────────────────────────────────────────────────
   # Gate shim — sets the "Lighthouse CI" required status for a PR based on its
   # label. Runs on every PR (cheap, no build).
