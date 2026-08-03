@@ -16,9 +16,11 @@ import {
  */
 test.describe("checkout — missing-state guard", () => {
   test("required state select blocks submit and fires no session request", async ({ page }) => {
-    const product = await findProductByCta(page, "Add to Cart");
+    // Pure client-side guard: any product in the cart reaches the form, so fall
+    // back to a bareroot Reserve item when QA has no in-stock product (GOL-1149).
+    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
     await page.goto(product.href);
-    await addCurrentProductToCart(page, 1, "Add to Cart");
+    await addCurrentProductToCart(page, 1, product.buyLabel);
 
     // Watch for any checkout-session call; there must be none.
     let sessionRequested = false;
@@ -31,9 +33,13 @@ test.describe("checkout — missing-state guard", () => {
     await fillCheckoutForm(page, { state: undefined });
     await submitCheckoutForm(page);
 
-    // The invalid required select keeps native submission from firing.
+    // The invalid required select keeps native submission from firing. Anchor
+    // to the start of the label and scope to the checkout form: an unanchored
+    // "State" also matches the Country select ("United States") and the page's
+    // newsletter capture input (GOL-1149).
     const stateValid = await page
-      .getByLabel("State")
+      .locator("form.grove-checkout__grid")
+      .getByLabel(/^State\b/)
       .evaluate((el) => (el as HTMLSelectElement).validity.valid);
     expect(stateValid, "empty required state select must be invalid").toBe(false);
 
