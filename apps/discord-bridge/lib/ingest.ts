@@ -35,8 +35,8 @@
  */
 import { createHash } from "node:crypto";
 
-import type { IgPostType, MediaAsset, MediaSource, MediaType } from "./media.ts";
-import { validateMediaAsset } from "./media.ts";
+import type { IgPostType, MediaAsset, MediaSource, MediaType } from "./media";
+import { validateMediaAsset } from "./media";
 
 /** A raw file dropped by an operator, before any normalization/re-host. */
 export interface RawUpload {

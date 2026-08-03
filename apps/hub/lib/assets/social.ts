@@ -30,8 +30,8 @@ import {
   type MediaNormalizer,
   type NormalizedMedia,
   type RawUpload,
-} from "../../../discord-bridge/lib/ingest.ts";
-import type { IgPostType, MediaSource, MediaType } from "../../../discord-bridge/lib/media.ts";
+} from "../../../discord-bridge/lib/ingest";
+import type { IgPostType, MediaSource, MediaType } from "../../../discord-bridge/lib/media";
 // Type-only: @grove/assets pulls in native sharp; keep it out of the build-time
 // module graph. Concrete values are dynamically imported in rehostDepsFromEnv.
 import type { SpacesAssetConfig } from "@grove/assets";
