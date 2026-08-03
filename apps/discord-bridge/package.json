@@ -10,6 +10,7 @@
     "start": "node --experimental-strip-types server.ts",
     "digest": "node --experimental-strip-types digest-cli.ts",
     "suggest": "node --experimental-strip-types suggestion-cli.ts",
+    "rehost": "node --experimental-strip-types rehost-cli.ts",
     "register-commands": "node --experimental-strip-types register-commands.ts"
   },
   "devDependencies": {
