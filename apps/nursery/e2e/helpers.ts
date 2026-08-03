@@ -64,37 +64,49 @@ export async function collectProductHrefs(page: Page): Promise<string[]> {
   return [...new Set(hrefs)];
 }
 
+/** The two enabled inline buy CTAs the shop grid can render (see `buyStateFor`):
+ *  "Add to Cart" for an in-stock item, "Reserve" for a bareroot preorder. */
+export type BuyLabel = "Add to Cart" | "Reserve";
+
 export interface FoundProduct {
   href: string;
   name: string;
+  /** Which enabled CTA matched — pass this back to `addCurrentProductToCart`. */
+  buyLabel: BuyLabel;
 }
 
 /**
  * Walk the shop grid and return the first product whose inline buy button is an
- * *enabled* CTA with the given label — "Add to Cart" for an in-stock item,
- * "Reserve" for a bareroot preorder (see `buyStateFor`). Skips sold-out /
- * coming-soon (disabled) products. Throws a diagnostic if none is found, since
- * that means QA inventory isn't seeded (a GOL-899 / preview blocker, not a
- * checkout regression).
+ * *enabled* CTA with one of the given labels, in preference order. Pass a single
+ * label ("Add to Cart") when the flow must complete payment; pass a fallback
+ * list (`["Add to Cart", "Reserve"]`) for specs that only need *a* product in
+ * the cart to reach the checkout form + ship-to-state gate (specs 3/4), so they
+ * stay green against Reserve-only QA data. Skips sold-out / coming-soon
+ * (disabled) products. Throws a diagnostic if none is found, since that means QA
+ * inventory isn't seeded (a GOL-899 / preview blocker, not a checkout
+ * regression). The returned `buyLabel` is whichever CTA matched.
  */
 export async function findProductByCta(
   page: Page,
-  label: "Add to Cart" | "Reserve",
+  label: BuyLabel | BuyLabel[],
   { limit = 24, skipHref }: { limit?: number; skipHref?: string } = {},
 ): Promise<FoundProduct> {
+  const labels = Array.isArray(label) ? label : [label];
   const hrefs = (await collectProductHrefs(page)).filter((h) => h !== skipHref);
   for (const href of hrefs.slice(0, limit)) {
     await page.goto(href);
-    const cta = page
-      .locator("[data-add-to-cart-anchor]")
-      .getByRole("button", { name: label, exact: true });
-    if ((await cta.count()) > 0 && (await cta.first().isEnabled())) {
-      const name = (await page.locator("h1").first().innerText()).trim();
-      return { href, name };
+    const anchor = page.locator("[data-add-to-cart-anchor]");
+    for (const buyLabel of labels) {
+      const cta = anchor.getByRole("button", { name: buyLabel, exact: true });
+      if ((await cta.count()) > 0 && (await cta.first().isEnabled())) {
+        const name = (await page.locator("h1").first().innerText()).trim();
+        return { href, name, buyLabel };
+      }
     }
   }
   throw new Error(
-    `No product with an enabled "${label}" buy button in the first ${limit} shop ` +
+    `No product with an enabled ${labels.map((l) => `"${l}"`).join(" / ")} buy ` +
+      `button in the first ${limit} shop ` +
       `items — is QA inventory seeded? (GOL-899 / preview blockers, see e2e/README.md)`,
   );
 }
@@ -107,7 +119,7 @@ export async function findProductByCta(
 export async function addCurrentProductToCart(
   page: Page,
   quantity = 1,
-  label: "Add to Cart" | "Reserve" = "Add to Cart",
+  label: BuyLabel = "Add to Cart",
 ): Promise<void> {
   const anchor = page.locator("[data-add-to-cart-anchor]");
   if (quantity !== 1) {
@@ -141,14 +153,20 @@ export async function fillCheckoutForm(
   input: CheckoutFormInput = {},
 ): Promise<void> {
   await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
-  await page.getByLabel("Full name").fill(input.name ?? "E2E Test Buyer");
-  await page.getByLabel("Email").fill(input.email ?? "e2e@goldberrygrove.farm");
-  await page.getByLabel("Street", { exact: true }).fill(input.street ?? "123 Orchard Ln");
-  await page.getByLabel("City").fill(input.city ?? "Summersville");
+  // Scope every field lookup to the checkout form itself: the page also renders
+  // a newsletter capture form whose email input carries an "Email" label, so an
+  // unscoped getByLabel("Email") is a strict-mode collision (GOL-1149).
+  const form = page.locator("form.grove-checkout__grid");
+  await form.getByLabel("Full name").fill(input.name ?? "E2E Test Buyer");
+  await form.getByLabel("Email").fill(input.email ?? "e2e@goldberrygrove.farm");
+  await form.getByLabel("Street").fill(input.street ?? "123 Orchard Ln");
+  await form.getByLabel("City").fill(input.city ?? "Summersville");
   if (input.state) {
-    await page.getByLabel("State").selectOption(input.state);
+    // Anchor to the start of the label: an unanchored "State" also matches the
+    // Country select, whose selected option "United States" contains "State".
+    await form.getByLabel(/^State\b/).selectOption(input.state);
   }
-  await page.getByLabel("ZIP").fill(input.zip ?? "26651");
+  await form.getByLabel("ZIP").fill(input.zip ?? "26651");
   // Country defaults to US (only selectable option); no action needed.
 }
 
@@ -187,16 +205,25 @@ export async function payAtReview(page: Page): Promise<void> {
 
 /**
  * Fill Stripe's hosted checkout page and submit. This drives the external
- * `checkout.stripe.com` page, whose DOM is owned by Stripe — the selectors here
- * are best-effort and are the single most likely thing to need a touch-up on
- * the first real (GOL-899-unblocked) run. Kept tolerant: each field is filled
- * only if present.
+ * `checkout.stripe.com` page, whose DOM is owned by Stripe. Selectors validated
+ * against a real test session (GOL-1149): the hosted page renders a
+ * payment-method accordion whose card fields (`#cardNumber` etc.) are NOT in the
+ * DOM until the "card" item is selected, so we must select it first — the radio
+ * is visually hidden, hence the forced check. There is no `#email` field here
+ * (email is captured on our own checkout form; Stripe collects only phone). Kept
+ * tolerant: each field is filled only if present.
  */
 export async function fillStripeCheckoutAndPay(
   page: Page,
   cardNumber: string,
 ): Promise<void> {
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
+
+  // Select the card payment method so its fields render (validated GOL-1149).
+  const cardRadio = page.locator("#payment-method-accordion-item-title-card");
+  if (await cardRadio.count()) await cardRadio.check({ force: true });
+  await page.locator("#cardNumber").waitFor({ state: "visible", timeout: 15_000 });
+
   const fillIfPresent = async (selector: string, value: string) => {
     const el = page.locator(selector);
     if (await el.count()) await el.first().fill(value);
@@ -207,6 +234,9 @@ export async function fillStripeCheckoutAndPay(
   await fillIfPresent("#cardCvc", "123");
   await fillIfPresent("#billingName", "E2E Test Buyer");
   await fillIfPresent("#billingPostalCode", "26651");
+  // This session enables Stripe phone-number collection; the required phone
+  // field otherwise blocks Pay (validated GOL-1149).
+  await fillIfPresent("#phoneNumber", "2015550123");
 
   const submitById = page.getByTestId("hosted-payment-submit-button");
   if (await submitById.count()) await submitById.click();
