@@ -23,17 +23,70 @@ export default async function BlogPage() {
         {tenantConfig.copy.blogHeading}
       </h1>
 
+      {/* Error and empty are distinct, on-brand states (GOL-1113). Meaning is
+          carried by icon SHAPE + heading text, never colour alone (WCAG 1.4.1 /
+          colour-blind safety): the error uses an alert triangle + plum accent,
+          the empty state a growing sprout + leaf accent — distinguishable in
+          grayscale and to deuteranopia/protanopia/tritanopia. */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-8 text-red-800 text-sm">
-          Unable to load blog posts. The blog will be available once Ghost is
-          configured with a Content API key.
+        <div
+          role="alert"
+          className="journal-state journal-error mb-8"
+        >
+          <svg
+            className="journal-state__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <p className="journal-state__title">The journal is resting</p>
+          <p className="journal-state__body">
+            We couldn&rsquo;t reach the journal just now. This is on our end, not
+            yours — try again in a moment, and in the meantime the beds are still
+            open.{" "}
+            <Link href="/shop" className="journal-state__link">
+              Browse the catalog
+            </Link>
+            .
+          </p>
         </div>
       )}
 
       {posts.length === 0 && !error && (
-        <p className="text-ink-soft mb-8">
-          No posts published yet. Check back soon!
-        </p>
+        <div role="status" className="journal-state journal-empty mb-8">
+          <svg
+            className="journal-state__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M7 20h10" />
+            <path d="M12 20v-9" />
+            <path d="M12 11C12 7 9 4 4 4c0 5 3 7 8 7Z" />
+            <path d="M12 13c0-3 2.5-5.5 7-5.5 0 4-2.5 5.5-7 5.5Z" />
+          </svg>
+          <p className="journal-state__title">Fresh notes are on the way</p>
+          <p className="journal-state__body">
+            Nothing has been published to the beds just yet. We&rsquo;re writing
+            up what&rsquo;s growing, what to plant, and when — check back soon.{" "}
+            <Link href="/shop" className="journal-state__link">
+              Browse the catalog
+            </Link>{" "}
+            while you wait.
+          </p>
+        </div>
       )}
 
       <div className="space-y-8">

@@ -122,7 +122,7 @@ jobs:
       # 1Password, exported as AWS_* for the aws-cli S3 read below.
       - name: Load Spaces creds from 1Password
         if: matrix.app == 'hub'
-        uses: 1password/load-secrets-action@v4
+        uses: 1password/load-secrets-action@v5
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
           AWS_ACCESS_KEY_ID:     op://Grove Prod/odoocker/SPACES_ACCESS_KEY_ID
@@ -179,7 +179,7 @@ jobs:
       # creds live under the `odoocker` item; preview-only creds under the
       # `grove-preview` item (see README-preview.md for the provisioning list).
       - name: Load secrets from 1Password
-        uses: 1password/load-secrets-action@v4
+        uses: 1password/load-secrets-action@v5
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
           DIGITALOCEAN_TOKEN:       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
@@ -262,7 +262,7 @@ jobs:
       # nursery E2E suite, GOL-1074) can read the `nursery` URL from a
       # workflow_run without re-parsing the PR comment. Additive/no-op today.
       - name: Upload preview URLs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: preview-urls
           path: /tmp/urls.json

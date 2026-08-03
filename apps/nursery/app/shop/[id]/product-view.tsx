@@ -6,7 +6,13 @@ import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { CaptureForm } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
-import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/variant-select";
+import {
+  cultivarOptions,
+  formatOptions,
+  rootstockOptions,
+  rootstockKind,
+  pickVariant,
+} from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateTierShipping,
@@ -36,6 +42,9 @@ export interface ViewVariant {
   qtyAvailable: number | null;
   cultivar: string | null;
   format: string | null;
+  /** Rootstock / propagation axis value (e.g. "M.111", "Seedling"); null when
+   *  the product has no Rootstock attribute (GOL-1112). */
+  rootstock: string | null;
   shippingTier: "potted" | "bareroot" | null;
   imageUrl: string;
 }
@@ -92,6 +101,8 @@ export function ProductView({
   const [cultivar, setCultivar] = useState<string | null>(cultivars[0] ?? null);
   const formats = useMemo(() => formatOptions(variants, cultivar), [variants, cultivar]);
   const [format, setFormat] = useState<string | null>(formats[0] ?? null);
+  const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
+  const [rootstock, setRootstock] = useState<string | null>(rootstocks[0] ?? null);
   // Thumbnail the buyer explicitly clicked; null → follow the selected variant.
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
   // Destination state for the shipping estimator ("" = not chosen yet).
@@ -128,7 +139,7 @@ export function ProductView({
     return out;
   }, [formats, variants, cultivar, shippingFeed]);
 
-  const selected = pickVariant(variants, { cultivar, format });
+  const selected = pickVariant(variants, { cultivar, format, rootstock });
   const price = selected?.price ?? fallbackPrice;
   const variantImage = selected?.imageUrl || null;
   const hero = pinnedImage ?? variantImage ?? heroImage;
@@ -145,11 +156,21 @@ export function ProductView({
     // Keep the current format if the new cultivar offers it, else fall to its first.
     const nextFormats = formatOptions(variants, next);
     if (!format || !nextFormats.includes(format)) setFormat(nextFormats[0] ?? null);
+    // Same reconciliation for the rootstock axis: a cultivar sold seedling-only
+    // shouldn't keep a "M.111" selection from the previous one (GOL-1112).
+    const nextRootstocks = rootstockOptions(variants, next);
+    if (!rootstock || !nextRootstocks.includes(rootstock))
+      setRootstock(nextRootstocks[0] ?? null);
     setPinnedImage(null);
   }
 
   function chooseFormat(next: string) {
     setFormat(next);
+    setPinnedImage(null);
+  }
+
+  function chooseRootstock(next: string) {
+    setRootstock(next);
     setPinnedImage(null);
   }
 
@@ -313,6 +334,52 @@ export function ProductView({
             </div>
           )}
 
+          {/* Rootstock / propagation axis (GOL-1112). A selector only when the
+              product genuinely offers a choice (2+ values) — a single-option
+              control adds cognitive load without a decision (Hick's Law), so a
+              lone rootstock renders as buy-box metadata instead. Colour never
+              carries the grafted/seedling meaning: each option pairs a distinct
+              glyph with the word, and the label text states it outright. */}
+          {rootstocks.length >= 2 && (
+            <div className="mb-5">
+              <span className="block text-sm font-semibold text-foreground mb-2">Rootstock</span>
+              <div className="flex flex-wrap gap-2">
+                {rootstocks.map((r) => {
+                  const kind = rootstockKind(r);
+                  const isActive = r === rootstock;
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => chooseRootstock(r)}
+                      aria-pressed={isActive}
+                      className={`flex items-center gap-2 rounded border px-4 py-2 text-left text-sm transition ${
+                        isActive
+                          ? "border-primary bg-primary/5"
+                          : "border-primary/15 hover:border-primary/40"
+                      }`}
+                    >
+                      <RootstockGlyph kind={kind} />
+                      <span className="min-w-0">
+                        <span className="block font-medium text-foreground">{r}</span>
+                        <span className="block text-xs text-ink-soft">{ROOTSTOCK_KIND_COPY[kind]}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {rootstocks.length === 1 && rootstocks[0] && (
+            <p className="mb-5">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-secondary/10 px-3 py-1 text-xs font-medium text-foreground">
+                <RootstockGlyph kind={rootstockKind(rootstocks[0])} />
+                {rootstockCopy(rootstocks[0])}
+              </span>
+            </p>
+          )}
+
           {estimatorTiers.length > 0 && (
             <ShippingEstimator
               state={shipState}
@@ -431,3 +498,67 @@ const TIER_LABEL: Record<ShippingTier, string> = {
   potted: "Potted",
   bareroot: "Bareroot",
 };
+
+/** Secondary descriptor under each rootstock option's raw value (GOL-1112). */
+const ROOTSTOCK_KIND_COPY: Record<"grafted" | "seedling", string> = {
+  grafted: "Grafted onto clonal rootstock",
+  seedling: "Own-root seedling, ungrafted",
+};
+
+/**
+ * Human copy for a lone rootstock rendered as buy-box metadata. Grafted values
+ * name the rootstock ("Grafted on M.111"); a value that already says "graft"
+ * passes through. Seedlings read "· own-root" unless the value already says so.
+ */
+function rootstockCopy(value: string): string {
+  if (rootstockKind(value) === "seedling") {
+    return /own[\s-]?root/i.test(value) ? value : `${value} · own-root`;
+  }
+  return /graft/i.test(value) ? value : `Grafted on ${value}`;
+}
+
+/**
+ * Grafted vs seedling glyph. The two shapes differ (a banded graft union vs a
+ * sprouting seedling) so the distinction survives greyscale and every
+ * colour-vision type — colour is never the signal (colour-independence lens,
+ * GOL-1112). Decorative: aria-hidden, since the adjacent text states the kind.
+ */
+function RootstockGlyph({ kind }: { kind: "grafted" | "seedling" }) {
+  return kind === "seedling" ? (
+    <svg
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 text-primary"
+      aria-hidden="true"
+    >
+      {/* stem + two sprouting leaves */}
+      <path d="M8 14V7" />
+      <path d="M8 8.5C8 6.5 6.3 5 4.3 5 4.3 7 5.9 8.5 8 8.5Z" />
+      <path d="M8 7.5C8 5.7 9.6 4.3 11.5 4.3 11.5 6.1 9.9 7.5 8 7.5Z" />
+    </svg>
+  ) : (
+    <svg
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 text-primary"
+      aria-hidden="true"
+    >
+      {/* two stems joined by a graft-union band */}
+      <path d="M8 2v4" />
+      <path d="M8 10v4" />
+      <rect x="4.5" y="6" width="7" height="4" rx="1" />
+    </svg>
+  );
+}
