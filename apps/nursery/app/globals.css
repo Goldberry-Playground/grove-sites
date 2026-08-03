@@ -861,9 +861,249 @@ h1 em, h2 em, h3 em {
   border: 0;
 }
 
+/* ─── Catalog browse UX (GOL-1111): search · grid-cap reveal · pending ─── */
+
+/* Catalog search box — sits between the demo banner and the sidebar+grid row.
+   Parchment field on the section surface; forest submit; orange focus ring. */
+.catalog-search {
+  margin: 0 0 1.75rem;
+}
+.catalog-search__row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+.catalog-search__field {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.catalog-search__icon {
+  position: absolute;
+  left: 0.85rem;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+.catalog-search__input {
+  width: 100%;
+  padding: 0.75rem 2.4rem 0.75rem 2.5rem;
+  border: 1px solid var(--parchment-deep);
+  border-radius: 8px;
+  background: var(--parchment-soft);
+  color: var(--forest-deep);
+  font-family: var(--font-body, inherit);
+  font-size: 0.95rem;
+  min-height: 44px;
+}
+.catalog-search__input::placeholder {
+  color: var(--ink-soft);
+}
+.catalog-search__input:focus {
+  outline: none;
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 28%, transparent);
+}
+/* Hide the native search "×" so our labelled clear button is the only one. */
+.catalog-search__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.catalog-search__clear {
+  position: absolute;
+  right: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  background: transparent;
+  cursor: pointer;
+}
+.catalog-search__clear:hover,
+.catalog-search__clear:focus-visible {
+  color: var(--orange-deep);
+  outline: none;
+  background: color-mix(in srgb, var(--orange) 12%, transparent);
+}
+.catalog-search__submit {
+  flex-shrink: 0;
+  padding: 0 1.25rem;
+  min-height: 44px;
+  border-radius: 8px;
+  background: var(--forest);
+  color: var(--parchment);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.catalog-search__submit:hover,
+.catalog-search__submit:focus-visible {
+  background: var(--forest-deep);
+  outline: none;
+}
+.catalog-search__status {
+  min-height: 1.05rem;
+  margin: 0.4rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--orange-deep);
+}
+
+/* Facet-sidebar pending cue — text + spinner, never colour alone. */
+.facet-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--orange-deep);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.facet-pending.is-pending {
+  opacity: 1;
+}
+.facet-pending__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--orange) 35%, transparent);
+  border-top-color: var(--orange);
+  animation: facet-spin 0.7s linear infinite;
+}
+@keyframes facet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Grid-cap reveal — explicit "show all" so nothing is hidden silently. */
+.shop-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2.25rem;
+}
+.shop-reveal__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--forest-deep);
+  border: 1px solid var(--forest);
+  border-radius: 999px;
+  padding: 0.6rem 1.7rem;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.shop-reveal__chevron {
+  width: 15px;
+  height: 15px;
+}
+.shop-reveal__link:hover,
+.shop-reveal__link:focus-visible {
+  background: var(--forest);
+  color: var(--parchment);
+  outline: none;
+}
+.shop-reveal__hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Route-level skeleton (loading.tsx) — shimmer placeholders for the pill nav. */
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--parchment-soft) 25%,
+    var(--parchment-deep) 37%,
+    var(--parchment-soft) 63%
+  );
+  background-size: 400% 100%;
+  animation: skel-shimmer 1.4s ease infinite;
+  border-radius: 6px;
+}
+@keyframes skel-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+.skel-heading {
+  width: min(45%, 280px);
+  height: 2.4rem;
+}
+.skel-tag {
+  width: 90px;
+  height: 0.9rem;
+}
+.skel-search {
+  width: 100%;
+  height: 3rem;
+  margin-bottom: 2rem;
+  border-radius: 8px;
+}
+.skel-facet {
+  width: 100%;
+  height: 2.6rem;
+}
+.skel-card {
+  background: var(--parchment-soft);
+  border: 1px solid var(--parchment-deep);
+  display: flex;
+  flex-direction: column;
+}
+.skel-card__img {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  border-radius: 0;
+}
+.skel-card__body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.skel-line {
+  height: 0.8rem;
+}
+.skel-line--sm {
+  width: 45%;
+}
+.skel-line--lg {
+  width: 80%;
+  height: 1.15rem;
+}
+
 /* Respect reduced-motion: no card-entrance drift. */
 @media (prefers-reduced-motion: reduce) {
   .var-card { animation: none; }
+  .skel {
+    animation: none;
+    background: var(--parchment-deep);
+  }
+  .facet-pending__dot {
+    animation: none;
+  }
 }
 
 @media (max-width: 900px) {

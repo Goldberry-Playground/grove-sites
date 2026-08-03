@@ -87,6 +87,7 @@ export default async function ProductDetailPage({
     qtyAvailable: v.qtyAvailable ?? null,
     cultivar: v.cultivar ?? null,
     format: v.format ?? null,
+    rootstock: v.rootstock ?? null,
     shippingTier: v.shippingTier ?? null,
     imageUrl: resolveOdooImageUrl(v.imageUrl, odooBase),
   }));

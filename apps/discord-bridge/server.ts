@@ -18,10 +18,11 @@ import {
   editInteractionOriginal,
 } from "./lib/discord.ts";
 import { routeInteraction, type DiscordInteraction } from "./lib/interactions.ts";
-import { renderDigestMessage } from "./lib/render.ts";
+import { renderDigestMessage, type DiscordMessage } from "./lib/render.ts";
 import { verifyDiscordRequest, ed25519PublicKey } from "./lib/verify.ts";
-import { buildAuditEvent, emitAuditEvent } from "./lib/audit.ts";
+import { buildAuditEvent, emitAuditEvent, mirrorAuditEvent } from "./lib/audit.ts";
 import { executeDecision, executeRevise, type DecideDeps } from "./lib/decide.ts";
+import { fileIdeaIntake, newIdeaId, type IdeaSubmission } from "./lib/idea.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BUFFER_ANALYTICS_URL = process.env.BUFFER_ANALYTICS_URL || "https://publish.buffer.com";
@@ -37,6 +38,30 @@ function readRawBody(req: IncomingMessage): Promise<string> {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
+}
+
+/** Grove green (matches the digest / approval cards). */
+const GROVE_GREEN = 0x3f7d4e;
+const AMBER = 0xd9822b;
+
+/** Ephemeral confirmation shown to the submitter after `/idea` files (or fails). */
+function ideaReplyCard(ok: boolean, ideaId: string, reason?: string): DiscordMessage {
+  const embed = ok
+    ? {
+        title: "💡 Idea filed for CMO - Sora",
+        description: `Sora will enrich + source it and post an approval card back to #cmo-approvals.`,
+        color: GROVE_GREEN,
+        footer: { text: `id:${ideaId}` },
+      }
+    : {
+        title: "⚠️ Couldn't file your idea",
+        description:
+          "Your idea wasn't captured. Please re-run `/idea` shortly, or ping Josh if it keeps failing." +
+          (reason ? `\n\n_(${reason})_` : ""),
+        color: AMBER,
+        footer: { text: `id:${ideaId}` },
+      };
+  return { embeds: [embed], components: [] };
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -94,6 +119,43 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
             period: followup.period,
           }),
         );
+        return;
+      }
+
+      if (followup.kind === "idea_submit") {
+        const now = new Date().toISOString();
+        const submission: IdeaSubmission = {
+          ideaId: newIdeaId(now, followup.headline),
+          headline: followup.headline,
+          body: followup.body,
+          links: followup.links,
+          actor: followup.actor,
+          ts: now,
+        };
+        const result = await fileIdeaIntake(submission, {
+          bridgeKey: cfg.bridgeKey,
+          intakeIssueId: cfg.ideaIntakeIssueId,
+          apiBase: cfg.paperclipApiBase,
+        });
+        // Audit trail (GOL-233 §5b): record the intake regardless of the mirror
+        // result; the stdout sink is the record of record, the CMO-issue comment
+        // is the actionable hand-off to Sora.
+        const event = buildAuditEvent({
+          action: "idea_submitted",
+          actor: submission.actor,
+          ts: now,
+          idea_id: submission.ideaId,
+          reason: result.ok ? undefined : result.reason,
+        });
+        emitAuditEvent(event);
+        void mirrorAuditEvent(event, {
+          bridgeKey: cfg.bridgeKey,
+          auditIssueId: cfg.auditIssueId,
+          apiBase: cfg.paperclipApiBase,
+        });
+        if (token) {
+          await editInteractionOriginal(cfg.discordAppId, token, ideaReplyCard(result.ok, submission.ideaId, result.reason));
+        }
         return;
       }
 

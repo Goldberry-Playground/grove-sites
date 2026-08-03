@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { routeInteraction, InteractionType, ResponseType } from "./interactions";
 import { buildApprovalCard, encodeAction, encodeModalId, REVISE_INPUT_ID } from "./approval";
 import { MACY_DISCORD_ID } from "./allowlist";
+import { IDEA_MODAL_ID, IDEA_HEADLINE_ID, IDEA_BODY_ID, IDEA_LINKS_ID } from "./idea";
 
 const ctx = { approverIds: new Set([MACY_DISCORD_ID]) };
 const macy = { member: { user: { id: MACY_DISCORD_ID } } };
@@ -128,6 +129,75 @@ describe("routeInteraction — Phase 2 approval loop", () => {
         },
         ...stranger,
       },
+      ctx,
+    );
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toBeUndefined();
+  });
+});
+
+describe("routeInteraction — Phase 3 /idea (GOL-471)", () => {
+  const ideaModalSubmit = (vals: Record<string, string>, who: object) => ({
+    type: InteractionType.MODAL_SUBMIT,
+    data: {
+      custom_id: IDEA_MODAL_ID,
+      components: Object.entries(vals).map(([custom_id, value]) => ({
+        type: 1,
+        components: [{ type: 4, custom_id, value }],
+      })),
+    },
+    ...who,
+  });
+
+  it("opens the modal when an approver runs /idea", () => {
+    const r = routeInteraction(
+      { type: InteractionType.APPLICATION_COMMAND, data: { name: "idea" }, ...macy },
+      ctx,
+    );
+    expect(r.response.type).toBe(ResponseType.MODAL);
+    expect((r.response.data as { custom_id?: string })?.custom_id).toBe(IDEA_MODAL_ID);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("denies /idea from a non-approver (no modal)", () => {
+    const r = routeInteraction(
+      { type: InteractionType.APPLICATION_COMMAND, data: { name: "idea" }, ...stranger },
+      ctx,
+    );
+    expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("defers an idea submit ephemerally and carries the parsed fields", () => {
+    const r = routeInteraction(
+      ideaModalSubmit(
+        { [IDEA_HEADLINE_ID]: "Pawpaw guild", [IDEA_BODY_ID]: "the story", [IDEA_LINKS_ID]: "https://x" },
+        macy,
+      ),
+      ctx,
+    );
+    expect(r.response.type).toBe(ResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE);
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toMatchObject({
+      kind: "idea_submit",
+      headline: "Pawpaw guild",
+      body: "the story",
+      links: "https://x",
+      actor: MACY_DISCORD_ID,
+    });
+  });
+
+  it("rejects an idea submit missing required fields", () => {
+    const r = routeInteraction(ideaModalSubmit({ [IDEA_HEADLINE_ID]: "only title" }, macy), ctx);
+    expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("denies an idea submit from a non-approver", () => {
+    const r = routeInteraction(
+      ideaModalSubmit({ [IDEA_HEADLINE_ID]: "t", [IDEA_BODY_ID]: "b" }, stranger),
       ctx,
     );
     expect(r.response.data?.flags).toBe(64);

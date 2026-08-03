@@ -7,9 +7,21 @@ import { tenantConfig } from "../../tenant.config";
 import { mockProducts } from "../../data/mock-products";
 import { CategoryBar } from "../category-bar";
 import { filterByCategory, findCategory } from "../../data/categories";
-import { parseFacetParams, applyTagFilter } from "../../lib/facets";
+import {
+  parseFacetParams,
+  applyTagFilter,
+  applySearchFilter,
+  shopHref,
+} from "../../lib/facets";
 import { plantCountLabel, varietyCountLabel } from "../../lib/catalog-labels";
 import { FacetSidebar } from "./facet-sidebar";
+import { CatalogSearch } from "./catalog-search";
+
+// Grid card cap (GOL-1111): a browse grid dumps cognitive load past ~two dozen
+// cards (Miller's Law), and the old hard `limit: 40` silently dropped anything
+// beyond it with no signal. Show a capped first page and reveal the rest behind
+// an explicit "Show all" link (`?all=1`) so nothing is hidden without saying so.
+const GRID_CAP = 24;
 
 // Deploy retrigger (GOL-768): agent auto-merges to main now re-fire docker.yml
 // via auto-approve.yml's workflow_dispatch, so this touch rolls the pending
@@ -26,7 +38,9 @@ interface ShopPageProps {
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   const sp = await searchParams;
-  const { cat, zone, tags, layer, sun } = parseFacetParams(sp);
+  const facets = parseFacetParams(sp);
+  const { cat, zone, tags, layer, sun, q } = facets;
+  const showAll = sp.all === "1";
 
   // 1) Fetch products. The `zone`, `layer`, and `sun` facets are applied
   //    SERVER-SIDE via the catalog API (list items carry no facts, so they
@@ -36,7 +50,10 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   let usingMockData = false;
   try {
     const result = await odoo.products.list({
-      limit: 40,
+      // Fetch the whole catalog (small); the visible grid is capped client-side
+      // with an explicit reveal, so this limit is a safety ceiling, not a silent
+      // truncation the way the old `40` was.
+      limit: 200,
       ...(zone !== null ? { zone } : {}),
       ...(layer !== null ? { layer } : {}),
       ...(sun !== null ? { sun } : {}),
@@ -54,27 +71,39 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     usingMockData = true;
   }
 
-  // 2) Apply category + tag facets. Displayed = zone ∩ category ∩ tags.
+  // 2) Apply category + tag + search facets.
+  //    Displayed = zone ∩ category ∩ tags ∩ search.
   const byCategory = filterByCategory(base, cat);
-  const products = applyTagFilter(byCategory, tags);
+  const byTags = applyTagFilter(byCategory, tags);
+  const products = applySearchFilter(byTags, q);
   const activeCategory = findCategory(cat);
 
-  // 3) Facet option models. The plant-type axis is the canonical top CategoryBar
+  // 3) Grid card cap (GOL-1111). Show the first GRID_CAP unless the shopper
+  //    asked for all; a link toggles the rest without hiding the count.
+  const isCapped = !showAll && products.length > GRID_CAP;
+  const visible = isCapped ? products.slice(0, GRID_CAP) : products;
+  const revealBase = shopHref(facets, {});
+  const revealHref = `${revealBase}${revealBase.includes("?") ? "&" : "?"}all=1`;
+
+  // 4) Facet option models. The plant-type axis is the canonical top CategoryBar
   //    (GOL-682 #2 — the left-rail "Type" list duplicated it, so it was dropped);
-  //    `typeContext` still feeds the bar's cross-faceted counts. The tag counts
-  //    respect the current category/zone context so each tag stays togglable.
-  const typeContext = applyTagFilter(base, tags);
+  //    `typeContext` still feeds the bar's cross-faceted counts. The tag + search
+  //    context narrows those counts so each pill stays honest against the grid.
+  const typeContext = applySearchFilter(applyTagFilter(base, tags), q);
 
   return (
     <>
-      <CategoryBar activeSlug={cat} products={typeContext} />
+      {/* Pass the active facets so category pills MERGE the selection (keep
+          zone/tag/layer/sun/q) instead of resetting the query string (GOL-1111). */}
+      <CategoryBar activeSlug={cat} products={typeContext} facets={facets} />
 
       <section className="section">
         <div className="section-header">
           <h2>{activeCategory ? activeCategory.label : tenantConfig.copy.shopHeading}</h2>
           <span className="section-tag">
             {plantCountLabel(products.length)}
-            {base.length !== products.length ? ` · of ${base.length} total` : ""}
+            {isCapped ? ` · showing ${visible.length}` : ""}
+            {!isCapped && base.length !== products.length ? ` · of ${base.length} total` : ""}
           </span>
         </div>
 
@@ -89,6 +118,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           </div>
         )}
 
+        <CatalogSearch initialQuery={q ?? ""} />
+
         <div className="flex flex-col md:flex-row gap-8">
           <FacetSidebar
             activeCat={cat}
@@ -101,11 +132,26 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <div className="flex-1">
             {products.length === 0 ? (
               <div className="shop-empty">
-                {activeCategory &&
-                (!tags || tags.length === 0) &&
-                zone === null &&
-                layer === null &&
-                sun === null ? (
+                {q ? (
+                  // Search miss (GOL-1111): name the query back so it's clear what
+                  // was searched, and offer a one-tap path back to the full grid
+                  // (drop `q`, keep any other active facets via shopHref).
+                  <p>
+                    No plants match <em>“{q}”</em>
+                    {activeCategory ? ` in ${activeCategory.label}` : ""} —{" "}
+                    <Link
+                      href={shopHref(facets, { q: null })}
+                      className="shop-empty__link"
+                    >
+                      clear the search
+                    </Link>
+                    .
+                  </p>
+                ) : activeCategory &&
+                  (!tags || tags.length === 0) &&
+                  zone === null &&
+                  layer === null &&
+                  sun === null ? (
                   // Coming-soon bucket (GOL-773): the category is the only active
                   // facet and carries no stock yet (e.g. Native, Fruit & Nut
                   // Shrubs) — say so plainly instead of "no match / clear filters".
@@ -129,7 +175,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               </div>
             ) : (
               <div className="var-grid">
-                {products.map((product, i) => (
+                {visible.map((product, i) => (
                   <Link
                     key={product.id}
                     href={`/shop/${product.id}`}
@@ -186,6 +232,32 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                     </div>
                   </Link>
                 ))}
+              </div>
+            )}
+
+            {isCapped && (
+              // Explicit reveal (GOL-1111): never hide cards silently. Says how
+              // many remain and links to the full grid (?all=1) preserving the
+              // active facets, so it's shareable and works without client JS.
+              <div className="shop-reveal">
+                <Link href={revealHref} className="shop-reveal__link" scroll={false}>
+                  Show all {products.length} plants
+                  <svg
+                    aria-hidden="true"
+                    className="shop-reveal__chevron"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 6l4 4 4-4" />
+                  </svg>
+                </Link>
+                <span className="shop-reveal__hint">
+                  Showing {visible.length} of {products.length}
+                </span>
               </div>
             )}
           </div>

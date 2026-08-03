@@ -391,6 +391,14 @@ describe("normalizeVariant", () => {
     expect(potted.shippingTier).toBe("potted");
   });
 
+  it("parses the rootstock axis, null on payloads that omit it (GOL-1112)", () => {
+    // The potted Honeycrisp fixture carries a grafted M.111 rootstock.
+    expect(normalizeVariant(honeycrispDetail.variants[0]).rootstock).toBe("M.111");
+    // The bareroot variant omits the field → null, so the buy box shows no
+    // rootstock control rather than a fabricated value.
+    expect(normalizeVariant(honeycrispDetail.variants[1]).rootstock).toBeNull();
+  });
+
   it("carries the bareroot effective shipping tier through (potted/bareroot delta)", () => {
     const bareroot = normalizeVariant(honeycrispDetail.variants[1]);
     expect(bareroot.shippingTier).toBe("bareroot");
