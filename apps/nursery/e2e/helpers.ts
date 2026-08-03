@@ -54,7 +54,9 @@ export interface CheckoutSessionBody {
 /** Every `/shop/<id>` product-detail href on the shop grid, de-duplicated. */
 export async function collectProductHrefs(page: Page): Promise<string[]> {
   await page.goto("/shop");
-  const cards = page.locator("a.product-card");
+  // The nursery shop grid renders each product-detail link as `a.var-card`
+  // (apps/nursery/app/shop/page.tsx), NOT the shared `ProductCard` (.product-card).
+  const cards = page.locator('a.var-card[href^="/shop/"]');
   await cards.first().waitFor({ state: "visible", timeout: 15_000 });
   const hrefs = (await cards.evaluateAll((els) =>
     els.map((e) => (e as HTMLAnchorElement).getAttribute("href")),
