@@ -235,6 +235,9 @@ importers:
 
   apps/hub:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.700.0
+        version: 3.1082.0
       '@grove/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
