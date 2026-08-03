@@ -23,6 +23,23 @@ import { expect, type Page } from "@playwright/test";
 export const STRIPE_TEST_CARD_OK = "4242 4242 4242 4242";
 export const STRIPE_TEST_CARD_DECLINE = "4000 0000 0000 0002";
 
+/**
+ * A buyer email that is unique per test run. Stripe's hosted checkout activates
+ * **Link** (link.com) whenever the prefilled email matches a known Link account;
+ * once a test email has completed one payment, Stripe registers it as a Link
+ * account, so a *reused* address makes the next run land on Link's "Confirm it's
+ * you" OTP screen — which replaces the card form and hangs the suite waiting for
+ * `#cardNumber` (GOL-1157). A fresh address per run keeps the hosted page on the
+ * plain card form. Uniqueness comes from the wall clock + a counter so two calls
+ * in the same millisecond still differ. Gmail-style `+tag` addressing keeps every
+ * variant routing to the same real inbox.
+ */
+let _emailSeq = 0;
+export function uniqueBuyerEmail(): string {
+  const stamp = `${Date.now().toString(36)}${(_emailSeq++).toString(36)}`;
+  return `e2e+${stamp}@goldberrygrove.farm`;
+}
+
 /** Format a minor-unit-free amount the SAME way every UI surface does, so spec
  *  assertions are byte-identical to what the buyer sees. Mirrors `formatPrice`
  *  in the UI components (`toLocaleString("en-US", { style: "currency" })`). */
@@ -158,7 +175,10 @@ export async function fillCheckoutForm(
   // unscoped getByLabel("Email") is a strict-mode collision (GOL-1149).
   const form = page.locator("form.grove-checkout__grid");
   await form.getByLabel("Full name").fill(input.name ?? "E2E Test Buyer");
-  await form.getByLabel("Email").fill(input.email ?? "e2e@goldberrygrove.farm");
+  // Default to a per-run unique address so Stripe's Link never recognises it and
+  // hijacks the hosted page with an OTP challenge (GOL-1157). Callers can still
+  // pin an explicit email.
+  await form.getByLabel("Email").fill(input.email ?? uniqueBuyerEmail());
   await form.getByLabel("Street").fill(input.street ?? "123 Orchard Ln");
   await form.getByLabel("City").fill(input.city ?? "Summersville");
   if (input.state) {
@@ -219,6 +239,16 @@ export async function fillStripeCheckoutAndPay(
 ): Promise<void> {
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
 
+  // Escape Stripe **Link**: if the prefilled email is a known Link account the
+  // hosted page opens on a "Confirm it's you" OTP screen that hides the card
+  // form. A unique buyer email (see `uniqueBuyerEmail`) normally avoids this, but
+  // Stripe can register an address mid-suite, so defensively click "Pay without
+  // Link" whenever it is offered to fall back to the manual card form (GOL-1157).
+  const payWithoutLink = page.getByRole("button", { name: /pay without link/i });
+  if (await payWithoutLink.count()) {
+    await payWithoutLink.first().click().catch(() => {});
+  }
+
   // Select the card payment method so its fields render (validated GOL-1149).
   const cardRadio = page.locator("#payment-method-accordion-item-title-card");
   if (await cardRadio.count()) await cardRadio.check({ force: true });
@@ -243,8 +273,20 @@ export async function fillStripeCheckoutAndPay(
   else await page.getByRole("button", { name: /pay/i }).first().click();
 }
 
-/** Assert the cart is empty by visiting /cart. */
+/**
+ * Assert the cart is empty. Callers land here on a `/checkout/success[/id]` page,
+ * where the cart is cleared *client-side after hydration* — `CheckoutSuccessEffects`
+ * flips `clear()` only once `hydrated` is true, which then persists `[]` to
+ * localStorage. The "Payment received" / "Order Confirmed" heading paints from
+ * SSR *before* that hydration, so navigating straight to /cart races the persist
+ * and can read a stale cart (GOL-1157). Gate on the header cart badge first: wait
+ * until no cart link still advertises "N items in cart", which only happens once
+ * the clear has hydrated and written through. Then confirm on /cart itself.
+ */
 export async function expectCartEmpty(page: Page): Promise<void> {
+  await expect(page.getByRole("link", { name: /items in cart/ })).toHaveCount(0, {
+    timeout: 15_000,
+  });
   await page.goto("/cart");
   await expect(page.getByText("Your cart is empty.")).toBeVisible();
 }
