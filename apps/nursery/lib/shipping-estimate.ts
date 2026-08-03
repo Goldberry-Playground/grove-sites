@@ -224,3 +224,25 @@ export function hasBoxFeed(
 ): feed is ShippingRateFeed {
   return !!feed && !!feed.packing?.boxes && Object.keys(feed.zones ?? {}).length > 0;
 }
+
+/** Customer-facing timing line for a farm-pickup-only format. Paired with the
+ *  pickup glyph in the UI so meaning never rides on colour alone. */
+export const PICKUP_ONLY_FULFILLMENT = "Farm pickup only";
+
+/**
+ * True when this tier renders as farm-pickup-only rather than a shippable format
+ * (GOL-1114, ratified 2026-08-03). Potted has no shippable box under Box Engine
+ * v2 — `shipping_zones.py` `SHIPPABLE_TIERS = {"bareroot"}` — and checkout blocks
+ * a potted ship line as pickup-only. We flip the storefront to match *exactly
+ * when the box feed is live* (`hasBoxFeed`): on the legacy backend (no feed)
+ * potted still ships and checkout still allows it, so gating on the feed keeps
+ * the product page and checkout consistent in BOTH backend generations — never
+ * "ships now" on the page but blocked at checkout, and never "pickup only" on the
+ * page but charged shipping at checkout. Bareroot is always shippable.
+ */
+export function isPickupOnly(
+  tier: ShippingTier,
+  feed: ShippingRateFeed | null | undefined,
+): boolean {
+  return tier === "potted" && hasBoxFeed(feed);
+}

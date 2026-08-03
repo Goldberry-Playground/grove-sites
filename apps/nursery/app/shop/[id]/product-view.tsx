@@ -10,6 +10,8 @@ import { cultivarOptions, formatOptions, pickVariant } from "../../../lib/varian
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateTierShipping,
+  isPickupOnly,
+  PICKUP_ONLY_FULFILLMENT,
   resolveRateTable,
   shipsTo,
   tierFor,
@@ -113,11 +115,18 @@ export function ProductView({
       const tier = tierFor({ shippingTier: v?.shippingTier ?? null, format: f });
       if (seen.has(tier)) continue;
       seen.add(tier);
+      const pickupOnly = isPickupOnly(tier, shippingFeed);
       const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
-      out.push({ tier, label: TIER_LABEL[tier], fulfillment: hint.fulfillment });
+      out.push({
+        tier,
+        label: TIER_LABEL[tier],
+        // Pickup-only formats show the pickup line, not a "Ships now" timing.
+        fulfillment: pickupOnly ? PICKUP_ONLY_FULFILLMENT : hint.fulfillment,
+        pickupOnly,
+      });
     }
     return out;
-  }, [formats, variants, cultivar]);
+  }, [formats, variants, cultivar, shippingFeed]);
 
   const selected = pickVariant(variants, { cultivar, format });
   const price = selected?.price ?? fallbackPrice;
@@ -154,6 +163,15 @@ export function ProductView({
     format,
     saleOk,
   });
+
+  // Selected-format pickup-only flag (Box Engine v2): potted is picked up at the
+  // farm, never shipped, so we surface that before the buyer hits checkout — no
+  // "ships now" promise the checkout would then block (GOL-1114).
+  const selectedTier = tierFor({
+    shippingTier: selected?.shippingTier ?? null,
+    format,
+  });
+  const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed);
 
   const cartName = selected?.name ?? name;
   const cartVariantId = selected?.id ?? productId;
@@ -243,18 +261,26 @@ export function ProductView({
                     shippingTier: fVariant?.shippingTier ?? null,
                     format: f,
                   });
-                  const fEst = shipState
-                    ? estimateTierShipping(shipState, fTier, {
-                        feed: shippingFeed,
-                        rates: rateTable,
-                      })
-                    : null;
-                  const shipText =
-                    fEst != null
+                  const fPickupOnly = isPickupOnly(fTier, shippingFeed);
+                  const fEst =
+                    shipState && !fPickupOnly
+                      ? estimateTierShipping(shipState, fTier, {
+                          feed: shippingFeed,
+                          rates: rateTable,
+                        })
+                      : null;
+                  // Pickup-only formats never quote a ship rate; every other
+                  // branch is the existing shippable copy.
+                  const shipText = fPickupOnly
+                    ? "farm pickup only"
+                    : fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
                       : shipState && !shipsTo(shipState)
                         ? `not shipping to ${shipState} yet`
                         : `ships from ~$${fHint.fromShipping}`;
+                  const fFulfillment = fPickupOnly
+                    ? PICKUP_ONLY_FULFILLMENT
+                    : fHint.fulfillment;
                   const isActive = f === format;
                   return (
                     <button
@@ -270,8 +296,15 @@ export function ProductView({
                     >
                       <span className="block font-medium text-foreground">{f}</span>
                       <span className="block text-xs text-ink-soft">
-                        {fVariant ? `$${fVariant.price.toFixed(2)}` : ""} · {fHint.fulfillment} ·{" "}
-                        {shipText}
+                        {[
+                          fVariant ? `$${fVariant.price.toFixed(2)}` : null,
+                          fFulfillment,
+                          // Pickup-only formats don't quote a ship line — the
+                          // fulfillment already says "Farm pickup only".
+                          fPickupOnly ? null : shipText,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     </button>
                   );
@@ -300,6 +333,25 @@ export function ProductView({
           {buy.showDepositNote && (
             <p className="text-xs text-ink-soft mb-4">
               Bareroot ships in fall — reserve now with a $10 deposit applied to your total.
+            </p>
+          )}
+
+          {selectedPickupOnly && (
+            // Icon + words (never colour alone): potted is farm pickup only.
+            // Inline SVG pin (not a unicode glyph) so it renders on every font.
+            <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 fill-secondary"
+              >
+                <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+              </svg>
+              <span>
+                <strong className="font-semibold text-foreground">Farm pickup only.</strong>{" "}
+                Potted trees aren’t shipped — pick yours up free at the farm. Bareroot
+                ships to your door in fall.
+              </span>
             </p>
           )}
 

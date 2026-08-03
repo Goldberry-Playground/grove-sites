@@ -7,6 +7,7 @@ import {
   estimateBoxShipping,
   estimateTierShipping,
   hasBoxFeed,
+  isPickupOnly,
   shipsTo,
   tierFor,
   resolveRateTable,
@@ -175,9 +176,11 @@ describe("estimateTierShipping (Format-card ⟷ estimator seam)", () => {
     expect(estimateTierShipping("WV", "bareroot", { feed: SCHEMA2_FEED })).toBe(22);
   });
 
-  it("keeps potted on the legacy tier path even when a box feed is present", () => {
-    // Potted is never routed through the box feed (no potted box by design);
-    // it stays on the tier-keyed snapshot until the pickup-only flip is ratified.
+  it("keeps potted on the legacy tier path (pure pricing seam, no box route)", () => {
+    // Potted is never routed through the box feed (no potted box by design).
+    // estimateTierShipping stays a pure pricing function; the pickup-only policy
+    // (GOL-1114) is a separate gate — see isPickupOnly — so callers that render
+    // a shippable potted row (legacy backend) still get its tier rate here.
     expect(estimateTierShipping("WV", "potted", { feed: SCHEMA2_FEED })).toBe(32);
   });
 
@@ -192,5 +195,24 @@ describe("hasBoxFeed", () => {
     expect(hasBoxFeed(SCHEMA2_FEED)).toBe(true);
     expect(hasBoxFeed(null)).toBe(false);
     expect(hasBoxFeed(undefined)).toBe(false);
+  });
+});
+
+// GOL-1114 (ratified 2026-08-03): potted flips to farm-pickup-only exactly when
+// Box Engine v2 is live (its SHIPPABLE_TIERS drops potted + checkout blocks a
+// potted ship). Gating on the feed keeps the product page and checkout consistent
+// in BOTH backend generations — no "ships now" the checkout would block, and no
+// "pickup only" while the legacy backend still charges potted shipping.
+describe("isPickupOnly (potted = farm pickup only under Box Engine v2)", () => {
+  it("potted is pickup-only when the box feed is live", () => {
+    expect(isPickupOnly("potted", SCHEMA2_FEED)).toBe(true);
+  });
+  it("potted still ships on the legacy backend (no feed)", () => {
+    expect(isPickupOnly("potted", null)).toBe(false);
+    expect(isPickupOnly("potted", undefined)).toBe(false);
+  });
+  it("bareroot is always shippable, never pickup-only", () => {
+    expect(isPickupOnly("bareroot", SCHEMA2_FEED)).toBe(false);
+    expect(isPickupOnly("bareroot", null)).toBe(false);
   });
 });
