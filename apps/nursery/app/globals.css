@@ -184,6 +184,63 @@ h1 em, h2 em, h3 em {
 }
 .shop-empty__link:hover { color: var(--orange-deep); }
 
+/* Blog / journal empty + error states (GOL-1113). Replaces the programmer-
+   default bare <p> and raw-red Tailwind box. Both share a centred icon+text
+   layout; the two are told apart by ICON SHAPE + heading, so meaning survives
+   grayscale and colour-vision deficiencies (WCAG 1.4.1). Colour is a secondary
+   cue only: leaf-green for the friendly "coming soon" empty, plum for the
+   "something broke" error — plum is a brand palette role, distinct from the
+   orange used for links so the two never blur together. */
+.journal-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.25rem, 4vw, 2rem);
+  border-radius: 12px;
+  margin: 1rem 0 2rem;
+}
+.journal-state__icon {
+  width: clamp(40px, 6vw, 52px);
+  height: clamp(40px, 6vw, 52px);
+  margin-bottom: 0.3rem;
+}
+.journal-state__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-weight: 700;
+  color: var(--forest);
+  margin: 0;
+}
+.journal-state__body {
+  color: var(--grove-color-ink-soft);
+  max-width: 48ch;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin: 0;
+}
+.journal-state__link {
+  color: var(--orange-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+.journal-state__link:hover { color: var(--forest); }
+
+.journal-empty {
+  border: 1px dashed rgba(31, 63, 43, 0.28);
+  background: rgba(249, 243, 226, 0.6);
+}
+.journal-empty .journal-state__icon { color: var(--leaf-deep); }
+
+.journal-error {
+  border: 1px solid var(--grove-color-plum);
+  background: color-mix(in srgb, var(--grove-color-plum) 6%, transparent);
+}
+.journal-error .journal-state__icon { color: var(--grove-color-plum); }
+.journal-error .journal-state__title { color: var(--grove-color-plum-deep); }
+
 /* Panoramic hero */
 .pano-hero {
   position: relative;
