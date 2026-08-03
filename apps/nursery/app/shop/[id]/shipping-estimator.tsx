@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import type { ShippingTier } from "@grove/odoo-client";
+import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
   US_STATE_NAMES,
   ZONE_BY_STATE,
   ZONE_RATE_TABLE,
-  estimateShipping,
+  estimateTierShipping,
   shipsTo,
   type RateTable,
 } from "../../../lib/shipping-estimate";
@@ -21,6 +21,9 @@ export interface EstimatorTier {
   label: string;
   /** Fulfillment timing line, e.g. "Ships now" / "Reserve for October". */
   fulfillment: string;
+  /** True when this format is farm-pickup-only (no ship price) under Box Engine
+   *  v2 — see `isPickupOnly` (GOL-1114). Renders a pickup row, never a rate. */
+  pickupOnly?: boolean;
 }
 
 export interface ShippingEstimatorProps {
@@ -33,6 +36,9 @@ export interface ShippingEstimatorProps {
    *  (GOL-969), or the bundled snapshot when the feed is absent. Defaults to the
    *  snapshot so the component still works standalone (e.g. in tests). */
   rates?: RateTable;
+  /** Schema-2 Box Engine v2 feed (GOL-1114). When present, bareroot rows price
+   *  per packed box off this feed; potted stays on the tier-keyed `rates`. */
+  feed?: ShippingRateFeed | null;
 }
 
 /**
@@ -56,6 +62,7 @@ export function ShippingEstimator({
   onStateChange,
   tiers,
   rates = ZONE_RATE_TABLE,
+  feed,
 }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
@@ -124,8 +131,10 @@ export function ShippingEstimator({
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
-              {tiers.map(({ tier, label, fulfillment }) => {
-                const amount = estimateShipping(state, tier, rates);
+              {tiers.map(({ tier, label, fulfillment, pickupOnly }) => {
+                const amount = pickupOnly
+                  ? null
+                  : estimateTierShipping(state, tier, { feed, rates });
                 return (
                   <li
                     key={tier}
@@ -135,10 +144,21 @@ export function ShippingEstimator({
                       {label}
                       <span className="text-foreground/55"> · {fulfillment}</span>
                     </span>
-                    <span className="font-semibold text-foreground whitespace-nowrap">
-                      {amount != null ? `$${amount.toFixed(0)}` : "—"}
-                      <span className="font-normal text-foreground/55"> / tree</span>
-                    </span>
+                    {pickupOnly ? (
+                      // Potted has no shippable box (Box Engine v2) — it's picked
+                      // up free at the farm, so there is no per-state rate to show.
+                      // "Free" + the "Farm pickup only" line above carry the meaning
+                      // in words, never colour alone (a11y / colour-blind safe).
+                      <span className="font-semibold text-foreground whitespace-nowrap">
+                        Free
+                        <span className="font-normal text-foreground/55"> · pickup</span>
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-foreground whitespace-nowrap">
+                        {amount != null ? `$${amount.toFixed(0)}` : "—"}
+                        <span className="font-normal text-foreground/55"> / tree</span>
+                      </span>
+                    )}
                   </li>
                 );
               })}
