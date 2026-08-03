@@ -110,6 +110,10 @@ export interface ApiVariant {
   cultivar: string;
   /** Format axis value (e.g. "Potted", "Bareroot"), "" when absent. */
   format: string;
+  /** Rootstock / propagation axis value (e.g. "M.111", "Seedling"), "" or
+   *  absent when the product has no Rootstock attribute (GOL-1112). Optional so
+   *  payloads from an endpoint that predates the axis parse still validate. */
+  rootstock?: string;
   price: number;
   qty_available: number;
   /** Selection field: `false` only if the compute somehow yielded no tier. */
@@ -428,6 +432,9 @@ export interface ProductVariant {
   cultivar?: string | null;
   /** Format axis value (e.g. "Potted", "Bareroot"); null when absent. */
   format?: string | null;
+  /** Rootstock / propagation axis value (e.g. "M.111", "Seedling"); null when
+   *  the product has no Rootstock attribute (GOL-1112). */
+  rootstock?: string | null;
   /** Effective shipping tier — drives the Potted/Bareroot landed-cost delta. */
   shippingTier?: ShippingTier | null;
   /**

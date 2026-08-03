@@ -70,6 +70,7 @@ export const honeycrispDetail: ApiProductDetail = {
       sku: false,
       cultivar: "Honeycrisp",
       format: "Nursery Pot",
+      rootstock: "M.111",
       price: 38.0,
       qty_available: 5,
       shipping_tier: "potted",
