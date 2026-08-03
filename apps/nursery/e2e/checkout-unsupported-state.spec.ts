@@ -21,9 +21,12 @@ import {
  */
 test.describe("checkout — unsupported ship-to state", () => {
   test("server rejects an off-green-list state with a surfaced 400", async ({ page }) => {
-    const product = await findProductByCta(page, "Add to Cart");
+    // Only need *a* product in the cart to reach the checkout form + state gate
+    // (we never complete payment), so fall back to a bareroot Reserve item when
+    // QA has no in-stock "Add to Cart" product yet (GOL-1149).
+    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
     await page.goto(product.href);
-    await addCurrentProductToCart(page, 1, "Add to Cart");
+    await addCurrentProductToCart(page, 1, product.buyLabel);
 
     // Inject an unsupported state into the request the (constrained) UI would
     // never itself produce — proving the backend, not just the select, guards it.
