@@ -283,9 +283,44 @@ export interface ShippingPackingSpec {
   /** Minimum box length (in) a tree's height class can require: e.g. [16,20,32,46]. */
   length_classes: number[];
   modes: PackingMode[];
-  /** Dormant-packing window as [[startMonth, startDay], [endMonth, endDay]]. */
-  dormant_window: [[number, number], [number, number]];
 }
+
+/** A `[month, day]` pair (1-based), the calendar's date primitive. */
+export type MonthDay = [number, number];
+
+/** One USDA hardiness zone's two dormant-bareroot ship windows, each
+ * `[[startMonth, startDay], [endMonth, endDay]]`. Staggered per zone as the
+ * agronomy §5.3 data lands. */
+export interface ShippingCalendarZone {
+  fall: [MonthDay, MonthDay];
+  spring: [MonthDay, MonthDay];
+}
+
+/** The `calendar` block of the schema-2 feed (GOL-1172): the annual,
+ * admin-editable shipping calendar keyed to USDA **plant hardiness** zone
+ * (NOT the `zone_1..zone_5` distance zones in {@link ShippingRateFeed.zones}).
+ * One calendar shared by every species. Lets the client resolve
+ * `(date, usdaZone)` to exactly one {@link ShippableMode}. `zones` is keyed by
+ * the zone number as a string ("2".."10") — index with `String(usdaZone)`. */
+export interface ShippingCalendar {
+  /** Global preorder-open switch dates: fall opens Aug 15, spring opens Nov 1. */
+  preorder_open: { fall: MonthDay; spring: MonthDay };
+  /** Leafed / peat & bagged remainder (~May 6 → Aug 14), ships on the normal
+   * `fulfillment_days` policy. Informational for labelling. */
+  leafed_window: [MonthDay, MonthDay];
+  /** Normal processing SLA (business days) for peat & bagged and the
+   * shipped-past-your-zone fallback, e.g. [5, 10]. */
+  fulfillment_days: [number, number];
+  zones: Record<string, ShippingCalendarZone>;
+}
+
+/** The single shippable mode a client resolves a `(date, usdaZone)` to against
+ * {@link ShippingCalendar} (GOL-1114 three-mode labels):
+ *  - `bareroot-preorder` — preorder is open, the zone's wave ships in future;
+ *  - `bareroot-in-window` — today is inside the zone's dormant ship wave;
+ *  - `peat-and-bagged` — leafed season OR the order was placed after the
+ *    zone's wave already shipped; ships now on `fulfillment_days`. */
+export type ShippableMode = "bareroot-preorder" | "bareroot-in-window" | "peat-and-bagged";
 
 /** Schema-2 rate feed from GET /grove/api/v1/shipping/rates — grove_headless
  * `rate_feed()` after Box Engine v2 (grove-odoo-modules #60). A read-only,
@@ -300,6 +335,9 @@ export interface ShippingRateFeed {
   zone_by_state: Record<string, string>;
   green_states: string[];
   packing: ShippingPackingSpec;
+  /** Per-USDA-zone twice-yearly ship calendar (GOL-1172). Replaces the old
+   * single global `dormant_window`. */
+  calendar: ShippingCalendar;
 }
 
 /** Cart line from /grove/api/v1/cart. */
