@@ -121,7 +121,8 @@ describe("POST /api/newsletter/subscribe", () => {
     process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
     process.env.ODOO_URL = "https://odoo.test";
     process.env.ODOO_API_KEY = "key-123";
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      void init;
       if (url.includes("/grove/api/v1/newsletter/subscribe")) {
         return new Response(JSON.stringify({ partner_id: 7 }), {
           status: 200,
@@ -140,11 +141,11 @@ describe("POST /api/newsletter/subscribe", () => {
       String(c[0]).includes("/grove/api/v1/newsletter/subscribe"),
     );
     expect(odooCall).toBeDefined();
-    const [, init] = odooCall!;
-    const headers = (init as RequestInit).headers as Record<string, string>;
+    const init = odooCall![1];
+    const headers = init.headers as Record<string, string>;
     expect(headers["X-Grove-Tenant"]).toBe("hub");
     expect(headers["Authorization"]).toBe("Bearer key-123");
-    const body = JSON.parse(String((init as RequestInit).body));
+    const body = JSON.parse(String(init.body));
     expect(body).toMatchObject({ brand: "nursery", consent: true });
   });
 
