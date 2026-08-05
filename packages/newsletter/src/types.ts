@@ -109,6 +109,13 @@ export interface OptInResult {
    * (grove/ggg) so a second write would be redundant.
    */
   hub: SyncOutcome;
+  /**
+   * Best-effort sync of the opt-in into Odoo CRM (a tagged `res.partner`) for
+   * order/lead attribution. `skipped` when Odoo isn't configured for the app or
+   * the primary brand write failed (we only record confirmed opt-ins). Its
+   * failure never blocks the opt-in.
+   */
+  odoo: SyncOutcome;
 }
 
 /**
