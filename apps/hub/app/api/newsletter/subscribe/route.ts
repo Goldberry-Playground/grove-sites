@@ -4,11 +4,14 @@ import {
   validateOptIn,
   resolveGhostConfig,
   ghostCaptureDeps,
+  resolveOdooCrmConfig,
+  createOdooCrmSync,
   OptInValidationError,
   type Brand,
   type Interest,
   type OptInSource,
 } from "@grove/newsletter";
+import { tenantConfig } from "../../../../tenant.config";
 
 /**
  * Newsletter opt-in capture — Ghost-native (GOL-245 / GOL-249).
@@ -79,6 +82,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // Best-effort Odoo CRM sync (GOL-466): record a confirmed opt-in as a tagged
+  // res.partner for order attribution. Null when Odoo isn't wired — the opt-in
+  // still succeeds against Ghost; the CRM leg just reports `skipped`.
+  const odooTarget = resolveOdooCrmConfig(tenantConfig.tenantId);
+  deps.odoo = odooTarget ? createOdooCrmSync(odooTarget) : null;
+
   const result = await captureOptIn(request, deps);
 
   if (!result.ok) {
@@ -95,5 +104,6 @@ export async function POST(req: Request) {
     ok: true,
     subscriberId: result.brand.id ?? null,
     hubSynced: result.hub.skipped ? null : result.hub.ok,
+    crmSynced: result.odoo.skipped ? null : result.odoo.ok,
   });
 }
