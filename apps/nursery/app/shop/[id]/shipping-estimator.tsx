@@ -24,6 +24,10 @@ export interface EstimatorTier {
   /** True when this format is farm-pickup-only (no ship price) under Box Engine
    *  v2 — see `isPickupOnly` (GOL-1114). Renders a pickup row, never a rate. */
   pickupOnly?: boolean;
+  /** Short mode badge for a shippable format ("Preorder" / "Peat & bagged"), or
+   *  null when it just ships in season (GOL-1114). Words + a bordered chip, never
+   *  colour alone. */
+  badge?: string | null;
 }
 
 export interface ShippingEstimatorProps {
@@ -131,7 +135,7 @@ export function ShippingEstimator({
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
-              {tiers.map(({ tier, label, fulfillment, pickupOnly }) => {
+              {tiers.map(({ tier, label, fulfillment, pickupOnly, badge }) => {
                 const amount = pickupOnly
                   ? null
                   : estimateTierShipping(state, tier, { feed, rates });
@@ -142,6 +146,11 @@ export function ShippingEstimator({
                   >
                     <span className="text-foreground">
                       {label}
+                      {badge && (
+                        <span className="ml-1.5 rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium align-middle text-foreground">
+                          {badge}
+                        </span>
+                      )}
                       <span className="text-foreground/55"> · {fulfillment}</span>
                     </span>
                     {pickupOnly ? (

@@ -30,6 +30,10 @@ export type {
   ShippingBoxSpec,
   ShippingPackingSpec,
   ShippingRateFeed,
+  MonthDay,
+  ShippingCalendarZone,
+  ShippingCalendar,
+  ShippableMode,
 } from "./types";
 export { createOdooClient, OdooApiError } from "./client";
 export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
