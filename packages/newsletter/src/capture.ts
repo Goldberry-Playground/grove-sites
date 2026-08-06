@@ -65,6 +65,12 @@ export interface CaptureDeps {
    * the hub (grove/ggg).
    */
   hub?: NewsletterProvider | null;
+  /**
+   * Best-effort Odoo CRM sync. When present, a successful brand opt-in is also
+   * recorded as a tagged `res.partner` for attribution. Null when Odoo isn't
+   * wired for the app. Never blocks the opt-in.
+   */
+  odoo?: NewsletterProvider | null;
 }
 
 const NOT_CONFIGURED: SyncOutcome = {
@@ -102,7 +108,14 @@ export async function captureOptIn(
     hub = await deps.hub.subscribe(request);
   }
 
-  return { ok: brand.ok, brand, hub };
+  // CRM sync is best-effort and only fires for a confirmed opt-in — a failed
+  // brand write returns 502 to the visitor, so we must not record them in CRM.
+  let odoo: SyncOutcome = { ok: false, skipped: true };
+  if (brand.ok && deps.odoo) {
+    odoo = await deps.odoo.subscribe(request);
+  }
+
+  return { ok: brand.ok, brand, hub, odoo };
 }
 
 /**

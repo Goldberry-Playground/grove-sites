@@ -24,6 +24,10 @@ const validBody = {
 function clearEnv() {
   delete process.env.GHOST_NEWSLETTER_INSTANCES;
   delete process.env.GHOST_URL;
+  // Keep the Odoo CRM leg off unless a test opts in, so `crmSynced` is
+  // deterministically null and the Ghost-only call count holds.
+  delete process.env.ODOO_URL;
+  delete process.env.ODOO_API_KEY;
 }
 
 describe("POST /api/newsletter/subscribe", () => {
@@ -67,6 +71,7 @@ describe("POST /api/newsletter/subscribe", () => {
       ok: true,
       subscriberId: null,
       hubSynced: null,
+      crmSynced: null,
     });
 
     // Exactly one Ghost write, to the nursery instance, with the form label.
@@ -89,6 +94,7 @@ describe("POST /api/newsletter/subscribe", () => {
       ok: true,
       subscriberId: null,
       hubSynced: true,
+      crmSynced: null,
     });
 
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
@@ -109,6 +115,38 @@ describe("POST /api/newsletter/subscribe", () => {
     const res = await POST(post({ ...validBody, hubOptIn: true }));
     expect(res.status).toBe(200);
     expect((await res.json()).hubSynced).toBe(false);
+  });
+
+  it("syncs the opt-in to Odoo CRM and reports crmSynced when Odoo is wired", async () => {
+    process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
+    process.env.ODOO_URL = "https://odoo.test";
+    process.env.ODOO_API_KEY = "key-123";
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      void init;
+      if (url.includes("/grove/api/v1/newsletter/subscribe")) {
+        return new Response(JSON.stringify({ partner_id: 7 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("Created.", { status: 201 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await POST(post(validBody));
+    expect(res.status).toBe(200);
+    expect((await res.json()).crmSynced).toBe(true);
+
+    const odooCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("/grove/api/v1/newsletter/subscribe"),
+    );
+    expect(odooCall).toBeDefined();
+    const init = odooCall![1];
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-Grove-Tenant"]).toBe("hub");
+    expect(headers["Authorization"]).toBe("Bearer key-123");
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({ brand: "nursery", consent: true });
   });
 
   it("returns 502 when the brand write fails", async () => {

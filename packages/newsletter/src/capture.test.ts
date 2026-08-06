@@ -58,16 +58,48 @@ const okHub: NewsletterProvider = {
 const failHub: NewsletterProvider = {
   subscribe: vi.fn().mockResolvedValue({ ok: false, error: "hub down" }),
 };
+const okOdoo: NewsletterProvider = {
+  subscribe: vi.fn().mockResolvedValue({ ok: true, id: "42" }),
+};
+const failOdoo: NewsletterProvider = {
+  subscribe: vi.fn().mockResolvedValue({ ok: false, error: "odoo 500" }),
+};
 
 describe("captureOptIn", () => {
   const req = validateOptIn(valid);
   const reqHub = validateOptIn({ ...valid, hubOptIn: true });
 
-  it("succeeds when the brand write succeeds; hub skipped without opt-in", async () => {
+  it("succeeds when the brand write succeeds; hub + odoo skipped when absent", async () => {
     const res = await captureOptIn(req, { brand: okBrand, hub: okHub });
     expect(res.ok).toBe(true);
     expect(res.brand.ok).toBe(true);
     expect(res.hub.skipped).toBe(true);
+    expect(res.odoo.skipped).toBe(true);
+  });
+
+  it("syncs to Odoo CRM on a successful brand write", async () => {
+    const res = await captureOptIn(req, { brand: okBrand, odoo: okOdoo });
+    expect(res.ok).toBe(true);
+    expect(res.odoo.ok).toBe(true);
+    expect(res.odoo.id).toBe("42");
+    expect(okOdoo.subscribe).toHaveBeenCalledWith(req);
+  });
+
+  it("stays ok when only the Odoo CRM sync fails (best-effort)", async () => {
+    const res = await captureOptIn(req, { brand: okBrand, odoo: failOdoo });
+    expect(res.ok).toBe(true);
+    expect(res.odoo.ok).toBe(false);
+    expect(res.odoo.error).toBe("odoo 500");
+  });
+
+  it("does not sync to Odoo when the brand write fails", async () => {
+    const odoo: NewsletterProvider = {
+      subscribe: vi.fn().mockResolvedValue({ ok: true, id: "42" }),
+    };
+    const res = await captureOptIn(req, { brand: failBrand, odoo });
+    expect(res.ok).toBe(false);
+    expect(res.odoo.skipped).toBe(true);
+    expect(odoo.subscribe).not.toHaveBeenCalled();
   });
 
   it("dual-writes to the hub on explicit hub opt-in", async () => {

@@ -20,6 +20,11 @@ export {
 
 export { createGhostNewsletterProvider } from "./ghost";
 export {
+  createOdooCrmSync,
+  resolveOdooCrmConfig,
+  type OdooCrmTarget,
+} from "./odoo";
+export {
   captureOptIn,
   validateOptIn,
   ghostCaptureDeps,
