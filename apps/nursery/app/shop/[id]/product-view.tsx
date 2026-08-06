@@ -22,6 +22,13 @@ import {
   shipsTo,
   tierFor,
 } from "../../../lib/shipping-estimate";
+import {
+  resolveShippableMode,
+  barerootBadge,
+  barerootTimingShort,
+  barerootNote,
+  type FulfillmentResolution,
+} from "../../../lib/fulfillment-mode";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import { PolicyLink } from "./policy-link";
@@ -117,6 +124,18 @@ export function ProductView({
   // panel below price against the same table.
   const rateTable = useMemo(() => resolveRateTable(shippingRates), [shippingRates]);
 
+  // Which of the three shippable modes bareroot is in TODAY (GOL-1114). Resolved
+  // from the schema-2 feed's per-USDA-zone calendar (GOL-1172/1177) against the
+  // current date: preorder (deposit now) / ships-now / peat & bagged. Null on the
+  // legacy backend (no calendar) — bareroot then keeps its static hint, so the
+  // page and checkout stay consistent in both backend generations. Zone-agnostic
+  // at the storefront (the season's mode); checkout re-resolves to the shopper's
+  // exact USDA zone, which is the authoritative charge and ship window.
+  const shipMode = useMemo<FulfillmentResolution | null>(
+    () => (shippingFeed?.calendar ? resolveShippableMode(new Date(), shippingFeed.calendar) : null),
+    [shippingFeed],
+  );
+
   // Distinct shipping tiers this product offers, for the state estimator.
   const estimatorTiers = useMemo<EstimatorTier[]>(() => {
     const seen = new Set<ShippingTier>();
@@ -128,16 +147,23 @@ export function ProductView({
       seen.add(tier);
       const pickupOnly = isPickupOnly(tier, shippingFeed);
       const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
+      // Bareroot's timing is date-driven when the calendar feed is live; potted
+      // stays pickup-only; the legacy backend keeps the static hint.
+      const fulfillment = pickupOnly
+        ? PICKUP_ONLY_FULFILLMENT
+        : tier === "bareroot" && shipMode
+          ? barerootTimingShort(shipMode)
+          : hint.fulfillment;
       out.push({
         tier,
         label: TIER_LABEL[tier],
-        // Pickup-only formats show the pickup line, not a "Ships now" timing.
-        fulfillment: pickupOnly ? PICKUP_ONLY_FULFILLMENT : hint.fulfillment,
+        fulfillment,
         pickupOnly,
+        badge: tier === "bareroot" && shipMode ? barerootBadge(shipMode) : null,
       });
     }
     return out;
-  }, [formats, variants, cultivar, shippingFeed]);
+  }, [formats, variants, cultivar, shippingFeed, shipMode]);
 
   const selected = pickVariant(variants, { cultivar, format, rootstock });
   const price = selected?.price ?? fallbackPrice;
@@ -299,9 +325,15 @@ export function ProductView({
                       : shipState && !shipsTo(shipState)
                         ? `not shipping to ${shipState} yet`
                         : `ships from ~$${fHint.fromShipping}`;
+                  // Bareroot's timing follows today's shippable mode when the
+                  // calendar feed is live (GOL-1114); potted stays pickup-only.
                   const fFulfillment = fPickupOnly
                     ? PICKUP_ONLY_FULFILLMENT
-                    : fHint.fulfillment;
+                    : fTier === "bareroot" && shipMode
+                      ? barerootTimingShort(shipMode)
+                      : fHint.fulfillment;
+                  const fBadge =
+                    fTier === "bareroot" && shipMode ? barerootBadge(shipMode) : null;
                   const isActive = f === format;
                   return (
                     <button
@@ -315,7 +347,14 @@ export function ProductView({
                           : "border-primary/15 hover:border-primary/40"
                       }`}
                     >
-                      <span className="block font-medium text-foreground">{f}</span>
+                      <span className="flex items-center gap-1.5 font-medium text-foreground">
+                        {f}
+                        {fBadge && (
+                          <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
+                            {fBadge}
+                          </span>
+                        )}
+                      </span>
                       <span className="block text-xs text-ink-soft">
                         {[
                           fVariant ? `$${fVariant.price.toFixed(2)}` : null,
@@ -397,7 +436,32 @@ export function ProductView({
             <span className={STOCK_TONE_CLASS[buy.stockTone]}>{buy.stockLabel}</span>
           </p>
 
-          {buy.showDepositNote && (
+          {/* Bareroot fulfillment note, driven by today's shippable mode
+              (GOL-1114): preorder + 25% deposit / ships-now / peat & bagged.
+              Ratified copy (GOL-1173). Icon + words, never colour alone. The
+              legacy backend (no calendar feed → shipMode null) keeps the old
+              stock-driven deposit note below. */}
+          {shipMode && selectedTier === "bareroot" && !selectedPickupOnly && (
+            <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 fill-secondary"
+              >
+                <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6L12 11.5 5.5 7.9 12 4.3ZM5 9.6l6 3.3v6.2l-6-3.3V9.6Zm14 0v6.2l-6 3.3v-6.2l6-3.3Z" />
+              </svg>
+              <span>
+                {barerootBadge(shipMode) && (
+                  <strong className="font-semibold text-foreground">
+                    {barerootBadge(shipMode)}.
+                  </strong>
+                )}{" "}
+                {barerootNote(shipMode)}
+              </span>
+            </p>
+          )}
+
+          {buy.showDepositNote && !shipMode && (
             <p className="text-xs text-ink-soft mb-4">
               Bareroot ships in fall — reserve now with a $10 deposit applied to your total.
             </p>

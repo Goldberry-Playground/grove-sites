@@ -1,24 +1,33 @@
+import type {
+  ShippableMode,
+  ShippingCalendar,
+  ShippingCalendarZone,
+  MonthDay,
+} from "@grove/odoo-client";
+
 /**
- * Three-mode shippable-fulfillment resolver (GOL-1114).
+ * Three-mode shippable-fulfillment resolver + label copy (GOL-1114).
  *
  * Pure `date + zone-calendar → shippable mode` state machine for the finalized
  * Box Engine fulfillment model (issue doc `box-fulfillment-model` rev 2, ratified
- * by Josh 2026-08-04). A shippable tree shows EXACTLY ONE mode at a time; the
- * mode is decided by the date and the shopper's USDA-hardiness-zone calendar.
+ * by Josh 2026-08-04). A shippable (bareroot-capable) tree shows EXACTLY ONE mode
+ * at a time; the mode is decided by today's date against the schema-2 feed's
+ * per-USDA-zone shipping calendar (GOL-1172/1177, both landed).
  *
  * ── Ownership boundary ──────────────────────────────────────────────────────
- * This module owns only the *logic* (which of the three modes applies on a given
- * date). The window BOUNDARIES are backend data owned by GOL-1172: a per-USDA-
- * zone, annually-editable calendar that replaces the single global
- * `dormant_window` in the schema-2 feed. {@link ZoneShippingCalendar} is the
- * stable client-side shape this resolver reads; only its numbers change per zone
- * and per year. Keeping the values out of here means a calendar edit is a data
- * change, never a code change — and this resolver never needs to be rebuilt for
- * a new season.
+ * This module owns only the *logic* (which of the three modes applies) and the
+ * ratified customer *copy*. The window BOUNDARIES are backend data: the
+ * {@link ShippingCalendar} block of the schema-2 rate feed — a per-USDA-zone,
+ * annually-editable calendar that replaced the single global `dormant_window`.
+ * A calendar edit is therefore a data change, never a code change here, and this
+ * resolver never needs rebuilding for a new season.
  *
- * Potted is out of scope here: potted is farm-pickup-only always (no shippable
- * box by design — see `isPickupOnly` in `shipping-estimate.ts`). This resolver
- * is only asked about a SHIPPABLE (bareroot-capable) product.
+ * The customer-facing wording (deposit %, preorder sublines) is the ratified
+ * GOL-1173 copy (doc `preorder-deposit-copy`, Josh/Abigail sign-off 2026-08-06).
+ *
+ * Potted is out of scope: potted is farm-pickup-only always (no shippable box by
+ * design — see `isPickupOnly` in `shipping-estimate.ts`). Only ask this resolver
+ * about a bareroot-capable product.
  *
  * The calendar a single shippable tree walks through (doc §2):
  *   Jan 1  → May 5   spring bareroot ships now      (in the zone's spring window)
@@ -27,65 +36,33 @@
  *   Sep 15 → Oct 30  fall bareroot ships now         (in the zone's fall window)
  *   Oct 31           past the fall window            → peat & bagged fallback
  *   Nov 1  → Dec 31  spring bareroot PREORDER         (deposit now; ships spring)
- * (default fall window ~Sep 15 → Oct 30; spring Jan 1 → May 5 — staggered per
- *  zone by GOL-1172. Global preorder switches: fall Aug 15, spring Nov 1.)
+ * (window endpoints stagger per zone — GOL-1172. Global preorder switches:
+ *  fall Aug 15, spring Nov 1.)
  */
 
-/** The shippable mode a bareroot-capable tree shows on a given date/zone. */
-export type ShippableMode =
-  | "bareroot-preorder" // deposit taken now; ships in the zone's next window
-  | "bareroot-in-window" // dormant; ships now, inside the zone's window
-  | "peat-and-bagged"; // leafed; 4/box; normal 5–10 business-day processing
+export type { ShippableMode };
 
-/** A `[month, day]` pair, month 1-based — mirrors the feed's `dormant_window`
- *  wire shape so the backend calendar (GOL-1172) drops in unchanged. */
-export type MonthDay = [number, number];
-
-/**
- * Per-USDA-zone shipping calendar. VALUES are owned by the backend (GOL-1172):
- * a per-zone, annually-editable calendar. This is only the client-side *shape*
- * the resolver reads. Defaults documented for reference; the live feed supplies
- * the real per-zone numbers.
- */
-export interface ZoneShippingCalendar {
-  /** Global fall preorder-open switch. Default `[8, 15]` (Aug 15). */
-  fallPreorderOpen: MonthDay;
-  /** This zone's fall bareroot ship window. Default `[[9, 15], [10, 30]]`. */
-  fallShipWindow: [MonthDay, MonthDay];
-  /** Global spring preorder-open switch. Default `[11, 1]` (Nov 1). */
-  springPreorderOpen: MonthDay;
-  /** This zone's spring bareroot ship window. Default `[[1, 1], [5, 5]]`. */
-  springShipWindow: [MonthDay, MonthDay];
-}
-
-/** Reference default calendar (doc §2). The backend feed overrides this per zone
- *  — never hardcode a season in a component; read the zone's calendar. */
-export const DEFAULT_ZONE_CALENDAR: ZoneShippingCalendar = {
-  fallPreorderOpen: [8, 15],
-  fallShipWindow: [
-    [9, 15],
-    [10, 30],
-  ],
-  springPreorderOpen: [11, 1],
-  springShipWindow: [
-    [1, 1],
-    [5, 5],
-  ],
-};
+/** Ratified preorder deposit (GOL-1173, Josh 2026-08-06): 25% charged when the
+ *  preorder window opens; the 75% balance is charged to the saved card when the
+ *  tree ships in the shopper's zone window. Single source of the storefront %. */
+export const PREORDER_DEPOSIT_PCT = 25;
 
 export interface FulfillmentResolution {
+  /** The single mode a bareroot-capable tree shows today. */
   mode: ShippableMode;
-  /** True only for `bareroot-preorder` — a deposit is taken now (amount owned by
-   *  Finance/CMO, GOL-1173). The label/checkout layer reads this flag. */
+  /** True only for `bareroot-preorder` — a deposit is taken now (amount above). */
   depositNow: boolean;
-  /** Which seasonal window a preorder will ship in, else `null`. Drives the
-   *  "ships in your <season> window" timing line; exact copy owned by GOL-1173. */
+  /** Which season a preorder ships in, else `null`. Drives the "ships this
+   *  <season>" copy. */
   preorderSeason: "fall" | "spring" | null;
+  /** Normal processing SLA (business days) for peat & bagged and the
+   *  shipped-past-your-zone fallback, from `calendar.fulfillment_days`. */
+  fulfillmentDays: [number, number];
 }
 
-/** Monotonic within-year key for a `[month, day]`: `0101`..`1231`. Calendar
- *  granularity is day-level and leap-day-agnostic (the backend owns exact ship
- *  weeks); this ordering is all the mode boundaries need. */
+/** Monotonic within-year key for a `[month, day]`: `0101`..`1231`. Day-level and
+ *  leap-day-agnostic (the backend owns exact ship weeks); this ordering is all
+ *  the mode boundaries need. */
 function ord(md: MonthDay): number {
   return md[0] * 100 + md[1];
 }
@@ -97,51 +74,148 @@ export function monthDayOf(date: Date): MonthDay {
 }
 
 /** Inclusive `[start, end]` membership within a single calendar year (no wrap —
- *  all four default windows are within-year). */
+ *  all four windows are within-year). */
 function inWindow(d: number, window: [MonthDay, MonthDay]): boolean {
   return d >= ord(window[0]) && d <= ord(window[1]);
+}
+
+/** Reference default windows (doc §2), used only when the feed carries no zones
+ *  at all — never hardcode a season in a component; read the zone's calendar. */
+const DEFAULT_WINDOWS: ShippingCalendarZone = {
+  fall: [
+    [9, 15],
+    [10, 30],
+  ],
+  spring: [
+    [1, 1],
+    [5, 5],
+  ],
+};
+
+/** Widest span [earliest start, latest end] across a set of windows. */
+function unionWindow(windows: [MonthDay, MonthDay][]): [MonthDay, MonthDay] {
+  let start = windows[0][0];
+  let end = windows[0][1];
+  for (const [s, e] of windows) {
+    if (ord(s) < ord(start)) start = s;
+    if (ord(e) > ord(end)) end = e;
+  }
+  return [start, end];
+}
+
+/**
+ * The fall/spring ship windows to resolve against.
+ *
+ * When the shopper's USDA hardiness zone is known, use that zone's exact windows
+ * (fully correct). When it is unknown — the common storefront case, since the
+ * product page collects a *distance* state for pricing, not a USDA zone — fall
+ * back to the UNION of every zone's windows: the season's overall shippable span.
+ * That is the honest storefront default ("bareroot ships this season"); checkout
+ * re-resolves to the shopper's exact zone, which is the authoritative charge.
+ */
+function windowsFor(
+  calendar: ShippingCalendar,
+  usdaZone: number | null | undefined,
+): ShippingCalendarZone {
+  const exact =
+    usdaZone != null ? calendar.zones?.[String(usdaZone)] : undefined;
+  if (exact) return exact;
+
+  const zones = Object.values(calendar.zones ?? {});
+  if (zones.length === 0) return DEFAULT_WINDOWS;
+  return {
+    fall: unionWindow(zones.map((z) => z.fall)),
+    spring: unionWindow(zones.map((z) => z.spring)),
+  };
 }
 
 /**
  * Resolve the single shippable mode for `date` under a zone's `calendar`.
  *
- * Priority mirrors the doc timeline: an in-window ("ships now") state wins over
- * a preorder state, and anything not claimed by a bareroot cycle falls through
- * to peat & bagged. That fall-through is deliberate — it covers both the
- * summer leafed window (May 6 → Aug 14) AND the post-window gap (Oct 31, after
- * the fall window has shipped but before spring preorder opens), which is Josh's
+ * Priority mirrors the doc timeline: an in-window ("ships now") state wins over a
+ * preorder state, and anything not claimed by a bareroot cycle falls through to
+ * peat & bagged. That fall-through is deliberate — it covers both the summer
+ * leafed window (May 6 → Aug 14) AND the post-window gap (e.g. Oct 31, after the
+ * fall window has shipped but before spring preorder opens), which is Josh's
  * "shipped-past-your-zone → normal 5–10 business-day fallback, never held as
  * preorder" rule (doc §2 edge case). So there are never dead months.
  */
 export function resolveShippableMode(
   date: Date,
-  calendar: ZoneShippingCalendar = DEFAULT_ZONE_CALENDAR,
+  calendar: ShippingCalendar,
+  usdaZone?: number | null,
 ): FulfillmentResolution {
   const d = ord(monthDayOf(date));
+  const { fall, spring } = windowsFor(calendar, usdaZone);
+  const fulfillmentDays = calendar.fulfillment_days ?? [5, 10];
 
   // 1. In a bareroot ship window → ships now (wins over any preorder).
-  if (inWindow(d, calendar.springShipWindow)) {
-    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null };
+  if (inWindow(d, spring)) {
+    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, fulfillmentDays };
   }
-  if (inWindow(d, calendar.fallShipWindow)) {
-    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null };
+  if (inWindow(d, fall)) {
+    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, fulfillmentDays };
   }
 
   // 2. Fall preorder: from the Aug 15 switch up to (not into) the fall window.
-  if (d >= ord(calendar.fallPreorderOpen) && d < ord(calendar.fallShipWindow[0])) {
-    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "fall" };
+  if (d >= ord(calendar.preorder_open.fall) && d < ord(fall[0])) {
+    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "fall", fulfillmentDays };
   }
 
   // 3. Spring preorder: from the Nov 1 switch through year-end, then into Jan up
-  //    to (not into) the spring window. springPreorderOpen (Nov) > springShip
-  //    start (Jan), so the window wraps the year boundary.
-  const inSpringPreorder =
-    d >= ord(calendar.springPreorderOpen) || d < ord(calendar.springShipWindow[0]);
-  if (inSpringPreorder) {
-    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "spring" };
+  //    to (not into) the spring window. preorder_open.spring (Nov) > spring start
+  //    (Jan), so this window wraps the year boundary.
+  if (d >= ord(calendar.preorder_open.spring) || d < ord(spring[0])) {
+    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "spring", fulfillmentDays };
   }
 
   // 4. Everything else (summer leafed window + post-fall-window gap) → peat &
   //    bagged, the no-dead-months fallback on the normal 5–10 business-day policy.
-  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null };
+  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, fulfillmentDays };
+}
+
+// ── Customer-facing copy (GOL-1173 ratified; no em dashes, brand rule) ────────
+
+/** Short badge for a bareroot format, or `null` when it just ships in season
+ *  (an in-window bareroot needs no badge — "Ships now" carries it). */
+export function barerootBadge(res: FulfillmentResolution): string | null {
+  switch (res.mode) {
+    case "bareroot-preorder":
+      return "Preorder";
+    case "peat-and-bagged":
+      return "Peat & bagged";
+    default:
+      return null;
+  }
+}
+
+/** Compact timing line for the "Label · <timing>" card / estimator row. Always
+ *  paired with the label in words, never colour alone (a11y / colour-blind safe). */
+export function barerootTimingShort(res: FulfillmentResolution): string {
+  switch (res.mode) {
+    case "bareroot-preorder":
+      return `${PREORDER_DEPOSIT_PCT}% deposit · ships this ${res.preorderSeason}`;
+    case "bareroot-in-window":
+      return "Ships now";
+    case "peat-and-bagged":
+      return `Ships in ${res.fulfillmentDays[0]}–${res.fulfillmentDays[1]} business days`;
+  }
+}
+
+/**
+ * Full buy-box note for the selected bareroot format. The preorder wording is
+ * verbatim ratified GOL-1173 copy (doc `preorder-deposit-copy` §2); the in-window
+ * and peat & bagged lines are plain factual descriptions of the fulfillment we
+ * perform (no persuasive claims, no em dashes) and are safe to render without
+ * further brand sign-off.
+ */
+export function barerootNote(res: FulfillmentResolution): string {
+  switch (res.mode) {
+    case "bareroot-preorder":
+      return `Reserve now with a ${PREORDER_DEPOSIT_PCT}% deposit. We charge the rest when your tree ships this ${res.preorderSeason}, timed to your area.`;
+    case "bareroot-in-window":
+      return "It is bareroot season. We dig your trees fresh and ship them dormant, timed to your area.";
+    case "peat-and-bagged":
+      return `Shipping now as peat and bagged: leafed-out trees wrapped in damp peat, up to four per box, on our normal ${res.fulfillmentDays[0]} to ${res.fulfillmentDays[1]} business day timeline.`;
+  }
 }

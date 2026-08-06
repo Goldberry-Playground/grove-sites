@@ -1,28 +1,52 @@
 import { describe, it, expect } from "vitest";
+import type { ShippingCalendar } from "@grove/odoo-client";
 import {
   resolveShippableMode,
   monthDayOf,
-  DEFAULT_ZONE_CALENDAR,
+  barerootBadge,
+  barerootTimingShort,
+  barerootNote,
+  PREORDER_DEPOSIT_PCT,
   type ShippableMode,
-  type ZoneShippingCalendar,
 } from "./fulfillment-mode";
 
 // GOL-1114 — three-mode fulfillment resolver. Boundaries here are the doc §2
-// defaults (fall ship ~Sep 15 → Oct 30; spring Jan 1 → May 5; preorder switches
-// Aug 15 / Nov 1). The per-zone real numbers come from the backend (GOL-1172);
-// these tests pin the *logic* to the ratified timeline, so a calendar edit only
-// changes fixtures, never the state machine.
+// defaults (fall ship Sep 15 → Oct 30; spring Jan 1 → May 5; preorder switches
+// Aug 15 / Nov 1), expressed in the canonical schema-2 ShippingCalendar shape the
+// backend serves (GOL-1172/1177). These tests pin the *logic* to the ratified
+// timeline, so a calendar edit only changes fixtures, never the state machine.
+
+const CAL: ShippingCalendar = {
+  preorder_open: { fall: [8, 15], spring: [11, 1] },
+  leafed_window: [
+    [5, 6],
+    [8, 14],
+  ],
+  fulfillment_days: [5, 10],
+  zones: {
+    "6": {
+      fall: [
+        [9, 15],
+        [10, 30],
+      ],
+      spring: [
+        [1, 1],
+        [5, 5],
+      ],
+    },
+  },
+};
 
 /** Build a UTC date from a [month, day] so no local-timezone offset can shift
  *  which mode a boundary date resolves to. */
 const on = (month: number, day: number) => new Date(Date.UTC(2026, month - 1, day));
 const modeOn = (month: number, day: number): ShippableMode =>
-  resolveShippableMode(on(month, day)).mode;
+  resolveShippableMode(on(month, day), CAL).mode;
 
 describe("resolveShippableMode — the ratified timeline (doc §2)", () => {
   it("Jan 1 → May 5: spring bareroot ships now (in the zone window)", () => {
     for (const [m, d] of [[1, 1], [2, 14], [3, 20], [5, 5]] as const) {
-      const r = resolveShippableMode(on(m, d));
+      const r = resolveShippableMode(on(m, d), CAL);
       expect(r.mode).toBe("bareroot-in-window");
       expect(r.depositNow).toBe(false);
       expect(r.preorderSeason).toBeNull();
@@ -37,7 +61,7 @@ describe("resolveShippableMode — the ratified timeline (doc §2)", () => {
 
   it("Aug 15 → Sep 14: fall bareroot PREORDER, deposit taken now", () => {
     for (const [m, d] of [[8, 15], [8, 31], [9, 14]] as const) {
-      const r = resolveShippableMode(on(m, d));
+      const r = resolveShippableMode(on(m, d), CAL);
       expect(r.mode).toBe("bareroot-preorder");
       expect(r.depositNow).toBe(true);
       expect(r.preorderSeason).toBe("fall");
@@ -46,7 +70,7 @@ describe("resolveShippableMode — the ratified timeline (doc §2)", () => {
 
   it("Sep 15 → Oct 30: fall bareroot ships now (in the zone window)", () => {
     for (const [m, d] of [[9, 15], [10, 1], [10, 30]] as const) {
-      const r = resolveShippableMode(on(m, d));
+      const r = resolveShippableMode(on(m, d), CAL);
       expect(r.mode).toBe("bareroot-in-window");
       expect(r.depositNow).toBe(false);
     }
@@ -54,7 +78,7 @@ describe("resolveShippableMode — the ratified timeline (doc §2)", () => {
 
   it("Nov 1 → Dec 31: spring bareroot PREORDER, deposit taken now", () => {
     for (const [m, d] of [[11, 1], [12, 1], [12, 31]] as const) {
-      const r = resolveShippableMode(on(m, d));
+      const r = resolveShippableMode(on(m, d), CAL);
       expect(r.mode).toBe("bareroot-preorder");
       expect(r.depositNow).toBe(true);
       expect(r.preorderSeason).toBe("spring");
@@ -66,7 +90,7 @@ describe("resolveShippableMode — Josh's edge cases (no dead months)", () => {
   it("Oct 31 gap (fall shipped, spring preorder not yet open) → peat & bagged, NOT held as preorder", () => {
     // Josh: an order after the zone window has shipped falls back to normal
     // 5–10 business-day processing, never held as a preorder.
-    const r = resolveShippableMode(on(10, 31));
+    const r = resolveShippableMode(on(10, 31), CAL);
     expect(r.mode).toBe("peat-and-bagged");
     expect(r.depositNow).toBe(false);
     expect(r.preorderSeason).toBeNull();
@@ -77,7 +101,7 @@ describe("resolveShippableMode — Josh's edge cases (no dead months)", () => {
     const seen = new Set<ShippableMode>();
     for (let m = 1; m <= 12; m++) {
       for (let d = 1; d <= daysInMonth[m - 1]; d++) {
-        const r = resolveShippableMode(on(m, d));
+        const r = resolveShippableMode(on(m, d), CAL);
         expect(["bareroot-preorder", "bareroot-in-window", "peat-and-bagged"]).toContain(r.mode);
         // deposit is taken exactly when (and only when) it's a preorder
         expect(r.depositNow).toBe(r.mode === "bareroot-preorder");
@@ -106,25 +130,67 @@ describe("resolveShippableMode — Josh's edge cases (no dead months)", () => {
 describe("zone staggering — a later zone's ship window shifts the boundaries", () => {
   // A colder/farther zone ships later: fall window Oct 1 → Oct 30 instead of
   // Sep 15. Preorder should then extend to cover the later start, proving the
-  // logic reads the calendar rather than hardcoding a season.
-  const laterZone: ZoneShippingCalendar = {
-    ...DEFAULT_ZONE_CALENDAR,
-    fallShipWindow: [
-      [10, 1],
-      [10, 30],
-    ],
+  // logic reads the passed zone's calendar rather than hardcoding a season.
+  const laterZone = 3;
+  const STAGGERED: ShippingCalendar = {
+    ...CAL,
+    zones: {
+      ...CAL.zones,
+      "3": {
+        fall: [
+          [10, 1],
+          [10, 30],
+        ],
+        spring: [
+          [1, 1],
+          [5, 5],
+        ],
+      },
+    },
   };
 
-  it("Sep 20 is fall preorder for a later zone (its window has not opened yet)", () => {
-    const r = resolveShippableMode(on(9, 20), laterZone);
+  it("Sep 20 is fall preorder for the later zone (its window has not opened yet)", () => {
+    const r = resolveShippableMode(on(9, 20), STAGGERED, laterZone);
     expect(r.mode).toBe("bareroot-preorder");
     expect(r.preorderSeason).toBe("fall");
   });
 
-  it("Sep 20 is ships-now for the default zone (its window is already open)", () => {
-    expect(resolveShippableMode(on(9, 20), DEFAULT_ZONE_CALENDAR).mode).toBe(
-      "bareroot-in-window",
+  it("Sep 20 is ships-now for the earlier zone 6 (its window is already open)", () => {
+    expect(resolveShippableMode(on(9, 20), STAGGERED, 6).mode).toBe("bareroot-in-window");
+  });
+
+  it("zone unknown → union of all zone windows (season's overall span)", () => {
+    // Union fall span is Sep 15 → Oct 30 (zone 6 starts earliest). Sep 20 falls
+    // inside it, so the zone-agnostic storefront shows ships-now for the season.
+    expect(resolveShippableMode(on(9, 20), STAGGERED).mode).toBe("bareroot-in-window");
+  });
+});
+
+describe("customer-facing copy (GOL-1173 ratified; 25% deposit, no em dashes)", () => {
+  const preorder = resolveShippableMode(on(8, 20), CAL); // fall preorder
+  const inWindow = resolveShippableMode(on(10, 1), CAL); // ships now
+  const peat = resolveShippableMode(on(6, 15), CAL); // peat & bagged
+
+  it("badge names preorder / peat, and leaves in-window unbadged", () => {
+    expect(barerootBadge(preorder)).toBe("Preorder");
+    expect(barerootBadge(peat)).toBe("Peat & bagged");
+    expect(barerootBadge(inWindow)).toBeNull();
+  });
+
+  it("compact timing states the deposit %, ships-now, or the SLA", () => {
+    expect(barerootTimingShort(preorder)).toBe("25% deposit · ships this fall");
+    expect(barerootTimingShort(inWindow)).toBe("Ships now");
+    expect(barerootTimingShort(peat)).toBe("Ships in 5–10 business days");
+  });
+
+  it("preorder note is the ratified copy and never uses an em dash", () => {
+    const note = barerootNote(preorder);
+    expect(note).toBe(
+      `Reserve now with a ${PREORDER_DEPOSIT_PCT}% deposit. We charge the rest when your tree ships this fall, timed to your area.`,
     );
+    for (const note of [barerootNote(preorder), barerootNote(inWindow), barerootNote(peat)]) {
+      expect(note).not.toContain("—"); // brand rule: no em dashes
+    }
   });
 });
 
