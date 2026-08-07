@@ -229,3 +229,80 @@ describe("<CheckoutPage /> — state & country selects (GOL-1055)", () => {
     expect(body.shipping.country).toBe("US");
   });
 });
+
+describe("<CheckoutPage /> — fulfillment: ship vs farm pickup (GOL-1075)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    seedCart();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function mockMintedSession() {
+    return vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      textResponse(
+        200,
+        true,
+        JSON.stringify({
+          orderId: 1,
+          accessToken: "t",
+          checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_1",
+          amountDueToday: 1,
+          amountTotal: 1,
+          hasPreorder: false,
+          currency: "usd",
+        }),
+      ),
+    );
+  }
+
+  it("offers a Ship-to-me vs Farm-pickup choice, defaulting to ship", async () => {
+    await renderCheckout();
+    const ship = screen.getByRole("radio", {
+      name: /Ship to me/,
+    }) as HTMLInputElement;
+    const pickup = screen.getByRole("radio", {
+      name: /Farm pickup/,
+    }) as HTMLInputElement;
+    expect(ship.checked).toBe(true);
+    expect(pickup.checked).toBe(false);
+    // Ship default → the ship-to address is present.
+    expect(screen.queryByLabelText(/Street/)).not.toBeNull();
+  });
+
+  it("hides the ship-to address and sends fulfillment 'pickup' on farm pickup", async () => {
+    const fetchSpy = mockMintedSession();
+    const user = userEvent.setup();
+    await renderCheckout();
+
+    await user.click(screen.getByRole("radio", { name: /Farm pickup/ }));
+    // Address collapses — nothing to fill (or mis-fill) for a pickup order.
+    expect(screen.queryByLabelText(/Street/)).toBeNull();
+    expect(screen.queryByLabelText(/State/)).toBeNull();
+
+    await user.type(screen.getByLabelText(/Full name/), "Martin Westlund");
+    await user.type(screen.getByLabelText(/Email/), "buyer@example.com");
+    fireEvent.click(
+      document.querySelector<HTMLButtonElement>('button[type="submit"]')!,
+    );
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const body = JSON.parse(
+      (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.fulfillment).toBe("pickup");
+  });
+
+  it("sends fulfillment 'ship' when the buyer keeps the default", async () => {
+    const fetchSpy = mockMintedSession();
+    await renderCheckout();
+    await fillFormAndSubmit();
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const body = JSON.parse(
+      (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.fulfillment).toBe("ship");
+  });
+});

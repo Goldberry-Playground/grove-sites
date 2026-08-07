@@ -83,11 +83,11 @@ export function CheckoutPage({
           shipping: order.shipping,
           billing: null,
           paymentMethod: "card",
-          // The nursery form is ship-only today (a ship-to state is required),
-          // so assert the shipment explicitly — the server then rejects a
-          // missing state instead of settling it as a silent $0-ship pickup
-          // (GOL-1057). A pickup toggle sends "pickup" when it lands.
-          fulfillment: "ship",
+          // Ship vs farm pickup, from the buyer's Fulfillment choice (GOL-1075).
+          // On "ship" a valid ship-to state is required and the server prices a
+          // shipment; on "pickup" the address is relaxed and the server settles
+          // a $0-shipping WV pickup (WV tax applies).
+          fulfillment: order.fulfillment,
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
           successUrl: `${origin}/checkout/success`,
           cancelUrl: `${origin}/checkout/cancel`,
@@ -160,6 +160,7 @@ export function CheckoutPage({
         onPlaceOrder={createSession}
         shipStates={SHIP_TO_STATES}
         countries={SHIP_TO_COUNTRIES}
+        allowPickup
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
         submitLabel="Continue to payment →"

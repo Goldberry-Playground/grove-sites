@@ -23,11 +23,17 @@ export interface GroveCheckoutShipping {
   country: string;
 }
 
+/** How the order is handed to the buyer: shipped to their address, or picked up
+ *  at the nursery. Pickup is the one legitimate $0-shipping case. */
+export type GroveFulfillment = "ship" | "pickup";
+
 /** The order the shopper composed — handed to the app's `onPlaceOrder`. */
 export interface GroveCheckoutOrder {
   contact: GroveCheckoutContact;
   shipping: GroveCheckoutShipping;
   paymentMethod: string;
+  /** Ship-to-address vs farm pickup. `"ship"` when the pickup option is off. */
+  fulfillment: GroveFulfillment;
 }
 
 /** A selectable ship-to state or country: 2-letter `code` sent to the server,
@@ -99,6 +105,14 @@ export interface CheckoutPageProps {
   shipStates?: GroveShipToOption[];
   /** Supported ship-to countries. Rendered as a `<select>` (default: US only). */
   countries?: GroveShipToOption[];
+  /**
+   * Offer a Ship-to-me vs Farm-pickup choice. When true, a Fulfillment fieldset
+   * renders above the address; choosing pickup hides the ship-to fields and
+   * relaxes their required state, and the order reports `fulfillment: "pickup"`.
+   * Off by default — consumers without a pickup location keep the ship-only form
+   * and always report `"ship"`.
+   */
+  allowPickup?: boolean;
 }
 
 const DEFAULT_TRUST_ITEMS = [
@@ -135,9 +149,14 @@ export function CheckoutPage({
   cartHref = "/cart",
   shipStates,
   countries = DEFAULT_COUNTRIES,
+  allowPickup = false,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
+
+  const [fulfillment, setFulfillment] = useState<GroveFulfillment>("ship");
+  // Pickup collapses the ship-to address; ship keeps it required.
+  const isPickup = allowPickup && fulfillment === "pickup";
 
   const [contact, setContact] = useState<GroveCheckoutContact>({
     name: "",
@@ -196,7 +215,7 @@ export function CheckoutPage({
     setSubmitting(true);
     setError(null);
     try {
-      await onPlaceOrder({ contact, shipping, paymentMethod });
+      await onPlaceOrder({ contact, shipping, paymentMethod, fulfillment });
       // On success the app navigates away; keep the button in its submitting
       // state so it doesn't flash back to idle during the route transition.
     } catch (e) {
@@ -217,7 +236,8 @@ export function CheckoutPage({
         <div className="grove-checkout__banner-inner">
           <div>
             <div className="grove-checkout__banner-eyebrow">
-              {totalQuantity} {totalQuantity === 1 ? "item" : "items"} · ready to ship
+              {totalQuantity} {totalQuantity === 1 ? "item" : "items"} ·{" "}
+              {isPickup ? "farm pickup" : "ready to ship"}
             </div>
             <div className="grove-checkout__banner-total">
               {formatPrice(total)}
@@ -281,6 +301,46 @@ export function CheckoutPage({
               </div>
             </fieldset>
 
+            {allowPickup && (
+              /* Reuses the payment radio-card styles (__payments/__payment) —
+                 same visual pattern, no extra CSS against the 6 KB budget. */
+              <fieldset className="grove-checkout__fieldset">
+                <legend className="grove-checkout__legend">Fulfillment</legend>
+                <div
+                  className="grove-checkout__payments"
+                  role="radiogroup"
+                  aria-label="How to receive your order"
+                >
+                  <label className="grove-checkout__payment">
+                    <input
+                      type="radio"
+                      name="fulfillment"
+                      value="ship"
+                      checked={fulfillment === "ship"}
+                      onChange={() => setFulfillment("ship")}
+                    />
+                    <span>Ship to me — delivered to your address</span>
+                  </label>
+                  <label className="grove-checkout__payment">
+                    <input
+                      type="radio"
+                      name="fulfillment"
+                      value="pickup"
+                      checked={fulfillment === "pickup"}
+                      onChange={() => setFulfillment("pickup")}
+                    />
+                    <span>Farm pickup — collect at our WV nursery ($0 shipping)</span>
+                  </label>
+                </div>
+                <p className="grove-checkout__field-note grove-checkout__field-note--block">
+                  {isPickup
+                    ? "Pick up your order at our West Virginia nursery — no shipping charge. West Virginia sales tax applies. We'll email you when it's ready."
+                    : "We ship live trees to your address during the planting window for your growing zone."}
+                </p>
+              </fieldset>
+            )}
+
+            {!isPickup && (
             <fieldset className="grove-checkout__fieldset">
               <legend className="grove-checkout__legend">Shipping Address</legend>
               <div className="grove-checkout__fields">
@@ -349,6 +409,7 @@ export function CheckoutPage({
                 )}
               </div>
             </fieldset>
+            )}
 
             {!hidePaymentMethods && (
               <fieldset className="grove-checkout__fieldset">
