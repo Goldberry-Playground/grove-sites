@@ -1,5 +1,5 @@
 /* CheckoutPage form — token-mapped (TOKEN-MAP.md). Errors pair icon + text, never
- * color alone. Shell/banner/summary/CTA/error shared via CheckoutShared.css. */
+ * color alone. Shell/banner/summary/CTA/error via CheckoutShared.css. */
 
 .grove-checkout__title {
   font-family: var(--grove-font-display);
@@ -106,7 +106,7 @@
   border-color: var(--grove-color-error-solid);
 }
 
-/* State/Country selects — text-input box + chevron; padding-right clears glyph. */
+/* State/Country selects — input box + chevron; padding-right clears glyph. */
 .grove-checkout__select {
   appearance: none;
   -webkit-appearance: none;
@@ -117,7 +117,7 @@
   background-position: right var(--grove-space-3) center;
   cursor: pointer;
 }
-/* Unchosen state reads as a muted placeholder, matching text inputs. */
+/* Unchosen state reads as a muted placeholder, like text inputs. */
 .grove-checkout__select:required:invalid {
   color: var(--grove-color-ink-a50);
 }
@@ -125,11 +125,14 @@
   color: var(--grove-color-ink);
 }
 
-/* Small helper note under a field (e.g. the ship-to-states caption). */
+/* Helper note (ship-to caption, fulfillment note). ink-soft = AA; a60 fails. */
 .grove-checkout__field-note {
   margin: 0;
   font-size: var(--grove-text-sm);
-  color: var(--grove-color-ink-a60);
+  color: var(--grove-color-ink-soft);
+}
+.grove-checkout__field-note--block {
+  margin-top: var(--grove-space-3);
 }
 
 /* Payment */

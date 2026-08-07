@@ -39,6 +39,7 @@ export {
   CheckoutPage,
   type CheckoutPageProps,
   type GroveCheckoutOrder,
+  type GroveFulfillment,
   type GroveCheckoutContact,
   type GroveCheckoutShipping,
   type GroveCheckoutPaymentMethod,
