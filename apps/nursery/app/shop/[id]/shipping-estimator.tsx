@@ -47,9 +47,14 @@ export interface ShippingEstimatorProps {
 
 /**
  * "Estimate shipping to your state" (GOL-943). A native state selector that,
- * on selection, shows the per-tree estimate for each format this product ships
- * — or, for a state we don't reach yet, a plain-spoken "not there yet" with a
- * pickup + notify-me path (never a dead end, never a guessed charge).
+ * on selection, shows the per-box "from" estimate for each format this product
+ * ships — or, for a state we don't reach yet, a plain-spoken "not there yet"
+ * with a pickup + notify-me path (never a dead end, never a guessed charge).
+ *
+ * Box Engine v2 (GOL-1114/GOL-1208): shippable formats are priced PER PACKED
+ * BOX and consolidate into as few boxes as possible, so the amount shown is a
+ * "from $X" floor for one box — never a linear per-tree charge the engine won't
+ * honour. Copy mirrors vault `Software/Grove Shipping` "How your trees ship".
  *
  * State is lifted to the parent so the Format cards can echo the same number,
  * and remembered in localStorage so a returning shopper doesn't re-enter it.
@@ -57,7 +62,7 @@ export interface ShippingEstimatorProps {
  * Accessibility: the select is labelled; the result region is aria-live; every
  * eligibility state pairs an icon *and* words (colour is never the only signal —
  * colour-blind / grayscale safe). Primary copy clears WCAG AA on the parchment
- * surface; the muted "· timing" / "/ tree" / disclaimer suffixes use the house
+ * surface; the muted "· timing" / "from" / disclaimer suffixes use the house
  * `text-foreground/55`–`/60` convention (~3–4:1), tracked for the app-wide
  * muted-token sweep — they're supporting text, never the sole carrier of meaning.
  */
@@ -122,9 +127,9 @@ export function ShippingEstimator({
       <div aria-live="polite" className="mt-3">
         {state === "" && (
           <p className="text-xs text-foreground/60">
-            We ship living trees to {GREEN_STATE_COUNT} states — pick yours to see the
-            per-tree rate. Each tree ships in its own box; your exact rate is confirmed
-            at checkout.
+            We ship living trees to {GREEN_STATE_COUNT} states — pick yours to see your
+            rate. Your trees ship together in as few boxes as possible, priced per box;
+            your exact rate is confirmed at checkout.
           </p>
         )}
 
@@ -163,9 +168,18 @@ export function ShippingEstimator({
                         <span className="font-normal text-foreground/55"> · pickup</span>
                       </span>
                     ) : (
+                      // Box Engine v2 prices per packed box; trees consolidate
+                      // into as few boxes as possible, so this is a "from" floor
+                      // for one box, never a linear per-tree charge.
                       <span className="font-semibold text-foreground whitespace-nowrap">
-                        {amount != null ? `$${amount.toFixed(0)}` : "—"}
-                        <span className="font-normal text-foreground/55"> / tree</span>
+                        {amount != null ? (
+                          <>
+                            <span className="font-normal text-foreground/55">from </span>
+                            {`$${amount.toFixed(0)}`}
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </span>
                     )}
                   </li>
@@ -173,8 +187,8 @@ export function ShippingEstimator({
               })}
             </ul>
             <p className="mt-2 text-xs text-foreground/55">
-              Estimated UPS Ground, priced per tree. Your exact rate is confirmed at
-              checkout.
+              Estimated UPS Ground, priced per box — your trees ship together in as few
+              boxes as possible. Your exact rate is confirmed at checkout.
             </p>
           </div>
         )}
