@@ -19,6 +19,7 @@ import type {
   ApiShippingRatesResponse,
   ShippingRateTable,
   ShippingRateFeed,
+  ShippingCalendar,
   NewsletterSubscribeInput,
   NewsletterSubscribeResult,
   ApiNewsletterSubscribeResponse,
@@ -95,6 +96,31 @@ async function api<T>(
 
 // Normalizers live in ./normalizers — extracted there so they can be
 // unit-tested without the fetch wrapper.
+
+/** A `[month, day]` pair the calendar resolver can index into. */
+function isMonthDay(v: unknown): v is [number, number] {
+  return Array.isArray(v) && v.length === 2 && typeof v[0] === "number" && typeof v[1] === "number";
+}
+
+/**
+ * True only when the feed's `calendar` block carries every field the product
+ * page's mode resolver dereferences (GOL-1313). The backend always serializes
+ * these (`serialize_calendar`), so this guards against a hand-crafted or
+ * partially-migrated feed rather than the normal path — but the resolver reads
+ * `preorder_open.fall/.spring` unguarded, so a partial calendar must be rejected
+ * at the boundary (→ degrade to snapshot) before it reaches React.
+ */
+function isWellFormedCalendar(cal: ShippingCalendar | undefined | null): cal is ShippingCalendar {
+  return (
+    !!cal &&
+    typeof cal === "object" &&
+    !!cal.preorder_open &&
+    isMonthDay(cal.preorder_open.fall) &&
+    isMonthDay(cal.preorder_open.spring) &&
+    !!cal.zones &&
+    typeof cal.zones === "object"
+  );
+}
 
 
 // ── Client factory ──────────────────────────────────────────────────
@@ -228,12 +254,20 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           // feed (Odoo not yet upgraded) has no `packing` and tier-keyed zones,
           // an empty table means "not configured", and an unreachable feed throws
           // below — every case returns null so the caller keeps its snapshot.
+          //
+          // The `calendar` block is validated too (GOL-1313): the product page's
+          // mode resolver dereferences `calendar.preorder_open.fall/.spring`, so a
+          // schema-2 feed whose calendar is absent or partial would crash
+          // ProductView's useMemo. Reject it here and degrade to the snapshot
+          // (shipMode → null → the legacy static bareroot hint) rather than break
+          // every nursery product page.
           if (
             !raw ||
             (raw.schema ?? 1) < 2 ||
             !raw.packing ||
             !raw.zones ||
-            Object.keys(raw.zones).length === 0
+            Object.keys(raw.zones).length === 0 ||
+            !isWellFormedCalendar(raw.calendar)
           ) {
             return null;
           }

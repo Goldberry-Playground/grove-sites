@@ -294,6 +294,12 @@ export type MonthDay = [number, number];
 export interface ShippingCalendarZone {
   fall: [MonthDay, MonthDay];
   spring: [MonthDay, MonthDay];
+  /** Order-by deadline for the fall / spring dormant wave (GOL-1177). Serialized
+   * by the backend (`serialize_calendar`) as `[month, day]`, nullable when a
+   * zone override omits it. Surfaced in the buy box so a shopper knows the last
+   * day to reserve for their zone's window. */
+  fall_order_deadline?: MonthDay | null;
+  spring_order_deadline?: MonthDay | null;
 }
 
 /** The `calendar` block of the schema-2 feed (GOL-1172): the annual,
@@ -311,6 +317,14 @@ export interface ShippingCalendar {
   /** Normal processing SLA (business days) for peat & bagged and the
    * shipped-past-your-zone fallback, e.g. [5, 10]. */
   fulfillment_days: [number, number];
+  /** Ship windows are estimates, "weather permitting" (GOL-1177). `true` (the
+   * default) means every displayed window carries a weather-permitting qualifier.
+   * Serialized by the backend; treat a missing value as `true`. */
+  approximate?: boolean;
+  /** Admin-editable advisory the backend serializes when a known frost delay is
+   * in effect (GOL-1177) — the frontend renders it as a banner. `null` / absent
+   * when there is no active hold. */
+  weather_hold_note?: string | null;
   zones: Record<string, ShippingCalendarZone>;
 }
 

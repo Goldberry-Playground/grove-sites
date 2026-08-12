@@ -25,8 +25,8 @@ import {
 import {
   resolveShippableMode,
   barerootBadge,
-  barerootTimingShort,
   barerootNote,
+  tierFulfillment,
   type FulfillmentResolution,
 } from "../../../lib/fulfillment-mode";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
@@ -147,20 +147,16 @@ export function ProductView({
       seen.add(tier);
       const pickupOnly = isPickupOnly(tier, shippingFeed);
       const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
-      // Bareroot's timing is date-driven when the calendar feed is live; potted
-      // stays pickup-only; the legacy backend keeps the static hint.
-      const fulfillment = pickupOnly
-        ? PICKUP_ONLY_FULFILLMENT
-        : tier === "bareroot" && shipMode
-          ? barerootTimingShort(shipMode)
-          : hint.fulfillment;
-      out.push({
+      // Single presentation authority for tier timing + badge (GOL-1313), shared
+      // with the Format cards below so the two can never drift.
+      const { fulfillment, badge } = tierFulfillment({
         tier,
-        label: TIER_LABEL[tier],
-        fulfillment,
         pickupOnly,
-        badge: tier === "bareroot" && shipMode ? barerootBadge(shipMode) : null,
+        pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
+        hintFulfillment: hint.fulfillment,
+        shipMode,
       });
+      out.push({ tier, label: TIER_LABEL[tier], fulfillment, pickupOnly, badge });
     }
     return out;
   }, [formats, variants, cultivar, shippingFeed, shipMode]);
@@ -325,15 +321,15 @@ export function ProductView({
                       : shipState && !shipsTo(shipState)
                         ? `not shipping to ${shipState} yet`
                         : `ships from ~$${fHint.fromShipping}`;
-                  // Bareroot's timing follows today's shippable mode when the
-                  // calendar feed is live (GOL-1114); potted stays pickup-only.
-                  const fFulfillment = fPickupOnly
-                    ? PICKUP_ONLY_FULFILLMENT
-                    : fTier === "bareroot" && shipMode
-                      ? barerootTimingShort(shipMode)
-                      : fHint.fulfillment;
-                  const fBadge =
-                    fTier === "bareroot" && shipMode ? barerootBadge(shipMode) : null;
+                  // Same tier-presentation authority as the estimator rows above
+                  // (GOL-1313): bareroot follows today's mode, potted stays pickup.
+                  const { fulfillment: fFulfillment, badge: fBadge } = tierFulfillment({
+                    tier: fTier,
+                    pickupOnly: fPickupOnly,
+                    pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
+                    hintFulfillment: fHint.fulfillment,
+                    shipMode,
+                  });
                   const isActive = f === format;
                   return (
                     <button
@@ -436,6 +432,30 @@ export function ProductView({
             <span className={STOCK_TONE_CLASS[buy.stockTone]}>{buy.stockLabel}</span>
           </p>
 
+          {/* Weather-hold advisory (GOL-1177 `weather_hold_note`, surfaced
+              GOL-1313): an admin-set frost-delay banner ops can toggle without a
+              deploy. Meaning never rides colour alone — an alert glyph plus the
+              bold "Shipping hold" label carry it (colour-blind safe). Only shown
+              for shipped tiers; potted is pickup-only and unaffected. */}
+          {shipMode?.weatherHoldNote && !selectedPickupOnly && (
+            <p
+              role="status"
+              className="mb-4 flex items-start gap-2 rounded-md border border-primary/25 bg-secondary/15 px-3 py-2 text-xs text-foreground"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="mt-0.5 h-4 w-4 shrink-0 fill-primary"
+              >
+                <path d="M12 2 1 21h22L12 2Zm0 5 7.5 13h-15L12 7Zm-1 4v4h2v-4h-2Zm0 5v2h2v-2h-2Z" />
+              </svg>
+              <span>
+                <strong className="font-semibold">Shipping hold.</strong>{" "}
+                {shipMode.weatherHoldNote}
+              </span>
+            </p>
+          )}
+
           {/* Bareroot fulfillment note, driven by today's shippable mode
               (GOL-1114): preorder + 25% deposit / ships-now / peat & bagged.
               Ratified copy (GOL-1173). Icon + words, never colour alone. The
@@ -457,6 +477,14 @@ export function ProductView({
                   </strong>
                 )}{" "}
                 {barerootNote(shipMode)}
+                {/* Windows are estimates (GOL-1177 `approximate`); a weather-
+                    permitting qualifier keeps the promise honest. Suppressed when
+                    an explicit hold banner already says more. */}
+                {shipMode.approximate &&
+                  !shipMode.weatherHoldNote &&
+                  shipMode.mode !== "peat-and-bagged" && (
+                    <span className="text-ink-soft"> Ship dates are estimates, weather permitting.</span>
+                  )}
               </span>
             </p>
           )}
@@ -480,8 +508,8 @@ export function ProductView({
               </svg>
               <span>
                 <strong className="font-semibold text-foreground">Farm pickup only.</strong>{" "}
-                Potted trees aren’t shipped — pick yours up free at the farm. Bareroot
-                ships to your door in fall.
+                Potted trees aren’t shipped. Pick yours up free at the farm, or choose a
+                bareroot format to ship to your door.
               </span>
             </p>
           )}
