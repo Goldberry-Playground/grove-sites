@@ -67,6 +67,11 @@ export function CheckoutPage({
   const { items, hydrated, subtotal } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  // Pickup availability + copy ride the brand seam: only brands with a physical
+  // pickup point (nursery) offer it, and each carries its own product-true copy
+  // so the shared kit never shows a live-tree/WV claim on woodwork or pantry
+  // goods (GOL-1314).
+  const pickup = BRAND_TRUST[brand].pickup;
 
   async function createSession(order: GroveCheckoutOrder) {
     const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
@@ -159,8 +164,18 @@ export function CheckoutPage({
         loading={!hydrated}
         onPlaceOrder={createSession}
         shipStates={SHIP_TO_STATES}
+        shipStatesNote={
+          // Nursery voices its live-tree routing; the kit's neutral default
+          // covers every other brand so no false "live trees" claim leaks
+          // (GOL-1314).
+          brand === "nursery"
+            ? (n) =>
+                `We currently ship live trees to ${n} states. Don't see yours? It's not on our route yet.`
+            : undefined
+        }
         countries={SHIP_TO_COUNTRIES}
-        allowPickup
+        allowPickup={pickup !== null}
+        pickupCopy={pickup ?? undefined}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
         submitLabel="Continue to payment →"

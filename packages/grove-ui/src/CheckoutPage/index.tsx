@@ -90,7 +90,14 @@ export interface CheckoutPageProps {
   paymentNote?: React.ReactNode;
   /** Reassurance line under the summary submit button. */
   reassure?: React.ReactNode;
-  /** Trust-strip badges (icon + text; the icon is decorative). Pass `[]` to omit. */
+  /**
+   * Trust-strip badges (icon + text; the icon is decorative). Defaults to `[]`
+   * — the strip is omitted unless a consumer opts in. The presentational kit
+   * must never bake a brand claim (e.g. the nursery "arrive-alive guarantee")
+   * in as a default: any surface that dropped the prop would silently advertise
+   * a promise false for its products. Brand copy is owned per-brand in
+   * `@grove/checkout`'s `BRAND_TRUST` (GOL-1090, GOL-1314).
+   */
   trustItems?: GroveTrustItem[];
   /** Shop route (empty state). */
   shopHref?: string;
@@ -103,6 +110,14 @@ export interface CheckoutPageProps {
    * to a 2-letter free-text field.
    */
   shipStates?: GroveShipToOption[];
+  /**
+   * Help note under the address when `shipStates` limits the ship-to list.
+   * Receives the supported-state count. Defaults to brand-neutral copy — the
+   * kit never hardcodes "we ship live trees" (a nursery-only claim that would
+   * leak onto woodwork/pantry storefronts); the nursery supplies its own
+   * phrasing through the brand layer (GOL-1314).
+   */
+  shipStatesNote?: (supportedCount: number) => React.ReactNode;
   /** Supported ship-to countries. Rendered as a `<select>` (default: US only). */
   countries?: GroveShipToOption[];
   /**
@@ -113,13 +128,44 @@ export interface CheckoutPageProps {
    * and always report `"ship"`.
    */
   allowPickup?: boolean;
+  /**
+   * Fulfillment copy for the ship-vs-pickup fieldset (only rendered when
+   * `allowPickup`). Defaults are brand-neutral and make no product-specific
+   * claim — a pickup-enabled consumer supplies its own truthful copy (the
+   * nursery's "collect at our WV nursery" / "live trees … planting window"
+   * strings live in `@grove/checkout`'s brand seam, not baked in here so they
+   * can never leak onto a non-nursery storefront — GOL-1314).
+   */
+  pickupCopy?: GrovePickupCopy;
 }
 
-const DEFAULT_TRUST_ITEMS = [
-  { icon: "✦", text: "Secure · we never store card data" },
-  { icon: "◐", text: "Email confirmation before charge" },
-  { icon: "✓", text: "Arrive-alive guarantee" },
-];
+/**
+ * Copy for the ship-vs-pickup fulfillment fieldset. The presentational kit
+ * ships brand-neutral defaults; brand-specific, product-true wording (live
+ * trees, a named pickup location, a specific tax jurisdiction) is supplied by
+ * the consumer so no claim is ever false-by-default (GOL-1314).
+ */
+export interface GrovePickupCopy {
+  /** Label for the "ship to me" radio. */
+  shipLabel: string;
+  /** Label for the "pickup" radio. */
+  pickupLabel: string;
+  /** Note shown when pickup is selected. */
+  pickupNote: string;
+  /** Note shown when ship is selected. */
+  shipNote: string;
+}
+
+const DEFAULT_SHIP_STATES_NOTE = (supportedCount: number): React.ReactNode =>
+  `We currently ship to ${supportedCount} states. Don't see yours? It's not on our route yet.`;
+
+const DEFAULT_PICKUP_COPY: GrovePickupCopy = {
+  shipLabel: "Ship to me — delivered to your address",
+  pickupLabel: "Local pickup — collect your order ($0 shipping)",
+  pickupNote:
+    "Pick up your order — no shipping charge. Local sales tax applies. We'll email you when it's ready.",
+  shipNote: "We'll ship your order to the address above.",
+};
 
 function formatPrice(amount: number): string {
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -144,12 +190,14 @@ export function CheckoutPage({
   submitPendingLabel = "Placing Order…",
   paymentNote,
   reassure,
-  trustItems = DEFAULT_TRUST_ITEMS,
+  trustItems = [],
   shopHref = "/shop",
   cartHref = "/cart",
   shipStates,
+  shipStatesNote = DEFAULT_SHIP_STATES_NOTE,
   countries = DEFAULT_COUNTRIES,
   allowPickup = false,
+  pickupCopy = DEFAULT_PICKUP_COPY,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -319,7 +367,7 @@ export function CheckoutPage({
                       checked={fulfillment === "ship"}
                       onChange={() => setFulfillment("ship")}
                     />
-                    <span>Ship to me — delivered to your address</span>
+                    <span>{pickupCopy.shipLabel}</span>
                   </label>
                   <label className="grove-checkout__payment">
                     <input
@@ -329,13 +377,11 @@ export function CheckoutPage({
                       checked={fulfillment === "pickup"}
                       onChange={() => setFulfillment("pickup")}
                     />
-                    <span>Farm pickup — collect at our WV nursery ($0 shipping)</span>
+                    <span>{pickupCopy.pickupLabel}</span>
                   </label>
                 </div>
                 <p className="grove-checkout__field-note grove-checkout__field-note--block">
-                  {isPickup
-                    ? "Pick up your order at our West Virginia nursery — no shipping charge. West Virginia sales tax applies. We'll email you when it's ready."
-                    : "We ship live trees to your address during the planting window for your growing zone."}
+                  {isPickup ? pickupCopy.pickupNote : pickupCopy.shipNote}
                 </p>
               </fieldset>
             )}
@@ -403,8 +449,7 @@ export function CheckoutPage({
                 />
                 {shipStates && (
                   <p className="grove-checkout__field-note grove-checkout__field--span2">
-                    We currently ship live trees to {shipStates.length} states.
-                    Don&apos;t see yours? It&apos;s not on our route yet.
+                    {shipStatesNote(shipStates.length)}
                   </p>
                 )}
               </div>

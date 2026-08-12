@@ -9,19 +9,6 @@ import { useGroveImage, useGroveLink } from "../link-context";
 import { clampQuantity } from "../quantity";
 import type { GroveTrustItem } from "../trust-items";
 
-/**
- * Default trust strip — the live-nursery set (board-approved; the only strip
- * that carries the arrive-alive promise). Consumers on other brands pass their
- * own `trustItems` so no storefront makes a claim false for its products
- * (GOL-1090). Pass `[]` to omit the strip entirely.
- */
-export const DEFAULT_CART_TRUST_ITEMS: GroveTrustItem[] = [
-  { icon: "✦", text: "Ships from our farm" },
-  { icon: "◐", text: "Made by us, on our land" },
-  { icon: "✓", text: "Arrive-alive guarantee" },
-  { icon: "♦", text: "No payment until we confirm" },
-];
-
 export interface CartPageProps {
   /** Cart lines. */
   items: GroveCartLineItem[];
@@ -47,9 +34,12 @@ export interface CartPageProps {
   /** Build a product-detail href from a template id. */
   productHref?: (templateId: number) => string;
   /**
-   * Trust-strip badges (icon + text; the icon is decorative). Defaults to the
-   * nursery set. Pass a brand-appropriate set — or `[]` to omit the strip —
-   * so a storefront never shows a claim untrue for its products (GOL-1090).
+   * Trust-strip badges (icon + text; the icon is decorative). Defaults to `[]`
+   * — the strip is omitted unless a consumer opts in. The kit never bakes a
+   * brand claim (the nursery "arrive-alive guarantee") in as a default, so a
+   * surface that dropped the prop can't silently advertise a promise false for
+   * its products. Brand copy is owned in `@grove/checkout`'s `BRAND_TRUST`
+   * (GOL-1090, GOL-1314).
    */
   trustItems?: GroveTrustItem[];
 }
@@ -74,7 +64,7 @@ export function CartPage({
   shopHref = "/shop",
   checkoutHref = "/checkout",
   productHref = (templateId) => `/shop/${templateId}`,
-  trustItems = DEFAULT_CART_TRUST_ITEMS,
+  trustItems = [],
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();

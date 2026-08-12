@@ -30,11 +30,7 @@ export { AddToCartButton, type AddToCartButtonProps } from "./AddToCartButton";
 export { StickyAddToCartBar, type StickyAddToCartBarProps } from "./StickyAddToCartBar";
 export { MiniCartDrawer, type MiniCartDrawerProps } from "./MiniCartDrawer";
 export { type GroveTrustItem } from "./trust-items";
-export {
-  CartPage,
-  type CartPageProps,
-  DEFAULT_CART_TRUST_ITEMS,
-} from "./CartPage";
+export { CartPage, type CartPageProps } from "./CartPage";
 export {
   CheckoutPage,
   type CheckoutPageProps,
@@ -44,6 +40,7 @@ export {
   type GroveCheckoutShipping,
   type GroveCheckoutPaymentMethod,
   type GroveShipToOption,
+  type GrovePickupCopy,
 } from "./CheckoutPage";
 export {
   CheckoutReview,
