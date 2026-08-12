@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createOdooCrmSync, resolveOdooCrmConfig } from "./odoo";
 import { validateOptIn } from "./capture";
 import type { OptInRequest } from "./types";
@@ -46,13 +46,22 @@ describe("resolveOdooCrmConfig", () => {
   });
 });
 
+// createOdooCrmSync now delegates the transport to `@grove/odoo-client`, whose
+// shared `api()` helper uses the global `fetch`. So the tests stub the global
+// rather than injecting a fetch impl — proving the adapter still shapes headers,
+// body, and errors correctly through the real client.
 describe("createOdooCrmSync", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("POSTs a consented opt-in with tenant + bearer headers and returns the partner id", async () => {
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       void init;
       return jsonResponse({ partner_id: 42, created: true });
     });
-    const sync = createOdooCrmSync(target, fetchMock as unknown as typeof fetch);
+    vi.stubGlobal("fetch", fetchMock);
+    const sync = createOdooCrmSync(target);
 
     const outcome = await sync.subscribe(req);
 
@@ -77,24 +86,33 @@ describe("createOdooCrmSync", () => {
   });
 
   it("succeeds even when the response carries no partner id", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
-    const sync = createOdooCrmSync(target, fetchMock as unknown as typeof fetch);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ email: "sam@example.com", created: true })),
+    );
+    const sync = createOdooCrmSync(target);
     expect(await sync.subscribe(req)).toEqual({ ok: true });
   });
 
   it("reports a non-2xx as a best-effort failure without throwing", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ error: "boom" }, 500));
-    const sync = createOdooCrmSync(target, fetchMock as unknown as typeof fetch);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ error: "boom" }, 500)),
+    );
+    const sync = createOdooCrmSync(target);
     const outcome = await sync.subscribe(req);
     expect(outcome.ok).toBe(false);
     expect(outcome.error).toContain("odoo 500");
   });
 
   it("reports a network error as a best-effort failure without throwing", async () => {
-    const fetchMock = vi.fn(async () => {
-      throw new Error("ECONNREFUSED");
-    });
-    const sync = createOdooCrmSync(target, fetchMock as unknown as typeof fetch);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("ECONNREFUSED");
+      }),
+    );
+    const sync = createOdooCrmSync(target);
     const outcome = await sync.subscribe(req);
     expect(outcome.ok).toBe(false);
     expect(outcome.error).toContain("ECONNREFUSED");

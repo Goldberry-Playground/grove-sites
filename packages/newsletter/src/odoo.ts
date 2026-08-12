@@ -1,3 +1,4 @@
+import { createOdooClient, OdooApiError } from "@grove/odoo-client";
 import type { NewsletterProvider, OptInRequest, SyncOutcome } from "./types";
 import type { EnvMap } from "./config";
 
@@ -52,75 +53,54 @@ export function resolveOdooCrmConfig(
  *   { email, name?, brand, interests[], source, consent: true, attribution? }
  *   → 200 { partner_id, email, tags[], created }
  *
+ * The transport is delegated to `@grove/odoo-client`'s `newsletter.subscribe()`
+ * — the same client every storefront uses for products/cart/orders — so a
+ * contract change (header rename, key rotation, error envelope) lands in one
+ * place instead of silently missing this hand-rolled leg (GOL-1319, CLAUDE.md
+ * "never raw fetch to backends").
+ *
  * The call is idempotent by email within the tenant company, so re-subscribing
- * merges tags rather than duplicating the contact. Never throws — a failure is
+ * merges tags rather than duplicating the contact. This adapter is the
+ * never-throw boundary: `newsletter.subscribe()` throws `OdooApiError` on a
+ * non-2xx and rejects on a network error, both of which are caught here and
  * returned as `{ ok: false, error }` so the orchestrator can treat CRM sync as
  * best-effort and never let it block the visitor's opt-in.
  */
 export function createOdooCrmSync(
   target: OdooCrmTarget,
-  fetchImpl: typeof fetch = fetch,
 ): NewsletterProvider {
+  const client = createOdooClient({
+    tenantId: target.tenantId,
+    odooUrl: target.odooUrl,
+    apiKey: target.apiKey,
+  });
+
   return {
     async subscribe(request: OptInRequest): Promise<SyncOutcome> {
-      const body: Record<string, unknown> = {
-        email: request.email,
-        brand: request.brand,
-        interests: request.interests ?? [],
-        source: request.source,
-        // Consent is validated upstream; the endpoint re-checks it as opt-in
-        // proof and 400s without a truthy value.
-        consent: true,
-      };
-      if (request.name) body.name = request.name;
-      if (request.attribution) body.attribution = request.attribution;
-
-      let response: Response;
       try {
-        response = await fetchImpl(
-          `${target.odooUrl}/grove/api/v1/newsletter/subscribe`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-              "X-Grove-Tenant": target.tenantId,
-              Authorization: `Bearer ${target.apiKey}`,
-            },
-            body: JSON.stringify(body),
-          },
-        );
+        const result = await client.newsletter.subscribe({
+          email: request.email,
+          name: request.name,
+          brand: request.brand,
+          interests: request.interests ?? [],
+          source: request.source,
+          // Consent is validated upstream (validateOptIn); the endpoint
+          // re-checks it as opt-in proof.
+          consent: true,
+          attribution: request.attribution,
+        });
+        return result.partnerId
+          ? { ok: true, id: result.partnerId }
+          : { ok: true };
       } catch (err) {
+        if (err instanceof OdooApiError) {
+          const detail = err.body ? ` — ${err.body.slice(0, 300)}` : "";
+          return { ok: false, error: `odoo ${err.status}${detail}` };
+        }
         return { ok: false, error: `odoo request failed: ${errMsg(err)}` };
       }
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        return {
-          ok: false,
-          error: `odoo ${response.status} ${response.statusText}${
-            text ? ` — ${text.slice(0, 300)}` : ""
-          }`,
-        };
-      }
-
-      const id = await extractPartnerId(response);
-      return id ? { ok: true, id } : { ok: true };
     },
   };
-}
-
-async function extractPartnerId(
-  response: Response,
-): Promise<string | undefined> {
-  const ctype = response.headers.get("content-type") ?? "";
-  if (!ctype.includes("application/json")) return undefined;
-  try {
-    const json = (await response.json()) as { partner_id?: string | number };
-    return json.partner_id != null ? String(json.partner_id) : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function errMsg(err: unknown): string {

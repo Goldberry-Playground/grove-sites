@@ -34,6 +34,9 @@ export type {
   ShippingCalendarZone,
   ShippingCalendar,
   ShippableMode,
+  NewsletterSubscribeInput,
+  NewsletterSubscribeResult,
+  ApiNewsletterSubscribeResponse,
 } from "./types";
 export { createOdooClient, OdooApiError } from "./client";
 export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
