@@ -1,0 +1,410 @@
+# CI failure router — shared implementation (GOL-1317 consolidation).
+#
+# The provenance-routing + auto-close logic used to be a ~130-line block
+# copy-pasted into three repos (grove-sites, odoocker, grove-odoo-modules) and
+# had already diverged. It lives here once and is consumed cross-repo as
+#   uses: Goldberry-Playground/grove-sites/.github/actions/ci-failure-router@main
+# so a fix lands in one place. Each caller keeps only its own event triggers and
+# its repo-specific list of watched workflows.
+#
+# Modes (selected by the caller job's `if:` on the event):
+#   route         — a watched workflow_run FAILED: sticky PR comment / mint issue
+#   close-success — a watched workflow_run SUCCEEDED: close the matching issue,
+#                   but ONLY if the green run is at-or-ahead of the recorded
+#                   failing commit (GOL-1317: never close on a stale/older green)
+#   branch-gone   — branch deleted or PR closed: reconcile stale issues
+#   sweep         — scheduled/manual: close issues whose branch no longer exists
+name: CI failure router (shared)
+description: Provenance-based CI-failure routing and recency-safe auto-close.
+
+inputs:
+  mode:
+    description: route | close-success | branch-gone | sweep
+    required: true
+  github-token:
+    description: Token used for issue/PR/commit-compare API calls.
+    required: true
+  # workflow_run fields (route + close-success)
+  run-id:
+    description: github.event.workflow_run.id
+    required: false
+    default: ""
+  wf-name:
+    description: github.event.workflow_run.name
+    required: false
+    default: ""
+  head-branch:
+    description: github.event.workflow_run.head_branch
+    required: false
+    default: ""
+  head-sha:
+    description: github.event.workflow_run.head_sha
+    required: false
+    default: ""
+  run-url:
+    description: github.event.workflow_run.html_url
+    required: false
+    default: ""
+  run-event:
+    description: github.event.workflow_run.event
+    required: false
+    default: ""
+  run-attempt:
+    description: github.event.workflow_run.run_attempt
+    required: false
+    default: ""
+  run-started-at:
+    description: github.event.workflow_run.run_started_at
+    required: false
+    default: ""
+  # branch-gone fields
+  gone-branch:
+    description: deleted branch ref, or the closed PR's head ref
+    required: false
+    default: ""
+  trigger:
+    description: github.event_name for the branch-gone path (delete | pull_request)
+    required: false
+    default: ""
+  pr-merged:
+    description: github.event.pull_request.merged ("true"/"false") for PR-close
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: CI failure router (${{ inputs.mode }})
+      uses: actions/github-script@v9
+      env:
+        MODE: ${{ inputs.mode }}
+        RUN_ID: ${{ inputs.run-id }}
+        WF_NAME: ${{ inputs.wf-name }}
+        HEAD_BRANCH: ${{ inputs.head-branch }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        RUN_URL: ${{ inputs.run-url }}
+        RUN_EVENT: ${{ inputs.run-event }}
+        RUN_ATTEMPT: ${{ inputs.run-attempt }}
+        RUN_STARTED_AT: ${{ inputs.run-started-at }}
+        GONE_BRANCH: ${{ inputs.gone-branch }}
+        TRIGGER: ${{ inputs.trigger }}
+        PR_MERGED: ${{ inputs.pr-merged }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const {
+            MODE, RUN_ID, WF_NAME, HEAD_BRANCH, HEAD_SHA, RUN_URL, RUN_EVENT,
+            RUN_ATTEMPT, RUN_STARTED_AT, GONE_BRANCH, TRIGGER, PR_MERGED,
+          } = process.env;
+          const { owner, repo } = context.repo;
+
+          // ── Markers ────────────────────────────────────────────────────
+          // Human dedup marker (matched to mint/update/close) — unchanged.
+          const failMarker = (wf, br) => `<!-- d3-ci-failure:${wf}:${br} -->`;
+          // Machine-readable record of the *latest* failing run, so close-on-
+          // success can verify recency (GOL-1317). Kept current on every repeat
+          // failure so a stale/older green run can never satisfy the compare.
+          const DATA_RE = /<!-- d3-ci-fail-data:(\{.*?\}) -->/;
+          const dataMarker = (sha, started) =>
+            `<!-- d3-ci-fail-data:${JSON.stringify({ sha: sha || "", started: started || "" })} -->`;
+
+          function parseFailData(body) {
+            const m = (body ?? "").match(DATA_RE);
+            if (m) {
+              try { return JSON.parse(m[1]); } catch { /* fall through */ }
+            }
+            // Legacy issues (minted before GOL-1317) have no data marker —
+            // recover the short sha from the summary line so recency still works.
+            const sm = (body ?? "").match(/@ `([0-9a-f]{7,40})`/);
+            return sm ? { sha: sm[1], started: "" } : null;
+          }
+
+          // ────────────────────────────────────────────────────────────────
+          if (MODE === "route") {
+            const runId = Number(RUN_ID);
+            const shortSha = HEAD_SHA.slice(0, 7);
+
+            // Failed-job summary for the failed run.
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner, repo, run_id: runId, filter: "latest", per_page: 100,
+            });
+            const failedJobs = jobs.filter((j) => j.conclusion === "failure");
+            const jobLines = failedJobs
+              .map((j) => `- [\`${j.name}\`](${j.html_url})`)
+              .join("\n") || "- (no job-level detail — see the run)";
+
+            // Owning PR, resolved by head branch against open PRs.
+            const { data: prs } = await github.rest.pulls.list({
+              owner, repo, state: "open", head: `${owner}:${HEAD_BRANCH}`, per_page: 1,
+            });
+            const pr = prs[0] ?? null;
+
+            // 3-strike lookback.
+            const { data: history } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner, repo, branch: HEAD_BRANCH, status: "completed", per_page: 20,
+            });
+            const sameWf = history.workflow_runs
+              .filter((r) => r.name === WF_NAME)
+              .slice(0, 3);
+            const threeStrikes =
+              sameWf.length === 3 && sameWf.every((r) => r.conclusion === "failure");
+
+            const summary = [
+              `**Workflow:** ${WF_NAME} (attempt ${RUN_ATTEMPT})`,
+              `**Branch:** \`${HEAD_BRANCH}\` @ \`${shortSha}\` (event: ${RUN_EVENT})`,
+              `**Run:** ${RUN_URL}`,
+              `**Failed jobs:**`,
+              jobLines,
+            ].join("\n");
+
+            async function mintOrUpdateIssue(reason) {
+              const marker = failMarker(WF_NAME, HEAD_BRANCH);
+              const title = `CI failure: ${WF_NAME} on ${HEAD_BRANCH}`;
+              const data = dataMarker(HEAD_SHA, RUN_STARTED_AT);
+              const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+                owner, repo, state: "open", labels: "ci-failure", per_page: 100,
+              });
+              const existing = openIssues.find((i) => (i.body ?? "").includes(marker));
+              const body = [
+                marker,
+                data,
+                `${reason}`,
+                "",
+                summary,
+                "",
+                "_Filed by the CI failure router; mirrored to Paperclip for analysis._",
+              ].join("\n");
+              if (existing) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: existing.number,
+                  body: `Failed again.\n\n${summary}`,
+                });
+                // Keep the recorded failing HEAD current so a green run of an
+                // older commit can't satisfy the recency compare (GOL-1317).
+                const oldBody = existing.body ?? "";
+                const newBody = DATA_RE.test(oldBody)
+                  ? oldBody.replace(DATA_RE, data)
+                  : oldBody.replace(marker, `${marker}\n${data}`);
+                if (newBody !== oldBody) {
+                  await github.rest.issues.update({
+                    owner, repo, issue_number: existing.number, body: newBody,
+                  });
+                }
+                core.info(`Updated existing issue #${existing.number}`);
+              } else {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo, name: "ci-failure", color: "b60205",
+                    description: "Minted by the CI failure router",
+                  });
+                } catch (e) {
+                  if (e.status !== 422) throw e;
+                }
+                const { data: issue } = await github.rest.issues.create({
+                  owner, repo, title, body, labels: ["ci-failure"],
+                });
+                core.info(`Minted issue #${issue.number}`);
+              }
+            }
+
+            if (!pr) {
+              await mintOrUpdateIssue(`Ownerless failure — no open PR for \`${HEAD_BRANCH}\`.`);
+              return;
+            }
+
+            const stickyMarker = `<!-- d3-ci-failure-router:${WF_NAME} -->`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pr.number, per_page: 100,
+            });
+            const sticky = comments.find((c) => (c.body ?? "").includes(stickyMarker));
+            const strikeNote = threeStrikes
+              ? "\n\n⚠️ **3 consecutive failures** of this workflow on this branch — escalated to an issue for Paperclip analysis."
+              : "";
+            const commentBody = [
+              stickyMarker,
+              `### ❌ ${WF_NAME} failed`,
+              "",
+              summary,
+              strikeNote,
+            ].join("\n");
+            if (sticky) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: sticky.id, body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number, body: commentBody,
+              });
+            }
+            core.info(`Sticky comment on PR #${pr.number}`);
+
+            if (threeStrikes) {
+              await mintOrUpdateIssue(
+                `3-strike escalation from PR #${pr.number} — the owner appears stuck.`,
+              );
+            }
+            return;
+          }
+
+          // ────────────────────────────────────────────────────────────────
+          if (MODE === "close-success") {
+            const marker = failMarker(WF_NAME, HEAD_BRANCH);
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: "open", labels: "ci-failure", per_page: 100,
+            });
+            const match = openIssues.find((i) => (i.body ?? "").includes(marker));
+            if (!match) {
+              core.info(`No open ci-failure issue for ${WF_NAME} on ${HEAD_BRANCH}.`);
+              return;
+            }
+
+            // GOL-1317: only close if this green run is NEWER than the failure
+            // the issue records. A re-run of an older commit, or a slow parallel
+            // run of an older commit finishing late, must NOT close a live break.
+            const fd = parseFailData(match.body);
+            if (!fd || !fd.sha) {
+              core.info(`#${match.number}: no recorded failing commit; skipping auto-close to avoid dropping a live failure.`);
+              return;
+            }
+
+            let shouldClose = false;
+            let why = "";
+            try {
+              const cmp = await github.rest.repos.compareCommitsWithBasehead({
+                owner, repo, basehead: `${fd.sha}...${HEAD_SHA}`,
+              });
+              const status = cmp.data.status; // ahead | behind | identical | diverged
+              // ahead     → green commit is a descendant of the failure  → newer
+              // identical → the exact failing commit now passes (re-run)  → resolved
+              // behind    → green commit is an ANCESTOR of the failure     → stale
+              // diverged  → unrelated line                                 → ambiguous
+              shouldClose = status === "ahead" || status === "identical";
+              why = `commit compare ${fd.sha.slice(0, 7)}...${HEAD_SHA.slice(0, 7)} = ${status}`;
+            } catch (e) {
+              // Compare can fail if the recorded sha was force-pushed away.
+              // Fall back to run_started_at when we have both timestamps.
+              if (fd.started && RUN_STARTED_AT) {
+                shouldClose =
+                  new Date(RUN_STARTED_AT).getTime() >= new Date(fd.started).getTime();
+                why = `compare unavailable (${e.status}); run_started_at ${shouldClose ? ">=" : "<"} recorded failure`;
+              } else {
+                shouldClose = false;
+                why = `compare unavailable (${e.status}) and no timestamp fallback`;
+              }
+            }
+
+            if (!shouldClose) {
+              core.info(`#${match.number}: green run is not newer than the recorded failure (${why}); leaving it open.`);
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: match.number,
+              body: [
+                `✅ Resolved — a later run of **${WF_NAME}** on \`${HEAD_BRANCH}\` succeeded at or ahead of the recorded failure.`,
+                "",
+                RUN_URL,
+                "",
+                `<sub>Recency check: ${why}.</sub>`,
+                "",
+                "_Auto-closed by the CI failure router._",
+              ].join("\n"),
+            });
+            await github.rest.issues.update({
+              owner, repo, issue_number: match.number,
+              state: "closed", state_reason: "completed",
+            });
+            core.info(`Closed #${match.number} on green run (${why}).`);
+            return;
+          }
+
+          // ────────────────────────────────────────────────────────────────
+          if (MODE === "branch-gone") {
+            if (!GONE_BRANCH) { core.info("No branch to reconcile."); return; }
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: "open", labels: "ci-failure", per_page: 100,
+            });
+            const matches = openIssues.filter((i) => {
+              const m = (i.body ?? "").match(/<!-- d3-ci-failure:(.+):(.+?) -->/);
+              return m && m[2] === GONE_BRANCH;
+            });
+            if (!matches.length) {
+              core.info(`No ci-failure issues for branch ${GONE_BRANCH}.`);
+              return;
+            }
+
+            let reason, stateReason;
+            if (TRIGGER === "delete") {
+              reason = `branch \`${GONE_BRANCH}\` was deleted`;
+              stateReason = "not_planned";
+            } else {
+              // pull_request closed. GOL-1317: a PR closed UNMERGED whose branch
+              // still exists leaves the failure live — do NOT close then.
+              if (PR_MERGED === "true") {
+                reason = `the PR for \`${GONE_BRANCH}\` was merged`;
+                stateReason = "completed";
+              } else {
+                let exists = true;
+                try {
+                  await github.rest.repos.getBranch({ owner, repo, branch: GONE_BRANCH });
+                } catch (e) {
+                  if (e.status === 404) exists = false; else throw e;
+                }
+                if (exists) {
+                  core.info(`PR for ${GONE_BRANCH} closed unmerged but the branch still exists; leaving ${matches.length} issue(s) open.`);
+                  return;
+                }
+                reason = `the PR for \`${GONE_BRANCH}\` was closed unmerged and the branch was deleted`;
+                stateReason = "not_planned";
+              }
+            }
+
+            for (const m of matches) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: m.number,
+                body: `🧹 Auto-closed — ${reason}, so this CI-failure issue is stale.\n\n_Auto-closed by the CI failure router._`,
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: m.number,
+                state: "closed", state_reason: stateReason,
+              });
+              core.info(`Closed #${m.number} (${reason}).`);
+            }
+            return;
+          }
+
+          // ────────────────────────────────────────────────────────────────
+          if (MODE === "sweep") {
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: "open", labels: "ci-failure", per_page: 100,
+            });
+            let closed = 0;
+            for (const issue of openIssues) {
+              const m = (issue.body ?? "").match(/<!-- d3-ci-failure:(.+):(.+?) -->/);
+              if (!m) continue;
+              const branch = m[2];
+              // Long-lived branches always exist; their failures are real.
+              if (["main", "master", "develop"].includes(branch)) continue;
+              let exists = true;
+              try {
+                await github.rest.repos.getBranch({ owner, repo, branch });
+              } catch (e) {
+                if (e.status === 404) exists = false; else throw e;
+              }
+              if (exists) continue;
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number,
+                body: `🧹 Auto-closed by sweep — branch \`${branch}\` no longer exists.\n\n_Auto-closed by the CI failure router._`,
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: issue.number,
+                state: "closed", state_reason: "not_planned",
+              });
+              closed++;
+              core.info(`Swept #${issue.number} (branch ${branch} gone).`);
+            }
+            core.info(`Sweep closed ${closed} issue(s).`);
+            return;
+          }
+
+          core.setFailed(`Unknown mode: ${MODE}`);
