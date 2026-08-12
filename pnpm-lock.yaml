@@ -588,6 +588,10 @@ importers:
         version: 5.9.3
 
   packages/newsletter:
+    dependencies:
+      '@grove/odoo-client':
+        specifier: workspace:*
+        version: link:../odoo-client
     devDependencies:
       typescript:
         specifier: ^5.7.0

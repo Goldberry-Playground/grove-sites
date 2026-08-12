@@ -11,6 +11,9 @@
     "type-check": "tsc --noEmit",
     "lint": "echo 'lint placeholder'"
   },
+  "dependencies": {
+    "@grove/odoo-client": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.7.0"
   }

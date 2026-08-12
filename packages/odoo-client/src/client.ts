@@ -19,6 +19,9 @@ import type {
   ApiShippingRatesResponse,
   ShippingRateTable,
   ShippingRateFeed,
+  NewsletterSubscribeInput,
+  NewsletterSubscribeResult,
+  ApiNewsletterSubscribeResponse,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -120,7 +123,17 @@ export function createOdooClient(config: TenantConfig): OdooClient {
 
         const qs = searchParams.toString();
         const path = `/grove/api/v1/products${qs ? `?${qs}` : ""}`;
-        const raw = await api<ApiProductListResponse>(config, path);
+        // Cache the browse fetch (GOL-1319). The catalog is small and changes at
+        // most a few times a day, but /shop re-fetches the whole list on every
+        // search, category-pill click, and `?all=1` reveal — a fresh full-catalog
+        // round-trip to the single Odoo droplet per navigation. A 60s revalidate
+        // collapses those into one shared Data Cache entry (per facet URL) while
+        // the publish webhook's `revalidatePath('/shop')` still flushes it on a
+        // new/edited product. (Callers on `force-dynamic` pages opt out of this
+        // via Next's `force-no-store`; that's fine — they wanted per-request.)
+        const raw = await api<ApiProductListResponse>(config, path, {
+          next: { revalidate: 60 },
+        });
 
         return {
           count: raw.count,
@@ -304,6 +317,34 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           }
         );
         return normalizeCheckoutSession(raw);
+      },
+    },
+
+    newsletter: {
+      async subscribe(
+        input: NewsletterSubscribeInput
+      ): Promise<NewsletterSubscribeResult> {
+        const body: Record<string, unknown> = {
+          email: input.email,
+          brand: input.brand,
+          interests: input.interests ?? [],
+          source: input.source,
+          // Consent is validated upstream; the endpoint re-checks it as opt-in
+          // proof and 400s without a truthy value.
+          consent: input.consent,
+        };
+        if (input.name) body.name = input.name;
+        if (input.attribution) body.attribution = input.attribution;
+
+        const raw = await api<ApiNewsletterSubscribeResponse>(
+          config,
+          "/grove/api/v1/newsletter/subscribe",
+          { method: "POST", body: JSON.stringify(body) }
+        );
+        return {
+          partnerId: raw.partner_id != null ? String(raw.partner_id) : undefined,
+          created: raw.created,
+        };
       },
     },
   };

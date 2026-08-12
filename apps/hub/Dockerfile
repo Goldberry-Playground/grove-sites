@@ -22,6 +22,11 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY apps/hub/package.json apps/hub/
 COPY packages/ui/package.json packages/ui/
 COPY packages/odoo-client/package.json packages/odoo-client/
+# @grove/newsletter now depends on @grove/odoo-client (workspace:*), so its
+# manifest must be present at install time for pnpm to link odoo-client under
+# packages/newsletter/node_modules — otherwise the app build's type-check can't
+# resolve the import from newsletter/src/odoo.ts (GOL-1319).
+COPY packages/newsletter/package.json packages/newsletter/
 COPY packages/ghost-client/package.json packages/ghost-client/
 COPY packages/config/package.json packages/config/
 COPY packages/analytics/package.json packages/analytics/
@@ -49,6 +54,7 @@ COPY --from=deps /workspace/node_modules ./node_modules
 COPY --from=deps /workspace/apps/hub/node_modules ./apps/hub/node_modules
 COPY --from=deps /workspace/packages/ui/node_modules ./packages/ui/node_modules
 COPY --from=deps /workspace/packages/odoo-client/node_modules ./packages/odoo-client/node_modules
+COPY --from=deps /workspace/packages/newsletter/node_modules ./packages/newsletter/node_modules
 COPY --from=deps /workspace/packages/ghost-client/node_modules ./packages/ghost-client/node_modules
 COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_modules
 COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics/node_modules
