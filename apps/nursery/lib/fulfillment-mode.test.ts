@@ -8,6 +8,7 @@ import {
   barerootNote,
   formatMonthDay,
   orderDeadlineLine,
+  tierFulfillment,
   PREORDER_DEPOSIT_PCT,
   type ShippableMode,
 } from "./fulfillment-mode";
@@ -283,6 +284,43 @@ describe("advisory copy helpers (GOL-1313 finding 5)", () => {
     const springPre = resolveShippableMode(on(11, 15), withDeadline, 6);
     expect(orderDeadlineLine(springPre)).toBe("Order by May 31");
     expect(orderDeadlineLine(resolveShippableMode(on(6, 15), withDeadline, 6))).toBeNull();
+  });
+});
+
+describe("tierFulfillment — one presentation authority (GOL-1313)", () => {
+  const preorder = resolveShippableMode(on(8, 20), CAL); // fall preorder
+  it("pickup-only → pickup line, no badge, regardless of tier", () => {
+    expect(
+      tierFulfillment({
+        tier: "potted",
+        pickupOnly: true,
+        pickupFulfillment: "Farm pickup only",
+        hintFulfillment: "Ships now",
+        shipMode: preorder,
+      }),
+    ).toEqual({ fulfillment: "Farm pickup only", badge: null });
+  });
+  it("bareroot with a live mode → mode-driven timing + badge", () => {
+    expect(
+      tierFulfillment({
+        tier: "bareroot",
+        pickupOnly: false,
+        pickupFulfillment: "Farm pickup only",
+        hintFulfillment: "Reserve for October",
+        shipMode: preorder,
+      }),
+    ).toEqual({ fulfillment: "25% deposit · ships this fall", badge: "Preorder" });
+  });
+  it("no live mode (legacy backend) → static hint, no badge", () => {
+    expect(
+      tierFulfillment({
+        tier: "bareroot",
+        pickupOnly: false,
+        pickupFulfillment: "Farm pickup only",
+        hintFulfillment: "Reserve for October",
+        shipMode: null,
+      }),
+    ).toEqual({ fulfillment: "Reserve for October", badge: null });
   });
 });
 
