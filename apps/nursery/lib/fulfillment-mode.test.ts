@@ -6,6 +6,8 @@ import {
   barerootBadge,
   barerootTimingShort,
   barerootNote,
+  formatMonthDay,
+  orderDeadlineLine,
   PREORDER_DEPOSIT_PCT,
   type ShippableMode,
 } from "./fulfillment-mode";
@@ -159,10 +161,83 @@ describe("zone staggering — a later zone's ship window shifts the boundaries",
     expect(resolveShippableMode(on(9, 20), STAGGERED, 6).mode).toBe("bareroot-in-window");
   });
 
-  it("zone unknown → union of all zone windows (season's overall span)", () => {
-    // Union fall span is Sep 15 → Oct 30 (zone 6 starts earliest). Sep 20 falls
-    // inside it, so the zone-agnostic storefront shows ships-now for the season.
-    expect(resolveShippableMode(on(9, 20), STAGGERED).mode).toBe("bareroot-in-window");
+  it("zone unknown, zones DISAGREE → conservative preorder, never over-promise ships-now (GOL-1313 finding 3)", () => {
+    // Sep 20: zone 6 is in its fall window (ships now) but zone 3's window has
+    // not opened (still preorder). The old union asserted "Ships now" for the
+    // season — a deposit-shape surprise for a zone-3 shopper at checkout. The
+    // conservative aggregate shows the preorder (deposit) framing instead: the
+    // only shopper it "surprises" is one whose zone actually ships now, and only
+    // by charging sooner, never later.
+    const r = resolveShippableMode(on(9, 20), STAGGERED);
+    expect(r.mode).toBe("bareroot-preorder");
+    expect(r.depositNow).toBe(true);
+    expect(r.preorderSeason).toBe("fall");
+  });
+
+  it("zone unknown, zones AGREE ships-now → honest ships-now", () => {
+    // Oct 15: both zone 6 (Sep 15–Oct 30) and zone 3 (Oct 1–Oct 30) are in
+    // window, so no zone is on preorder and "Ships now" is honest.
+    expect(resolveShippableMode(on(10, 15), STAGGERED).mode).toBe("bareroot-in-window");
+  });
+});
+
+describe("GOL-1313 — crash safety, backend-mirror fallback, advisory fields", () => {
+  it("a calendar missing preorder_open never throws → peat & bagged (finding 1)", () => {
+    // A degraded / hand-crafted feed. The resolver reads preorder_open
+    // defensively: the preorder branches are skipped, the date falls through to
+    // the ships-now peat & bagged policy rather than dereferencing undefined.
+    const partial = { ...CAL, preorder_open: undefined } as unknown as ShippingCalendar;
+    expect(() => resolveShippableMode(on(8, 20), partial)).not.toThrow();
+    expect(resolveShippableMode(on(8, 20), partial).mode).toBe("peat-and-bagged");
+  });
+
+  it("empty-zones fallback uses backend-mirror windows, not the old Sep 15 / Jan 1 (finding 2)", () => {
+    // No zones at all → DEFAULT_WINDOWS (backend WAVE_SCHEDULE union: fall Nov 2–
+    // Dec 12, spring Mar 1–Jun 6). Mid-January must NOT read as ships-now (the old
+    // spring Jan 1 default promised shipping through hard-freeze January).
+    const noZones = { ...CAL, zones: {} } as ShippingCalendar;
+    expect(resolveShippableMode(on(1, 15), noZones).mode).toBe("bareroot-preorder");
+    expect(resolveShippableMode(on(11, 15), noZones).mode).toBe("bareroot-in-window"); // in fall window
+    expect(resolveShippableMode(on(4, 1), noZones).mode).toBe("bareroot-in-window"); // in spring window
+  });
+
+  it("surfaces approximate + weather_hold_note from the feed (finding 5)", () => {
+    const held: ShippingCalendar = {
+      ...CAL,
+      approximate: false,
+      weather_hold_note: "Hard freeze in the Ohio Valley — shipments held through the weekend.",
+    };
+    const r = resolveShippableMode(on(4, 1), held, 6);
+    expect(r.approximate).toBe(false);
+    expect(r.weatherHoldNote).toBe(held.weather_hold_note);
+  });
+
+  it("defaults approximate to true and weatherHoldNote to null when the feed omits them", () => {
+    const r = resolveShippableMode(on(4, 1), CAL, 6);
+    expect(r.approximate).toBe(true);
+    expect(r.weatherHoldNote).toBeNull();
+  });
+
+  it("known zone surfaces its per-season order deadline; unknown zone / peat does not", () => {
+    const withDeadlines: ShippingCalendar = {
+      ...CAL,
+      zones: {
+        "6": {
+          ...CAL.zones["6"],
+          fall_order_deadline: [11, 21],
+          spring_order_deadline: [5, 31],
+        },
+      },
+    };
+    // Spring preorder for zone 6 (Dec 1 → spring window opens Jan 1 the next year;
+    // use a date in the spring preorder wrap): Nov 15 is spring preorder.
+    const springPre = resolveShippableMode(on(11, 15), withDeadlines, 6);
+    expect(springPre.mode).toBe("bareroot-preorder");
+    expect(springPre.orderDeadline).toEqual([5, 31]);
+    // Peat & bagged has no deadline.
+    expect(resolveShippableMode(on(6, 15), withDeadlines, 6).orderDeadline).toBeNull();
+    // Unknown zone never asserts a per-zone deadline.
+    expect(resolveShippableMode(on(11, 15), withDeadlines).orderDeadline).toBeNull();
   });
 });
 
@@ -191,6 +266,23 @@ describe("customer-facing copy (GOL-1173 ratified; 25% deposit, no em dashes)", 
     for (const note of [barerootNote(preorder), barerootNote(inWindow), barerootNote(peat)]) {
       expect(note).not.toContain("—"); // brand rule: no em dashes
     }
+  });
+});
+
+describe("advisory copy helpers (GOL-1313 finding 5)", () => {
+  it("formatMonthDay matches the backend _fmt (locale-free)", () => {
+    expect(formatMonthDay([11, 21])).toBe("Nov 21");
+    expect(formatMonthDay([5, 5])).toBe("May 5");
+  });
+
+  it("orderDeadlineLine renders for a bareroot wave, null for peat / no deadline", () => {
+    const withDeadline: ShippingCalendar = {
+      ...CAL,
+      zones: { "6": { ...CAL.zones["6"], spring_order_deadline: [5, 31] } },
+    };
+    const springPre = resolveShippableMode(on(11, 15), withDeadline, 6);
+    expect(orderDeadlineLine(springPre)).toBe("Order by May 31");
+    expect(orderDeadlineLine(resolveShippableMode(on(6, 15), withDeadline, 6))).toBeNull();
   });
 });
 

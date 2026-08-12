@@ -58,6 +58,17 @@ export interface FulfillmentResolution {
   /** Normal processing SLA (business days) for peat & bagged and the
    *  shipped-past-your-zone fallback, from `calendar.fulfillment_days`. */
   fulfillmentDays: [number, number];
+  /** Last day to reserve for the resolved wave, as `[month, day]` — only set for
+   *  a KNOWN zone in a `bareroot-preorder` / `bareroot-in-window` state (the
+   *  deadline is per-zone; `null` for peat & bagged or the zone-agnostic
+   *  storefront default). Drives the "order by <date>" line. */
+  orderDeadline: MonthDay | null;
+  /** Windows are estimates, "weather permitting" (GOL-1177). `true` (default)
+   *  means the copy should carry a weather-permitting qualifier. */
+  approximate: boolean;
+  /** Admin-set frost-delay advisory to render as a banner, or `null` when no
+   *  hold is active (GOL-1177). */
+  weatherHoldNote: string | null;
 }
 
 /** Monotonic within-year key for a `[month, day]`: `0101`..`1231`. Day-level and
@@ -79,66 +90,116 @@ function inWindow(d: number, window: [MonthDay, MonthDay]): boolean {
   return d >= ord(window[0]) && d <= ord(window[1]);
 }
 
-/** Reference default windows (doc §2), used only when the feed carries no zones
- *  at all — never hardcode a season in a component; read the zone's calendar. */
+/** Reference default windows, used only when the feed carries no zones at all
+ *  (a degraded feed — the backend always serializes every zone). These MIRROR
+ *  the backend's `WAVE_SCHEDULE` union (grove_headless shipping_calendar.py):
+ *  fall Nov 2 → Dec 12, spring Mar 1 → Jun 6. They must not drift below the
+ *  backend's earliest ship date, or the fallback would promise "ships now" weeks
+ *  before the backend would actually ship (GOL-1313 finding 2 — the old Sep 15 /
+ *  Jan 1 defaults claimed shipping through hard-freeze January). Never hardcode a
+ *  season in a component; read the zone's calendar. */
 const DEFAULT_WINDOWS: ShippingCalendarZone = {
   fall: [
-    [9, 15],
-    [10, 30],
+    [11, 2],
+    [12, 12],
   ],
   spring: [
-    [1, 1],
-    [5, 5],
+    [3, 1],
+    [6, 6],
   ],
 };
 
-/** Widest span [earliest start, latest end] across a set of windows. */
-function unionWindow(windows: [MonthDay, MonthDay][]): [MonthDay, MonthDay] {
-  let start = windows[0][0];
-  let end = windows[0][1];
-  for (const [s, e] of windows) {
-    if (ord(s) < ord(start)) start = s;
-    if (ord(e) > ord(end)) end = e;
-  }
-  return [start, end];
+/** The season a resolution pertains to, used to pick the per-zone order deadline
+ *  (peat & bagged has none). */
+type ResolvedSeason = "fall" | "spring" | null;
+
+interface ZoneResolution {
+  mode: ShippableMode;
+  depositNow: boolean;
+  preorderSeason: "fall" | "spring" | null;
+  /** The window this resolution matched (for deadline lookup); `null` for peat. */
+  season: ResolvedSeason;
 }
 
 /**
- * The fall/spring ship windows to resolve against.
+ * Resolve the mode for `date` against ONE zone's windows.
  *
- * When the shopper's USDA hardiness zone is known, use that zone's exact windows
- * (fully correct). When it is unknown — the common storefront case, since the
- * product page collects a *distance* state for pricing, not a USDA zone — fall
- * back to the UNION of every zone's windows: the season's overall shippable span.
- * That is the honest storefront default ("bareroot ships this season"); checkout
- * re-resolves to the shopper's exact zone, which is the authoritative charge.
+ * Priority mirrors the backend `resolve_fulfillment` timeline: an in-window
+ * ("ships now") state wins over a preorder state, and anything not claimed by a
+ * bareroot cycle falls through to peat & bagged. That fall-through is deliberate
+ * — it covers both the summer leafed window (May 6 → Aug 14) AND the post-window
+ * gap (e.g. after the fall window has shipped but before spring preorder opens),
+ * which is Josh's "shipped-past-your-zone → normal business-day fallback, never
+ * held as preorder" rule. So there are never dead months.
+ *
+ * `preorder_open` is read defensively (GOL-1313 finding 1): a partial calendar
+ * that omits it never throws here — the preorder branches are simply skipped and
+ * the date falls through to peat & bagged. (The feed loader also rejects such a
+ * calendar up front, so this is belt-and-suspenders.)
  */
-function windowsFor(
-  calendar: ShippingCalendar,
-  usdaZone: number | null | undefined,
-): ShippingCalendarZone {
-  const exact =
-    usdaZone != null ? calendar.zones?.[String(usdaZone)] : undefined;
-  if (exact) return exact;
+function resolveZone(
+  d: number,
+  zone: ShippingCalendarZone,
+  preorderOpen: ShippingCalendar["preorder_open"] | undefined,
+): ZoneResolution {
+  const { fall, spring } = zone;
 
-  const zones = Object.values(calendar.zones ?? {});
-  if (zones.length === 0) return DEFAULT_WINDOWS;
-  return {
-    fall: unionWindow(zones.map((z) => z.fall)),
-    spring: unionWindow(zones.map((z) => z.spring)),
-  };
+  // 1. In a bareroot ship window → ships now (wins over any preorder).
+  if (inWindow(d, spring)) {
+    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, season: "spring" };
+  }
+  if (inWindow(d, fall)) {
+    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, season: "fall" };
+  }
+
+  // 2. Fall preorder: from the fall switch up to (not into) the fall window.
+  if (preorderOpen?.fall && d >= ord(preorderOpen.fall) && d < ord(fall[0])) {
+    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "fall", season: "fall" };
+  }
+
+  // 3. Spring preorder: from the spring switch through year-end, then into Jan up
+  //    to (not into) the spring window (wraps the year boundary).
+  if (preorderOpen?.spring && (d >= ord(preorderOpen.spring) || d < ord(spring[0]))) {
+    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "spring", season: "spring" };
+  }
+
+  // 4. Everything else (leafed window + post-window gap) → peat & bagged.
+  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, season: null };
 }
 
 /**
- * Resolve the single shippable mode for `date` under a zone's `calendar`.
+ * Collapse per-zone resolutions into ONE honest storefront resolution for an
+ * unknown USDA zone (GOL-1313 finding 3).
  *
- * Priority mirrors the doc timeline: an in-window ("ships now") state wins over a
- * preorder state, and anything not claimed by a bareroot cycle falls through to
- * peat & bagged. That fall-through is deliberate — it covers both the summer
- * leafed window (May 6 → Aug 14) AND the post-window gap (e.g. Oct 31, after the
- * fall window has shipped but before spring preorder opens), which is Josh's
- * "shipped-past-your-zone → normal 5–10 business-day fallback, never held as
- * preorder" rule (doc §2 edge case). So there are never dead months.
+ * The old code unioned every zone's windows and asserted "Ships now" (no deposit)
+ * whenever ANY zone was in-window — so a shopper whose real (later) zone was still
+ * on preorder met a deposit-shape surprise at checkout. This is the conservative
+ * inverse: only promise the payment shape that can't surprise.
+ *   - ANY zone still on preorder → show `bareroot-preorder` (deposit). A shopper
+ *     whose zone actually ships now is only ever charged sooner, never later — the
+ *     harmful direction (promised ships-now, hit with a deposit) is eliminated.
+ *   - else if any zone is in its window → `bareroot-in-window` ("Ships now"); no
+ *     deposit is taken for any remaining zone, so the promise is honest.
+ *   - else every zone ships now on the normal policy → peat & bagged.
+ * Checkout re-resolves to the shopper's exact zone, which is the authoritative
+ * charge. (The real fix is the backend serving mode-per-zone — GOL-1313 altitude.)
+ */
+function aggregateZones(list: ZoneResolution[]): ZoneResolution {
+  const preorder = list.find((r) => r.mode === "bareroot-preorder");
+  if (preorder) return preorder;
+  const inWin = list.find((r) => r.mode === "bareroot-in-window");
+  if (inWin) return { ...inWin, season: null }; // deadline is per-zone; unknown here
+  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, season: null };
+}
+
+/**
+ * Resolve the single shippable mode for `date` under the feed's `calendar`.
+ *
+ * Known USDA zone → that zone's exact windows (fully correct, with its order
+ * deadline). Unknown zone (the common storefront case — the product page collects
+ * a distance state, not a USDA zone) → the conservative aggregate above; no zone
+ * order deadline is asserted. No zones at all (degraded feed) → the backend-mirror
+ * {@link DEFAULT_WINDOWS}.
  */
 export function resolveShippableMode(
   date: Date,
@@ -146,32 +207,45 @@ export function resolveShippableMode(
   usdaZone?: number | null,
 ): FulfillmentResolution {
   const d = ord(monthDayOf(date));
-  const { fall, spring } = windowsFor(calendar, usdaZone);
   const fulfillmentDays = calendar.fulfillment_days ?? [5, 10];
+  const approximate = calendar.approximate ?? true;
+  const weatherHoldNote = calendar.weather_hold_note ?? null;
+  const preorderOpen = calendar.preorder_open;
 
-  // 1. In a bareroot ship window → ships now (wins over any preorder).
-  if (inWindow(d, spring)) {
-    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, fulfillmentDays };
-  }
-  if (inWindow(d, fall)) {
-    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, fulfillmentDays };
+  const exact =
+    usdaZone != null ? calendar.zones?.[String(usdaZone)] : undefined;
+
+  let resolved: ZoneResolution;
+  let orderDeadline: MonthDay | null = null;
+
+  if (exact) {
+    resolved = resolveZone(d, exact, preorderOpen);
+    orderDeadline = deadlineFor(exact, resolved.season);
+  } else {
+    const zones = Object.values(calendar.zones ?? {});
+    resolved =
+      zones.length === 0
+        ? resolveZone(d, DEFAULT_WINDOWS, preorderOpen)
+        : aggregateZones(zones.map((z) => resolveZone(d, z, preorderOpen)));
   }
 
-  // 2. Fall preorder: from the Aug 15 switch up to (not into) the fall window.
-  if (d >= ord(calendar.preorder_open.fall) && d < ord(fall[0])) {
-    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "fall", fulfillmentDays };
-  }
+  return {
+    mode: resolved.mode,
+    depositNow: resolved.depositNow,
+    preorderSeason: resolved.preorderSeason,
+    fulfillmentDays,
+    orderDeadline,
+    approximate,
+    weatherHoldNote,
+  };
+}
 
-  // 3. Spring preorder: from the Nov 1 switch through year-end, then into Jan up
-  //    to (not into) the spring window. preorder_open.spring (Nov) > spring start
-  //    (Jan), so this window wraps the year boundary.
-  if (d >= ord(calendar.preorder_open.spring) || d < ord(spring[0])) {
-    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "spring", fulfillmentDays };
-  }
-
-  // 4. Everything else (summer leafed window + post-fall-window gap) → peat &
-  //    bagged, the no-dead-months fallback on the normal 5–10 business-day policy.
-  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, fulfillmentDays };
+/** The order-by deadline for the matched season, or `null` (peat & bagged, or a
+ *  zone override that omits the deadline). */
+function deadlineFor(zone: ShippingCalendarZone, season: ResolvedSeason): MonthDay | null {
+  if (season === "fall") return zone.fall_order_deadline ?? null;
+  if (season === "spring") return zone.spring_order_deadline ?? null;
+  return null;
 }
 
 // ── Customer-facing copy (GOL-1173 ratified; no em dashes, brand rule) ────────
@@ -218,4 +292,26 @@ export function barerootNote(res: FulfillmentResolution): string {
     case "peat-and-bagged":
       return `Shipping now as peat and bagged: leafed-out trees wrapped in damp peat, up to four per box, on our normal ${res.fulfillmentDays[0]} to ${res.fulfillmentDays[1]} business day timeline.`;
   }
+}
+
+// ── Advisory copy (GOL-1177 contract fields, surfaced GOL-1313 finding 5) ─────
+
+const MONTH_ABBR = [
+  "",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+/** "Nov 21" — locale-free, matches the backend `_fmt` so the two never disagree. */
+export function formatMonthDay(md: MonthDay): string {
+  return `${MONTH_ABBR[md[0]]} ${md[1]}`;
+}
+
+/** "Order by Nov 21" for a known-zone bareroot wave, or `null` when there is no
+ *  deadline to show (peat & bagged, or an unknown zone). Lets a shopper see the
+ *  last reserve date for their zone (GOL-1177 `order_deadline`). */
+export function orderDeadlineLine(res: FulfillmentResolution): string | null {
+  if (!res.orderDeadline) return null;
+  if (res.mode === "peat-and-bagged") return null;
+  return `Order by ${formatMonthDay(res.orderDeadline)}`;
 }
