@@ -22,8 +22,9 @@ import type {
  * A calendar edit is therefore a data change, never a code change here, and this
  * resolver never needs rebuilding for a new season.
  *
- * The customer-facing wording (deposit %, preorder sublines) is the ratified
- * GOL-1173 copy (doc `preorder-deposit-copy`, Josh/Abigail sign-off 2026-08-06).
+ * The customer-facing wording (flat $10 deposit, preorder sublines) is the
+ * ratified GOL-1302 copy (Josh, 2026-08-12), which supersedes the earlier 25%
+ * GOL-1173 wording.
  *
  * Potted is out of scope: potted is farm-pickup-only always (no shippable box by
  * design — see `isPickupOnly` in `shipping-estimate.ts`). Only ask this resolver
@@ -42,10 +43,16 @@ import type {
 
 export type { ShippableMode };
 
-/** Ratified preorder deposit (GOL-1173, Josh 2026-08-06): 25% charged when the
- *  preorder window opens; the 75% balance is charged to the saved card when the
- *  tree ships in the shopper's zone window. Single source of the storefront %. */
-export const PREORDER_DEPOSIT_PCT = 25;
+/*
+ * Ratified preorder deposit (GOL-1302, Josh 2026-08-12): a flat $10.00 per
+ * preorder line, charged when the preorder window opens; the balance is charged
+ * to the saved card when the tree ships in the shopper's zone window. This flat
+ * amount supersedes the earlier 25% figure (GOL-1173 §3). The exact charge is
+ * owned by the backend (`stripe_gateway.PREORDER_DEPOSIT = 10.00`) and surfaced
+ * in the checkout order summary from the itemized `line_items` (`kind:
+ * "deposit"`); the storefront copy below states the flat amount as a plain
+ * string (matching `buy-state.ts` / `shipping-hints.ts`) and never computes it.
+ */
 
 export interface FulfillmentResolution {
   /** The single mode a bareroot-capable tree shows today. */
@@ -194,7 +201,7 @@ export function barerootBadge(res: FulfillmentResolution): string | null {
 export function barerootTimingShort(res: FulfillmentResolution): string {
   switch (res.mode) {
     case "bareroot-preorder":
-      return `${PREORDER_DEPOSIT_PCT}% deposit · ships this ${res.preorderSeason}`;
+      return `$10 deposit · ships this ${res.preorderSeason}`;
     case "bareroot-in-window":
       return "Ships now";
     case "peat-and-bagged":
@@ -204,7 +211,7 @@ export function barerootTimingShort(res: FulfillmentResolution): string {
 
 /**
  * Full buy-box note for the selected bareroot format. The preorder wording is
- * verbatim ratified GOL-1173 copy (doc `preorder-deposit-copy` §2); the in-window
+ * the ratified GOL-1302 flat-$10 copy (Josh 2026-08-12); the in-window
  * and peat & bagged lines are plain factual descriptions of the fulfillment we
  * perform (no persuasive claims, no em dashes) and are safe to render without
  * further brand sign-off.
@@ -212,7 +219,7 @@ export function barerootTimingShort(res: FulfillmentResolution): string {
 export function barerootNote(res: FulfillmentResolution): string {
   switch (res.mode) {
     case "bareroot-preorder":
-      return `Reserve now with a ${PREORDER_DEPOSIT_PCT}% deposit. We charge the rest when your tree ships this ${res.preorderSeason}, timed to your area.`;
+      return `Reserve now with a $10 deposit per tree. We charge the rest when your tree ships this ${res.preorderSeason}, timed to your area.`;
     case "bareroot-in-window":
       return "It is bareroot season. We dig your trees fresh and ship them dormant, timed to your area.";
     case "peat-and-bagged":
