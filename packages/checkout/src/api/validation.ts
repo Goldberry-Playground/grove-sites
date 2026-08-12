@@ -116,8 +116,28 @@ export function validateOrderInput(payload: unknown): string | null {
     return `contact.phone must be a string of at most ${MAX_PHONE} chars`;
   }
 
-  const shippingError = validateAddress(p.shipping, "shipping");
-  if (shippingError) return shippingError;
+  // Validate the fulfillment mode up front — the shipping-address requirement
+  // below hinges on it. Absent/`"ship"` means a shipment (address required);
+  // `"pickup"` is farm pickup, where the storefront never renders the address
+  // fieldset (grove-ui CheckoutPage hides it behind `!isPickup`) and Odoo
+  // treats `shipping` as optional (grove_headless main.py). Requiring an
+  // address for pickup would 400 a checkout whose street field isn't even on
+  // screen (GOL-1308). Pickup is WV-taxed regardless of address, so dropping
+  // it is safe.
+  if (
+    p.fulfillment !== undefined &&
+    p.fulfillment !== "ship" &&
+    p.fulfillment !== "pickup"
+  ) {
+    return 'fulfillment must be "ship" or "pickup"';
+  }
+  const isPickup = p.fulfillment === "pickup";
+
+  // Ship orders require a full, valid shipping address; pickup orders do not.
+  if (!isPickup) {
+    const shippingError = validateAddress(p.shipping, "shipping");
+    if (shippingError) return shippingError;
+  }
 
   if (p.billing !== undefined && p.billing !== null) {
     const billingError = validateAddress(p.billing, "billing");
@@ -133,14 +153,6 @@ export function validateOrderInput(payload: unknown): string | null {
   }
   if (!p.items.every(isValidItem)) {
     return "Each item needs a positive integer variantId and finite quantity";
-  }
-
-  if (
-    p.fulfillment !== undefined &&
-    p.fulfillment !== "ship" &&
-    p.fulfillment !== "pickup"
-  ) {
-    return 'fulfillment must be "ship" or "pickup"';
   }
 
   return null;
