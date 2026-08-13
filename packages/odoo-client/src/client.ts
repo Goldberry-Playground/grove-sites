@@ -19,6 +19,10 @@ import type {
   ApiShippingRatesResponse,
   ShippingRateTable,
   ShippingRateFeed,
+  ShippingCalendar,
+  NewsletterSubscribeInput,
+  NewsletterSubscribeResult,
+  ApiNewsletterSubscribeResponse,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -93,6 +97,31 @@ async function api<T>(
 // Normalizers live in ./normalizers — extracted there so they can be
 // unit-tested without the fetch wrapper.
 
+/** A `[month, day]` pair the calendar resolver can index into. */
+function isMonthDay(v: unknown): v is [number, number] {
+  return Array.isArray(v) && v.length === 2 && typeof v[0] === "number" && typeof v[1] === "number";
+}
+
+/**
+ * True only when the feed's `calendar` block carries every field the product
+ * page's mode resolver dereferences (GOL-1313). The backend always serializes
+ * these (`serialize_calendar`), so this guards against a hand-crafted or
+ * partially-migrated feed rather than the normal path — but the resolver reads
+ * `preorder_open.fall/.spring` unguarded, so a partial calendar must be rejected
+ * at the boundary (→ degrade to snapshot) before it reaches React.
+ */
+function isWellFormedCalendar(cal: ShippingCalendar | undefined | null): cal is ShippingCalendar {
+  return (
+    !!cal &&
+    typeof cal === "object" &&
+    !!cal.preorder_open &&
+    isMonthDay(cal.preorder_open.fall) &&
+    isMonthDay(cal.preorder_open.spring) &&
+    !!cal.zones &&
+    typeof cal.zones === "object"
+  );
+}
+
 
 // ── Client factory ──────────────────────────────────────────────────
 
@@ -120,7 +149,17 @@ export function createOdooClient(config: TenantConfig): OdooClient {
 
         const qs = searchParams.toString();
         const path = `/grove/api/v1/products${qs ? `?${qs}` : ""}`;
-        const raw = await api<ApiProductListResponse>(config, path);
+        // Cache the browse fetch (GOL-1319). The catalog is small and changes at
+        // most a few times a day, but /shop re-fetches the whole list on every
+        // search, category-pill click, and `?all=1` reveal — a fresh full-catalog
+        // round-trip to the single Odoo droplet per navigation. A 60s revalidate
+        // collapses those into one shared Data Cache entry (per facet URL) while
+        // the publish webhook's `revalidatePath('/shop')` still flushes it on a
+        // new/edited product. (Callers on `force-dynamic` pages opt out of this
+        // via Next's `force-no-store`; that's fine — they wanted per-request.)
+        const raw = await api<ApiProductListResponse>(config, path, {
+          next: { revalidate: 60 },
+        });
 
         return {
           count: raw.count,
@@ -215,12 +254,20 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           // feed (Odoo not yet upgraded) has no `packing` and tier-keyed zones,
           // an empty table means "not configured", and an unreachable feed throws
           // below — every case returns null so the caller keeps its snapshot.
+          //
+          // The `calendar` block is validated too (GOL-1313): the product page's
+          // mode resolver dereferences `calendar.preorder_open.fall/.spring`, so a
+          // schema-2 feed whose calendar is absent or partial would crash
+          // ProductView's useMemo. Reject it here and degrade to the snapshot
+          // (shipMode → null → the legacy static bareroot hint) rather than break
+          // every nursery product page.
           if (
             !raw ||
             (raw.schema ?? 1) < 2 ||
             !raw.packing ||
             !raw.zones ||
-            Object.keys(raw.zones).length === 0
+            Object.keys(raw.zones).length === 0 ||
+            !isWellFormedCalendar(raw.calendar)
           ) {
             return null;
           }
@@ -304,6 +351,34 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           }
         );
         return normalizeCheckoutSession(raw);
+      },
+    },
+
+    newsletter: {
+      async subscribe(
+        input: NewsletterSubscribeInput
+      ): Promise<NewsletterSubscribeResult> {
+        const body: Record<string, unknown> = {
+          email: input.email,
+          brand: input.brand,
+          interests: input.interests ?? [],
+          source: input.source,
+          // Consent is validated upstream; the endpoint re-checks it as opt-in
+          // proof and 400s without a truthy value.
+          consent: input.consent,
+        };
+        if (input.name) body.name = input.name;
+        if (input.attribution) body.attribution = input.attribution;
+
+        const raw = await api<ApiNewsletterSubscribeResponse>(
+          config,
+          "/grove/api/v1/newsletter/subscribe",
+          { method: "POST", body: JSON.stringify(body) }
+        );
+        return {
+          partnerId: raw.partner_id != null ? String(raw.partner_id) : undefined,
+          created: raw.created,
+        };
       },
     },
   };
