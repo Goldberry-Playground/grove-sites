@@ -26,6 +26,11 @@ name: Lighthouse CI
 #                          real pass/fail. Merge stays blocked until it does.
 #      Net effect: the gate only ever *blocks* on `qa`-labeled PRs, exactly as
 #      GOL-866 asks, while non-`qa` PRs sail through green.
+#      GOL-1316 hardening: the shim never overwrites a real audit result (a
+#      status carrying an Actions-run target_url), so toggling the `qa` label on
+#      an already-audited SHA can no longer flip a failure back to success; and
+#      the merge_group queue-gate verifies each queued PR's real conclusion
+#      instead of posting an unconditional success.
 
 on:
   workflow_dispatch:
@@ -60,6 +65,14 @@ jobs:
   # preview) exists. The real audit already ran on the PR before it queued, so
   # post success on the queue SHA to satisfy the required "Lighthouse CI"
   # context; without this every queue entry times out.
+  #
+  # GOL-1316: this must *verify* the queued PR's real "Lighthouse CI" conclusion
+  # before passing the queue SHA — an unconditional success let a PR whose audit
+  # failed sail through the queue. We recover the PR number(s) from the
+  # merge-queue ref (`.../pr-<n>-<sha>`, multiple for a batched group), read each
+  # PR's latest "Lighthouse CI" status, and only pass the group when every queued
+  # PR is green. Anything else (a failure, a missing status, or an unparseable
+  # ref) blocks the group — fail closed, never rubber-stamp.
   queue-gate:
     name: Lighthouse queue gate
     if: github.event_name == 'merge_group'
@@ -69,17 +82,57 @@ jobs:
       - uses: actions/github-script@v9
         with:
           script: |
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.payload.merge_group.head_sha,
-              context: 'Lighthouse CI',
-              state: 'success',
-              description: 'Merge queue - audit ran on the PR; queue branches have no preview',
-            });
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const mg = context.payload.merge_group;
+            const groupSha = mg.head_sha;
+
+            const post = (state, description) =>
+              github.rest.repos.createCommitStatus({
+                owner, repo, sha: groupSha, context: 'Lighthouse CI', state, description,
+              });
+
+            // Recover the queued PR number(s) from the merge-queue ref, e.g.
+            // refs/heads/gh-readonly-queue/main/pr-123-<sha> (a batched group can
+            // carry several `pr-<n>` segments).
+            const ref = mg.head_ref || '';
+            const prNumbers = [...ref.matchAll(/pr-(\d+)/g)].map(m => Number(m[1]));
+            if (prNumbers.length === 0) {
+              core.setFailed(`Could not parse a PR number from merge_group ref: "${ref}"`);
+              await post('failure', 'Queue gate could not identify the PR to verify — blocking');
+              return;
+            }
+
+            const results = [];
+            for (const number of prNumbers) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              // getCombinedStatusForRef returns the latest status per context —
+              // the same value the required-check gate itself reads.
+              const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
+                owner, repo, ref: pr.head.sha,
+              });
+              const lh = combined.statuses.find(s => s.context === 'Lighthouse CI');
+              const state = lh ? lh.state : 'missing';
+              results.push(`PR #${number}: ${state}`);
+              if (state !== 'success') {
+                core.setFailed(`PR #${number} Lighthouse CI is "${state}", not success — blocking the queue.`);
+                await post('failure', `PR #${number} Lighthouse audit did not pass (${state}) — blocking`);
+                return;
+              }
+            }
+
+            await post('success', `Merge queue verified: ${results.join(', ')}`);
   # ───────────────────────────────────────────────────────────────────────────
   # Gate shim — sets the "Lighthouse CI" required status for a PR based on its
   # label. Runs on every PR (cheap, no build).
+  #
+  # GOL-1316: the shim must NEVER overwrite a real audit result. The audit /
+  # preview-failed jobs post "Lighthouse CI" with a target_url pointing at the
+  # Actions run; the shim never sets target_url. Because commit statuses are
+  # latest-wins, a shim firing on `unlabeled` used to flip a genuine *failure*
+  # back to success on the same head SHA (remove the `qa` label -> non-qa ->
+  # success), bypassing the gate. So: if a real audit result already exists for
+  # this SHA, the audit is authoritative — leave it untouched.
   gate:
     name: Lighthouse gate
     if: github.event_name == 'pull_request'
@@ -89,12 +142,26 @@ jobs:
       - uses: actions/github-script@v9
         with:
           script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             const pr = context.payload.pull_request;
+            const sha = pr.head.sha;
+
+            // Don't clobber a real audit result. getCombinedStatusForRef returns
+            // the latest status per context; the audit/preview-failed jobs are the
+            // only ones that set target_url (an Actions run URL).
+            const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
+              owner, repo, ref: sha,
+            });
+            const latest = combined.statuses.find(s => s.context === 'Lighthouse CI');
+            if (latest && latest.target_url && latest.target_url.includes('/actions/runs/')) {
+              core.info(`Real Lighthouse audit result already present for ${sha} (state=${latest.state}) — leaving it untouched.`);
+              return;
+            }
+
             const isQa = pr.labels.some(l => l.name === 'qa');
             await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: pr.head.sha,
+              owner, repo, sha,
               context: 'Lighthouse CI',
               state: isQa ? 'pending' : 'success',
               description: isQa
