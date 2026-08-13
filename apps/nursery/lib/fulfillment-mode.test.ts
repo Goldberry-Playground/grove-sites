@@ -9,7 +9,6 @@ import {
   formatMonthDay,
   orderDeadlineLine,
   tierFulfillment,
-  PREORDER_DEPOSIT_PCT,
   type ShippableMode,
 } from "./fulfillment-mode";
 
@@ -242,7 +241,7 @@ describe("GOL-1313 — crash safety, backend-mirror fallback, advisory fields", 
   });
 });
 
-describe("customer-facing copy (GOL-1173 ratified; 25% deposit, no em dashes)", () => {
+describe("customer-facing copy (GOL-1302 ratified; flat $10 deposit, no em dashes)", () => {
   const preorder = resolveShippableMode(on(8, 20), CAL); // fall preorder
   const inWindow = resolveShippableMode(on(10, 1), CAL); // ships now
   const peat = resolveShippableMode(on(6, 15), CAL); // peat & bagged
@@ -253,8 +252,8 @@ describe("customer-facing copy (GOL-1173 ratified; 25% deposit, no em dashes)", 
     expect(barerootBadge(inWindow)).toBeNull();
   });
 
-  it("compact timing states the deposit %, ships-now, or the SLA", () => {
-    expect(barerootTimingShort(preorder)).toBe("25% deposit · ships this fall");
+  it("compact timing states the flat deposit, ships-now, or the SLA", () => {
+    expect(barerootTimingShort(preorder)).toBe("$10 deposit · ships this fall");
     expect(barerootTimingShort(inWindow)).toBe("Ships now");
     expect(barerootTimingShort(peat)).toBe("Ships in 5–10 business days");
   });
@@ -262,7 +261,7 @@ describe("customer-facing copy (GOL-1173 ratified; 25% deposit, no em dashes)", 
   it("preorder note is the ratified copy and never uses an em dash", () => {
     const note = barerootNote(preorder);
     expect(note).toBe(
-      `Reserve now with a ${PREORDER_DEPOSIT_PCT}% deposit. We charge the rest when your tree ships this fall, timed to your area.`,
+      "Reserve now with a $10 deposit per tree. We charge the rest when your tree ships this fall, timed to your area.",
     );
     for (const note of [barerootNote(preorder), barerootNote(inWindow), barerootNote(peat)]) {
       expect(note).not.toContain("—"); // brand rule: no em dashes
@@ -309,7 +308,11 @@ describe("tierFulfillment — one presentation authority (GOL-1313)", () => {
         hintFulfillment: "Reserve for October",
         shipMode: preorder,
       }),
-    ).toEqual({ fulfillment: "25% deposit · ships this fall", badge: "Preorder" });
+    // Flat $10, not 25% — GOL-1302 (ratified by Josh 2026-08-12) supersedes the
+    // percentage. main's GOL-1313 test was written against the old copy while
+    // this branch was open; the source of truth is the backend's
+    // stripe_gateway.PREORDER_DEPOSIT = 10.00.
+    ).toEqual({ fulfillment: "$10 deposit · ships this fall", badge: "Preorder" });
   });
   it("no live mode (legacy backend) → static hint, no badge", () => {
     expect(

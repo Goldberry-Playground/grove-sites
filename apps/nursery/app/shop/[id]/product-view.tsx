@@ -457,10 +457,10 @@ export function ProductView({
           )}
 
           {/* Bareroot fulfillment note, driven by today's shippable mode
-              (GOL-1114): preorder + 25% deposit / ships-now / peat & bagged.
-              Ratified copy (GOL-1173). Icon + words, never colour alone. The
-              legacy backend (no calendar feed → shipMode null) keeps the old
-              stock-driven deposit note below. */}
+              (GOL-1114): preorder + $10 deposit / ships-now / peat & bagged.
+              Ratified copy (GOL-1302, flat $10). Icon + words, never colour
+              alone. The legacy backend (no calendar feed → shipMode null) keeps
+              the old stock-driven deposit note below. */}
           {shipMode && selectedTier === "bareroot" && !selectedPickupOnly && (
             <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
               <svg
