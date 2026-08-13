@@ -1,4 +1,4 @@
-import type { GroveTrustItem } from "@grove/ui-kit";
+import type { GroveTrustItem, GrovePickupCopy } from "@grove/ui-kit";
 
 /**
  * Which storefront is rendering the shared cart/checkout. The three apps that
@@ -14,6 +14,16 @@ interface BrandTrust {
   cart: GroveTrustItem[];
   /** Checkout-page strip (three signals; leads with the Stripe assurance). */
   checkout: GroveTrustItem[];
+  /**
+   * Farm-pickup fulfillment. `null` for brands with no pickup location — the
+   * checkout renders ship-only and never shows a pickup option. Only the
+   * nursery has a physical West Virginia pickup point, and its copy names live
+   * trees + a WV tax jurisdiction, so this must ride the brand seam rather than
+   * default on in the shared kit (GOL-1075 shipped pickup; GOL-1314 stopped it
+   * leaking onto ggg/goldberry). The copy is the single source of truth for the
+   * ship-vs-pickup fieldset wording.
+   */
+  pickup: GrovePickupCopy | null;
 }
 
 /**
@@ -47,6 +57,14 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
       { icon: "◐", text: "Deposit today on preorders, balance at ship time" },
       { icon: "✓", text: "Arrive-alive guarantee" },
     ],
+    pickup: {
+      shipLabel: "Ship to me — delivered to your address",
+      pickupLabel: "Farm pickup — collect at our WV nursery ($0 shipping)",
+      pickupNote:
+        "Pick up your order at our West Virginia nursery — no shipping charge. West Virginia sales tax applies. We'll email you when it's ready.",
+      shipNote:
+        "We ship live trees to your address during the planting window for your growing zone.",
+    },
   },
   ggg: {
     cart: [
@@ -60,6 +78,8 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
       { icon: "◐", text: "Review your full total before you pay" },
       { icon: "✓", text: "Solid wood, built to last" },
     ],
+    // No physical pickup point — GGG ships handmade woodwork only.
+    pickup: null,
   },
   goldberry: {
     cart: [
@@ -73,5 +93,7 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
       { icon: "◐", text: "Review your full total before you pay" },
       { icon: "✓", text: "Packed fresh, sealed for the trip" },
     ],
+    // No physical pickup point — goldberry ships pantry goods only.
+    pickup: null,
   },
 };
