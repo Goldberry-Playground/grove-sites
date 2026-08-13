@@ -294,6 +294,12 @@ export type MonthDay = [number, number];
 export interface ShippingCalendarZone {
   fall: [MonthDay, MonthDay];
   spring: [MonthDay, MonthDay];
+  /** Order-by deadline for the fall / spring dormant wave (GOL-1177). Serialized
+   * by the backend (`serialize_calendar`) as `[month, day]`, nullable when a
+   * zone override omits it. Surfaced in the buy box so a shopper knows the last
+   * day to reserve for their zone's window. */
+  fall_order_deadline?: MonthDay | null;
+  spring_order_deadline?: MonthDay | null;
 }
 
 /** The `calendar` block of the schema-2 feed (GOL-1172): the annual,
@@ -311,6 +317,14 @@ export interface ShippingCalendar {
   /** Normal processing SLA (business days) for peat & bagged and the
    * shipped-past-your-zone fallback, e.g. [5, 10]. */
   fulfillment_days: [number, number];
+  /** Ship windows are estimates, "weather permitting" (GOL-1177). `true` (the
+   * default) means every displayed window carries a weather-permitting qualifier.
+   * Serialized by the backend; treat a missing value as `true`. */
+  approximate?: boolean;
+  /** Admin-editable advisory the backend serializes when a known frost delay is
+   * in effect (GOL-1177) — the frontend renders it as a banner. `null` / absent
+   * when there is no active hold. */
+  weather_hold_note?: string | null;
   zones: Record<string, ShippingCalendarZone>;
 }
 
@@ -708,6 +722,44 @@ export interface OrderDetail {
   currency: string;
 }
 
+/**
+ * Input to the CRM newsletter opt-in write
+ * (`POST /grove/api/v1/newsletter/subscribe`, GOL-221). Kept string-typed for
+ * `brand`/`interests`/`source` so this transport-layer client stays decoupled
+ * from `@grove/newsletter`'s domain unions — the caller passes its own types in.
+ */
+export interface NewsletterSubscribeInput {
+  email: string;
+  /** Optional display name for the `res.partner`. */
+  name?: string;
+  /** Brand slug the opt-in is recorded under (routes tags/company). */
+  brand: string;
+  /** Interest tags applied on top of the brand. */
+  interests?: string[];
+  /** Where the opt-in was captured (per-form segmentation). */
+  source: string;
+  /** Affirmative consent — the endpoint re-checks it and 400s without a truthy value. */
+  consent: boolean;
+  /** Marketing attribution captured at signup (utm_*, referrer, etc.). */
+  attribution?: Record<string, string>;
+}
+
+/** Raw grove_headless response for a newsletter opt-in. */
+export interface ApiNewsletterSubscribeResponse {
+  partner_id?: string | number;
+  email?: string;
+  tags?: string[];
+  created?: boolean;
+}
+
+/** Normalized result of a CRM newsletter opt-in. */
+export interface NewsletterSubscribeResult {
+  /** `res.partner` id the opt-in upserted, when the backend returns one. */
+  partnerId?: string;
+  /** True when a new partner was created (vs. tags merged onto an existing one). */
+  created?: boolean;
+}
+
 export interface OdooClient {
   health(): Promise<{ status: string }>;
   products: {
@@ -759,5 +811,14 @@ export interface OdooClient {
   };
   checkout: {
     createSession(input: CheckoutSessionInput): Promise<CheckoutSession>;
+  };
+  newsletter: {
+    /** Best-effort CRM opt-in (GOL-221): upsert a tagged `res.partner` for the
+     * confirmed newsletter opt-in. Idempotent by email within the tenant
+     * company, so re-subscribing merges tags rather than duplicating the
+     * contact. Throws {@link OdooApiError} on a non-2xx — `@grove/newsletter`'s
+     * capture wraps this call in its never-throw adapter so a CRM failure never
+     * blocks the visitor's Ghost opt-in. */
+    subscribe(input: NewsletterSubscribeInput): Promise<NewsletterSubscribeResult>;
   };
 }

@@ -23,13 +23,18 @@ import { CatalogSearch } from "./catalog-search";
 // an explicit "Show all" link (`?all=1`) so nothing is hidden without saying so.
 const GRID_CAP = 24;
 
-// Deploy retrigger (GOL-768): agent auto-merges to main now re-fire docker.yml
-// via auto-approve.yml's workflow_dispatch, so this touch rolls the pending
-// GOL-761 image_1024 shop-grid fix live on nursery.qa. Safe to remove later.
-// Render on every request so the page reflects current Odoo state and the
-// live facet selection. (Build-time render can't reach Odoo when building
-// inside Docker; ISR returns once Odoo posts a revalidation webhook.)
-export const dynamic = "force-dynamic";
+// The page renders dynamically (per-request) because it awaits `searchParams`
+// for the live facet selection — that alone opts it out of build-time static
+// generation, so nothing tries to reach Odoo while building inside Docker.
+//
+// We deliberately do NOT set `force-dynamic` (GOL-1319): that would flip the
+// route to `fetchCache: 'force-no-store'` and force a fresh full-catalog Odoo
+// round-trip on every search submit, category-pill click, and `?all=1` reveal —
+// hammering the single 4GB droplet — because `odoo.products.list()` carries its
+// own 60s `next.revalidate`. Without `force-dynamic`, that revalidate is honored:
+// the browse fetch is served from the shared Data Cache and refreshed at most
+// once a minute (per facet URL), and the publish webhook's
+// `revalidatePath('/shop')` still flushes it immediately on a new/edited product.
 
 interface ShopPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

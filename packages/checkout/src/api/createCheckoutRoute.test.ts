@@ -194,6 +194,76 @@ describe("createCheckoutRoute payload validation", () => {
     expect(odoo.orders.create).not.toHaveBeenCalled();
   });
 
+  // GOL-1308: farm pickup hides the shipping fieldset in grove-ui, so the
+  // browser posts an empty-string address (or none). The BFF must not require
+  // a shipping address for fulfillment "pickup" — Odoo treats it as optional
+  // and pickup is WV-taxed regardless of address.
+  it("accepts a pickup order whose shipping fields are all empty strings", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    // Mirrors grove-ui CheckoutPage state when isPickup: address unmounted,
+    // shipping left at its empty-string initial values.
+    const shipping = {
+      street: "",
+      street2: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "US",
+    };
+    const res = await handler(
+      postReq(validPayload({ shipping, fulfillment: "pickup" })),
+    );
+
+    expect(res.status).toBe(200);
+    expect(odoo.orders.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts a pickup order with the shipping key omitted entirely", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const payload = validPayload({ fulfillment: "pickup" }) as Record<
+      string,
+      unknown
+    >;
+    delete payload.shipping;
+    const res = await handler(postReq(payload));
+
+    expect(res.status).toBe(200);
+    expect(odoo.orders.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("still requires a shipping address for an explicit ship order", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const payload = validPayload({ fulfillment: "ship" }) as Record<
+      string,
+      unknown
+    >;
+    delete payload.shipping;
+    const res = await handler(postReq(payload));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/shipping/);
+    expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown fulfillment value", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(
+      postReq(validPayload({ fulfillment: "teleport" })),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/fulfillment/);
+    expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+
   it("rejects billing when present with a too-long field", async () => {
     const odoo = makeOdoo();
     const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
