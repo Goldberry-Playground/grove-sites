@@ -54,9 +54,17 @@ export interface GroveCheckoutPaymentMethod {
   label: string;
 }
 
+/**
+ * Brand-NEUTRAL payment labels (GOL-1314). These render on every storefront
+ * that doesn't pass `paymentMethods`, so they must describe the mechanism only
+ * — never the business. "Check (mail to nursery)" told woodwork and pantry
+ * customers to post a cheque to a nursery; a consumer with its own destination
+ * supplies its own labels via the `paymentMethods` prop, exactly like the trust
+ * strip and pickup copy.
+ */
 const DEFAULT_PAYMENT_METHODS: GroveCheckoutPaymentMethod[] = [
   { value: "card", label: "Card (we'll contact you to process)" },
-  { value: "check", label: "Check (mail to nursery)" },
+  { value: "check", label: "Check (by mail)" },
   { value: "cash", label: "Cash on pickup" },
   { value: "invoice", label: "Invoice — Net 30 (wholesale only)" },
 ];
