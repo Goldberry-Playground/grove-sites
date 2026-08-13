@@ -491,7 +491,7 @@ export function ProductView({
 
           {buy.showDepositNote && !shipMode && (
             <p className="text-xs text-ink-soft mb-4">
-              Bareroot ships in fall — reserve now with a $10 deposit applied to your total.
+              Bareroot ships in fall. Reserve now with a $10 deposit applied to your total.
             </p>
           )}
 
@@ -541,7 +541,7 @@ export function ProductView({
                     ? "Be the first to know when it's available."
                     : "Want to know when it's back in stock?"
                 }
-                description="We'll send one email when it's ready to ship — that's it."
+                description="We'll send one email when it's ready to ship. That's it."
                 submitLabel="Notify me"
                 successMessage="You're on the list. We'll email you when it's ready."
                 consentText="We'll only email you about this. Unsubscribe anytime."
