@@ -18,7 +18,10 @@ import { CategoryBar } from "../category-bar";
 // label. Attribution (`src=qr-onsite` and any `utm_*`) is captured client-side
 // by CaptureForm's `collectAttribution()` at submit time; no route param
 // plumbing is needed here.
-export const dynamic = "force-dynamic";
+//
+// The page-level section-header (tag + h1) and lede carry the framing, so the
+// CaptureForm here intentionally omits `eyebrow`/`heading` (they'd duplicate
+// the header) and the lede avoids repeating the form's `description` sentence.
 
 export const metadata: Metadata = {
   title: "News from the nursery — At The Grove Nursery",
@@ -45,8 +48,8 @@ export default function NotifyPage() {
         </div>
 
         <p className="section-lede" style={{ maxWidth: "58ch" }}>
-          A few emails a season, not a flood. Leave your address and we&apos;ll
-          let you know when there&apos;s something worth planting.
+          Leave your address and we&apos;ll let you know when there&apos;s
+          something worth planting.
         </p>
 
         <div
@@ -57,8 +60,6 @@ export default function NotifyPage() {
             brand="nursery"
             source="newsletter-signup"
             label="nursery-general"
-            eyebrow="Newsletter"
-            heading="News from the nursery"
             description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
             submitLabel="Sign up"
             successMessage="Thanks — you'll hear from us when there's something worth sending."
