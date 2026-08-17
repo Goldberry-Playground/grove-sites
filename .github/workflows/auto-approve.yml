@@ -108,6 +108,19 @@ jobs:
                   else
                     echo "PR #$PR touched no docker.yml-watched paths; skipping deploy dispatch."
                   fi
+
+                  # The same GITHUB_TOKEN push-suppression hides cdn-asset-sync.yml's
+                  # `push` run (GOL-768). Re-fire it when the merge touched a
+                  # CDN-mirrored photo so the shared CDN doesn't go stale against
+                  # the repo (GOL-1602). The sync is an idempotent --size-only
+                  # reconcile, so a redundant dispatch is a cheap no-op.
+                  if echo "$FILES" | grep -qE '^apps/[^/]+/public/photos/'; then
+                    if gh workflow run cdn-asset-sync.yml --repo "$REPO" --ref main; then
+                      echo "Dispatched cdn-asset-sync.yml to mirror changed photos to the CDN."
+                    else
+                      echo "::warning::cdn-asset-sync.yml dispatch failed; the CDN may serve stale photos until the next sync. Re-run cdn-asset-sync.yml on main manually."
+                    fi
+                  fi
                   exit 0
                 fi ;;
             esac
