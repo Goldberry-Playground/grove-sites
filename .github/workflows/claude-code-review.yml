@@ -39,7 +39,7 @@ jobs:
         # major-version tag (Anthropic doesn't ship semver releases on
         # this repo). Pinned to the immutable commit. Renovate/Dependabot
         # should drive future bumps after review.
-        uses: anthropics/claude-code-action@1623c36729ac1cd5895198cded705a287de7db79 # v1 (2025-08-26)
+        uses: anthropics/claude-code-action@9d7150bc8a3dae8149739a88019d192b579ad90c # v1 (2025-08-26)
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
