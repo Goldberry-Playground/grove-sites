@@ -17,11 +17,22 @@
 #     `contents: read`, which is why the merge step failed with
 #     "Resource not accessible by integration (mergePullRequest)").
 #
-# Guardrails (see GOL-122):
+# Guardrails (see GOL-122, hardened under GOL-1315):
 #   - Never auto-approves human/external PRs (author must be the agent App bot)
 #     -> human review is preserved for human PRs.
 #   - Only fires AFTER the agent code review ("Claude Code Review") SUCCEEDED
 #     -> not a blanket rubber-stamp.
+#   - Head-SHA pinned (GOL-1315 #1): the review that triggered this run must
+#     have run on the PR's CURRENT head. If a newer commit was pushed after the
+#     gate passed, we abort — the new content passed no gate. Re-checked before
+#     approve AND before every merge attempt, since the head can move mid-loop.
+#   - Merges ONLY at OPEN:CLEAN (GOL-1315 #2): UNSTABLE means a check (incl. the
+#     non-required review lane) is pending or FAILING; merging there would let a
+#     failed/slow review be outrun. CLEAN requires every check green for the
+#     current head.
+#   - Never auto-merges PRs that touch `.github/workflows/**` (GOL-1315): changes
+#     to the merge/CI machinery itself require a human review — the gate must not
+#     rubber-stamp edits to the gate.
 #   - Runs from the base-branch definition (workflow_run), so a PR cannot
 #     modify this file to approve itself.
 name: Auto-approve verified agent PRs
@@ -54,6 +65,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          # The commit the "Claude Code Review" gate actually ran on. Everything
+          # below must refuse to act if the PR head has moved off this SHA.
+          GATE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
@@ -67,6 +81,24 @@ jobs:
               exit 0 ;;
           esac
 
+          # GOL-1315: never auto-approve/merge a PR that edits the merge/CI
+          # machinery. Those changes must get a human review — the gate must not
+          # rubber-stamp edits to the gate.
+          if gh pr view "$PR" --repo "$REPO" --json files -q '.files[].path' \
+               | grep -qE '^\.github/workflows/'; then
+            echo "PR #$PR touches .github/workflows/**; requires human review — skipping auto-approve/merge."
+            exit 0
+          fi
+
+          # GOL-1315 #1: the review that triggered this run must have run on the
+          # PR's CURRENT head. If a newer commit landed after the gate passed,
+          # that content passed no gate — abort rather than approve stale work.
+          CUR_SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q '.headRefOid')
+          if [ "$CUR_SHA" != "$GATE_SHA" ]; then
+            echo "Gate ran on $GATE_SHA but PR #$PR head is now $CUR_SHA; the current head passed no gate — skipping. The new head's own review run will re-trigger this."
+            exit 0
+          fi
+
           # Don't stack duplicate approvals on re-runs.
           ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews" \
             -q '[.[] | select(.user.login=="github-actions[bot]" and .state=="APPROVED")] | length')
@@ -74,19 +106,27 @@ jobs:
             echo "PR #$PR already approved by github-actions[bot]."
           else
             gh pr review "$PR" --repo "$REPO" --approve --body \
-              "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed. This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276)"
+              "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed on this PR's current head ($GATE_SHA). This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276 / GOL-1315)"
           fi
 
           # Merge via a DIRECT squash (no `--auto`, so no dependency on the
           # "Allow auto-merge" setting). Wait briefly for the remaining required
-          # checks to go green.
+          # checks to go green. GOL-1315 #2: merge ONLY at OPEN:CLEAN — UNSTABLE
+          # would let a pending/failing (incl. non-required review) check be
+          # outrun. Re-verify the head SHA every attempt: if the PR head moves
+          # off the gated SHA mid-loop, abort — the new head passed no gate.
           for i in $(seq 1 30); do
+            NOW_SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q '.headRefOid')
+            if [ "$NOW_SHA" != "$GATE_SHA" ]; then
+              echo "PR #$PR head moved to $NOW_SHA (gate ran on $GATE_SHA); aborting merge — the new head passed no gate."
+              exit 0
+            fi
             MS=$(gh pr view "$PR" --repo "$REPO" --json state,mergeStateStatus -q '.state + ":" + .mergeStateStatus')
             echo "merge attempt $i — $MS"
             case "$MS" in
               MERGED:*)
                 echo "PR #$PR already merged."; exit 0 ;;
-              OPEN:CLEAN|OPEN:UNSTABLE)
+              OPEN:CLEAN)
                 if gh pr merge "$PR" --repo "$REPO" --squash --delete-branch; then
                   echo "Merged PR #$PR."
 
@@ -126,4 +166,4 @@ jobs:
             esac
             sleep 20
           done
-          echo "Required checks not green within timeout; the approval stands and the PR will merge on a later trigger or a maintainer one-click."
+          echo "Did not reach OPEN:CLEAN on the gated head within timeout; the approval stands and the PR will merge on a later trigger or a maintainer one-click."
