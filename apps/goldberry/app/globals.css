@@ -1174,9 +1174,12 @@ h1 em, h2 em, h3 em, h4 em {
   align-items: end;
   padding: clamp(2rem, 6vw, 5rem) var(--grid) clamp(3rem, 8vw, 6rem);
   position: relative;
-  /* Cream wash blends gradually into the farm aerial — no hard seam.
+  /* Cream wash blends gradually into the hi-def farm vista — no hard seam.
      The photo bleeds under the text faintly rather than being exiled
-     to the right half (designer feedback 2026-05-29). */
+     to the right half (designer feedback 2026-05-29). --hero-photo is a
+     var so mobile (below) can swap to a lighter-weight source without
+     repeating the whole gradient stack (GOL-1581). */
+  --hero-photo: url("/photos/farm-hero.webp");
   background:
     linear-gradient(
       105deg,
@@ -1186,7 +1189,12 @@ h1 em, h2 em, h3 em, h4 em {
       rgba(255, 247, 230, 0.25) 80%,
       rgba(255, 247, 230, 0) 100%
     ),
-    url("/photos/farm-aerial.webp") center / cover;
+    var(--hero-photo) center / cover;
+}
+/* Mobile: serve the ~47 KB 820px hero instead of the 1440px desktop file.
+   Only the image source changes; the gradient wash is inherited (GOL-1581). */
+@media (max-width: 640px) {
+  .hero { --hero-photo: url("/photos/farm-hero-mobile.webp"); }
 }
 .hero-eyebrow {
   font-family: var(--font-mono);
@@ -1839,11 +1847,11 @@ h1 em, h2 em, h3 em, h4 em {
    the .visit-hero element via inline style, and the ::before pseudo-element
    needs to read it. Pseudo-elements only see custom properties that
    inherit — set inherits:false and the ::before falls back to initial-value
-   (farm-aerial), ignoring whatever the page set. */
+   (farm-hero), ignoring whatever the page set. */
 @property --visit-hero-image {
   syntax: '<image>';
   inherits: true;
-  initial-value: url('/photos/farm-aerial.webp');
+  initial-value: url('/photos/farm-hero.webp');
 }
 .visit-hero::before {
   content: '';
@@ -1893,6 +1901,49 @@ h1 em, h2 em, h3 em, h4 em {
   max-width: 900px;
   margin: 0 auto;
   padding: clamp(3rem, 6vw, 5rem) var(--grid);
+}
+/* Coming-soon frame for the /visit sub-pages (GOL-1584). Each planned
+   program leads with an "Opening {season}" note before its vision copy. */
+.visit-opening {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-left: 3px solid var(--harvest-gold);
+  background: rgba(191, 143, 42, 0.07);
+  padding: 1.25rem 1.5rem;
+  margin: 0 0 2.5rem;
+}
+.visit-opening__badge {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: var(--harvest-gold-deep);
+  color: var(--ivory-mist);
+  padding: 4px 10px;
+}
+.visit-opening__note {
+  margin: 0;
+  line-height: 1.65;
+  color: var(--ink, var(--brown));
+  font-size: 1.02rem;
+}
+/* Press mention strip on the /visit index. */
+.visit-press {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 var(--grid) clamp(2rem, 5vw, 3.5rem);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brown);
+  text-align: center;
+}
+.visit-press a {
+  color: var(--forest-command);
+  text-decoration: underline;
 }
 .visit-body h2 {
   font-family: var(--font-display);
