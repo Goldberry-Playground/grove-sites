@@ -1174,9 +1174,12 @@ h1 em, h2 em, h3 em, h4 em {
   align-items: end;
   padding: clamp(2rem, 6vw, 5rem) var(--grid) clamp(3rem, 8vw, 6rem);
   position: relative;
-  /* Cream wash blends gradually into the farm aerial — no hard seam.
+  /* Cream wash blends gradually into the hi-def farm vista — no hard seam.
      The photo bleeds under the text faintly rather than being exiled
-     to the right half (designer feedback 2026-05-29). */
+     to the right half (designer feedback 2026-05-29). --hero-photo is a
+     var so mobile (below) can swap to a lighter-weight source without
+     repeating the whole gradient stack (GOL-1581). */
+  --hero-photo: url("/photos/farm-hero.webp");
   background:
     linear-gradient(
       105deg,
@@ -1186,7 +1189,12 @@ h1 em, h2 em, h3 em, h4 em {
       rgba(255, 247, 230, 0.25) 80%,
       rgba(255, 247, 230, 0) 100%
     ),
-    url("/photos/farm-aerial.webp") center / cover;
+    var(--hero-photo) center / cover;
+}
+/* Mobile: serve the ~47 KB 820px hero instead of the 1440px desktop file.
+   Only the image source changes; the gradient wash is inherited (GOL-1581). */
+@media (max-width: 640px) {
+  .hero { --hero-photo: url("/photos/farm-hero-mobile.webp"); }
 }
 .hero-eyebrow {
   font-family: var(--font-mono);
@@ -1839,11 +1847,11 @@ h1 em, h2 em, h3 em, h4 em {
    the .visit-hero element via inline style, and the ::before pseudo-element
    needs to read it. Pseudo-elements only see custom properties that
    inherit — set inherits:false and the ::before falls back to initial-value
-   (farm-aerial), ignoring whatever the page set. */
+   (farm-hero), ignoring whatever the page set. */
 @property --visit-hero-image {
   syntax: '<image>';
   inherits: true;
-  initial-value: url('/photos/farm-aerial.webp');
+  initial-value: url('/photos/farm-hero.webp');
 }
 .visit-hero::before {
   content: '';

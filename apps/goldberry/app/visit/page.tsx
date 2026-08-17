@@ -13,7 +13,7 @@ export default function VisitPage() {
     <article className="visit-page">
       <section
         className="visit-hero"
-        style={{ ["--visit-hero-image" as string]: `url('${assetPath("goldberry", "photos/farm-aerial.webp")}')` }}
+        style={{ ["--visit-hero-image" as string]: `url('${assetPath("goldberry", "photos/farm-hero.webp")}')` }}
       >
         <div className="visit-hero__inner">
           <div className="visit-hero__eyebrow">Come See Us</div>
