@@ -11,11 +11,17 @@
 #     App — which satisfies the required review. (This needs the org/repo
 #     setting "Allow GitHub Actions to create and approve pull requests",
 #     enabled org-wide under GOL-304.)
-#   - MERGE as github-actions[bot] too, via a DIRECT squash (not `--auto`), so
-#     it does NOT depend on the separate "Allow auto-merge" repo setting.
-#     This requires `contents: write` (the previous version only had
-#     `contents: read`, which is why the merge step failed with
-#     "Resource not accessible by integration (mergePullRequest)").
+#   - MERGE as github-actions[bot] too, via a squash `gh pr merge` (not `--auto`,
+#     so no dependency on the separate "Allow auto-merge" repo setting). This
+#     requires `contents: write` (an earlier version only had `contents: read`,
+#     which is why the merge step failed with "Resource not accessible by
+#     integration (mergePullRequest)").
+#     `main` has an active merge-queue ruleset, so `gh pr merge --squash`
+#     ENQUEUES rather than merges synchronously; the queue then runs the
+#     required checks on a `gh-readonly-queue/` branch and performs the real
+#     squash-merge into main as github-merge-queue[bot]. See the merge step for
+#     why the post-merge deploy/CDN dispatch is NOT tied to that enqueue
+#     (GOL-1658 / GOL-1661).
 #
 # Guardrails (see GOL-122):
 #   - Never auto-approves human/external PRs (author must be the agent App bot)
@@ -31,11 +37,14 @@ on:
     workflows: ["Claude Code Review"]
     types: [completed]
 
-# contents:write lets github-actions[bot] perform the direct squash merge;
+# contents:write lets github-actions[bot] enqueue/squash-merge the PR;
 # pull-requests:write lets it post the approving review;
-# actions:write lets it re-fire docker.yml via workflow_dispatch after the merge
-# (the merge push itself is made with GITHUB_TOKEN, which GitHub suppresses from
-# starting a `push` run — see the dispatch step below / GOL-768).
+# actions:write lets it re-fire docker.yml/cdn-asset-sync.yml via
+# workflow_dispatch — but ONLY on the fallback direct-merge path (queue
+# disabled), where the merge push is made with GITHUB_TOKEN and GitHub
+# suppresses its `push` run (GOL-768). On the normal merge-queue path the real
+# merge push by github-merge-queue[bot] fires those `push` workflows itself, so
+# no dispatch is needed (GOL-1661) — see the merge step.
 permissions:
   contents: write
   pull-requests: write
@@ -77,53 +86,79 @@ jobs:
               "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed. This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276)"
           fi
 
-          # Merge via a DIRECT squash (no `--auto`, so no dependency on the
-          # "Allow auto-merge" setting). Wait briefly for the remaining required
-          # checks to go green.
-          for i in $(seq 1 30); do
+          # Re-fire the deploy (docker.yml) + CDN (cdn-asset-sync.yml) builds for
+          # the just-merged main HEAD. ONLY call this after observing an ACTUAL
+          # synchronous merge (state == MERGED), i.e. the fallback path where the
+          # merge queue is disabled and `gh pr merge --squash` merged directly
+          # with GITHUB_TOKEN. GitHub suppresses the `push` run for GITHUB_TOKEN
+          # merges (GOL-768), so those two `on: push:[main]` workflows would not
+          # fire on their own — hence the explicit workflow_dispatch, the
+          # documented exception to the recursion guard. On the merge-queue path
+          # we do NOT call this: the queue's real merge push (by
+          # github-merge-queue[bot], not GITHUB_TOKEN) fires both `push`
+          # workflows itself, and dispatching on *enqueue* would build a
+          # pre-merge `main` (GOL-1661). Path filters mirror each workflow's own.
+          dispatch_post_merge_builds() {
+            local files
+            files=$(gh pr view "$PR" --repo "$REPO" --json files -q '.files[].path')
+            if echo "$files" | grep -qE '^(apps/|packages/|pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|\.dockerignore|\.github/workflows/docker\.yml)'; then
+              if gh workflow run docker.yml --repo "$REPO" --ref main; then
+                echo "Dispatched docker.yml to build+deploy main HEAD."
+              else
+                echo "::warning::docker.yml dispatch failed; QA may serve the pre-merge image until the next deploy. Re-run docker.yml on main manually."
+              fi
+            else
+              echo "PR #$PR touched no docker.yml-watched paths; skipping deploy dispatch."
+            fi
+            if echo "$files" | grep -qE '^apps/[^/]+/public/photos/'; then
+              if gh workflow run cdn-asset-sync.yml --repo "$REPO" --ref main; then
+                echo "Dispatched cdn-asset-sync.yml to mirror changed photos to the CDN."
+              else
+                echo "::warning::cdn-asset-sync.yml dispatch failed; the CDN may serve stale photos until the next sync. Re-run cdn-asset-sync.yml on main manually."
+              fi
+            fi
+          }
+
+          # Enqueue via squash `gh pr merge` (no `--auto`, so no dependency on the
+          # "Allow auto-merge" setting). With the active merge-queue ruleset this
+          # ENQUEUES; the queue merges later. Wait briefly for the PR to become
+          # enqueueable after our approval registers, then hand it to the queue.
+          #
+          # NEVER pass --delete-branch: deleting the head ref cancels the queued
+          # merge and closes the PR unmerged (GOL-1658 — this silently dropped
+          # grove-odoo-modules#93). delete_branch_on_merge=true removes the head
+          # ref automatically after the queue merges.
+          for i in $(seq 1 20); do
             MS=$(gh pr view "$PR" --repo "$REPO" --json state,mergeStateStatus -q '.state + ":" + .mergeStateStatus')
             echo "merge attempt $i — $MS"
             case "$MS" in
               MERGED:*)
-                echo "PR #$PR already merged."; exit 0 ;;
+                # Already merged before we could enqueue — direct/fallback merge.
+                # Fire the deploy/CDN builds the suppressed push would have.
+                echo "PR #$PR already merged; firing post-merge builds."
+                dispatch_post_merge_builds
+                exit 0 ;;
               OPEN:CLEAN|OPEN:UNSTABLE)
-                if gh pr merge "$PR" --repo "$REPO" --squash --delete-branch; then
-                  echo "Merged PR #$PR."
-
-                  # The merge above was pushed to `main` with GITHUB_TOKEN, so
-                  # GitHub will NOT start docker.yml's `push` run for it — the QA
-                  # apps would keep serving the old image (GOL-768). Re-fire the
-                  # build+publish leg explicitly via workflow_dispatch, which is
-                  # the documented exception to the recursion guard. Only bother
-                  # when the PR actually touched a path docker.yml builds from, so
-                  # pure docs/backend merges don't trigger a redundant 4-image
-                  # build (mirrors docker.yml's own path filter).
-                  FILES=$(gh pr view "$PR" --repo "$REPO" --json files -q '.files[].path')
-                  if echo "$FILES" | grep -qE '^(apps/|packages/|pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|\.dockerignore|\.github/workflows/docker\.yml)'; then
-                    if gh workflow run docker.yml --repo "$REPO" --ref main; then
-                      echo "Dispatched docker.yml to build+deploy main HEAD."
-                    else
-                      echo "::warning::docker.yml dispatch failed; QA may serve the pre-merge image until the next deploy. Re-run docker.yml on main manually."
-                    fi
+                if OUT=$(gh pr merge "$PR" --repo "$REPO" --squash 2>&1); then
+                  echo "$OUT"
+                  # Distinguish an actual direct merge (queue disabled) from an
+                  # enqueue (queue active) by re-reading the PR state.
+                  NEW=$(gh pr view "$PR" --repo "$REPO" --json state -q '.state')
+                  if [ "$NEW" = "MERGED" ]; then
+                    echo "Merged PR #$PR directly (no merge queue); firing post-merge builds (GOL-768)."
+                    dispatch_post_merge_builds
                   else
-                    echo "PR #$PR touched no docker.yml-watched paths; skipping deploy dispatch."
-                  fi
-
-                  # The same GITHUB_TOKEN push-suppression hides cdn-asset-sync.yml's
-                  # `push` run (GOL-768). Re-fire it when the merge touched a
-                  # CDN-mirrored photo so the shared CDN doesn't go stale against
-                  # the repo (GOL-1602). The sync is an idempotent --size-only
-                  # reconcile, so a redundant dispatch is a cheap no-op.
-                  if echo "$FILES" | grep -qE '^apps/[^/]+/public/photos/'; then
-                    if gh workflow run cdn-asset-sync.yml --repo "$REPO" --ref main; then
-                      echo "Dispatched cdn-asset-sync.yml to mirror changed photos to the CDN."
-                    else
-                      echo "::warning::cdn-asset-sync.yml dispatch failed; the CDN may serve stale photos until the next sync. Re-run cdn-asset-sync.yml on main manually."
-                    fi
+                    echo "Enqueued PR #$PR into the merge queue. The queue's real merge push (github-merge-queue[bot]) fires docker.yml + cdn-asset-sync.yml via on:push:[main] — no dispatch here (GOL-1661)."
                   fi
                   exit 0
-                fi ;;
+                fi
+                echo "$OUT"
+                # An 'already queued' error means a prior trigger enqueued it;
+                # that's success, not a failure — the queue owns it now.
+                case "$OUT" in
+                  *[Qq]ueue*) echo "PR #$PR already in the merge queue; nothing to do."; exit 0 ;;
+                esac ;;
             esac
             sleep 20
           done
-          echo "Required checks not green within timeout; the approval stands and the PR will merge on a later trigger or a maintainer one-click."
+          echo "PR #$PR not merged/enqueued within timeout; the approval stands and it will enqueue on a later trigger or a maintainer one-click."
