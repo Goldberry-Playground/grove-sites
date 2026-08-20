@@ -128,7 +128,7 @@ jobs:
           # merge and closes the PR unmerged (GOL-1658 — this silently dropped
           # grove-odoo-modules#93). delete_branch_on_merge=true removes the head
           # ref automatically after the queue merges.
-          for i in $(seq 1 20); do
+          for i in $(seq 1 30); do
             MS=$(gh pr view "$PR" --repo "$REPO" --json state,mergeStateStatus -q '.state + ":" + .mergeStateStatus')
             echo "merge attempt $i — $MS"
             case "$MS" in

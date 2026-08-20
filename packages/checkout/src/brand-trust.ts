@@ -54,7 +54,7 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     ],
     checkout: [
       { icon: "✦", text: "Card entered on Stripe — never stored by us" },
-      { icon: "◐", text: "Deposit today on preorders, balance at ship time" },
+      { icon: "◐", text: "$10 deposit per tree on preorders, balance when it ships" },
       { icon: "✓", text: "Arrive-alive guarantee" },
     ],
     pickup: {

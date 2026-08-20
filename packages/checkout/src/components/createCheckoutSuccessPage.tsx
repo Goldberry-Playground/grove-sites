@@ -109,7 +109,7 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
               </div>
             </dl>
             <p className="mt-3 text-xs text-foreground/60">
-              We charge the balance only when your preorder ships — and we email
+              We charge the balance only when your preorder ships, and we email
               you before we do. Order total{" "}
               {formatPrice(handoff.amountTotal, currency)}.
             </p>
