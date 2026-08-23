@@ -4,10 +4,12 @@
 
 > **Consolidated 2026-08-20** with odoocker PR #522 (`docs/RUNBOOK-storefront-release.md`,
 > GOL-1325) — that doc and this one were written independently to solve the same
-> problem. This is now the single canonical procedure; #522 is reduced to an
-> Option-A-specific appendix that points back here. If you find a second copy of
-> the deploy steps anywhere else, it's stale — this file plus
-> `scripts/lib/do-app-redeploy.sh` are the only source of truth.
+> problem. This is now the single canonical procedure. Once
+> [odoocker#522](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/522)
+> merges, #522 **will be** reduced to an Option-A-specific appendix that points back
+> here — **that reduction has not landed yet; #522 is still open as the full
+> runbook.** If you find a second copy of the deploy steps anywhere else, it's stale
+> — this file plus `scripts/lib/do-app-redeploy.sh` are the only source of truth.
 
 ## The shape of prod frontends
 
@@ -123,10 +125,19 @@ flow:
 point of pinning. Promotion is deliberate: a human decides *when*, even once the
 mechanics are automated end-to-end (see Automated promotion, below).
 
-## Automated promotion — one-click, human-gated
+## Automated promotion — one-click, human-gated (planned — lands with odoocker#541)
 
-`.github/workflows/promote-storefronts.yml` (odoocker-goldberrygrove) runs steps
-1–4 above end-to-end from `workflow_dispatch`, so promoting no longer requires
+> ⚠️ **Not yet available.** The workflow below is **not on odoocker `main`** — it's
+> still in open PR
+> [odoocker#541](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/541).
+> Until that merges, promote using the **manual** steps 1–4 above; do **not**
+> `workflow_dispatch` `promote-storefronts.yml` (it isn't there to run). This
+> section describes the planned one-click flow so the manual steps and the
+> automation stay in sync.
+
+Once [odoocker#541](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/541)
+lands, `.github/workflows/promote-storefronts.yml` (odoocker-goldberrygrove) will run
+steps 1–4 above end-to-end from `workflow_dispatch`, so promoting no longer requires
 running `terraform`/`doctl` by hand. It still requires one explicit human action:
 the job runs under the `production` GitHub Environment, which pauses for a
 required-reviewer approval before touching anything. Trigger it, review the
