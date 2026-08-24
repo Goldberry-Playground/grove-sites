@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # A dead/rotated CI service account is an OPS problem, not drift. Warn and
       # skip so a monitoring-credential outage does not spam red runs nobody can
@@ -137,7 +137,7 @@ jobs:
 
       - name: Upload drift report
         if: always() && steps.creds.outputs.run == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: drift-report
           path: drift-report.json
