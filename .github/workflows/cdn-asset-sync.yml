@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Fail-soft credential gate (same defense-in-depth convention as
       # docker.yml's QA redeploy): if the CI service account token is absent we
