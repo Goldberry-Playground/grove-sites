@@ -1,0 +1,18 @@
+{
+  "//": "Config-freeze lock (GOL-1735 / GOL-1406-D). A repo-level hard stop on config drift.",
+  "//frozen": "When true, the `Config freeze` required check FAILS any PR that touches a path in `paths`, overriding normal Tier-0 human approval. Use during incidents, deploy windows, or market-season stability freezes, then flip back to false.",
+  "//lift": "This file is NOT in `paths` so a freeze can always be lifted. Editing this file is itself a protected-path change (protected-paths-guard), so engaging or lifting a freeze still needs EngineeringMoonBear SHA-bound approval.",
+  "frozen": false,
+  "reason": "",
+  "paths": [
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".github/CODEOWNERS",
+    ".github/dependabot.yml",
+    "apps/*/app/api/checkout/**",
+    "apps/*/app/api/webhooks/**",
+    "packages/checkout/**",
+    "apps/*/tenant.config.ts",
+    "apps/hub/data/marketplace.ts"
+  ]
+}
