@@ -431,7 +431,7 @@ GitHub Actions workflows in `.github/workflows/`:
 | `release.yml` | `workflow_dispatch` or `v*.*.*` tag | Deploy Goldberry to sandbox / production |
 | `actionlint.yml` | push / PR | Lints the workflow files themselves |
 | `dependency-review.yml` | PR | GitHub dependency review |
-| `claude.yml` / `claude-code-review.yml` | PR / comments | Claude Code assistant + automated PR review |
+| `claude.yml` | PR / comments | Claude Code assistant (interactive `@claude` helper) |
 
 ## Deployment
 

@@ -26,15 +26,19 @@
 # Guardrails (see GOL-122):
 #   - Never auto-approves human/external PRs (author must be the agent App bot)
 #     -> human review is preserved for human PRs.
-#   - Only fires AFTER the agent code review ("Claude Code Review") SUCCEEDED
-#     -> not a blanket rubber-stamp.
+#   - Only proceeds once the agent review has SIGNED OFF: the unified
+#     `agent-review/*` check-run on the head SHA must be `success` (GOL-1734 /
+#     GOL-1738). The old standalone "Claude Code Review" workflow was removed;
+#     the reviewer signal is now the SHA-bound check-run emitted by the
+#     github-sync plugin, so this fires on CI completion and then gates on that
+#     check. -> not a blanket rubber-stamp.
 #   - Runs from the base-branch definition (workflow_run), so a PR cannot
 #     modify this file to approve itself.
 name: Auto-approve verified agent PRs
 
 on:
   workflow_run:
-    workflows: ["Claude Code Review"]
+    workflows: ["CI"]
     types: [completed]
 
 # contents:write lets github-actions[bot] enqueue/squash-merge the PR;
@@ -76,6 +80,37 @@ jobs:
               exit 0 ;;
           esac
 
+          # ── Unified agent-review gate (GOL-1734 / GOL-1738, Ada sign-off) ──
+          # The github-sync plugin emits exactly one `agent-review/<reviewer>`
+          # check-run per non-draft agent PR: seeded `in_progress` on open,
+          # flipped to `success` ON THAT HEAD SHA only when the reviewer signs
+          # the review issue `done`. It is COMMENT-only — the machine signal is a
+          # check-run, never a GitHub APPROVE event. We require it PRESENT and
+          # `success` on the CURRENT head SHA before approving/merging:
+          #   absent / in_progress / neutral / failure / success-on-old-SHA => BLOCK.
+          # We poll so a sign-off landing shortly after CI is still caught; a
+          # much-later sign-off re-fires this workflow on the next CI run.
+          HEAD_SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q '.headRefOid')
+          REVIEW_STATE=absent
+          for i in $(seq 1 30); do   # up to ~15 min (30 × 30s)
+            REVIEW_STATE=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
+              -q '[.check_runs[] | select(.name | startswith("agent-review/"))]
+                   | if length==0 then "absent"
+                     elif any(.[]; .status=="completed" and .conclusion=="success") then "success"
+                     elif all(.[]; .status=="completed") then "completed-not-success"
+                     else "pending" end')
+            case "$REVIEW_STATE" in
+              success|completed-not-success) break ;;
+            esac
+            echo "agent-review/* on $HEAD_SHA: $REVIEW_STATE (poll $i/30)…"
+            sleep 30
+          done
+          if [ "$REVIEW_STATE" != "success" ]; then
+            echo "PR #$PR agent-review/* gate not satisfied on $HEAD_SHA (state: $REVIEW_STATE); not approving. The reviewer must sign off (COMMENT-only gate — GOL-1734)."
+            exit 0
+          fi
+          echo "agent-review/* is success on $HEAD_SHA; proceeding to approve + merge."
+
           # Don't stack duplicate approvals on re-runs.
           ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews" \
             -q '[.[] | select(.user.login=="github-actions[bot]" and .state=="APPROVED")] | length')
@@ -83,7 +118,7 @@ jobs:
             echo "PR #$PR already approved by github-actions[bot]."
           else
             gh pr review "$PR" --repo "$REPO" --approve --body \
-              "Auto-approved by github-actions[bot]: the agent code review (Claude Code Review) passed. This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276)"
+              "Auto-approved by github-actions[bot]: the agent review signed off (agent-review/* check is success on the head SHA). This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276 / GOL-1734)"
           fi
 
           # Re-fire the deploy (docker.yml) + CDN (cdn-asset-sync.yml) builds for
