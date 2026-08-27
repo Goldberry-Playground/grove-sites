@@ -1,0 +1,16 @@
+# CODEOWNERS — protected paths for grove-sites (GOL-1406 / GOL-1733).
+#
+# Mirrors PROTECTED_GLOBS in .github/workflows/protected-paths-guard.yml.
+# The guard workflow is the ACTIVE required check; this file additionally
+# routes GitHub-native code-owner review once a branch-protection ruleset
+# with "Require review from Code Owners" is enabled. Keep the two in sync
+# via scripts/ci/gen-protected-paths-guard.py in the AgenticOS repo.
+
+/.github/                                @EngineeringMoonBear
+/ownership.yml                           @EngineeringMoonBear
+apps/*/app/api/checkout/route.ts         @EngineeringMoonBear
+apps/*/app/api/checkout/session/route.ts @EngineeringMoonBear
+apps/*/app/api/webhooks/publish/route.ts @EngineeringMoonBear
+/packages/checkout/                      @EngineeringMoonBear
+apps/*/tenant.config.ts                  @EngineeringMoonBear
+/apps/hub/data/marketplace.ts            @EngineeringMoonBear
