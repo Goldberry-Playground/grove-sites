@@ -1920,7 +1920,10 @@ h1 em, h2 em, h3 em, h4 em {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   background: var(--harvest-gold-deep);
-  color: var(--ivory-mist);
+  /* Dark ink on gold, not ivory: ivory-on-gold is 1.97:1 and fails WCAG AA
+     for 11px text. Ink on harvest-gold-deep is 6.63:1 and keeps the badge
+     gold (GOL-1778 review, color-independent — legible in grayscale too). */
+  color: var(--ink);
   padding: 4px 10px;
 }
 .visit-opening__note {
