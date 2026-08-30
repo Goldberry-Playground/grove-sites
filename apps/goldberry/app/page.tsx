@@ -17,12 +17,12 @@ import { assetPath } from "@grove/ui";
 // conveys actual photo content, not just a container label.
 const familySlideDescriptions = [
   "Family gathering at the farmhouse",
-  "Harvest event with friends and neighbors",
+  "Walking the farm road together on a spring planting day",
   "Farm-to-table dinner on the long table",
   "Working in the orchard during summer planting",
   "Open-gate day with visitors picking nuts",
-  "Educational seminar on agroforestry",
-  "Sorting and weighing the harvest",
+  "Potting up seedlings by hand on a community planting day",
+  "Sorting bare-root seedlings before they go in the ground",
   "Mushroom inoculation workshop",
   "Walnuts in a bucket after the autumn drop",
   "Wesley, one of the farmhands at Goldberry Grove",
@@ -344,7 +344,7 @@ export default function HomePage() {
         <article className="story-strip-card">
           <div
             className="story-img"
-            style={{ backgroundImage: `url('${assetPath("goldberry", "photos/farm-aerial.webp")}')` }}
+            style={{ backgroundImage: `url('${assetPath("goldberry", "photos/farm-hero.webp")}')` }}
           />
           <div className="story-body">
             <div className="story-strip-meta">

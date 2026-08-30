@@ -606,6 +606,13 @@ h1 em, h2 em, h3 em {
   color: var(--rust);
   letter-spacing: -0.01em;
 }
+/* Coming-soon / unpriced placeholder: muted + lighter so it reads as
+   "pending", not as a headline price (GOL-1655). */
+.var-price--tbd {
+  color: var(--ink-soft);
+  font-weight: 400;
+  font-size: 1.05rem;
+}
 .var-stock {
   font-family: var(--font-mono);
   font-size: 10px;

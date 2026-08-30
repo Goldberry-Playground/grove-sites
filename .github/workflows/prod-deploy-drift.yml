@@ -1,0 +1,144 @@
+name: Prod Deploy Drift Check
+
+# Fail loudly when a prod frontend is serving a build that is NOT the one its
+# pinned tag currently points to (GOL-1600, closing the gap GOL-1607 exposed).
+#
+# On 2026-08-17 all four grove-*-prod apps served a stale build for hours because
+# App Platform silently ignores `deploy_on_push` on GHCR-sourced apps, so a moved
+# tag never rolled out. That incident was found by hand. This is the alarm that
+# should have caught it: it compares each app's actually-serving image digest
+# (active_deployment.source_image_digest) against the digest its pinned tag
+# resolves to on GHCR right now. Any mismatch -> Discord ops alarm + red run.
+#
+# Read-only: it only GETs the DO API and the GHCR registry. It never deploys.
+# The redeploy that FIXES a drift is scripts/lib/do-app-redeploy.sh, wired into
+# the pin/promote flow (rides along with the GOL-1304 pinning PR).
+#
+# Secrets (ADR-0001, resolved at run time from 1Password via the CI SA):
+#   DIGITALOCEAN_TOKEN       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
+#   DISCORD_OPS_WEBHOOK_URL  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+# GHCR digests are read with the workflow's GITHUB_TOKEN (packages: read).
+
+on:
+  schedule:
+    # Every 30 minutes. A stale prod frontend is a revenue/brand problem during
+    # launch season; 30 min bounds how long it can hide.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: prod-deploy-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Check prod frontends serve their pinned build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # A dead/rotated CI service account is an OPS problem, not drift. Warn and
+      # skip so a monitoring-credential outage does not spam red runs nobody can
+      # act on from here — same fail-open-on-infra convention as docker.yml.
+      - name: Check monitor credentials
+        id: creds
+        env:
+          OP_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+        run: |
+          if [ -z "$OP_TOKEN" ]; then
+            echo "::warning title=Drift check skipped::OP_CI_SA_TOKEN is not set — cannot query DigitalOcean. Provision the CI service account, then re-run."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load secrets from 1Password
+        id: secrets
+        if: steps.creds.outputs.run == 'true'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v5
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DIGITALOCEAN_TOKEN:      op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
+          DISCORD_OPS_WEBHOOK_URL: op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+        with:
+          export-env: true
+
+      - name: Monitor skipped — service account unavailable
+        if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'failure'
+        run: |
+          echo "::warning title=Drift check skipped::OP_CI_SA_TOKEN failed to resolve secrets (SA deleted/rotated or 1Password unreachable). Fix the SA and re-run — prod is NOT being watched until then."
+
+      - name: Run drift check
+        id: check
+        if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'success'
+        continue-on-error: true
+        env:
+          # DIGITALOCEAN_TOKEN came from the export-env step above.
+          DIGITALOCEAN_TOKEN: ${{ env.DIGITALOCEAN_TOKEN }}
+          # GITHUB_TOKEN (packages: read) reads GHCR manifest digests. If the
+          # prod image packages are ever detached from this repo and this 403s,
+          # swap in a read:packages PAT resolved from 1Password.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFT_REPORT_FILE: drift-report.json
+        run: |
+          python3 scripts/prod-deploy-drift-check.py
+
+      - name: Alarm + fail on drift
+        if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'success'
+        env:
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
+          CHECK_OUTCOME: ${{ steps.check.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$CHECK_OUTCOME" = "success" ]; then
+            echo "All prod frontends serve their pinned build. No drift."
+            exit 0
+          fi
+
+          # Drift (or an app-level error). Build one Discord field per bad app.
+          echo "::error::Prod deploy drift detected — see report below and Discord."
+          FIELDS='[]'
+          if [ -f drift-report.json ]; then
+            FIELDS="$(jq -c '[.apps[] | select(.status != "OK" and .status != "SKIPPED")
+              | {name: .app, value: "\(.status): \(.detail // "serving \(.serving) != pin \(.intended)")", inline: false}]' drift-report.json)"
+          fi
+          [ "$FIELDS" = "[]" ] && FIELDS='[{"name":"drift","value":"See workflow logs","inline":false}]'
+
+          if [ -n "${DISCORD_OPS_WEBHOOK_URL:-}" ]; then
+            PAYLOAD=$(jq -n \
+              --argjson fields "$FIELDS" \
+              --arg run_url "$RUN_URL" \
+              '{
+                username: "🚨 Grove Prod Deploy",
+                embeds: [{
+                  title: "🚨 Prod frontend drift — serving build != pinned build",
+                  description: "One or more prod apps are not serving the image their pinned tag points to. Redeploy with scripts/lib/do-app-redeploy.sh (one create-deployment; never two back-to-back — GOL-1607).",
+                  color: 15158332,
+                  fields: $fields,
+                  footer: { text: "Workflow run: \($run_url)" }
+                }]
+              }')
+            curl -fsS -X POST -H "Content-Type: application/json" \
+              -d "$PAYLOAD" "$DISCORD_OPS_WEBHOOK_URL" \
+              || echo "::warning::Discord webhook failed — drift still detected, see logs"
+          else
+            echo "::warning::No Discord webhook — drift detected but not alarmed"
+          fi
+
+          # Fail loudly: the run goes red so the drift is impossible to miss.
+          exit 1
+
+      - name: Upload drift report
+        if: always() && steps.creds.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: drift-report
+          path: drift-report.json
+          if-no-files-found: ignore

@@ -1,0 +1,98 @@
+name: CDN Asset Sync
+
+# Mirror the repo's bundled front-end photos to the shared CDN on merge to main
+# (GOL-1602). Git is the single source of truth for apps/<tenant>/public/photos/**;
+# `assetPath()` resolves those subpaths to the CDN (assets.gatheringatthegrove.com
+# -> DO Spaces `grove-assets`) in QA/prod and to /public in local dev. Before this
+# workflow, a changed CDN-referenced image went stale on the CDN until someone ran
+# a manual upload + purge — that bit us on PR #534 (farm-hero.webp + 3 slideshow
+# photos). scripts/sync-public-assets.sh does an idempotent `aws s3 sync --size-only`
+# then purges exactly the changed keys from Cloudflare + the DO Spaces CDN.
+#
+# Trigger model:
+#   - push to main touching a public/photos path -> sync the change.
+#   - workflow_dispatch -> full reconcile (idempotent). This is also the path
+#     auto-approve.yml fires after it merges an agent PR, because GitHub
+#     suppresses the `push` run for GITHUB_TOKEN-authored merges (GOL-768).
+#   Because the sync is a full --size-only reconcile (not a git-diff), it
+#   converges to the correct CDN state regardless of which trigger fired.
+#
+# Secrets: resolved at run time from 1Password via the CI service account
+#   (OP_CI_SA_TOKEN) — no static Spaces/CF/DO tokens live in GitHub secrets
+#   (ADR-0001). The grove-assets RW key, the Cloudflare zone token, and the DO
+#   token all live in the `Goldberry Grove - Admin/Grove Infra` item; the CI SA
+#   must have READ on that item. If it does not, the credential guard below
+#   warns-and-skips (it never reds the run) — grant the SA read on that item and
+#   re-run this workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/*/public/photos/**"
+      - "scripts/sync-public-assets.sh"
+      - ".github/workflows/cdn-asset-sync.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: cdn-asset-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync public/photos -> grove-assets CDN
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Fail-soft credential gate (same defense-in-depth convention as
+      # docker.yml's QA redeploy): if the CI service account token is absent we
+      # cannot resolve the Spaces/CF/DO secrets, so warn and skip rather than
+      # red the run. A stale CDN is self-healing (edge TTL) and re-runnable.
+      - name: Check sync credentials
+        id: creds
+        env:
+          OP_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+        run: |
+          if [ -z "${OP_TOKEN}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=CDN sync skipped::OP_CI_SA_TOKEN is not set — the CDN keeps its previous bytes (repo /public is still the source of truth). Provision the CI service account, then re-run this workflow."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load Spaces + CDN secrets from 1Password
+        id: load
+        if: steps.creds.outputs.run == 'true'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v5
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          AWS_ACCESS_KEY_ID:     op://Goldberry Grove - Admin/Grove Infra/grove_assets_access_key_id
+          AWS_SECRET_ACCESS_KEY: op://Goldberry Grove - Admin/Grove Infra/grove_assets_secret_key
+          CLOUDFLARE_API_TOKEN:  op://Goldberry Grove - Admin/Grove Infra/cloudflare_zone_edit_token
+          DO_API_TOKEN:          op://Goldberry Grove - Admin/Grove Infra/do_token
+        with:
+          export-env: true
+
+      - name: CDN sync skipped — secrets unavailable
+        if: steps.creds.outputs.run == 'true' && steps.load.outcome == 'failure'
+        run: |
+          echo "::warning title=CDN sync skipped::OP_CI_SA_TOKEN could not resolve the grove-assets / Cloudflare / DO secrets. The CI service account (grove-ci-prod-ro) likely lacks READ on the 'Goldberry Grove - Admin/Grove Infra' 1Password item. Grant it read on grove_assets_access_key_id, grove_assets_secret_key, cloudflare_zone_edit_token, and do_token, then re-run. The CDN keeps its previous bytes until then; repo /public is unaffected."
+
+      - name: Sync changed photos to the CDN and purge edge caches
+        if: steps.creds.outputs.run == 'true' && steps.load.outcome == 'success'
+        env:
+          SPACES_BUCKET: grove-assets
+          SPACES_REGION: nyc3
+          ASSETS_HOST: assets.gatheringatthegrove.com
+          CLOUDFLARE_ZONE_ID: 04ca33af08b2671402393a444da0e698
+          DO_CDN_ENDPOINT_ID: e7c23dab-d41e-4b23-9d23-5c5acfaba596
+          # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / CLOUDFLARE_API_TOKEN /
+          # DO_API_TOKEN were exported into the job env by the 1Password step.
+        run: ./scripts/sync-public-assets.sh

@@ -213,11 +213,29 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                         {varietyCountLabel(product.cultivarCount ?? product.variantCount)}
                       </span>
                       <div className="var-foot">
-                        <span className="var-price">
-                          {typeof product.priceMin === "number"
-                            ? `from $${product.priceMin.toFixed(2)}`
-                            : `$${product.price.toFixed(2)}`}
-                        </span>
+                        {(() => {
+                          // Coming-soon / unpriced: never print "$0.00" — a
+                          // $0.00 reads as "free" (GOL-408/GOL-1655). The
+                          // "Coming soon" badge carries the state; a muted
+                          // "Price TBD" keeps the foot row balanced.
+                          const priced =
+                            typeof product.priceMin === "number"
+                              ? product.priceMin
+                              : product.price;
+                          const isTbd =
+                            product.saleOk === false || priced <= 0;
+                          return (
+                            <span
+                              className={`var-price${isTbd ? " var-price--tbd" : ""}`}
+                            >
+                              {isTbd
+                                ? "Price TBD"
+                                : typeof product.priceMin === "number"
+                                  ? `from $${product.priceMin.toFixed(2)}`
+                                  : `$${product.price.toFixed(2)}`}
+                            </span>
+                          );
+                        })()}
                         {product.saleOk === false ? (
                           // Coming-soon placeholder: published (so it appears in
                           // the grid + ?cat= facets) but not for sale — the card
