@@ -2,11 +2,12 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 import { CaptureForm } from "@grove/ui-kit";
+import { OpeningNotice } from "../_components/OpeningNotice";
 
 export const metadata: Metadata = {
-  title: "Public Events — Goldberry Grove",
+  title: "Public Events — Goldberry Grove — Opening Spring 2027",
   description:
-    "Farm-to-table dinners, harvest weekends, JADAM workshops, and open-gate community days at Goldberry Grove.",
+    "Farm-to-table dinners, harvest weekends, JADAM workshops, and open-gate community days coming to Goldberry Grove in spring 2027, with a full calendar and online RSVP.",
 };
 
 export default function EventsPage() {
@@ -20,20 +21,27 @@ export default function EventsPage() {
         }}
       >
         <div className="visit-hero__inner">
-          <div className="visit-hero__eyebrow">Public Events</div>
+          <div className="visit-hero__eyebrow">Public Events · Opening Spring 2027</div>
           <h1>
             Open the gate. <em>Bring a friend.</em>
           </h1>
           <p className="visit-hero__lead">
-            A few times a year we open Goldberry to everyone — farm-to-table
-            dinners under string lights, harvest weekends with bonfires, and
-            community workshops on the soil-and-soul side of agroforestry.
+            Starting spring 2027 we'll open Goldberry to everyone a few times a
+            year. Farm-to-table dinners under string lights, harvest weekends
+            with bonfires, and community workshops on the soil-and-soul side of
+            agroforestry.
           </p>
         </div>
       </section>
 
       <div className="visit-body">
-        <h2>What runs publicly</h2>
+        <OpeningNotice when="Spring 2027">
+          Public events open in spring 2027, with a full calendar you can browse
+          and RSVP to right on the site. Until it goes live, add your email
+          below and we'll send first word as the first dates firm up.
+        </OpeningNotice>
+
+        <h2>What will run publicly</h2>
         <ul>
           <li>
             <strong>Farm-to-Table</strong>
@@ -62,8 +70,9 @@ export default function EventsPage() {
 
         <h2>Where to find dates</h2>
         <p>
-          We don't run a fixed calendar — the farm decides when. Dates get
-          posted to{" "}
+          A full events calendar with online RSVP goes live for spring 2027, so
+          you'll be able to see what's coming and reserve a seat right here.
+          Until then, dates get posted to{" "}
           <a
             href="https://instagram.com/thegoldberrygrove"
             style={{ color: "var(--harvest-gold)" }}
@@ -73,9 +82,8 @@ export default function EventsPage() {
           and to{" "}
           <Link href="/blog" style={{ color: "var(--harvest-gold)" }}>
             the journal
-          </Link>{" "}
-          three to six weeks ahead. Ticketed events sell through Eventbrite;
-          open-gate days are free.
+          </Link>, and the newsletter list gets first word. Ticketed dinners
+          will sell online; open-gate days are free.
         </p>
 
         <CaptureForm
