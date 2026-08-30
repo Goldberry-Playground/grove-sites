@@ -16,15 +16,15 @@ export default function VisitPage() {
         style={{ ["--visit-hero-image" as string]: `url('${assetPath("goldberry", "photos/farm-hero.webp")}')` }}
       >
         <div className="visit-hero__inner">
-          <div className="visit-hero__eyebrow">Come See Us</div>
+          <div className="visit-hero__eyebrow">Come See Us · Opening in stages</div>
           <h1>
-            Twenty acres, an <em>open gate</em>, four ways in.
+            Twenty acres, <em>four ways</em> in.
           </h1>
           <p className="visit-hero__lead">
-            Goldberry is an educational farm. We host u-pick weekends, seminars
-            on forest farming and mushroom cultivation, guided foraging walks,
-            and private gatherings under hickory canopy. Most visits run by
-            appointment so we can walk the rows with you.
+            Goldberry is an educational farm taking shape on twenty acres. We're
+            planting now and opening our programs in stages: seminars and public
+            events in spring 2027, u-pick and private gatherings in 2028. Here's
+            what's coming, and how to hear first.
           </p>
         </div>
       </section>
@@ -55,7 +55,7 @@ export default function VisitPage() {
               persimmon in September. Mulberries, serviceberries, and
               elderberries through summer.
             </p>
-            <span className="cta">See the season →</span>
+            <span className="cta">Opening Fall 2028 →</span>
           </Link>
 
           <Link href="/visit/events" className="come-see-us__card events">
@@ -77,7 +77,7 @@ export default function VisitPage() {
               Korean Natural Farming intensives. Open-gate days a few times a
               year.
             </p>
-            <span className="cta">Upcoming events →</span>
+            <span className="cta">Opening Spring 2027 →</span>
           </Link>
 
           <Link href="/visit/seminars" className="come-see-us__card seminars">
@@ -96,7 +96,7 @@ export default function VisitPage() {
               ginseng. Native plant ID. Grafting in spring. Foraging walks
               through every season.
             </p>
-            <span className="cta">Browse seminars →</span>
+            <span className="cta">Opening Spring 2027 →</span>
           </Link>
 
           <Link href="/visit/private" className="come-see-us__card private">
@@ -113,7 +113,7 @@ export default function VisitPage() {
               forty. Weddings, retreats, milestone gatherings. We provide the
               land; you provide the people.
             </p>
-            <span className="cta">Inquire →</span>
+            <span className="cta">Opening Spring 2028 →</span>
           </Link>
         </div>
       </section>
@@ -130,12 +130,12 @@ export default function VisitPage() {
             Nicholas County, Appalachia
           </div>
           <div>
-            <strong>Hours</strong>
-            By appointment
+            <strong>Opening</strong>
+            Seminars & events, spring 2027
             <br />
-            Most weekends, April–November
+            U-pick & private events, 2028
             <br />
-            Open-gate days announced 7+ days out
+            Join a list for first word
           </div>
           <div>
             <strong>Contact</strong>
@@ -147,6 +147,18 @@ export default function VisitPage() {
           </div>
         </div>
       </section>
+
+      <p className="visit-press">
+        Featured in the Charleston Gazette-Mail:{" "}
+        <a
+          href="https://www.wvgazettemail.com/life/goldberry-grove-to-harvest-a-bumper-crop-of-community-connections/article_96496d32-cb51-4498-8c5e-f573e0bff049.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          &ldquo;Goldberry Grove to harvest a bumper crop of community
+          connections&rdquo;
+        </a>
+      </p>
     </article>
   );
 }

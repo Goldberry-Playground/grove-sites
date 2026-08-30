@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
+import { CaptureForm } from "@grove/ui-kit";
+import { OpeningNotice } from "../_components/OpeningNotice";
 
 export const metadata: Metadata = {
-  title: "Educational Seminars — Goldberry Grove",
+  title: "Educational Seminars — Goldberry Grove — Opening Spring 2027",
   description:
-    "Mushroom inoculation, forest farming, foraging walks, JADAM and Korean Natural Farming deep-dives, and native plant identification on a working Appalachian agroforestry farm.",
+    "Mushroom inoculation, forest farming, foraging walks, JADAM and Korean Natural Farming deep-dives, and native plant ID coming to a working Appalachian agroforestry farm in spring 2027, with a full calendar and online registration.",
 };
 
 export default function SeminarsPage() {
@@ -19,24 +21,31 @@ export default function SeminarsPage() {
         }}
       >
         <div className="visit-hero__inner">
-          <div className="visit-hero__eyebrow">Educational Seminars</div>
+          <div className="visit-hero__eyebrow">Educational Seminars · Opening Spring 2027</div>
           <h1>
             Learn it <em>where it grows.</em>
           </h1>
           <p className="visit-hero__lead">
-            Seminars at Goldberry are small (8–20 people), hands-on, and held
-            on the working farm. You'll spend most of the day outside, with a
-            tool in your hand and a question we'll actually try to answer.
+            Starting spring 2027, seminars at Goldberry will be small (8 to 20
+            people), hands-on, and held on the working farm. You'll spend most
+            of the day outside, with a tool in your hand and a question we'll
+            actually try to answer.
           </p>
         </div>
       </section>
 
       <div className="visit-body">
+        <OpeningNotice when="Spring 2027">
+          Seminars open in spring 2027, with a full calendar and online
+          registration right here on the site. Until then, add your email below
+          and the newsletter list gets first pick of seats.
+        </OpeningNotice>
+
         <p>
-          We teach what we practice — every seminar comes out of something
-          we're actively running on the farm. No theory-only sessions. Most
-          are a half-day to a weekend; weekend sessions include meals from
-          the harvest.
+          We teach what we practice. Every seminar comes out of something we
+          are actively running on the farm, so there are no theory-only
+          sessions. Most will be a half-day to a weekend, and weekend sessions
+          will include meals from the harvest.
         </p>
 
         <h2>The seminar rotation</h2>
@@ -81,17 +90,28 @@ export default function SeminarsPage() {
           </li>
         </ul>
 
-        <h2>How to register</h2>
+        <h2>How registration will work</h2>
         <p>
-          Most seminars hold to 8–20 people so you actually get hands-on time.
-          Dates and registration links get posted to{" "}
-          <Link href="/blog" style={{ color: "var(--harvest-gold)" }}>
-            the journal
-          </Link>{" "}
-          eight weeks out, with priority going to the newsletter list. Email{" "}
-          <strong>sales@goldberrygrove.farm</strong>{" "}
-          to be added to that list.
+          Each seminar will hold to 8 to 20 people so you actually get hands-on
+          time. When the calendar goes live in spring 2027, dates and online
+          registration will live right here, with priority going to the
+          newsletter list. Until then, join the list below or email{" "}
+          <strong>sales@goldberrygrove.farm</strong>.
         </p>
+
+        <CaptureForm
+          brand="goldberry"
+          source="notify-me"
+          label="seminars-opening"
+          interests={["seminars"]}
+          eyebrow="Seminars opening"
+          heading="Get first pick of seats"
+          description="Seminars open in spring 2027 with a full calendar. Add your email and the newsletter list hears first, before dates go public."
+          submitLabel="Notify me"
+          successMessage="Done. You'll hear first when the seminar calendar opens."
+          consentText="Seminar announcements only. Unsubscribe anytime."
+          hubOptIn
+        />
 
         <Link href="/visit" className="btn btn-gold visit-cta">
           ← Back to all visits
