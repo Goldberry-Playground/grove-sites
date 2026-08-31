@@ -117,6 +117,20 @@ describe("<CaptureForm />", () => {
     );
   });
 
+  it("surfaces an edge-wrapped 504 (DO x-do-orig-status: 503) as the same friendly error", async () => {
+    // Prod returns a clean 503 from the app, but DigitalOcean's edge shows the
+    // browser a 504. Both must read as "not open yet", not a retry prompt.
+    mockFetch({ ok: false, status: 504 });
+    const user = userEvent.setup();
+    render(<CaptureForm brand="nursery" submitLabel="Sign up" />);
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("check back soon"),
+    );
+  });
+
   it("silently drops honeypot bot submissions without calling fetch", async () => {
     const fetchFn = mockFetch({ ok: true });
     const user = userEvent.setup();

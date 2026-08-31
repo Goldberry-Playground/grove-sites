@@ -154,11 +154,17 @@ export function CaptureForm({
         return;
       }
 
+      // The app returns a clean 503 when the newsletter backend isn't
+      // provisioned, but DigitalOcean's edge surfaces that to the browser as a
+      // 504 (x-do-orig-status: 503). Map the whole 5xx family to the same
+      // "temporarily unavailable" message so the visitor gets accurate,
+      // non-misleading feedback instead of a "try again" that keeps failing
+      // (GOL-1881).
       let reason = "Something went wrong on our end — mind trying that again?";
-      if (res.status === 503) {
-        reason = "Signups aren't open just yet — please check back soon.";
-      } else if (res.status === 400) {
+      if (res.status === 400) {
         reason = "That email doesn't look right — mind checking it?";
+      } else if (res.status >= 500) {
+        reason = "Signups aren't open just yet — please check back soon.";
       }
       setStatus("error");
       setError(reason);
