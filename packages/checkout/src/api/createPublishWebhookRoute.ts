@@ -3,12 +3,18 @@ import { revalidatePath } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * Odoo → grove-sites "guide.publish" webhook receiver.
+ * Odoo → grove-sites storefront-invalidation webhook receiver.
  *
  * Implements the authoritative wire contract in grove-odoo-modules
- * `grove_headless/docs/publish-webhook-contract.md` (GOL-985). When an operator
- * clicks "Publish Guide to Storefront" in Odoo, Odoo signs a small JSON event
- * and POSTs it here so Next.js revalidates the affected product page(s).
+ * `grove_headless/docs/publish-webhook-contract.md` (GOL-985). Two event types
+ * ride the same signed channel, and both revalidate the same two paths:
+ *
+ *   - `guide.publish`       — an operator clicks "Publish Guide to Storefront".
+ *   - `product.availability` — a product crosses an availability boundary
+ *     (sellout / restock / `sale_ok` / `website_published` flip), so the ISR
+ *     `/shop` grid does not keep advertising a stale "In stock" (GOL-1896). The
+ *     webhook is the fast path; the `/shop` ISR window is the safety net that
+ *     catches any missed or failed delivery.
  *
  * This lives beside the other per-tenant server route factories
  * (`createCheckoutRoute`, `createCartRoute`): one implementation, injected with
@@ -21,6 +27,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  */
 
 export type PublishTenant = "goldberry" | "ggg" | "nursery";
+
+/**
+ * Event types this receiver handles. Both revalidate the same two paths
+ * (`/shop/${id}` + `/shop`), so accepting a new type is a one-line addition —
+ * the signature check, dedupe, and revalidation below are event-agnostic.
+ */
+const HANDLED_EVENTS = new Set(["guide.publish", "product.availability"]);
 
 export interface PublishWebhookOptions {
   /** HMAC-SHA256 signing secret shared out-of-band with Odoo (per tenant). */
@@ -104,7 +117,7 @@ export function createPublishWebhookRoute({
     }
 
     const event = request.headers.get("x-grove-event") ?? body.event;
-    if (event !== "guide.publish") {
+    if (typeof event !== "string" || !HANDLED_EVENTS.has(event)) {
       return NextResponse.json({ error: "unknown_event" }, { status: 400 });
     }
 

@@ -152,13 +152,19 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         // Cache the browse fetch (GOL-1319). The catalog is small and changes at
         // most a few times a day, but /shop re-fetches the whole list on every
         // search, category-pill click, and `?all=1` reveal — a fresh full-catalog
-        // round-trip to the single Odoo droplet per navigation. A 60s revalidate
+        // round-trip to the single Odoo droplet per navigation. A short revalidate
         // collapses those into one shared Data Cache entry (per facet URL) while
         // the publish webhook's `revalidatePath('/shop')` still flushes it on a
         // new/edited product. (Callers on `force-dynamic` pages opt out of this
         // via Next's `force-no-store`; that's fine — they wanted per-request.)
+        //
+        // 30s, not 60 (GOL-1896): the `product.availability` webhook is the fast
+        // path (sellout/restock reflected in ~5s); this ISR window is the safety
+        // net for a missed or failed delivery, so it degrades to a 30s stale
+        // window rather than the old minute. Don't drop it much lower — every
+        // miss is a full-catalog fetch against the single Odoo droplet.
         const raw = await api<ApiProductListResponse>(config, path, {
-          next: { revalidate: 60 },
+          next: { revalidate: 30 },
         });
 
         return {
