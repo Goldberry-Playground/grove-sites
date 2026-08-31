@@ -57,6 +57,33 @@ test.describe("checkout — happy path", { tag: "@stripe" }, () => {
     // No in-stock line should ever be badged "Reserve".
     await expect(page.locator(".grove-review__badge--reserve")).toHaveCount(0);
 
+    // GOL-1823 regression: a shipped order MUST carry shipping as its own line
+    // item, and the itemized lines MUST sum to the charged total. The original
+    // bug shipped a session whose review omitted the shipping line and whose
+    // form-screen "Total" fell below the amount finally charged — the fee lived
+    // in amountTotal but not in the visible breakdown, so pay-review ≠ checkout
+    // screen. Assert the shipping line exists, renders, and reconciles.
+    const lines = session.lineItems ?? [];
+    expect(lines.length, "a GOL-1057 session must be itemized").toBeGreaterThan(0);
+    const shipping = lines.filter((l) => l.kind === "shipping");
+    expect(
+      shipping.length,
+      "a shipped order must itemize shipping as its own line (GOL-1823)",
+    ).toBeGreaterThan(0);
+    for (const s of shipping) {
+      const feeEl = page
+        .locator(".grove-review__line", { hasText: s.name })
+        .first();
+      await expect(feeEl).toContainText(usd(s.unitAmount * s.quantity, session.currency));
+    }
+    // The visible breakdown reconciles to the amount Stripe charges — no line is
+    // hidden from the buyer, so the review total can never sit below the charge.
+    const itemizedTotal = lines.reduce((sum, l) => sum + l.unitAmount * l.quantity, 0);
+    expect(
+      Math.round(itemizedTotal * 100),
+      "itemized lines (incl. shipping) must sum to the charged amountTotal (GOL-1823)",
+    ).toBe(Math.round(session.amountTotal * 100));
+
     await payAtReview(page);
     await fillStripeCheckoutAndPay(page, STRIPE_TEST_CARD_OK);
 

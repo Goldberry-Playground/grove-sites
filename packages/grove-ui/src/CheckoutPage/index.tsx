@@ -297,7 +297,9 @@ export function CheckoutPage({
             </div>
             <div className="grove-checkout__banner-total">
               {formatPrice(total)}
-              <span className="grove-checkout__banner-note">with est. tax</span>
+              <span className="grove-checkout__banner-note">
+                {isPickup ? "with est. tax" : "before shipping & tax"}
+              </span>
             </div>
           </div>
           <button
@@ -512,15 +514,33 @@ export function CheckoutPage({
                 <dt>Subtotal</dt>
                 <dd>{formatPrice(subtotal)}</dd>
               </div>
+              {/* Shipping is priced server-side by the box engine once the
+                  destination is known, so the form can't show a final figure.
+                  We still list the line — a missing shipping row is what made
+                  the form's "Total" read below the amount actually charged at
+                  the payment step (GOL-1823). Pickup is the one $0-shipping
+                  case, so it can be shown as free. */}
+              <div className="grove-checkout__summary-row">
+                <dt>Shipping</dt>
+                <dd>{isPickup ? "Free (pickup)" : "Calculated at payment"}</dd>
+              </div>
               <div className="grove-checkout__summary-row">
                 <dt>Tax (estimated)</dt>
                 <dd>{formatPrice(taxEstimate)}</dd>
               </div>
               <div className="grove-checkout__summary-total">
-                <dt>Total</dt>
+                <dt>{isPickup ? "Total" : "Estimated total"}</dt>
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>
+
+            {!isPickup && (
+              <p className="grove-checkout__field-note grove-checkout__field-note--block">
+                Shipping and final sales tax are calculated on the secure
+                payment page. You&apos;ll see and confirm the full total before
+                you&apos;re charged.
+              </p>
+            )}
 
             {error && (
               <p role="alert" className="grove-checkout__error">
