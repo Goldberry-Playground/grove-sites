@@ -12,6 +12,10 @@ import {
   rootstockOptions,
   rootstockKind,
   pickVariant,
+  variantMatches,
+  defaultCultivar,
+  defaultFormat,
+  defaultRootstock,
 } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
@@ -106,12 +110,33 @@ export function ProductView({
   shippingRates,
   shippingFeed,
 }: ProductViewProps) {
+  // Availability authority, reused by the buy box, the opening-default pickers,
+  // and the cart guard so all three agree on what "purchasable" means (GOL-1862):
+  // a 0-stock Bareroot is reservable (`ctaDisabled === false`), a 0-stock
+  // pickup-only Potted is a dead end. Deriving the opening selection from this —
+  // rather than a blind axis `[0]` — is what keeps the PDP from opening on an
+  // unbuyable format when per-environment variant order sorts a dead SKU first.
+  const isPurchasable = (v: ViewVariant | undefined) =>
+    buyStateFor({
+      available: v ? v.available : true,
+      qtyAvailable: v?.qtyAvailable ?? null,
+      shippingTier: v?.shippingTier ?? null,
+      format: v?.format ?? null,
+      saleOk,
+    }).ctaDisabled === false;
+
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
-  const [cultivar, setCultivar] = useState<string | null>(cultivars[0] ?? null);
+  const [cultivar, setCultivar] = useState<string | null>(() =>
+    defaultCultivar(variants, cultivars, isPurchasable),
+  );
   const formats = useMemo(() => formatOptions(variants, cultivar), [variants, cultivar]);
-  const [format, setFormat] = useState<string | null>(formats[0] ?? null);
+  const [format, setFormat] = useState<string | null>(() =>
+    defaultFormat(variants, formats, cultivar, isPurchasable),
+  );
   const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
-  const [rootstock, setRootstock] = useState<string | null>(rootstocks[0] ?? null);
+  const [rootstock, setRootstock] = useState<string | null>(() =>
+    defaultRootstock(variants, rootstocks, cultivar, format, isPurchasable),
+  );
   // Thumbnail the buyer explicitly clicked; null → follow the selected variant.
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
   // Destination state for the shipping estimator ("" = not chosen yet).
@@ -190,14 +215,25 @@ export function ProductView({
 
   function chooseCultivar(next: string) {
     setCultivar(next);
-    // Keep the current format if the new cultivar offers it, else fall to its first.
+    // Keep the current format if the new cultivar offers it, else re-pick its
+    // first *purchasable* format so the switch never lands on a dead default
+    // (GOL-1862) — same order-independent rule as the initial mount.
     const nextFormats = formatOptions(variants, next);
-    if (!format || !nextFormats.includes(format)) setFormat(nextFormats[0] ?? null);
+    const nextFormat =
+      format && nextFormats.includes(format)
+        ? format
+        : defaultFormat(variants, nextFormats, next, isPurchasable);
+    setFormat(nextFormat);
     // Same reconciliation for the rootstock axis: a cultivar sold seedling-only
-    // shouldn't keep a "M.111" selection from the previous one (GOL-1112).
+    // shouldn't keep a "M.111" selection from the previous one (GOL-1112), and
+    // the re-pick resolves against the format we just settled on so the opening
+    // triple is one real, purchasable variant.
     const nextRootstocks = rootstockOptions(variants, next);
-    if (!rootstock || !nextRootstocks.includes(rootstock))
-      setRootstock(nextRootstocks[0] ?? null);
+    const nextRootstock =
+      rootstock && nextRootstocks.includes(rootstock)
+        ? rootstock
+        : defaultRootstock(variants, nextRootstocks, next, nextFormat, isPurchasable);
+    setRootstock(nextRootstock);
     setPinnedImage(null);
   }
 
@@ -231,8 +267,15 @@ export function ProductView({
   });
   const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed);
 
-  const cartName = selected?.name ?? name;
-  const cartVariantId = selected?.id ?? productId;
+  // Bind the cart to an EXACT variant match, never to pickVariant's display
+  // fallback (GOL-1862). `pickVariant` deliberately degrades to a best-effort
+  // variant so price/image/hint always render, but its terminal `?? variants[0]`
+  // can resolve to a SKU that doesn't match the shopper's selection — adding that
+  // to the cart would buy the wrong tree. No exact match → fall back to the
+  // template id (the no-variant path), which the cart / back end resolves.
+  const cartMatch = variantMatches(selected, { cultivar, format, rootstock }) ? selected : null;
+  const cartName = cartMatch?.name ?? name;
+  const cartVariantId = cartMatch?.id ?? productId;
 
   return (
     <>

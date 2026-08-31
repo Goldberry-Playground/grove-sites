@@ -5,6 +5,10 @@ import {
   rootstockOptions,
   rootstockKind,
   pickVariant,
+  variantMatches,
+  defaultCultivar,
+  defaultFormat,
+  defaultRootstock,
   stripVariantCode,
   type SelectableVariant,
 } from "./variant-select";
@@ -92,6 +96,75 @@ describe("pickVariant", () => {
   });
   it("returns undefined for an empty list", () => {
     expect(pickVariant([], { cultivar: "x" })).toBeUndefined();
+  });
+});
+
+describe("variantMatches", () => {
+  it("matches only when every provided axis agrees", () => {
+    const v = { id: 2, cultivar: "Honeycrisp", format: "Bareroot", rootstock: "M.111" };
+    expect(variantMatches(v, { cultivar: "Honeycrisp", format: "Bareroot" })).toBe(true);
+    expect(variantMatches(v, { cultivar: "Honeycrisp", format: "Potted" })).toBe(false);
+    expect(variantMatches(v, { rootstock: "Seedling" })).toBe(false);
+  });
+  it("treats null axes as don't-care and undefined variant as no match", () => {
+    const v = { id: 1, cultivar: "Fuji", format: "Potted" };
+    expect(variantMatches(v, { cultivar: null, format: null, rootstock: null })).toBe(true);
+    expect(variantMatches(undefined, { cultivar: "Fuji" })).toBe(false);
+  });
+});
+
+// Availability-aware fixture: the Apple prod scenario (GOL-1862). Potted is the
+// blind formats[0] but is a dead pickup-only 0-stock SKU; Bareroot is buyable.
+interface StockVariant extends SelectableVariant {
+  buyable: boolean;
+}
+const APPLE: StockVariant[] = [
+  { id: 100, cultivar: "Honeycrisp", format: "Potted", rootstock: "M.111", buyable: false },
+  { id: 101, cultivar: "Honeycrisp", format: "Bareroot", rootstock: "M.111", buyable: true },
+  { id: 102, cultivar: "Fuji", format: "Potted", rootstock: "M.111", buyable: false },
+];
+const buyable = (v: StockVariant | undefined) => v?.buyable === true;
+
+describe("defaultFormat", () => {
+  it("prefers the first purchasable format over a dead formats[0]", () => {
+    // Honeycrisp: Potted (dead) is [0], Bareroot is buyable → open on Bareroot.
+    expect(defaultFormat(APPLE, ["Potted", "Bareroot"], "Honeycrisp", buyable)).toBe("Bareroot");
+  });
+  it("degrades to the first format when every format is sold out", () => {
+    // Fuji has only a dead Potted → nothing purchasable → today's behaviour.
+    expect(defaultFormat(APPLE, ["Potted"], "Fuji", buyable)).toBe("Potted");
+  });
+  it("is null for an empty format list", () => {
+    expect(defaultFormat(APPLE, [], "Honeycrisp", buyable)).toBeNull();
+  });
+});
+
+describe("defaultCultivar", () => {
+  it("skips a fully sold-out cultivar for one with a purchasable variant", () => {
+    // Reorder so the dead Fuji sorts first; the picker still opens on Honeycrisp.
+    expect(defaultCultivar(APPLE, ["Fuji", "Honeycrisp"], buyable)).toBe("Honeycrisp");
+  });
+  it("degrades to the first cultivar when none is purchasable", () => {
+    const dead = APPLE.map((v) => ({ ...v, buyable: false }));
+    expect(defaultCultivar(dead, ["Fuji", "Honeycrisp"], buyable)).toBe("Fuji");
+  });
+});
+
+describe("defaultRootstock", () => {
+  const ROOTS: StockVariant[] = [
+    { id: 200, cultivar: "Honeycrisp", format: "Bareroot", rootstock: "M.111", buyable: false },
+    { id: 201, cultivar: "Honeycrisp", format: "Bareroot", rootstock: "Seedling", buyable: true },
+  ];
+  it("prefers the first purchasable rootstock for the chosen cultivar+format", () => {
+    expect(
+      defaultRootstock(ROOTS, ["M.111", "Seedling"], "Honeycrisp", "Bareroot", buyable),
+    ).toBe("Seedling");
+  });
+  it("degrades to the first rootstock when none is purchasable", () => {
+    const dead = ROOTS.map((v) => ({ ...v, buyable: false }));
+    expect(
+      defaultRootstock(dead, ["M.111", "Seedling"], "Honeycrisp", "Bareroot", buyable),
+    ).toBe("M.111");
   });
 });
 
