@@ -20,6 +20,8 @@ export default defineConfig({
       "apps/*/app/**/*.{test,spec}.{ts,tsx}",
       "apps/*/data/**/*.{test,spec}.{ts,tsx}",
       "apps/*/components/**/*.{test,spec}.{ts,tsx}",
+      // Repo-wide invariant guards that span multiple apps/packages.
+      "tests/**/*.{test,spec}.{ts,tsx}",
     ],
     exclude: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
     coverage: {

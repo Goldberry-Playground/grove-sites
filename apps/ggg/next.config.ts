@@ -1,6 +1,32 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+// Product images are fetched from whatever host ODOO_URL points at — every
+// shop page resolves them with resolveOdooImageUrl(..., process.env.ODOO_URL).
+// Derive the next/image allowlist entry from that SAME variable so the host
+// we actually request from can never be rejected by the optimizer. A
+// hardcoded list that drifted from ODOO_URL (prod's host was simply never
+// added) is exactly what broke every prod product photo (GOL-1874).
+function odooImageAllowlist(): NonNullable<
+  NonNullable<NextConfig["images"]>["remotePatterns"]
+> {
+  const raw = process.env.ODOO_URL;
+  if (!raw) return [];
+  try {
+    const u = new URL(raw);
+    return [
+      {
+        protocol: u.protocol === "http:" ? "http" : "https",
+        hostname: u.hostname,
+        ...(u.port ? { port: u.port } : {}),
+        pathname: "/web/image/**",
+      },
+    ];
+  } catch {
+    return [];
+  }
+}
+
 const nextConfig: NextConfig = {
   // Self-contained server bundle for Docker deploys.
   // .next/standalone/ contains node_modules + a server.js that boots Next
@@ -30,6 +56,18 @@ const nextConfig: NextConfig = {
     // odoo-client/images.ts production note).
     minimumCacheTTL: 2678400,
     remotePatterns: [
+      // Derived from ODOO_URL at build time — always allows the host the
+      // storefront is actually configured to fetch product images from
+      // (localhost / QA / prod, whichever this build targets). GOL-1874.
+      ...odooImageAllowlist(),
+      // Production Odoo -- product photos on the launched storefronts. Kept as
+      // an explicit literal (not only env-derived) so the build allows prod
+      // even if ODOO_URL is not present in the image-build environment.
+      {
+        protocol: "https",
+        hostname: "odoo.gatheringatthegrove.com",
+        pathname: "/web/image/**",
+      },
       // Level 3 QA Odoo -- product photos on the qa.* storefronts
       {
         protocol: "https",
@@ -52,11 +90,6 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "woodworkingeorge.com",
-        pathname: "/web/image/**",
-      },
-      {
-        protocol: "https",
-        hostname: "erp.gatheringatthegrove.com",
         pathname: "/web/image/**",
       },
       // Grove assets CDN — future-proofed even though ggg has no public
