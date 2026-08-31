@@ -91,6 +91,89 @@ export function pickVariant<T extends SelectableVariant>(
 }
 
 /**
+ * Does `variant` actually satisfy the shopper's axis selection? True only when
+ * every *provided* axis matches (null axes are "don't care"). Unlike
+ * `pickVariant`, this never degrades to a best-effort fallback — it is the strict
+ * predicate the cart binds to, so a display fallback (e.g. `pickVariant`'s
+ * terminal `?? variants[0]`) can never add a SKU the shopper did not choose
+ * (GOL-1862). `undefined` variant is never a match.
+ */
+export function variantMatches(
+  variant: SelectableVariant | undefined,
+  sel: { cultivar?: string | null; format?: string | null; rootstock?: string | null },
+): boolean {
+  return (
+    variant != null &&
+    (sel.cultivar == null || variant.cultivar === sel.cultivar) &&
+    (sel.format == null || variant.format === sel.format) &&
+    (sel.rootstock == null || variant.rootstock === sel.rootstock)
+  );
+}
+
+/**
+ * Opening Cultivar for the buy box: the first cultivar that owns at least one
+ * *purchasable* variant, so the PDP never defaults to a fully sold-out cultivar
+ * just because it sorted first (GOL-1862). Falls back to the first cultivar (then
+ * null) when none is purchasable, preserving today's sold-out / capture-form path.
+ * `isPurchasable` is supplied by the caller (the buy-state authority) to keep
+ * this module framework- and policy-free.
+ */
+export function defaultCultivar<T extends SelectableVariant>(
+  variants: T[],
+  cultivars: string[],
+  isPurchasable: (variant: T | undefined) => boolean,
+): string | null {
+  return (
+    cultivars.find((c) => variants.some((v) => v.cultivar === c && isPurchasable(v))) ??
+    cultivars[0] ??
+    null
+  );
+}
+
+/**
+ * Opening Format for the given cultivar: the first format whose resolved variant
+ * is purchasable, falling back to the first format (then null). This is the core
+ * GOL-1862 fix — the PDP must open on a format a shopper can actually buy, not a
+ * blind `formats[0]` that per-environment variant order can point at a dead,
+ * 0-stock pickup-only SKU. When every format is sold out it degrades to today's
+ * behaviour, so the back-in-stock capture form still shows.
+ */
+export function defaultFormat<T extends SelectableVariant>(
+  variants: T[],
+  formats: string[],
+  cultivar: string | null,
+  isPurchasable: (variant: T | undefined) => boolean,
+): string | null {
+  return (
+    formats.find((f) => isPurchasable(pickVariant(variants, { cultivar, format: f }))) ??
+    formats[0] ??
+    null
+  );
+}
+
+/**
+ * Opening Rootstock for the given cultivar + format: the first rootstock whose
+ * resolved (cultivar, format, rootstock) variant is purchasable, falling back to
+ * the first rootstock (then null). Resolved against the already-chosen format so
+ * the opening triple is a single real, purchasable variant (GOL-1862).
+ */
+export function defaultRootstock<T extends SelectableVariant>(
+  variants: T[],
+  rootstocks: string[],
+  cultivar: string | null,
+  format: string | null,
+  isPurchasable: (variant: T | undefined) => boolean,
+): string | null {
+  return (
+    rootstocks.find((r) =>
+      isPurchasable(pickVariant(variants, { cultivar, format, rootstock: r })),
+    ) ??
+    rootstocks[0] ??
+    null
+  );
+}
+
+/**
  * Strip a leading Odoo internal reference code from a variant display name
  * (GOL-678). Odoo prefixes variant names with the bracketed `default_code`,
  * e.g. `[FIG-AJ-BR] Fig (Adriatic JH, Bareroot)` — an internal SKU that must
