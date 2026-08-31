@@ -59,6 +59,45 @@ describe("createPublishWebhookRoute", () => {
     expect(revalidate).toHaveBeenCalledWith("/shop");
   });
 
+  it("revalidates the same two paths on a product.availability event (GOL-1896)", async () => {
+    const { POST, revalidate } = makeRoute();
+    const body = JSON.stringify({
+      event: "product.availability",
+      delivery_id: "avail-1",
+      tenant: "goldberry",
+      kind: "product",
+      product: { id: 7, template_id: 7, slug: "pawpaw", name: "Pawpaw" },
+    });
+    const res = await POST(
+      makeRequest(body, {
+        "x-grove-event": "product.availability",
+        "x-grove-delivery": "avail-1",
+        "x-grove-signature-256": sign(body),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      tenant: "goldberry",
+      revalidated: ["/shop/7", "/shop"],
+    });
+    expect(revalidate).toHaveBeenCalledWith("/shop/7");
+    expect(revalidate).toHaveBeenCalledWith("/shop");
+  });
+
+  it("reads the event type from the body when the header is absent", async () => {
+    const { POST, revalidate } = makeRoute();
+    const body = JSON.stringify({
+      event: "product.availability",
+      product: { id: 7 },
+    });
+    const res = await POST(
+      makeRequest(body, { "x-grove-signature-256": sign(body) }),
+    );
+    expect(res.status).toBe(200);
+    expect(revalidate).toHaveBeenCalledWith("/shop/7");
+  });
+
   it("401s a bad signature and does no work", async () => {
     const { POST, revalidate } = makeRoute();
     const res = await POST(
