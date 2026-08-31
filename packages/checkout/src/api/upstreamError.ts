@@ -53,11 +53,30 @@ export function forwardCheckoutError(error: unknown): Response | null {
  *
  * `fallback` is the operator-visible label that prefixes the server log
  * — keep it short and route-specific ("checkout/create-order").
+ *
+ * Special-case: a 401/403 from Odoo means the bearer key (`ODOO_API_KEY`) is
+ * rejected — the whole storefront's checkout is down until it's re-minted, and
+ * this recurs on *every* attempt. Odoo answers those with a ~10KB HTML "4xx"
+ * page, so dumping `error` (whose `message` embeds that body) buries the one
+ * fact an operator needs under a wall of markup. For those we log a single,
+ * unmistakable operator line and drop the body (GOL-1888).
  */
 export function sanitizeUpstreamError(error: unknown, fallback: string): Response {
+  const isAuthFailure =
+    error instanceof OdooApiError && (error.status === 401 || error.status === 403);
+
   // eslint-disable-next-line no-console -- intentional server log; the
   // sanitization is only useful if the operator can still see what broke.
-  console.error(`[grove-checkout] ${fallback} upstream error:`, error);
+  console.error(
+    isAuthFailure
+      ? `[grove-checkout] ${fallback} AUTH FAILURE: Odoo rejected ODOO_API_KEY ` +
+          `(${(error as OdooApiError).status}) — bearer key invalid/revoked; ` +
+          `checkout is DOWN until re-minted`
+      : `[grove-checkout] ${fallback} upstream error:`,
+    // For an auth failure the HTML body carries no diagnostic value; omit it so
+    // the operator line stays a single grep-able string.
+    ...(isAuthFailure ? [] : [error]),
+  );
   return NextResponse.json(
     { error: "Service temporarily unavailable. Please try again." },
     { status: 502 },
