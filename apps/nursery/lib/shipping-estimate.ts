@@ -196,6 +196,41 @@ export function estimateBoxShipping(
 }
 
 /**
+ * The stateless "from $X" bareroot floor under Box Engine v2 — the cheapest
+ * single-tree box rate over *every* shippable zone, in whole dollars, or `null`
+ * when no rate is configured. This is the honest number to show BEFORE a shopper
+ * picks a state: it is a real per-box rate (the cheapest zone × cheapest usable
+ * box), so it can never be lower than the state-specific `estimateBoxShipping`
+ * the estimator resolves once a state is chosen. It exists so the Format cards
+ * stop advertising the legacy per-tree `ShippingHint.fromShipping`, which the
+ * box engine no longer honours and which under-quotes the real floor (GOL-1822).
+ *
+ * Same box-eligibility rules as `estimateBoxShipping` (length class + packing
+ * mode); only the zone loop is widened to the global minimum.
+ */
+export function estimateBoxFloor(
+  feed: ShippingRateFeed,
+  opts: { lengthClass?: number; mode?: PackingMode } = {},
+): number | null {
+  const lengthClass = opts.lengthClass ?? DEFAULT_LENGTH_CLASS;
+  const mode = opts.mode ?? DEFAULT_MODE;
+
+  let cheapest: number | null = null;
+  for (const rates of Object.values(feed.zones)) {
+    if (!rates) continue;
+    for (const [boxId, spec] of Object.entries(feed.packing.boxes)) {
+      if (!spec) continue;
+      if (spec.length < lengthClass) continue; // box too short for this tree
+      if (spec.capacity[mode] == null) continue; // box unused in this mode
+      const rate = rates[boxId as ShippingBoxId]?.base;
+      if (typeof rate !== "number") continue; // no rate configured for this box
+      if (cheapest == null || rate < cheapest) cheapest = rate;
+    }
+  }
+  return cheapest == null ? null : Math.round(cheapest);
+}
+
+/**
  * Per-tier shipping estimate for the product page, in whole dollars or `null`.
  * The single seam both the Format cards and the estimator panel price through,
  * so they can never disagree. Bareroot prices off the schema-2 box feed when

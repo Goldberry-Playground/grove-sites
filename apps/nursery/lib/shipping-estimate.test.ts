@@ -5,6 +5,7 @@ import {
   ZONE_BY_STATE,
   estimateShipping,
   estimateBoxShipping,
+  estimateBoxFloor,
   estimateTierShipping,
   hasBoxFeed,
   isPickupOnly,
@@ -182,6 +183,42 @@ describe("estimateBoxShipping (Box Engine v2 single-tree bareroot floor)", () =>
       zones: { ...SCHEMA2_FEED.zones, zone_1: {} },
     };
     expect(estimateBoxShipping("WV", emptyZone)).toBeNull();
+  });
+});
+
+describe("estimateBoxFloor (stateless Format-card 'from' floor — GOL-1822)", () => {
+  it("is the cheapest single-tree box rate over every zone (class 20, leafed)", () => {
+    // Leafed-usable ≥ class 20 → {s20,s32,s46}; global min is zone_1 s20 = 22.
+    expect(estimateBoxFloor(SCHEMA2_FEED)).toBe(22);
+  });
+
+  it("honours the same box-eligibility rules as the per-state estimate", () => {
+    // Leafed excludes the whip even for a class-16 tree → floor stays s20 = 22.
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16 })).toBe(22);
+    // Dormant admits br16 → global min br16 is zone_1 = 18.
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(18);
+    // Class 46 leafed → only s46 qualifies; global min s46 is zone_1 = 26.
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 46 })).toBe(26);
+  });
+
+  it("never exceeds any priced state's per-box estimate (a true 'from' floor)", () => {
+    // The whole point (GOL-1822): the stateless card number must be ≤ every
+    // state-specific quote, so it can never under-quote what a shopper is later
+    // charged — unlike the legacy per-tree $12 hint it replaces.
+    const floor = estimateBoxFloor(SCHEMA2_FEED);
+    expect(floor).not.toBeNull();
+    for (const state of Object.keys(ZONE_BY_STATE)) {
+      const perState = estimateBoxShipping(state, SCHEMA2_FEED);
+      if (perState != null) expect(floor!).toBeLessThanOrEqual(perState);
+    }
+  });
+
+  it("returns null when no box has a configured rate (never a guess)", () => {
+    const noRates: ShippingRateFeed = {
+      ...SCHEMA2_FEED,
+      zones: { zone_1: {}, zone_2: {}, zone_3: {}, zone_4: {}, zone_5: {} },
+    };
+    expect(estimateBoxFloor(noRates)).toBeNull();
   });
 });
 

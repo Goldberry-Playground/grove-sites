@@ -15,7 +15,9 @@ import {
 } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
+  estimateBoxFloor,
   estimateTierShipping,
+  hasBoxFeed,
   isPickupOnly,
   PICKUP_ONLY_FULFILLMENT,
   resolveRateTable,
@@ -133,6 +135,19 @@ export function ProductView({
   // exact USDA zone, which is the authoritative charge and ship window.
   const shipMode = useMemo<FulfillmentResolution | null>(
     () => (shippingFeed?.calendar ? resolveShippableMode(new Date(), shippingFeed.calendar) : null),
+    [shippingFeed],
+  );
+
+  // Stateless "from $X" floor for the Format cards before a shopper picks a state
+  // (GOL-1822). Under Box Engine v2 bareroot ships PER PACKED BOX, so the legacy
+  // per-tree `ShippingHint.fromShipping` (e.g. bareroot $12) both reads as a
+  // per-tree charge the engine won't honour and under-quotes the real per-box
+  // floor. `estimateBoxFloor` is the cheapest single-tree box rate over every
+  // zone — a genuine per-box number that can never dip below the state-specific
+  // estimate. Null on the legacy backend (no box feed), where the per-tier hint
+  // still matches how that backend charges, so the cards fall back to it.
+  const boxFloor = useMemo(
+    () => (hasBoxFeed(shippingFeed) ? estimateBoxFloor(shippingFeed) : null),
     [shippingFeed],
   );
 
@@ -313,14 +328,19 @@ export function ProductView({
                         })
                       : null;
                   // Pickup-only formats never quote a ship rate; every other
-                  // branch is the existing shippable copy.
+                  // branch is the existing shippable copy. Before a state is
+                  // picked, prefer the Box Engine v2 per-box floor over the
+                  // legacy per-tree hint so the card can't advertise a per-tree
+                  // "$12" the engine won't honour (GOL-1822); `boxFloor` is null
+                  // on the legacy backend, where the per-tier hint still holds.
+                  const fFromFloor = boxFloor ?? fHint.fromShipping;
                   const shipText = fPickupOnly
                     ? "farm pickup only"
                     : fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
                       : shipState && !shipsTo(shipState)
                         ? `not shipping to ${shipState} yet`
-                        : `ships from ~$${fHint.fromShipping}`;
+                        : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
                   // (GOL-1313): bareroot follows today's mode, potted stays pickup.
                   const { fulfillment: fFulfillment, badge: fBadge } = tierFulfillment({
