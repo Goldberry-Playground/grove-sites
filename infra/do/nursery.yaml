@@ -60,6 +60,19 @@ services:
         type: SECRET
         value: REPLACE_ME
 
+      # Newsletter opt-in targets (@grove/newsletter). PUBLIC config, NOT a
+      # secret: the subscribe path only calls each instance's public
+      # `/members/api/send-magic-link/` endpoint (packages/newsletter/src/ghost.ts).
+      # `url` MUST be the host where Ghost mounts the members route — verified
+      # live via `GET {url}/members/api/site/` → 200 with `"url":"{url}/"` on all
+      # three blog.* subdomains (Ghost 6.57); the apexes 308-redirect, so blog.*
+      # is canonical post brand-apex cutover (see config.ts url-host note,
+      # GOL-333/337). nursery brand → `nursery` instance is the list of record;
+      # `grove` is present for the hub dual-write on explicit hubOptIn. (GOL-1884)
+      - key: GHOST_NEWSLETTER_INSTANCES
+        scope: RUN_AND_BUILD_TIME
+        value: '{"grove":{"url":"https://blog.gatheringatthegrove.com"},"nursery":{"url":"https://blog.atthegrovenursery.com"},"goldberry":{"url":"https://blog.goldberrygrove.farm"}}'
+
       - key: NEXT_TELEMETRY_DISABLED
         scope: RUN_AND_BUILD_TIME
         value: "1"
