@@ -65,7 +65,20 @@ jobs:
               });
               manifest = JSON.parse(Buffer.from(data.content, data.encoding).toString('utf8'));
             } catch (e) {
-              core.info('No .github/config-freeze.json on base (' + e.message + ') — nothing to freeze; passing.');
+              // A P0 lock fails CLOSED. Only a genuinely-absent manifest (404 —
+              // a repo with no freeze lock at all) is a legitimate "nothing to
+              // freeze" pass. Any other failure — malformed JSON, a truncated
+              // manifest, or a contents-API error — is indistinguishable from a
+              // freeze that is silently not being enforced, so we FAIL the check
+              // rather than wave the PR through.
+              if (e.status === 404) {
+                core.info('No .github/config-freeze.json on base — nothing to freeze; passing.');
+                return;
+              }
+              core.setFailed(
+                'Config-freeze manifest could not be read or parsed on the base ref (' + e.message + '). ' +
+                'Failing closed: fix or remove .github/config-freeze.json before this PR can merge.'
+              );
               return;
             }
 
