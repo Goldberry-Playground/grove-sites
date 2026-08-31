@@ -99,6 +99,54 @@ describe("sanitizeUpstreamError", () => {
     expect(loggedError).toBe(upstream);
   });
 
+  it("logs a compact operator line for a 401 auth failure — never the HTML body (GOL-1888)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Odoo answers a rejected bearer key with a ~10KB HTML "4xx" page.
+    const htmlBody = `<html><head><title>401 Unauthorized</title></head><body>${"x".repeat(10000)}</body></html>`;
+    const upstream = odooError(401, htmlBody);
+
+    const response = sanitizeUpstreamError(upstream, "checkout/create-session");
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      error: "Service temporarily unavailable. Please try again.",
+    });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    // A single string argument — no second `error` object that would drag the
+    // 10KB HTML (embedded in error.message) into the log.
+    expect(spy.mock.calls[0]).toHaveLength(1);
+    const [line] = spy.mock.calls[0];
+    expect(line).toBe(
+      "[grove-checkout] checkout/create-session AUTH FAILURE: Odoo rejected " +
+        "ODOO_API_KEY (401) — bearer key invalid/revoked; checkout is DOWN until re-minted",
+    );
+    expect(line).not.toContain("<html>");
+    expect(line).not.toContain("xxxx");
+  });
+
+  it("treats a 403 the same as a 401 (both mean the key is rejected)", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    sanitizeUpstreamError(odooError(403, "<html>403 Forbidden</html>"), "cart/get");
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]).toHaveLength(1);
+    expect(spy.mock.calls[0][0]).toContain("AUTH FAILURE");
+    expect(spy.mock.calls[0][0]).toContain("(403)");
+  });
+
+  it("does NOT treat a 401 plain Error (non-Odoo) as an auth failure — stays generic", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // A plain Error whose text mentions 401 must not trip the special-case.
+    sanitizeUpstreamError(new Error("something 401 happened"), "checkout/create-order");
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]).toHaveLength(2);
+    expect(spy.mock.calls[0][0]).toBe("[grove-checkout] checkout/create-order upstream error:");
+  });
+
   it("handles non-Error throws (objects, strings) without crashing", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
