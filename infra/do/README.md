@@ -45,6 +45,32 @@ Once the apps exist, edits to the spec files are applied with `update`:
 doctl apps update <APP_ID> --spec infra/do/hub.yaml
 ```
 
+> ⚠️ **Secret-clobber hazard.** Applying a spec **file** verbatim overwrites
+> *every* env var, so the `REPLACE_ME` placeholders reset the app's live
+> secrets (`ODOO_API_KEY`, `GHOST_CONTENT_KEY`, RUM token, …) to `REPLACE_ME`
+> and break the running app. Only apply a file verbatim on **first create**.
+> To change a **non-secret** env var (e.g. `GHOST_NEWSLETTER_INSTANCES`) on a
+> live app, use one of these instead:
+>
+> - **DO Console (simplest, zero-risk):** App → Settings → the service →
+>   Environment Variables → add/edit the single key → Save. Nothing else is
+>   touched.
+> - **CLI, secret-safe merge:** pull the *live* spec (its secrets come back as
+>   encrypted `EV[…]` values that round-trip untouched), inject just the one
+>   key from the committed file, and push it back:
+>
+>   ```bash
+>   APP_ID=$(doctl apps list --format ID,Spec.Name --no-header \
+>     | awk '$2=="grove-nursery"{print $1}')
+>   NEW=$(yq -r '.services[0].envs[] | select(.key=="GHOST_NEWSLETTER_INSTANCES") | .value' \
+>     infra/do/nursery.yaml)
+>   doctl apps spec get "$APP_ID" \
+>     | yq '.services[0].envs += [{"key":"GHOST_NEWSLETTER_INSTANCES","scope":"RUN_AND_BUILD_TIME","value":env(NEW)}]' \
+>     | doctl apps update "$APP_ID" --spec -
+>   ```
+>   (If the key already exists, replace the `+=` append with a `map(...)`
+>   update as in *Setting secrets* below.)
+
 For routine code changes, you do **not** need `doctl update` — every push
 to `main` that touches the relevant app paths triggers an auto-redeploy
 (see `deploy_on_push: true` in each spec).
