@@ -23,15 +23,31 @@
 #     why the post-merge deploy/CDN dispatch is NOT tied to that enqueue
 #     (GOL-1658 / GOL-1661).
 #
-# Guardrails (see GOL-122):
-#   - Never auto-approves human/external PRs (author must be the agent App bot)
-#     -> human review is preserved for human PRs.
-#   - Only proceeds once the agent review has SIGNED OFF: the unified
+# Human-maintainer path (GOL-1854, port of odoocker GOL-1195):
+#   A maintainer's OWN PRs hit the same wall from the other side: `main` requires
+#   an approving review, GitHub blocks approving your own PR, and (until now) this
+#   workflow skipped ALL human authors -> the maintainer's PR dead-ended with no
+#   way to satisfy the gate. The old workaround was to RE-ORIGINATE the PR under
+#   the agent App so it became bot-authored (GOL-1815 toil). We now clear the
+#   review gate for a small allowlist of trusted human maintainers (MAINTAINERS)
+#   by approving as github-actions[bot] (a DISTINCT identity, so no self-approval),
+#   but we deliberately DO NOT enqueue/merge for them -> the human keeps full
+#   control over WHEN their PR merges. CI + protected-paths + required checks
+#   still gate. Maintainer PRs are exempt from the agent-review sign-off gate
+#   (a human reviews them by hand).
+#
+# Guardrails (see GOL-122 / GOL-1854):
+#   - Auto-approves only (a) the agent App bot's PRs and (b) an explicit
+#     human-maintainer allowlist (MAINTAINERS). All other human/external PRs
+#     still keep the normal human-review requirement.
+#   - AGENT PRs only proceed once the agent review has SIGNED OFF: the unified
 #     `agent-review/*` check-run on the head SHA must be `success` (GOL-1734 /
 #     GOL-1738). The old standalone "Claude Code Review" workflow was removed;
 #     the reviewer signal is now the SHA-bound check-run emitted by the
 #     github-sync plugin, so this fires on CI completion and then gates on that
 #     check. -> not a blanket rubber-stamp.
+#   - Agent PRs get approve + enqueue/merge; maintainer PRs get approve ONLY
+#     (no auto-merge) so the human decides when to merge.
 #   - Runs from the base-branch definition (workflow_run), so a PR cannot
 #     modify this file to approve itself.
 name: Auto-approve verified agent PRs
@@ -79,15 +95,36 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Trusted human maintainers whose OWN PRs may auto-clear the review
+          # gate (space-separated logins). GitHub blocks approving your own PR,
+          # so without this a maintainer's PR dead-ends with no way to satisfy
+          # the required review — previously worked around by re-originating the
+          # PR under the agent App (GOL-1815 toil). Keep this list minimal and in
+          # sync with .github/CODEOWNERS. (GOL-1854)
+          MAINTAINERS="EngineeringMoonBear"
+
           AUTHOR=$(gh pr view "$PR" --repo "$REPO" --json author -q '.author.login')
           # App bot logins appear as "app/agenticos-developer" via gh and
-          # "agenticos-developer" via some APIs; accept both, reject all else.
+          # "agenticos-developer" via some APIs; accept both.
+          KIND=""
           case "$AUTHOR" in
-            app/agenticos-developer|agenticos-developer) ;;
-            *)
-              echo "PR #$PR author '$AUTHOR' is not the agent App bot; skipping (human/external PRs keep human review)."
-              exit 0 ;;
+            app/agenticos-developer|agenticos-developer) KIND="agent" ;;
           esac
+          if [ -z "$KIND" ]; then
+            for m in $MAINTAINERS; do
+              # Match a bare login ONLY. We intentionally reject the "app/$m"
+              # form: real human maintainers always appear as bare logins, never
+              # "app/<login>". A GitHub App whose slug happens to equal a
+              # maintainer login must NOT be trusted as a human maintainer — the
+              # agent App is matched separately above. (GOL-1372 / GOL-1322)
+              if [ "$AUTHOR" = "$m" ]; then KIND="maintainer"; break; fi
+            done
+          fi
+          if [ -z "$KIND" ]; then
+            echo "PR #$PR author '$AUTHOR' is not the agent App bot or a listed maintainer; skipping (human/external PRs keep human review)."
+            exit 0
+          fi
+          echo "PR #$PR author '$AUTHOR' classified as: $KIND"
 
           # NOTE (merge GOL-1734 + GOL-1406-A): both gates are required and are
           # ordered cheap-first. The protected-paths carve-out is a single API call
@@ -108,6 +145,10 @@ jobs:
           fi
 
           # ── Unified agent-review gate (GOL-1734 / GOL-1738, Ada sign-off) ──
+          # AGENT PRs only. Maintainer PRs are exempt — a human reviews them by
+          # hand; the review-count gate is cleared by the github-actions[bot]
+          # approval below. (GOL-1854)
+          if [ "$KIND" = "agent" ]; then
           # The github-sync plugin emits exactly one `agent-review/<reviewer>`
           # check-run per non-draft agent PR: seeded `in_progress` on open,
           # flipped to `success` ON THAT HEAD SHA only when the reviewer signs
@@ -137,6 +178,7 @@ jobs:
             exit 0
           fi
           echo "agent-review/* is success on $HEAD_SHA; proceeding to approve + merge."
+          fi
 
           # Don't stack duplicate approvals on re-runs.
           ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews" \
@@ -145,7 +187,15 @@ jobs:
             echo "PR #$PR already approved by github-actions[bot]."
           else
             gh pr review "$PR" --repo "$REPO" --approve --body \
-              "Auto-approved by github-actions[bot]: the agent review signed off (agent-review/* check is success on the head SHA). This identity is distinct from the PR-author App, so it satisfies branch protection's review requirement. Functional required status checks still gate the actual merge. (GOL-122 / GOL-276 / GOL-1734)"
+              "Auto-approved by github-actions[bot]: required CI checks passed (for agent PRs, the agent-review/* sign-off is also success on the head SHA). This identity is distinct from the PR author, so it satisfies branch protection's review requirement without self-approval. Functional required status checks (and protected-paths for protected files) still gate the actual merge. (GOL-122 / GOL-276 / GOL-1734 / GOL-1854)"
+          fi
+
+          # Maintainer PRs: approve ONLY. The human decides WHEN to merge, so we
+          # do not enqueue/merge on their behalf. CI + protected-paths + required
+          # checks still gate the actual merge. (GOL-1854)
+          if [ "$KIND" = "maintainer" ]; then
+            echo "PR #$PR is a maintainer PR: review gate cleared; leaving the merge decision to the author."
+            exit 0
           fi
 
           # Re-fire the deploy (docker.yml) + CDN (cdn-asset-sync.yml) builds for
