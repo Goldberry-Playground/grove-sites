@@ -84,6 +84,7 @@ jobs:
             // across all repos and is self-protecting.
             const PROTECTED_GLOBS = [
                 '.github/workflows/**',
+                '.github/config-freeze.json',
                 'apps/*/app/api/checkout/route.ts',
                 'apps/*/app/api/checkout/session/route.ts',
                 'apps/*/app/api/webhooks/publish/route.ts',

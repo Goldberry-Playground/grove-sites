@@ -26,7 +26,13 @@ import { pathToFileURL } from "node:url";
 // guard, and auto-approve.yml).
 export const PROTECTED_GLOBS = [
   '.github/workflows/**',
-  'ownership.yml',
+  '.github/config-freeze.json',
+  'apps/*/app/api/checkout/route.ts',
+  'apps/*/app/api/checkout/session/route.ts',
+  'apps/*/app/api/webhooks/publish/route.ts',
+  'packages/checkout/**',
+  'apps/*/tenant.config.ts',
+  'apps/hub/data/marketplace.ts',
 ];
 
 // glob -> RegExp (supports **, *, and literals; '/' is literal). MUST stay
