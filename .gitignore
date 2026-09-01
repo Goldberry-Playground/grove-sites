@@ -36,3 +36,7 @@ _render/
 playwright-report/
 test-results/
 apps/*/e2e/.artifacts/
+
+# Python bytecode (stray audit-script compile artifacts — GOL-1907)
+__pycache__/
+*.pyc
