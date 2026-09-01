@@ -204,3 +204,45 @@ describe("routeInteraction — Phase 3 /idea (GOL-471)", () => {
     expect(r.followup).toBeUndefined();
   });
 });
+
+describe("routeInteraction — Phase 2 order-ops (GOL-1980)", () => {
+  const OPERATOR = "700000000000000000";
+  const orderCtx = { approverIds: new Set([MACY_DISCORD_ID]), operatorIds: new Set([OPERATOR]) };
+  const operator = { member: { user: { id: OPERATOR } } };
+
+  it("defers with an UPDATE ack + mark_shipped followup for an operator", () => {
+    const r = routeInteraction(
+      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...operator },
+      orderCtx,
+    );
+    expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
+    expect(r.followup).toMatchObject({ kind: "mark_shipped", orderId: "42", actor: OPERATOR });
+  });
+
+  it("denies a non-operator ephemerally with no followup", () => {
+    const r = routeInteraction(
+      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...macy },
+      orderCtx,
+    );
+    expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("denies everyone when no operator roster is configured", () => {
+    const r = routeInteraction(
+      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...operator },
+      { approverIds: new Set([MACY_DISCORD_ID]) },
+    );
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("a CMO approver is NOT automatically an order operator", () => {
+    const r = routeInteraction(
+      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...macy },
+      orderCtx,
+    );
+    expect(r.followup).toBeUndefined();
+  });
+});
