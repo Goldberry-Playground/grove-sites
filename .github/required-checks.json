@@ -6,6 +6,15 @@
     "Lint, Type Check & Test",
     "Route byte budget",
     "Component CSS budget",
-    "Lighthouse CI"
+    "Lighthouse CI",
+    "Protected paths guard",
+    "Config freeze",
+    "fix touches a test",
+    "CI scripts",
+    "Required-checks audit",
+    "Secret scan",
+    "Dependency audit",
+    "Reject tracked .env files",
+    "Design-sync theme artifacts match sources"
   ]
 }
