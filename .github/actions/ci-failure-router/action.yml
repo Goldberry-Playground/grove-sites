@@ -482,26 +482,69 @@ runs:
             const graceMin = Number(GRACE_MINUTES || "20");
             const nowMs = Date.now();
 
-            // Declared required contexts + the protected branch they gate.
-            // Read from the repo file, NOT live protection: the reconcile leg of
-            // required-checks-audit already owns declared-vs-live drift. Reading
-            // it here would duplicate that and need an admin token we don't want
-            // in a frequent sweep.
-            let requiredContexts = [];
+            // Declared required contexts + the protected branch they gate,
+            // read from the repo file.
+            let declaredContexts = [];
             let baseBranch = null;
             try {
               const { data: file } = await github.rest.repos.getContent({
                 owner, repo, path: ".github/required-checks.json",
               });
               const json = JSON.parse(Buffer.from(file.content, "base64").toString("utf8"));
-              requiredContexts = json.required_contexts || [];
+              declaredContexts = json.required_contexts || [];
               baseBranch = json.branch || null;
             } catch (e) {
               core.warning(`No readable .github/required-checks.json (${e.status}); nothing to sweep.`);
               return;
             }
-            if (!requiredContexts.length || !baseBranch) {
+            if (!declaredContexts.length || !baseBranch) {
               core.info("No required contexts declared; nothing to sweep.");
+              return;
+            }
+
+            // Intersect the DECLARED set with the LIVE-enforced required checks
+            // for the base branch (GOL-2004). A PR can only wedge at "Expected —
+            // waiting for status" on a check that branch protection actually
+            // enforces; a context that is declared-required but NOT live-required
+            // (e.g. a `pull_request: paths:`-filtered workflow like
+            // `Required-checks audit` that legitimately doesn't run on code-only
+            // PRs) is absent on the head SHA forever yet blocks nothing — flagging
+            // it mints a spurious `ci-failure` issue + a useless close/reopen on
+            // every unrelated PR. `GET /repos/{o}/{r}/rules/branches/{branch}`
+            // returns the effective rules and needs only repo READ (NOT the
+            // admin-scoped branch-protection / rulesets endpoints), so it is safe
+            // in a frequent sweep. Declared-vs-live *drift* is still owned by the
+            // required-checks-audit reconcile leg; this only narrows what the
+            // sweep treats as wedge-capable. On any read failure we fall back to
+            // the declared set (fail-open: never lose dropped-trigger detection).
+            let requiredContexts = declaredContexts;
+            try {
+              const { data: rules } = await github.request(
+                "GET /repos/{owner}/{repo}/rules/branches/{branch}",
+                { owner, repo, branch: baseBranch },
+              );
+              const live = new Set();
+              for (const r of rules || []) {
+                if (r.type !== "required_status_checks") continue;
+                for (const c of r.parameters?.required_status_checks || []) {
+                  if (c.context) live.add(c.context);
+                }
+              }
+              if (live.size) {
+                const enforced = declaredContexts.filter((c) => live.has(c));
+                const dropped = declaredContexts.filter((c) => !live.has(c));
+                if (dropped.length) {
+                  core.info(`Declared-but-not-live-required (skipped, cannot wedge): [${dropped.join(", ")}]`);
+                }
+                requiredContexts = enforced;
+              } else {
+                core.warning(`No live required_status_checks rule on ${baseBranch}; falling back to declared set.`);
+              }
+            } catch (e) {
+              core.warning(`Could not read live branch rules for ${baseBranch} (${e.status}); falling back to declared set.`);
+            }
+            if (!requiredContexts.length) {
+              core.info("No live-enforced required contexts to sweep.");
               return;
             }
 
