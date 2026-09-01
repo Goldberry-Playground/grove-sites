@@ -14,12 +14,24 @@
 #                   failing commit (GOL-1317: never close on a stale/older green)
 #   branch-gone   — branch deleted or PR closed: reconcile stale issues
 #   sweep         — scheduled/manual: close issues whose branch no longer exists
+#   missing-checks — scheduled/manual (GOL-1958): a *required* status check that
+#                   never STARTED (dropped trigger) is indistinguishable from one
+#                   still running, so a PR hangs at "Expected — waiting for status"
+#                   silently. This sweep is deliberately driven by `schedule` /
+#                   `workflow_dispatch`, NOT `pull_request`, so it cannot be
+#                   dropped by the same event class it detects. It reads the
+#                   declared required contexts from `.github/required-checks.json`
+#                   (never live protection — the reconcile leg owns that), then
+#                   for each open non-draft PR on the protected branch flags any
+#                   required context with NO check-run AND NO commit status of any
+#                   state on a head SHA older than the grace window, and mints one
+#                   deduped `ci-failure` issue per PR (mirrored to Paperclip).
 name: CI failure router (shared)
-description: Provenance-based CI-failure routing and recency-safe auto-close.
+description: Provenance-based CI-failure routing, recency-safe auto-close, and missing-required-check detection.
 
 inputs:
   mode:
-    description: route | close-success | branch-gone | sweep
+    description: route | close-success | branch-gone | sweep | missing-checks
     required: true
   github-token:
     description: Token used for issue/PR/commit-compare API calls.
@@ -70,6 +82,14 @@ inputs:
     description: github.event.pull_request.merged ("true"/"false") for PR-close
     required: false
     default: ""
+  # missing-checks fields (GOL-1958)
+  grace-minutes:
+    description: >-
+      How old (minutes) a PR head SHA must be before a missing required context
+      is treated as a dropped trigger rather than normal queueing. Clears the
+      window in which GitHub is still creating queued check-runs.
+    required: false
+    default: "20"
 
 runs:
   using: composite
@@ -89,12 +109,14 @@ runs:
         GONE_BRANCH: ${{ inputs.gone-branch }}
         TRIGGER: ${{ inputs.trigger }}
         PR_MERGED: ${{ inputs.pr-merged }}
+        GRACE_MINUTES: ${{ inputs.grace-minutes }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
           const {
             MODE, RUN_ID, WF_NAME, HEAD_BRANCH, HEAD_SHA, RUN_URL, RUN_EVENT,
             RUN_ATTEMPT, RUN_STARTED_AT, GONE_BRANCH, TRIGGER, PR_MERGED,
+            GRACE_MINUTES,
           } = process.env;
           const { owner, repo } = context.repo;
 
@@ -404,6 +426,194 @@ runs:
               core.info(`Swept #${issue.number} (branch ${branch} gone).`);
             }
             core.info(`Sweep closed ${closed} issue(s).`);
+            return;
+          }
+
+          // ────────────────────────────────────────────────────────────────
+          // GOL-1958: detect required checks that never STARTED on an open PR.
+          if (MODE === "missing-checks") {
+            const graceMin = Number(GRACE_MINUTES || "20");
+            const nowMs = Date.now();
+
+            // Declared required contexts + the protected branch they gate.
+            // Read from the repo file, NOT live protection: the reconcile leg of
+            // required-checks-audit already owns declared-vs-live drift. Reading
+            // it here would duplicate that and need an admin token we don't want
+            // in a frequent sweep.
+            let requiredContexts = [];
+            let baseBranch = null;
+            try {
+              const { data: file } = await github.rest.repos.getContent({
+                owner, repo, path: ".github/required-checks.json",
+              });
+              const json = JSON.parse(Buffer.from(file.content, "base64").toString("utf8"));
+              requiredContexts = json.required_contexts || [];
+              baseBranch = json.branch || null;
+            } catch (e) {
+              core.warning(`No readable .github/required-checks.json (${e.status}); nothing to sweep.`);
+              return;
+            }
+            if (!requiredContexts.length || !baseBranch) {
+              core.info("No required contexts declared; nothing to sweep.");
+              return;
+            }
+
+            // Open, non-draft PRs targeting the protected branch.
+            const allOpen = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: "open", base: baseBranch, per_page: 100,
+            });
+            const prs = allOpen.filter((p) => !p.draft);
+            const evaluated = new Set(prs.map((p) => p.number));
+
+            // Dedup markers (one issue per PR; body records the head SHA so a
+            // re-run for the same PR+SHA is a strict no-op — acceptance #5).
+            const marker = (num) => `<!-- d3-missing-checks:PR${num} -->`;
+            const DATA_RE = /<!-- d3-missing-checks-data:(\{.*?\}) -->/;
+            const dataMarker = (sha) =>
+              `<!-- d3-missing-checks-data:${JSON.stringify({ sha: sha || "" })} -->`;
+            const recordedSha = (body) => {
+              const m = (body ?? "").match(DATA_RE);
+              if (m) { try { return JSON.parse(m[1]).sha; } catch { /* */ } }
+              return null;
+            };
+
+            // These sweeps mint `ci-failure`-labelled issues so the GitHub App
+            // mirrors them to Paperclip — same notification path as the router.
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: "open", labels: "ci-failure", per_page: 100,
+            });
+            const missingIssueFor = (num) =>
+              openIssues.find((i) => (i.body ?? "").includes(marker(num)));
+
+            const flagged = new Set(); // PR numbers currently flagged
+
+            for (const pr of prs) {
+              const sha = pr.head.sha;
+
+              // Union of check-run NAMES and commit-status CONTEXTS on the head
+              // SHA. grove-sites' `Lighthouse CI` is a commit status, not a
+              // check-run — reading only check-runs would false-positive it
+              // (acceptance #3). A context in ANY state (queued/in_progress/
+              // completed) counts as present, so queued work is never flagged
+              // (acceptance #4).
+              const present = new Set();
+              const crResp = await github.rest.checks.listForRef({
+                owner, repo, ref: sha, per_page: 100,
+              });
+              for (const cr of crResp.data.check_runs || []) present.add(cr.name);
+              const statuses = await github.paginate(
+                github.rest.repos.listCommitStatusesForRef,
+                { owner, repo, ref: sha, per_page: 100 },
+              );
+              for (const s of statuses) present.add(s.context);
+
+              const missing = requiredContexts.filter((c) => !present.has(c));
+              if (!missing.length) continue;
+
+              // Grace: only flag once the head SHA is older than the window in
+              // which GitHub would normally have created queued check-runs.
+              let commitDate = null;
+              try {
+                const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
+                commitDate = commit.commit.committer?.date || commit.commit.author?.date || null;
+              } catch (e) {
+                core.info(`PR #${pr.number}: cannot read head commit (${e.status}); skipping to avoid a false positive.`);
+                continue;
+              }
+              if (!commitDate) continue;
+              const ageMin = (nowMs - new Date(commitDate).getTime()) / 60000;
+              if (ageMin < graceMin) {
+                core.info(`PR #${pr.number}: head ${sha.slice(0, 7)} is ${ageMin.toFixed(1)}m old (< ${graceMin}m grace); missing [${missing.join(", ")}] — within queue window, skipping.`);
+                continue;
+              }
+
+              flagged.add(pr.number);
+
+              const remediation = [
+                "**Remediation** — the reliable way to regenerate a dropped `pull_request` event is to close and reopen the PR:",
+                "```bash",
+                `gh pr close ${pr.number} --repo ${owner}/${repo} && gh pr reopen ${pr.number} --repo ${owner}/${repo}`,
+                "```",
+                "Close/reopen re-fires `pull_request`, so the missing workflow(s) run on the current head. This is a mutating action on the PR — safe for an agent-authored PR, but if a human is mid-review, coordinate first (GOL-1958 keeps auto-remediation out of scope for now).",
+              ].join("\n");
+              const summary = [
+                `**PR:** [#${pr.number} — ${pr.title}](${pr.html_url})`,
+                `**Head SHA:** \`${sha}\` (age ${ageMin.toFixed(0)}m, past the ${graceMin}m grace window)`,
+                `**Missing required context(s):** ${missing.map((c) => `\`${c}\``).join(", ")}`,
+                "",
+                `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but have **no check-run and no commit status of any state** on the head SHA. That is a dropped trigger, not a slow run — the PR will hang at "Expected — waiting for status" until it is cleared.`,
+                "",
+                remediation,
+              ].join("\n");
+
+              const existing = missingIssueFor(pr.number);
+              if (existing) {
+                if (recordedSha(existing.body) === sha) {
+                  core.info(`PR #${pr.number}: issue #${existing.number} already open for head ${sha.slice(0, 7)} — no-op (dedup).`);
+                  continue;
+                }
+                // Head advanced but the context is still missing — keep one
+                // issue, refresh its recorded SHA, add a note.
+                const oldBody = existing.body ?? "";
+                const newBody = DATA_RE.test(oldBody)
+                  ? oldBody.replace(DATA_RE, dataMarker(sha))
+                  : `${oldBody}\n${dataMarker(sha)}`;
+                if (newBody !== oldBody) {
+                  await github.rest.issues.update({
+                    owner, repo, issue_number: existing.number, body: newBody,
+                  });
+                }
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: existing.number,
+                  body: `Head advanced to \`${sha}\` and the required context(s) are still missing.\n\n${summary}`,
+                });
+                core.info(`Updated missing-checks issue #${existing.number} for PR #${pr.number}.`);
+              } else {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo, name: "ci-failure", color: "b60205",
+                    description: "Minted by the CI failure router",
+                  });
+                } catch (e) {
+                  if (e.status !== 422) throw e;
+                }
+                const body = [
+                  marker(pr.number),
+                  dataMarker(sha),
+                  summary,
+                  "",
+                  "_Filed by the CI failure router (missing-required-check sweep, GOL-1958); mirrored to Paperclip for analysis._",
+                ].join("\n");
+                const { data: issue } = await github.rest.issues.create({
+                  owner, repo,
+                  title: `Missing required check on PR #${pr.number}: ${missing.join(", ")}`,
+                  body, labels: ["ci-failure"],
+                });
+                core.info(`Minted missing-checks issue #${issue.number} for PR #${pr.number}.`);
+              }
+            }
+
+            // Self-heal: close any open missing-checks issue whose PR is no
+            // longer flagged — the checks now report, or the PR left the set
+            // (closed / drafted / retargeted).
+            for (const issue of openIssues) {
+              const m = (issue.body ?? "").match(/<!-- d3-missing-checks:PR(\d+) -->/);
+              if (!m) continue;
+              const num = Number(m[1]);
+              if (flagged.has(num)) continue;
+              const reason = evaluated.has(num)
+                ? `all required contexts now report on PR #${num}'s head`
+                : `PR #${num} is no longer an open non-draft PR on \`${baseBranch}\``;
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number,
+                body: `✅ Resolved — ${reason}.\n\n_Auto-closed by the missing-required-check sweep._`,
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: issue.number,
+                state: "closed", state_reason: "completed",
+              });
+              core.info(`Closed missing-checks issue #${issue.number} (${reason}).`);
+            }
             return;
           }
 
