@@ -155,6 +155,41 @@ runs:
               .map((j) => `- [\`${j.name}\`](${j.html_url})`)
               .join("\n") || "- (no job-level detail — see the run)";
 
+            // ── Known-red gate allowlist (GOL-1957) ──────────────────────
+            // Temporary noise-suppression valve. When a run's ONLY failing
+            // jobs are known-red, NON-required gates already tracked by an
+            // open issue, do NOT mint/escalate a ci-failure issue: the merge
+            // queue re-runs CI on a fresh, unique branch per merge, so a
+            // permanently-red non-required gate mints one ownerless issue —
+            // and burns one DevOps triage heartbeat — per merge. This does
+            // NOT weaken merge gating: required checks are untouched; only
+            // the noise router is silenced. Each entry is scoped by repo +
+            // exact job name (as reported by listJobsForWorkflowRun) and
+            // references its tracking issue. REMOVE an entry the moment its
+            // tracking issue lands green — a stale entry masks a real,
+            // freshly-broken gate.
+            const KNOWN_RED_GATES = [
+              {
+                repo: "grove-odoo-modules",
+                job: "Install + test module against Odoo 19",
+                tracking: "GOL-1949", // grove_headless Odoo-19 suite red since #145 (GOL-1941)
+              },
+            ];
+            const isKnownRed = (job) =>
+              KNOWN_RED_GATES.some((g) => g.repo === repo && g.job === job.name);
+            // True only when there IS a failure and every failing job is a
+            // tracked known-red gate. An empty failedJobs set (run-level
+            // failure with no job detail) is NOT suppressed.
+            const onlyKnownRed =
+              failedJobs.length > 0 && failedJobs.every(isKnownRed);
+            const knownRedRefs = [
+              ...new Set(
+                failedJobs.filter(isKnownRed).map(
+                  (j) => KNOWN_RED_GATES.find((g) => g.repo === repo && g.job === j.name).tracking,
+                ),
+              ),
+            ].join(", ");
+
             // Owning PR, resolved by head branch against open PRs.
             const { data: prs } = await github.rest.pulls.list({
               owner, repo, state: "open", head: `${owner}:${HEAD_BRANCH}`, per_page: 1,
@@ -230,6 +265,12 @@ runs:
             }
 
             if (!pr) {
+              if (onlyKnownRed) {
+                core.notice(
+                  `Suppressed ownerless ci-failure issue on \`${HEAD_BRANCH}\`: the only failing job(s) are known-red gate(s) tracked by ${knownRedRefs} (GOL-1957). No issue minted.`,
+                );
+                return;
+              }
               await mintOrUpdateIssue(`Ownerless failure — no open PR for \`${HEAD_BRANCH}\`.`);
               return;
             }
@@ -260,7 +301,13 @@ runs:
             }
             core.info(`Sticky comment on PR #${pr.number}`);
 
-            if (threeStrikes) {
+            if (threeStrikes && onlyKnownRed) {
+              // Every strike is the same known-red gate — escalating just
+              // re-files noise the owner can't fix. Suppress (GOL-1957).
+              core.notice(
+                `Suppressed 3-strike escalation on PR #${pr.number}: the only failing job(s) are known-red gate(s) tracked by ${knownRedRefs} (GOL-1957).`,
+              );
+            } else if (threeStrikes) {
               await mintOrUpdateIssue(
                 `3-strike escalation from PR #${pr.number} — the owner appears stuck.`,
               );
