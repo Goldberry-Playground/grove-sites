@@ -7,6 +7,7 @@ import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
+import { SupportChat } from "./support-chat";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -79,6 +80,7 @@ export default async function RootLayout({
           </footer>
         </Providers>
         </GroveProviders>
+        <SupportChat />
       </body>
     </html>
   );
