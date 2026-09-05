@@ -71,6 +71,31 @@ export async function editInteractionOriginal(
   await assertOk(res, "editInteractionOriginal");
 }
 
+/**
+ * Post a NEW followup message to a deferred interaction (as opposed to editing
+ * the @original). With `ephemeral`, only the interacting user sees it — used to
+ * surface a mark-shipped failure to the operator WITHOUT touching the public
+ * order card, so the button stays clickable for a retry (GOL-1980). Valid for
+ * 15 minutes after the interaction; the token authenticates the call.
+ */
+export async function createInteractionFollowup(
+  appId: string,
+  interactionToken: string,
+  content: string,
+  ephemeral = true,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const res = await fetchImpl(
+    `${DISCORD_API_BASE}/webhooks/${urlSegment(appId)}/${urlSegment(interactionToken)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, ...(ephemeral ? { flags: 64 } : {}) }),
+    },
+  );
+  await assertOk(res, "createInteractionFollowup");
+}
+
 /** The `/insights [period]` slash-command definition. */
 export const INSIGHTS_COMMAND = {
   name: "insights",

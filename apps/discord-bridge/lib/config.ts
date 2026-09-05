@@ -6,7 +6,8 @@
  * 1P item key → env var mapping is documented in `.env.example`.
  */
 
-import { parseApproverIds } from "./allowlist.ts";
+import { parseApproverIds, parseOperatorIds } from "./allowlist.ts";
+import { parseOrderChannelMap } from "./orders.ts";
 
 /** Buffer organization id (Goldberry Grove). Stable, not a secret. */
 export const BUFFER_ORG_ID_DEFAULT = "5a3295c5a73330590e63e1bb";
@@ -45,6 +46,18 @@ export interface BridgeConfig {
   ideaIntakeIssueId?: string;
   /** Paperclip API base for the audit mirror (e.g. http://localhost:3100). */
   paperclipApiBase?: string;
+
+  // ── Phase 2 order-ops (GOL-1980) ──────────────────────────────────────────
+  /** Discord user ids allowed to mark orders shipped (distinct from approvers). */
+  orderOperatorIds: Set<string>;
+  /** order.company_id → order channel snowflake (per-brand routing, item 4). */
+  orderChannels: Record<string, string>;
+  /** Odoo API base for the mark-shipped call, e.g. https://odoo.qa.…. */
+  odooApiBase?: string;
+  /** Scoped bridge→Odoo bearer service key (GOL-592). */
+  odooBridgeKey?: string;
+  /** Shared secret authenticating the inbound POST /orders/alert (Odoo→bridge). */
+  orderAlertSecret?: string;
 }
 
 class MissingEnvError extends Error {
@@ -87,6 +100,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
     auditIssueId: env.PAPERCLIP_AUDIT_ISSUE_ID?.trim() || undefined,
     ideaIntakeIssueId: env.PAPERCLIP_IDEA_INTAKE_ISSUE_ID?.trim() || undefined,
     paperclipApiBase: env.PAPERCLIP_API_BASE?.trim() || undefined,
+    // Phase 2 order-ops (GOL-1980). All optional/defaulted so the digest and
+    // content-approval loop keep loading before the order channels land.
+    orderOperatorIds: parseOperatorIds(env.DISCORD_ORDER_OPERATOR_IDS),
+    orderChannels: parseOrderChannelMap(env.DISCORD_ORDER_CHANNELS),
+    odooApiBase: env.ODOO_API_BASE?.trim() || undefined,
+    odooBridgeKey: env.ODOO_BRIDGE_API_KEY?.trim() || undefined,
+    orderAlertSecret: env.ORDER_ALERT_SECRET?.trim() || undefined,
   };
   cfg.approvalsChannelId = env.DISCORD_APPROVALS_CHANNEL_ID?.trim() || cfg.weeklyInsightsChannelId;
   if (missing.length) throw new MissingEnvError(missing);
