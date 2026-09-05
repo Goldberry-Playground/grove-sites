@@ -135,6 +135,15 @@
   margin-top: var(--grove-space-3);
 }
 
+/* Promo code (right-rail, opt-in via allowPromoCode). Spaced off the summary
+   totals; note sits directly under the input. */
+.grove-checkout__promo {
+  margin-top: var(--grove-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 /* Payment */
 .grove-checkout__payments {
   display: flex;

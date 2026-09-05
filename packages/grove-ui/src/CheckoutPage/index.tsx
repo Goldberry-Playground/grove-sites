@@ -34,6 +34,9 @@ export interface GroveCheckoutOrder {
   paymentMethod: string;
   /** Ship-to-address vs farm pickup. `"ship"` when the pickup option is off. */
   fulfillment: GroveFulfillment;
+  /** Storefront promo code the shopper entered, trimmed; `undefined` when the
+   *  field is empty or not shown. The server validates + applies it (GOL-2088). */
+  promoCode?: string;
 }
 
 /** A selectable ship-to state or country: 2-letter `code` sent to the server,
@@ -145,6 +148,13 @@ export interface CheckoutPageProps {
    * can never leak onto a non-nursery storefront — GOL-1314).
    */
   pickupCopy?: GrovePickupCopy;
+  /**
+   * Offer a "Promo code" input. Off by default so brands without an active
+   * promotion keep the leaner form; a promo-enabled consumer sets it true (the
+   * nursery, for FLATWOODS — GOL-2088). The code is validated + applied
+   * server-side; an invalid/ineligible code surfaces as the form error.
+   */
+  allowPromoCode?: boolean;
 }
 
 /**
@@ -206,6 +216,7 @@ export function CheckoutPage({
   countries = DEFAULT_COUNTRIES,
   allowPickup = false,
   pickupCopy = DEFAULT_PICKUP_COPY,
+  allowPromoCode = false,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -232,6 +243,7 @@ export function CheckoutPage({
   const [paymentMethod, setPaymentMethod] = useState<string>(
     paymentMethods[0]?.value ?? "",
   );
+  const [promoCode, setPromoCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -271,7 +283,13 @@ export function CheckoutPage({
     setSubmitting(true);
     setError(null);
     try {
-      await onPlaceOrder({ contact, shipping, paymentMethod, fulfillment });
+      await onPlaceOrder({
+        contact,
+        shipping,
+        paymentMethod,
+        fulfillment,
+        promoCode: allowPromoCode ? promoCode.trim() || undefined : undefined,
+      });
       // On success the app navigates away; keep the button in its submitting
       // state so it doesn't flash back to idle during the route transition.
     } catch (e) {
@@ -540,6 +558,33 @@ export function CheckoutPage({
                 payment page. You&apos;ll see and confirm the full total before
                 you&apos;re charged.
               </p>
+            )}
+
+            {allowPromoCode && (
+              <div className="grove-checkout__promo">
+                <label
+                  htmlFor="grove-checkout-promo"
+                  className="grove-checkout__field-label"
+                >
+                  Promo code
+                </label>
+                <input
+                  id="grove-checkout-promo"
+                  type="text"
+                  className="grove-checkout__input"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  maxLength={64}
+                  inputMode="text"
+                  placeholder="Enter a code"
+                />
+                <p className="grove-checkout__field-note">
+                  The discount is applied on the secure payment page.
+                </p>
+              </div>
             )}
 
             {error && (
