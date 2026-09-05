@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ShippingTier, ShippingRateTable, ShippingRateFeed } from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
@@ -36,6 +36,11 @@ import {
   type FulfillmentResolution,
 } from "../../../lib/fulfillment-mode";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
+import {
+  formatForPref,
+  readFulfillmentPref,
+  writeFulfillmentPref,
+} from "../../../lib/fulfillment-pref";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import { PolicyLink } from "./policy-link";
 
@@ -145,6 +150,42 @@ export function ProductView({
   // the SAME count — tapping the bar no longer silently adds just 1 (GOL-1055).
   const [quantity, setQuantity] = useState(1);
 
+  // Is a given Format farm-pickup-only under today's Box Engine feed? Shared by
+  // the ship-vs-pickup preference persist (on click) and restore (on mount) so
+  // both read "shippable vs pickup" the exact same way the buy box does above.
+  const formatPickupOnly = (f: string | null): boolean =>
+    f != null &&
+    isPickupOnly(
+      tierFor({
+        shippingTier: pickVariant(variants, { cultivar, format: f })?.shippingTier ?? null,
+        format: f,
+      }),
+      shippingFeed,
+    );
+  const formatPurchasable = (f: string): boolean =>
+    isPurchasable(pickVariant(variants, { cultivar, format: f }));
+
+  // Bias the opening Format toward the shopper's remembered ship-vs-pickup
+  // intent (GOL-2089): if they last chose a shipped format on another PDP, open
+  // a shippable format here (and symmetrically for pickup) — but only when the
+  // neutral default's intent actually differs and a *purchasable* format of the
+  // wanted intent exists. Client-only and mount-once (SSR renders the neutral
+  // GOL-1862 default, so hydration is unchanged); a later explicit click always
+  // wins because the parent owns `format` after this runs.
+  useEffect(() => {
+    const pref = readFulfillmentPref();
+    if (!pref) return;
+    const wantPickup = pref === "pickup";
+    if (format != null && formatPickupOnly(format) === wantPickup) return; // already aligned
+    const preferred = formatForPref(formats, pref, formatPurchasable, formatPickupOnly);
+    if (preferred && preferred !== format) {
+      setFormat(preferred);
+      setPinnedImage(null);
+    }
+    // Mount-only restore, mirroring the estimator's saved-state effect; the
+    // parent owns `format` thereafter.
+  }, []);
+
   // Live backend rate table when available, else the bundled snapshot (GOL-969).
   // resolveRateTable() is drift-safe: null/empty fetch → snapshot, so the
   // estimate degrades gracefully and both the Format cards and the estimator
@@ -240,6 +281,10 @@ export function ProductView({
   function chooseFormat(next: string) {
     setFormat(next);
     setPinnedImage(null);
+    // Remember the ship-vs-pickup intent behind this explicit pick so the next
+    // PDP opens aligned (GOL-2089). Intent is generic (pickup-only → pickup,
+    // else ship), so it survives GOL-2031's potted-shippable flip.
+    writeFulfillmentPref(formatPickupOnly(next) ? "pickup" : "ship");
   }
 
   function chooseRootstock(next: string) {
