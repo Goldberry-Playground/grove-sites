@@ -561,7 +561,10 @@ export function CheckoutPage({
             )}
 
             {allowPromoCode && (
-              <div className="grove-checkout__promo">
+              // Spacing reuses the form's existing `--block` top-spacer idiom
+              // (group off the summary; note off the input) so no bespoke rule
+              // is needed — CheckoutPage.css is at its CSS-budget ceiling.
+              <div className="grove-checkout__field grove-checkout__field-note--block">
                 <label
                   htmlFor="grove-checkout-promo"
                   className="grove-checkout__field-label"
@@ -581,7 +584,7 @@ export function CheckoutPage({
                   inputMode="text"
                   placeholder="Enter a code"
                 />
-                <p className="grove-checkout__field-note">
+                <p className="grove-checkout__field-note grove-checkout__field-note--block">
                   The discount is applied on the secure payment page.
                 </p>
               </div>
