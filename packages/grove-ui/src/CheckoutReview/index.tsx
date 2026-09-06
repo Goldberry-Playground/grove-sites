@@ -13,9 +13,11 @@ export interface CheckoutReviewLine {
 export interface CheckoutReviewItemizedLine {
   name: string;
   /** goods = in-stock unit billed in full; deposit = per-unit preorder deposit;
-   * shipping / tax = the fee lines. Drives the ship/reserve badge. */
-  kind: "goods" | "deposit" | "shipping" | "tax";
-  /** Per-unit amount charged today; the component multiplies by quantity. */
+   * shipping / tax = the fee lines; discount = a promo reward (negative
+   * `unitAmount`). Drives the ship/reserve badge. */
+  kind: "goods" | "deposit" | "shipping" | "tax" | "discount";
+  /** Per-unit amount charged today (negative for a discount); the component
+   * multiplies by quantity. */
   unitAmount: number;
   quantity: number;
 }
@@ -74,6 +76,9 @@ const KIND_BADGE: Record<
   deposit: { label: "Reserve", modifier: "reserve" },
   shipping: null,
   tax: null,
+  // A promo discount is a fee-style line (negative amount, no ship/reserve
+  // badge) — rendered like shipping/tax.
+  discount: null,
 };
 
 export function CheckoutReview({

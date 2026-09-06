@@ -288,6 +288,55 @@ describe("createCheckoutRoute payload validation", () => {
     expect(odoo.orders.create).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts and forwards a valid promoCode (GOL-2088)", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(postReq(validPayload({ promoCode: "FLATWOODS" })));
+
+    expect(res.status).toBe(200);
+    expect(odoo.orders.create).toHaveBeenCalledTimes(1);
+    expect(odoo.orders.create).toHaveBeenCalledWith(
+      expect.objectContaining({ promoCode: "FLATWOODS" }),
+    );
+  });
+
+  it("accepts a payload with no promoCode (unchanged behavior)", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(postReq(validPayload()));
+
+    expect(res.status).toBe(200);
+    expect(odoo.orders.create).toHaveBeenCalledWith(
+      expect.not.objectContaining({ promoCode: expect.anything() }),
+    );
+  });
+
+  it("rejects a promoCode over MAX_PROMO_CODE (64) chars", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(
+      postReq(validPayload({ promoCode: "X".repeat(65) })),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/promoCode/);
+    expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-string promoCode", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(postReq(validPayload({ promoCode: 12345 })));
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/promoCode/);
+    expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+
   it("rejects an item with non-integer variantId (existing item validation still active)", async () => {
     const odoo = makeOdoo();
     const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });

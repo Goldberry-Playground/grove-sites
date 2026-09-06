@@ -93,6 +93,10 @@ export function CheckoutPage({
           // shipment; on "pickup" the address is relaxed and the server settles
           // a $0-shipping WV pickup (WV tax applies).
           fulfillment: order.fulfillment,
+          // Optional promo code (e.g. FLATWOODS). Applied + validated server-side
+          // via sale_loyalty; an invalid/ineligible code fails the order with a
+          // shopper-facing message shown in the form (GOL-2088).
+          promoCode: order.promoCode,
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
           successUrl: `${origin}/checkout/success`,
           cancelUrl: `${origin}/checkout/cancel`,
@@ -176,6 +180,9 @@ export function CheckoutPage({
         countries={SHIP_TO_COUNTRIES}
         allowPickup={pickup !== null}
         pickupCopy={pickup ?? undefined}
+        // FLATWOODS runs on the nursery storefront only (GOL-2088). Other brands
+        // keep the leaner form until they have a live promotion.
+        allowPromoCode={brand === "nursery"}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
         submitLabel="Continue to payment →"
