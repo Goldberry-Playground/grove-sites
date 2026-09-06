@@ -4,8 +4,8 @@ import { useEffect } from "react";
 import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
+  GREEN_STATE_COUNT,
   US_STATE_NAMES,
-  ZONE_BY_STATE,
   ZONE_RATE_TABLE,
   estimateTierShipping,
   shipsTo,
@@ -228,5 +228,6 @@ export function ShippingEstimator({
   );
 }
 
-/** Exposed for parent copy: the count of states we currently ship to. */
-export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
+/** Re-exported for parent copy from the estimate lib, the single source of the
+ *  green-state count so every "ships to N states" line stays in lockstep. */
+export { GREEN_STATE_COUNT };

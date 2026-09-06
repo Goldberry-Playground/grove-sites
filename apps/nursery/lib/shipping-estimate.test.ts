@@ -35,13 +35,17 @@ describe("checkout state select ⟷ estimator green list (GOL-1055)", () => {
 });
 
 describe("shipping-estimate zone map", () => {
-  it("covers exactly the 21 green states", () => {
-    expect(Object.keys(ZONE_BY_STATE).length).toBe(21);
+  it("covers exactly the 22 green states", () => {
+    expect(Object.keys(ZONE_BY_STATE).length).toBe(22);
   });
 
   it("keeps WV in the nearest zone (zone_1)", () => {
     expect(ZONE_BY_STATE.WV).toBe("zone_1");
     expect(ZONE_BY_STATE.ME).toBe("zone_5");
+  });
+
+  it("prices TN at zone_4 (its west/southeast corners set the band — GOL-2128)", () => {
+    expect(ZONE_BY_STATE.TN).toBe("zone_4");
   });
 });
 

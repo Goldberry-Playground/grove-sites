@@ -3,7 +3,7 @@
 // UI's selectable set and the server payload it produces can never drift apart.
 //
 // ── Source of truth ─────────────────────────────────────────────────────────
-// These 21 states are the nursery "green list" — the states we are licensed to
+// These 22 states are the nursery "green list" — the states we are licensed to
 // ship living trees to. They mirror the backend zone engine that actually
 // prices and gates the order at checkout: grove-odoo-modules
 // `grove_headless/models/shipping_zones.py` (`ZONE_BY_STATE`). The client-side
@@ -42,6 +42,7 @@ export const SHIP_TO_STATES: ShipToOption[] = [
   { code: "OH", name: "Ohio" },
   { code: "PA", name: "Pennsylvania" },
   { code: "RI", name: "Rhode Island" },
+  { code: "TN", name: "Tennessee" },
   { code: "VT", name: "Vermont" },
   { code: "VA", name: "Virginia" },
   { code: "WV", name: "West Virginia" },

@@ -9,7 +9,7 @@ import { CategoryBar } from "../category-bar";
 // terms, the state list, or any pricing language here.
 //
 // Geography + pricing are the system of record from the checkout shipping
-// engine (`grove_headless` shipping-zone matrix, GOL-15): 21 states, no
+// engine (`grove_headless` shipping-zone matrix, GOL-15): 22 states, no
 // HI/AK/territories/international, live per-address rate at checkout billed at
 // cost + handling, no free-ship threshold. Keep this page in sync with the
 // engine — never hand-edit the state list or prices without a matching engine
@@ -23,14 +23,14 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Shipping & Warranty — At The Grove Nursery",
   description:
-    "How and where At The Grove Nursery ships live trees: 21 U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.",
+    "How and where At The Grove Nursery ships live trees: 22 U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.",
 };
 
 // Spelled out to match the board-approved copy exactly. Eligibility itself is
 // enforced by the checkout shipping engine (GOL-15); this list is the
-// human-readable mirror of that engine's 21-state map.
+// human-readable mirror of that engine's 22-state map.
 const SHIP_STATES =
-  "Connecticut, Delaware, Illinois, Indiana, Kentucky, Maine, Maryland, Massachusetts, Michigan, Minnesota, New Hampshire, New Jersey, New York, North Carolina, Ohio, Pennsylvania, Rhode Island, Vermont, Virginia, West Virginia, and Wisconsin.";
+  "Connecticut, Delaware, Illinois, Indiana, Kentucky, Maine, Maryland, Massachusetts, Michigan, Minnesota, New Hampshire, New Jersey, New York, North Carolina, Ohio, Pennsylvania, Rhode Island, Tennessee, Vermont, Virginia, West Virginia, and Wisconsin.";
 
 export default function ShippingWarrantyPage() {
   return (
@@ -51,7 +51,7 @@ export default function ShippingWarrantyPage() {
         </div>
         <p className="section-lede" style={{ maxWidth: "62ch" }}>
           At the Grove Nursery ships live trees within the United States to the{" "}
-          <strong>21 states</strong> currently on our shipping map. We are a
+          <strong>22 states</strong> currently on our shipping map. We are a
           small West Virginia nursery and are expanding our shipping footprint
           deliberately over time — the list below reflects where we can ship
           today.
@@ -219,7 +219,7 @@ export default function ShippingWarrantyPage() {
           <div className="field-notes-eyebrow">At a glance</div>
           <h3>The short version.</h3>
           <p>
-            Live trees, shipped dormant to 21 states, priced live at checkout at
+            Live trees, shipped dormant to 22 states, priced live at checkout at
             cost plus handling — with an arrive-alive guarantee.
           </p>
           <ul>
