@@ -587,6 +587,11 @@ export interface OrderCreateInput {
    * missing ship-to state rather than settling it as a silent $0-ship pickup
    * (GOL-1057). Omit to let the server infer from the ship-to state. */
   fulfillment?: "ship" | "pickup";
+  /** Optional storefront promo/loyalty code (e.g. "FLATWOODS"). The server
+   * applies it via sale_loyalty; an invalid or ineligible code fails the whole
+   * order with a shopper-facing 400 rather than silently pricing without it
+   * (GOL-2088). */
+  promoCode?: string;
   items: OrderItemInput[];
 }
 
@@ -653,8 +658,14 @@ export interface CheckoutSessionInput extends OrderCreateInput {
   cancelUrl: string;
 }
 
-/** The four kinds of charged-today line the checkout session itemizes. */
-export type CheckoutLineItemKind = "goods" | "deposit" | "shipping" | "tax";
+/** The kinds of charged-today line the checkout session itemizes (goods /
+ *  per-unit deposit / shipping / WV tax / promo discount). */
+export type CheckoutLineItemKind =
+  | "goods"
+  | "deposit"
+  | "shipping"
+  | "tax"
+  | "discount";
 
 /** Raw itemized line in the session response (`line_items[]`). */
 export interface ApiCheckoutLineItem {
