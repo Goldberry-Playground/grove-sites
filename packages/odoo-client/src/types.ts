@@ -240,11 +240,12 @@ export interface ApiShippingRatesResponse {
 // snake_case to match the payload exactly (parity guarantee). Potted has no rates
 // by design — potted is farm pickup only.
 
-/** Box-catalog id from grove_headless `models/shipping_boxes.py` BOXES:
- * `br16` (single small whip), `s20`/`s32`/`s46` (8×8 boxes by length class),
- * `b20`/`b32` (12×12 dormant bulk boxes). A union so a fetched feed is checked
+/** Box-catalog id from grove_headless `models/shipping_boxes.py` BOXES.
+ * Two-SKU bareroot catalog (CEO directive 2026-09-07): `small` (24×6×4, holds
+ * 1-5 trees) and `large` (24×9×6, holds 6-10). Both are 24" long, so the packer
+ * selects by tree count, not height. A union so a fetched feed is checked
  * against the known catalog — the backend rate-checker only ever emits these. */
-export type ShippingBoxId = "br16" | "s20" | "s32" | "s46" | "b20" | "b32";
+export type ShippingBoxId = "small" | "large";
 
 /** Packing mode from `shipping_boxes.py` MODES. Trees are dormant or leafed-out
  * at the nursery by season, which drives per-box capacity. */
@@ -266,9 +267,10 @@ export type ShippingBoxRateTable = Record<
 
 /** One box in the catalog, as surfaced by the feed's `packing.boxes` — a subset
  * of `shipping_boxes.py` BOXES (dimensions + capacity only; packaging/tare are
- * backend-internal). Dimensions in inches; `capacity` is trees-per-box by mode,
- * omitting any mode the box is never used in (`br16`/`b20`/`b32` have no
- * `leafed` capacity). */
+ * backend-internal). Dimensions in inches; `capacity` is trees-per-box by mode.
+ * The two-SKU catalog carries both modes at the same count (1-5 small, 6-10
+ * large), but the type keeps `capacity` per-mode so it survives a future box
+ * that is used in only one mode. */
 export interface ShippingBoxSpec {
   length: number;
   width: number;
@@ -280,7 +282,7 @@ export interface ShippingBoxSpec {
  * catalog plus the constants a client needs to mirror `pack_order` exactly. */
 export interface ShippingPackingSpec {
   boxes: Partial<Record<ShippingBoxId, ShippingBoxSpec>>;
-  /** Minimum box length (in) a tree's height class can require: e.g. [16,20,32,46]. */
+  /** Minimum box length (in) a tree's height class can require: e.g. [16,20]. */
   length_classes: number[];
   modes: PackingMode[];
 }

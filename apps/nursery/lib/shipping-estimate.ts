@@ -161,11 +161,12 @@ export function resolveRateTable(fetched?: RateTable | null): RateTable {
  *  own class; a longer box is always usable, never a shorter one. */
 export const DEFAULT_LENGTH_CLASS = 20;
 
-/** Packing mode for the product-card estimate. Leafed is the conservative
- *  choice — it excludes the cheap single-whip (`br16`) and the dormant-only
- *  bulk boxes, so a single-tree quote never *under*-states the season's cost.
- *  Mirrors backend `single_tree_rate(..., mode="leafed")`. Real season is
- *  resolved server-side at checkout; here we only need a "from $X" floor. */
+/** Packing mode for the product-card estimate. Under the two-SKU catalog both
+ *  boxes carry the same count in either mode, so the mode no longer changes
+ *  which box a single tree picks; leafed stays the default to mirror backend
+ *  `single_tree_rate(..., mode="leafed")` and keep the estimate stable across
+ *  seasons. Real season is resolved server-side at checkout; here we only need a
+ *  "from $X" floor. */
 const DEFAULT_MODE: PackingMode = "leafed";
 
 /**

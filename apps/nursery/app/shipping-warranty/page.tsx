@@ -156,9 +156,9 @@ export default function ShippingWarrantyPage() {
             Because carriers bill us by box size (dimensional weight) plus an
             oversized-package fee, <strong>ordering more trees is more
             cost-effective</strong> — a box of ten trees often costs about the
-            same to ship as a box of one. Orders of one to three trees ship in a
-            48-inch box; these trees are professionally pruned before shipping
-            and are ready to plant on arrival.
+            same to ship as a box of one. Orders of one to five trees ship in one
+            box, and six to ten in one larger box; trees are professionally
+            pruned to fit before shipping and are ready to plant on arrival.
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "1.5rem" }}>
             Your trees are packed in a new cardboard box with the roots wrapped
