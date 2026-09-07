@@ -505,7 +505,10 @@ h1 em, h2 em, h3 em {
   padding: 0.85rem 0;
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--leaf);
+  /* Resting link uses --forest (#1f3f2b, 10.5:1 on --parchment-soft): --leaf
+     is a fill/border token — as text at 0.82rem it is only 2.33:1 and fails
+     WCAG 1.4.3 AA. Hover deepens to --forest-deep. (GOL-2188 review, GOL-681) */
+  color: var(--forest);
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -521,7 +524,7 @@ h1 em, h2 em, h3 em {
   transition: transform 0.2s ease;
 }
 .var-notify[open] .var-notify__toggle::before { transform: rotate(45deg); }
-.var-notify__toggle:hover { color: var(--forest); }
+.var-notify__toggle:hover { color: var(--forest-deep); }
 .var-notify__body { padding-bottom: 1.1rem; }
 .var-img {
   aspect-ratio: 4/3;
