@@ -18,6 +18,31 @@ import { useState } from "react";
  */
 export const PRODUCT_IMAGE_QUALITY = 82;
 
+/**
+ * GOL-2074 — shared low-quality placeholder for product photos.
+ *
+ * Product photos are remote (Odoo `/web/image/...`), so next/image cannot
+ * auto-generate a per-image blur the way it does for statically imported files;
+ * a `blurDataURL` must be supplied explicitly. On the ~1.6s cold fetch the grid
+ * and PDP previously flashed empty boxes; this paints a soft parchment→sage
+ * wash (the catalog's dominant foliage/paper tone) behind every photo until it
+ * decodes, so the layout reads as "photo loading" rather than a blank hole.
+ *
+ * It's a tiny inline SVG (a two-stop gradient) rather than a base64 raster:
+ * next/image blurs and scales it to fill regardless of aspect, it costs a few
+ * dozen bytes in the markup, and one shared constant is a fair average LQIP
+ * across a photo set with no single representative colour. URL-encoded so it is
+ * a valid `data:` URI without base64 overhead.
+ */
+export const PRODUCT_BLUR_DATA_URL =
+  "data:image/svg+xml;charset=utf-8," +
+  "%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%3E" +
+  "%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E" +
+  "%3Cstop%20offset='0'%20stop-color='%23eef0e6'/%3E" +
+  "%3Cstop%20offset='1'%20stop-color='%23d7ddc7'/%3E" +
+  "%3C/linearGradient%3E%3C/defs%3E" +
+  "%3Crect%20width='16'%20height='16'%20fill='url(%23g)'/%3E%3C/svg%3E";
+
 export interface ProductImageProps {
   /** Resolved image URL, or empty/null when the catalog has no photo yet. */
   src?: string | null;
@@ -58,6 +83,11 @@ export function ProductImage({ src, alt, sizes, priority }: ProductImageProps) {
         sizes={sizes}
         priority={priority}
         quality={PRODUCT_IMAGE_QUALITY}
+        // GOL-2074: soft wash behind the photo during the cold fetch so the
+        // grid/PDP don't flash empty boxes. Remote src can't be auto-blurred,
+        // so we supply a shared LQIP data URL.
+        placeholder="blur"
+        blurDataURL={PRODUCT_BLUR_DATA_URL}
         className="product-photo"
         onError={() => setErrored(true)}
       />

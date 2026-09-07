@@ -23,6 +23,16 @@ import { CatalogSearch } from "./catalog-search";
 // an explicit "Show all" link (`?all=1`) so nothing is hidden without saying so.
 const GRID_CAP = 24;
 
+// LCP priming (GOL-2074): mark only the first grid row as `priority` so those
+// images get `fetchpriority=high` + a preload link and skip lazy loading — they
+// are the above-the-fold LCP candidates on desktop. Everything past the first
+// row keeps native lazy loading; priming the whole grid would preload dozens of
+// below-fold photos and defeat that. The grid is a fluid `auto-fit
+// minmax(280px, 1fr)`; three columns is the reference desktop first row inside
+// the sidebar'd shop layout, so three is a conservative "first row" that never
+// over-primes a narrower viewport by more than a card or two.
+const LCP_PRIORITY_COUNT = 3;
+
 // The page renders dynamically (per-request) because it awaits `searchParams`
 // for the live facet selection — that alone opts it out of build-time static
 // generation, so nothing tries to reach Odoo while building inside Docker.
@@ -201,6 +211,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                         )}
                         alt={product.name}
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        // First-row cards are the above-the-fold LCP candidates
+                        // (GOL-2074); the rest stay lazy.
+                        priority={i < LCP_PRIORITY_COUNT}
                       />
                       {product.featured && <span className="var-badge">Featured</span>}
                     </div>
