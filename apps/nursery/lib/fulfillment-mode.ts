@@ -316,25 +316,37 @@ export function formatMonthDay(md: MonthDay): string {
 }
 
 /**
- * The single place that decides a shipping tier's fulfillment line + badge,
- * shared by the estimator rows and the Format cards so the two presentations can
- * never drift (GOL-1313 — the chain was duplicated). Bareroot follows today's
- * resolved mode when the calendar feed is live; a pickup-only tier shows the
- * pickup line; every other tier keeps its static hint.
+ * The single place that decides a shipping tier's display label + fulfillment
+ * line + badge, shared by the estimator rows and the Format cards so the
+ * presentations can never drift (GOL-1313 — the chain was duplicated). Bareroot
+ * follows today's resolved mode when the calendar feed is live; a pickup-only
+ * tier shows the pickup line; every other tier keeps its static hint.
+ *
+ * Label rule (Josh 2026-09-06): while the resolved mode is peat & bagged, the
+ * shippable option IS peat & bagged — what ships is the potted stock, de-potted
+ * and bagged at packing — so the option is NAMED "Peat & bagged" (no badge;
+ * a badge would repeat the name). Once the calendar flips to the fall preorder
+ * (Oct 16 under the current sysparam) it reads "Bareroot" again with the
+ * preorder treatment.
  */
 export function tierFulfillment(input: {
   tier: ShippingTier;
+  /** Natural label for the option ("Bareroot" / the Format axis value). */
+  label: string;
   pickupOnly: boolean;
   pickupFulfillment: string;
   hintFulfillment: string;
   shipMode: FulfillmentResolution | null;
-}): { fulfillment: string; badge: string | null } {
-  const { tier, pickupOnly, pickupFulfillment, hintFulfillment, shipMode } = input;
-  if (pickupOnly) return { fulfillment: pickupFulfillment, badge: null };
+}): { label: string; fulfillment: string; badge: string | null } {
+  const { tier, label, pickupOnly, pickupFulfillment, hintFulfillment, shipMode } = input;
+  if (pickupOnly) return { label, fulfillment: pickupFulfillment, badge: null };
   if (tier === "bareroot" && shipMode) {
-    return { fulfillment: barerootTimingShort(shipMode), badge: barerootBadge(shipMode) };
+    if (shipMode.mode === "peat-and-bagged") {
+      return { label: "Peat & bagged", fulfillment: barerootTimingShort(shipMode), badge: null };
+    }
+    return { label, fulfillment: barerootTimingShort(shipMode), badge: barerootBadge(shipMode) };
   }
-  return { fulfillment: hintFulfillment, badge: null };
+  return { label, fulfillment: hintFulfillment, badge: null };
 }
 
 /** "Order by Nov 21" for a known-zone bareroot wave, or `null` when there is no

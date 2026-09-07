@@ -230,14 +230,15 @@ export function ProductView({
       const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
       // Single presentation authority for tier timing + badge (GOL-1313), shared
       // with the Format cards below so the two can never drift.
-      const { fulfillment, badge } = tierFulfillment({
+      const { label, fulfillment, badge } = tierFulfillment({
         tier,
+        label: TIER_LABEL[tier],
         pickupOnly,
         pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
         hintFulfillment: hint.fulfillment,
         shipMode,
       });
-      out.push({ tier, label: TIER_LABEL[tier], fulfillment, pickupOnly, badge });
+      out.push({ tier, label, fulfillment, pickupOnly, badge });
     }
     return out;
   }, [formats, variants, cultivar, shippingFeed, shipMode]);
@@ -431,8 +432,13 @@ export function ProductView({
                         : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
                   // (GOL-1313): bareroot follows today's mode, potted stays pickup.
-                  const { fulfillment: fFulfillment, badge: fBadge } = tierFulfillment({
+                  const {
+                    label: fLabel,
+                    fulfillment: fFulfillment,
+                    badge: fBadge,
+                  } = tierFulfillment({
                     tier: fTier,
+                    label: f,
                     pickupOnly: fPickupOnly,
                     pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
                     hintFulfillment: fHint.fulfillment,
@@ -452,7 +458,7 @@ export function ProductView({
                       }`}
                     >
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
-                        {f}
+                        {fLabel}
                         {fBadge && (
                           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
                             {fBadge}

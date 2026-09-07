@@ -292,17 +292,19 @@ describe("tierFulfillment — one presentation authority (GOL-1313)", () => {
     expect(
       tierFulfillment({
         tier: "potted",
+        label: "Potted",
         pickupOnly: true,
         pickupFulfillment: "Farm pickup only",
         hintFulfillment: "Ships now",
         shipMode: preorder,
       }),
-    ).toEqual({ fulfillment: "Farm pickup only", badge: null });
+    ).toEqual({ label: "Potted", fulfillment: "Farm pickup only", badge: null });
   });
   it("bareroot with a live mode → mode-driven timing + badge", () => {
     expect(
       tierFulfillment({
         tier: "bareroot",
+        label: "Bareroot",
         pickupOnly: false,
         pickupFulfillment: "Farm pickup only",
         hintFulfillment: "Reserve for October",
@@ -312,18 +314,39 @@ describe("tierFulfillment — one presentation authority (GOL-1313)", () => {
     // percentage. main's GOL-1313 test was written against the old copy while
     // this branch was open; the source of truth is the backend's
     // stripe_gateway.PREORDER_DEPOSIT = 10.00.
-    ).toEqual({ fulfillment: "$10 deposit · ships this fall", badge: "Preorder" });
+    ).toEqual({ label: "Bareroot", fulfillment: "$10 deposit · ships this fall", badge: "Preorder" });
+  });
+  it("peat & bagged season renames the option itself, no badge (Josh 2026-09-06)", () => {
+    // Jun 15 resolves peat-and-bagged: the potted stock is what ships, so the
+    // option reads "Peat & bagged", not "Bareroot" with a badge. Once the fall
+    // preorder opens (the `preorder` case above) it reads "Bareroot" again.
+    const peat = resolveShippableMode(on(6, 15), CAL);
+    expect(
+      tierFulfillment({
+        tier: "bareroot",
+        label: "Bareroot",
+        pickupOnly: false,
+        pickupFulfillment: "Farm pickup only",
+        hintFulfillment: "Reserve for October",
+        shipMode: peat,
+      }),
+    ).toEqual({
+      label: "Peat & bagged",
+      fulfillment: "Ships in 5–10 business days",
+      badge: null,
+    });
   });
   it("no live mode (legacy backend) → static hint, no badge", () => {
     expect(
       tierFulfillment({
         tier: "bareroot",
+        label: "Bareroot",
         pickupOnly: false,
         pickupFulfillment: "Farm pickup only",
         hintFulfillment: "Reserve for October",
         shipMode: null,
       }),
-    ).toEqual({ fulfillment: "Reserve for October", badge: null });
+    ).toEqual({ label: "Bareroot", fulfillment: "Reserve for October", badge: null });
   });
 });
 
