@@ -21,6 +21,7 @@ import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateBoxFloor,
   estimateTierShipping,
+  GREEN_STATE_COUNT,
   hasBoxFeed,
   isPickupOnly,
   PICKUP_ONLY_FULFILLMENT,
@@ -661,7 +662,7 @@ export function ProductView({
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
           </p>
           <p className="mt-1 text-xs text-ink-soft">
-            Ships to 21 states, priced live at checkout. <PolicyLink /> for full
+            Ships to {GREEN_STATE_COUNT} states, priced live at checkout. <PolicyLink /> for full
             shipping and warranty terms.
           </p>
         </div>
