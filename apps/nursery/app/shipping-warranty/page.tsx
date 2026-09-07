@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CategoryBar } from "../category-bar";
+import {
+  GREEN_STATE_COUNT,
+  US_STATE_NAMES,
+  ZONE_BY_STATE,
+} from "../../lib/shipping-estimate";
 
 // At The Grove Nursery — Shipping & Warranty policy page (GOL-967).
 //
@@ -9,12 +14,14 @@ import { CategoryBar } from "../category-bar";
 // terms, the state list, or any pricing language here.
 //
 // Geography + pricing are the system of record from the checkout shipping
-// engine (`grove_headless` shipping-zone matrix, GOL-15): 22 states, no
+// engine (`grove_headless` shipping-zone matrix, GOL-15): no
 // HI/AK/territories/international, live per-address rate at checkout billed at
-// cost + handling, no free-ship threshold. Keep this page in sync with the
-// engine — never hand-edit the state list or prices without a matching engine
-// change. The state list below is spelled out to match the approved copy
-// exactly (the engine owns eligibility; this is the human-readable mirror).
+// cost + handling, no free-ship threshold. The state count and the spelled-out
+// list are DERIVED from the engine mirror (`GREEN_STATE_COUNT` / `ZONE_BY_STATE`
+// in lib/shipping-estimate) so this page can never drift from what checkout
+// actually ships — the class of bug that left "21" and "22" both on this page
+// before GOL-2128. The engine owns eligibility; this is the human-readable
+// mirror, updated only by a matching engine change.
 //
 // Built from the app's own design-system classes (.section, .section-header,
 // .section-tag, .section-lede, .with-sidebar, .field-notes) — no bespoke CSS.
@@ -22,15 +29,17 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Shipping & Warranty — At The Grove Nursery",
-  description:
-    "How and where At The Grove Nursery ships live trees: 22 U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.",
+  description: `How and where At The Grove Nursery ships live trees: ${GREEN_STATE_COUNT} U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.`,
 };
 
-// Spelled out to match the board-approved copy exactly. Eligibility itself is
-// enforced by the checkout shipping engine (GOL-15); this list is the
-// human-readable mirror of that engine's 22-state map.
-const SHIP_STATES =
-  "Connecticut, Delaware, Illinois, Indiana, Kentucky, Maine, Maryland, Massachusetts, Michigan, Minnesota, New Hampshire, New Jersey, New York, North Carolina, Ohio, Pennsylvania, Rhode Island, Tennessee, Vermont, Virginia, West Virginia, and Wisconsin.";
+// Derived from the engine mirror (ZONE_BY_STATE → full names), Oxford-comma
+// joined, so the human-readable list can never drift from the states checkout
+// actually ships to (GOL-2128). Eligibility itself is enforced by the checkout
+// shipping engine (GOL-15).
+const SHIP_STATE_NAMES = Object.keys(ZONE_BY_STATE)
+  .map((code) => US_STATE_NAMES[code])
+  .sort((a, b) => a.localeCompare(b));
+const SHIP_STATES = `${SHIP_STATE_NAMES.slice(0, -1).join(", ")}, and ${SHIP_STATE_NAMES.at(-1)}.`;
 
 export default function ShippingWarrantyPage() {
   return (
@@ -51,7 +60,7 @@ export default function ShippingWarrantyPage() {
         </div>
         <p className="section-lede" style={{ maxWidth: "62ch" }}>
           At the Grove Nursery ships live trees within the United States to the{" "}
-          <strong>22 states</strong> currently on our shipping map. We are a
+          <strong>{GREEN_STATE_COUNT} states</strong> currently on our shipping map. We are a
           small West Virginia nursery and are expanding our shipping footprint
           deliberately over time — the list below reflects where we can ship
           today.
@@ -219,13 +228,13 @@ export default function ShippingWarrantyPage() {
           <div className="field-notes-eyebrow">At a glance</div>
           <h3>The short version.</h3>
           <p>
-            Live trees, shipped dormant to 22 states, priced live at checkout at
+            Live trees, shipped dormant to {GREEN_STATE_COUNT} states, priced live at checkout at
             cost plus handling — with an arrive-alive guarantee.
           </p>
           <ul>
             <li>
               <span>Ships to</span>
-              <strong>21 U.S. states</strong>
+              <strong>{GREEN_STATE_COUNT} U.S. states</strong>
             </li>
             <li>
               <span>Ship window</span>

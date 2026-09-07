@@ -3,7 +3,7 @@
 // UI's selectable set and the server payload it produces can never drift apart.
 //
 // ── Source of truth ─────────────────────────────────────────────────────────
-// These 22 states are the nursery "green list" — the states we are licensed to
+// These 31 states are the nursery "green list" — the states we are licensed to
 // ship living trees to. They mirror the backend zone engine that actually
 // prices and gates the order at checkout: grove-odoo-modules
 // `grove_headless/models/shipping_zones.py` (`ZONE_BY_STATE`). The client-side
@@ -25,16 +25,24 @@ export interface ShipToOption {
 /** Supported ship-to states, alphabetical by name for the dropdown. Keep in
  *  lockstep with `ZONE_BY_STATE` in the backend engine and the client estimator. */
 export const SHIP_TO_STATES: ShipToOption[] = [
+  { code: "AL", name: "Alabama" },
+  { code: "AR", name: "Arkansas" },
   { code: "CT", name: "Connecticut" },
   { code: "DE", name: "Delaware" },
+  { code: "DC", name: "District of Columbia" },
+  { code: "GA", name: "Georgia" },
   { code: "IL", name: "Illinois" },
   { code: "IN", name: "Indiana" },
+  { code: "IA", name: "Iowa" },
   { code: "KY", name: "Kentucky" },
+  { code: "LA", name: "Louisiana" },
   { code: "ME", name: "Maine" },
   { code: "MD", name: "Maryland" },
   { code: "MA", name: "Massachusetts" },
   { code: "MI", name: "Michigan" },
   { code: "MN", name: "Minnesota" },
+  { code: "MS", name: "Mississippi" },
+  { code: "MO", name: "Missouri" },
   { code: "NH", name: "New Hampshire" },
   { code: "NJ", name: "New Jersey" },
   { code: "NY", name: "New York" },
@@ -42,6 +50,7 @@ export const SHIP_TO_STATES: ShipToOption[] = [
   { code: "OH", name: "Ohio" },
   { code: "PA", name: "Pennsylvania" },
   { code: "RI", name: "Rhode Island" },
+  { code: "SC", name: "South Carolina" },
   { code: "TN", name: "Tennessee" },
   { code: "VT", name: "Vermont" },
   { code: "VA", name: "Virginia" },

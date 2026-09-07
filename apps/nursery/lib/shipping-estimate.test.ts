@@ -35,8 +35,8 @@ describe("checkout state select ⟷ estimator green list (GOL-1055)", () => {
 });
 
 describe("shipping-estimate zone map", () => {
-  it("covers exactly the 22 green states", () => {
-    expect(Object.keys(ZONE_BY_STATE).length).toBe(22);
+  it("covers exactly the 31 green states", () => {
+    expect(Object.keys(ZONE_BY_STATE).length).toBe(31);
   });
 
   it("keeps WV in the nearest zone (zone_1)", () => {
@@ -44,8 +44,13 @@ describe("shipping-estimate zone map", () => {
     expect(ZONE_BY_STATE.ME).toBe("zone_5");
   });
 
-  it("prices TN at zone_4 (its west/southeast corners set the band — GOL-2128)", () => {
-    expect(ZONE_BY_STATE.TN).toBe("zone_4");
+  it("prices the GOL-2128 south/mid tranche at zone_5 (probe-verified upper bound)", () => {
+    // Backend probe (2026-09-06) put every one of these states' worst corners at
+    // or below the zone_5 rate for every box — never undercharged. DC fits zone_1.
+    for (const s of ["TN", "GA", "AL", "SC", "AR", "MS", "LA", "MO", "IA"]) {
+      expect(ZONE_BY_STATE[s]).toBe("zone_5");
+    }
+    expect(ZONE_BY_STATE.DC).toBe("zone_1");
   });
 });
 

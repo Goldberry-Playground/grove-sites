@@ -49,7 +49,7 @@ is blocked.
    due-today vs due-later split reconciles against the session `line_items`
    (each tagged by `kind`, summing to `amount_due_today`).
 3. **Unsupported ship-to state** — a non-green-list state is blocked with the
-   21-state message (server 400 surfaced in the UI).
+   31-state message (server 400 surfaced in the UI).
 4. **Unparseable / missing state** — with the state `<select>` this is now
    un-submittable; assert the guard (submit disabled / no session call).
 5. **Declined card** `@stripe` — Stripe decline card `4000 0000 0000 0002` →
