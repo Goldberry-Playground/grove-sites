@@ -15,6 +15,10 @@ export const MAX_CITY = 100;
 export const MAX_STATE = 50;
 export const MAX_ZIP = 20;
 export const MAX_COUNTRY = 100;
+// A storefront promo/loyalty code. Real codes are short (e.g. "FLATWOODS");
+// bound it so an abusive payload can't push junk to Odoo's loyalty engine.
+// Mirrors grove_headless MAX_PROMO_CODE.
+export const MAX_PROMO_CODE = 64;
 // A checkout redirect URL. Bounded to keep an abusive payload from ballooning
 // the Stripe session request; well above any real success/cancel URL.
 export const MAX_URL = 2048;
@@ -114,6 +118,13 @@ export function validateOrderInput(payload: unknown): string | null {
   }
   if (!isOptionalBoundedString(contact.phone, MAX_PHONE)) {
     return `contact.phone must be a string of at most ${MAX_PHONE} chars`;
+  }
+
+  // Optional promo code — bounded when present. Eligibility (does the cart meet
+  // the program's rule?) is decided server-side by sale_loyalty (GOL-2088); the
+  // BFF only guards shape/length.
+  if (!isOptionalBoundedString(p.promoCode, MAX_PROMO_CODE)) {
+    return `promoCode must be a string of at most ${MAX_PROMO_CODE} chars`;
   }
 
   // Validate the fulfillment mode up front — the shipping-address requirement
