@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { siblingSitesForHost, GroveProviders } from "@grove/ui";
-import { SiblingStrip, CaptureForm } from "@grove/ui-kit";
+import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
@@ -59,19 +59,26 @@ export default async function RootLayout({
           <main>{children}</main>
           <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-ink-soft">
             <div className="mx-auto flex max-w-6xl flex-col items-center gap-6">
-              <CaptureForm
-                brand="nursery"
-                source="footer"
-                label="nursery-general"
-                eyebrow="Newsletter"
-                heading="News from the nursery"
-                description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
-                submitLabel="Sign up"
-                successMessage="Thanks — you'll hear from us when there's something worth sending."
-                consentText="Unsubscribe anytime."
-                layout="inline"
-                hubOptIn
-              />
+              {/* One-CTA-per-page (GOL-2178): the shared footer newsletter is the
+                  lowest-priority capture tier, so it renders ONLY when the page
+                  registers nothing higher-priority (a restock/state capture).
+                  Homepage keeps it because nothing higher applies — GOL-931
+                  superseded by generalisation, not reverted. */}
+              <CaptureSlot priority="newsletter">
+                <CaptureForm
+                  brand="nursery"
+                  source="footer"
+                  label="nursery-general"
+                  eyebrow="Newsletter"
+                  heading="News from the nursery"
+                  description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
+                  submitLabel="Sign up"
+                  successMessage="Thanks — you'll hear from us when there's something worth sending."
+                  consentText="Unsubscribe anytime."
+                  layout="inline"
+                  hubOptIn
+                />
+              </CaptureSlot>
               <p className="text-center">
                 &copy; {new Date().getFullYear()} {tenantConfig.legalName}. All rights reserved.
               </p>

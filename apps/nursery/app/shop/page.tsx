@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { ProductImage } from "../product-image";
 import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
@@ -190,13 +191,31 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               </div>
             ) : (
               <div className="var-grid">
-                {visible.map((product, i) => (
-                  <Link
+                {visible.map((product, i) => {
+                  // Restock reachability on /shop (GOL-2178). The list endpoint
+                  // carries no live stock (`available` mirrors website_published,
+                  // GOL-1896), so the only sold-out signal the grid can see is the
+                  // preorder cap (`preorderCapReached`, new on the list endpoint
+                  // via grove-odoo-modules #191) plus the coming-soon placeholder
+                  // (`saleOk === false`). Either makes the product unavailable →
+                  // it earns the restock capture. `!available` is included for
+                  // correctness (mocks / a future stock-carrying list) though it
+                  // never fires for a published list item today.
+                  const comingSoon = product.saleOk === false;
+                  const soldOut =
+                    !comingSoon && (product.preorderCapReached || !product.available);
+                  const notifyEligible = comingSoon || soldOut;
+                  return (
+                  <div
                     key={product.id}
-                    href={`/shop/${product.id}`}
                     className="var-card"
                     style={{ animationDelay: `${i * 80}ms` }}
                   >
+                    {/* Main clickable area. The restock capture is interactive
+                        (a form), which is invalid inside an <a>, so the card is a
+                        <div> and only the image + info sit in the link — the
+                        notify disclosure is a sibling below it (GOL-2178). */}
+                    <Link href={`/shop/${product.id}`} className="var-card__link">
                     <div className="var-img">
                       <ProductImage
                         // The list endpoint hands back thumbnail (image_128)
@@ -249,7 +268,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                             </span>
                           );
                         })()}
-                        {product.saleOk === false ? (
+                        {comingSoon ? (
                           // Coming-soon placeholder: published (so it appears in
                           // the grid + ?cat= facets) but not for sale — the card
                           // links to a detail page whose buy box is locked
@@ -259,15 +278,49 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                           </span>
                         ) : (
                           <span
-                            className={`var-stock ${product.available ? "var-stock--in" : "var-stock--out"}`}
+                            className={`var-stock ${soldOut ? "var-stock--out" : "var-stock--in"}`}
                           >
-                            {product.available ? "In stock" : "Sold out"}
+                            {soldOut ? "Sold out" : "In stock"}
                           </span>
                         )}
                       </div>
                     </div>
-                  </Link>
-                ))}
+                    </Link>
+
+                    {notifyEligible && (
+                      // One-CTA-per-page (GOL-2178): registering this restock
+                      // capture on /shop suppresses the shared footer newsletter
+                      // for the whole page. Several sold-out cards may each mount
+                      // one — same tier, so they coexist (the rule bounds tiers,
+                      // not count). Native <details> keeps the 24-card grid quiet:
+                      // a compact toggle until the shopper opts to open the form.
+                      // Every placement carries the product id in its Ghost label.
+                      <CaptureSlot priority="restock">
+                        <details className="var-notify">
+                          <summary className="var-notify__toggle">
+                            {comingSoon
+                              ? "Notify me when it's available"
+                              : "Notify me when it's back"}
+                          </summary>
+                          <div className="var-notify__body">
+                            <CaptureForm
+                              brand="nursery"
+                              source="notify-me"
+                              label={`nursery-restock-${product.id}`}
+                              interests={["nursery", "restock"]}
+                              description="One email when it's ready. That's it."
+                              submitLabel="Notify me"
+                              successMessage="You're on the list."
+                              consentText="We'll only email you about this. Unsubscribe anytime."
+                              layout="stacked"
+                            />
+                          </div>
+                        </details>
+                      </CaptureSlot>
+                    )}
+                  </div>
+                  );
+                })}
               </div>
             )}
 
