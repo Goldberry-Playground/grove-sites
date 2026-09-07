@@ -120,24 +120,20 @@ describe("resolveRateTable", () => {
 const SCHEMA2_FEED: ShippingRateFeed = {
   schema: 2,
   zones: {
-    zone_1: { br16: { base: 18 }, s20: { base: 22 }, s32: { base: 24 }, s46: { base: 26 }, b20: { base: 28 }, b32: { base: 30 } },
-    zone_2: { br16: { base: 19 }, s20: { base: 23 }, s32: { base: 25 }, s46: { base: 27 }, b20: { base: 29 }, b32: { base: 31 } },
-    zone_3: { br16: { base: 20 }, s20: { base: 24 }, s32: { base: 26 }, s46: { base: 28 }, b20: { base: 31 }, b32: { base: 33 } },
-    zone_4: { br16: { base: 21 }, s20: { base: 25 }, s32: { base: 27 }, s46: { base: 30 }, b20: { base: 32 }, b32: { base: 34 } },
-    zone_5: { br16: { base: 22 }, s20: { base: 26 }, s32: { base: 28 }, s46: { base: 31 }, b20: { base: 33 }, b32: { base: 36 } },
+    zone_1: { small: { base: 22 }, large: { base: 36 } },
+    zone_2: { small: { base: 22 }, large: { base: 36 } },
+    zone_3: { small: { base: 22 }, large: { base: 36 } },
+    zone_4: { small: { base: 47 }, large: { base: 54 } },
+    zone_5: { small: { base: 41 }, large: { base: 52 } },
   },
   zone_by_state: { ...ZONE_BY_STATE },
   green_states: Object.keys(ZONE_BY_STATE).sort(),
   packing: {
     boxes: {
-      br16: { length: 16, width: 6, height: 4, capacity: { dormant: 1 } },
-      s20: { length: 20, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      s32: { length: 32, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      s46: { length: 46, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      b20: { length: 20, width: 12, height: 12, capacity: { dormant: 50 } },
-      b32: { length: 32, width: 12, height: 12, capacity: { dormant: 50 } },
+      small: { length: 24, width: 6, height: 4, capacity: { dormant: 5, leafed: 5 } },
+      large: { length: 24, width: 9, height: 6, capacity: { dormant: 10, leafed: 10 } },
     },
-    length_classes: [16, 20, 32, 46],
+    length_classes: [16, 20],
     modes: ["dormant", "leafed"],
   },
   calendar: {
@@ -159,25 +155,23 @@ const SCHEMA2_FEED: ShippingRateFeed = {
 };
 
 describe("estimateBoxShipping (Box Engine v2 single-tree bareroot floor)", () => {
-  it("picks the cheapest leafed-usable box ≥ the tree's length class, per zone", () => {
-    // Default class 20, leafed → usable {s20,s32,s46}; cheapest is s20.
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED)).toBe(22); // zone_1 s20
-    expect(estimateBoxShipping("ME", SCHEMA2_FEED)).toBe(26); // zone_5 s20
+  it("picks the cheapest usable box ≥ the tree's length class, per zone", () => {
+    // Two-SKU catalog: a single tree takes the cheaper box (small), per zone.
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED)).toBe(22); // zone_1 small
+    expect(estimateBoxShipping("ME", SCHEMA2_FEED)).toBe(41); // zone_5 small
   });
 
-  it("excludes the single-whip/bulk boxes in leafed mode (never undercharge)", () => {
-    // A class-16 tree *could* ride the $18 br16 — but only when dormant. In the
-    // conservative leafed default, br16 (and dormant-only b20/b32) drop out, so
-    // the floor stays s20 = $22, not $18.
+  it("prices the same in either mode (both boxes carry both modes)", () => {
+    // The descoped catalog holds the same count dormant or leafed, so a
+    // single-tree quote no longer depends on the season.
     expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 16 })).toBe(22);
-    // Dormant mode admits the whip: class-16 dormant → br16 = $18.
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(18);
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(22);
   });
 
-  it("requires a box at least as long as a tall tree's class", () => {
-    // Class 46 leafed → only s46 is long enough (b-boxes are dormant-only).
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 46 })).toBe(26);
-    expect(estimateBoxShipping("ME", SCHEMA2_FEED, { lengthClass: 46 })).toBe(31);
+  it("returns null for a tree taller than any box (both are 24\")", () => {
+    // A 24" tree still fits (box length 24 ≥ 24); a 30" tree has no box.
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 24 })).toBe(22);
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 30 })).toBeNull();
   });
 
   it("returns null for an ineligible state or blank input (never a guess)", () => {
@@ -197,17 +191,16 @@ describe("estimateBoxShipping (Box Engine v2 single-tree bareroot floor)", () =>
 
 describe("estimateBoxFloor (stateless Format-card 'from' floor — GOL-1822)", () => {
   it("is the cheapest single-tree box rate over every zone (class 20, leafed)", () => {
-    // Leafed-usable ≥ class 20 → {s20,s32,s46}; global min is zone_1 s20 = 22.
+    // Usable ≥ class 20 → {small,large}; global min is zone_1 small = 22.
     expect(estimateBoxFloor(SCHEMA2_FEED)).toBe(22);
   });
 
   it("honours the same box-eligibility rules as the per-state estimate", () => {
-    // Leafed excludes the whip even for a class-16 tree → floor stays s20 = 22.
+    // Same catalog in either mode → floor stays small = 22.
     expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16 })).toBe(22);
-    // Dormant admits br16 → global min br16 is zone_1 = 18.
-    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(18);
-    // Class 46 leafed → only s46 qualifies; global min s46 is zone_1 = 26.
-    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 46 })).toBe(26);
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(22);
+    // A 30" tree has no box in this catalog → no floor.
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 30 })).toBeNull();
   });
 
   it("never exceeds any priced state's per-box estimate (a true 'from' floor)", () => {
@@ -233,7 +226,7 @@ describe("estimateBoxFloor (stateless Format-card 'from' floor — GOL-1822)", (
 
 describe("estimateTierShipping (Format-card ⟷ estimator seam)", () => {
   it("prices bareroot off the box feed when one is present", () => {
-    // Box feed floor for WV bareroot is s20 = $22 (vs the $21 legacy snapshot).
+    // Box feed floor for WV bareroot is the small box = $22.
     expect(estimateTierShipping("WV", "bareroot", { feed: SCHEMA2_FEED })).toBe(22);
   });
 
