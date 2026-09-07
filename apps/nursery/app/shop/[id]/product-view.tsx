@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ShippingTier, ShippingRateTable, ShippingRateFeed } from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
 import {
   cultivarOptions,
@@ -83,6 +83,13 @@ export interface ProductViewProps {
    */
   saleOk?: boolean;
   /**
+   * Preorder cap reached (Odoo `grove_preorder_cap_reached`, GOL-2171). `true`
+   * once the per-product reservation cap is crossed — the buy box flips to a
+   * hard sell-out with a restock capture, even for a preorder (Bareroot)
+   * format. Optional/defaulted to uncapped so older payloads are unaffected.
+   */
+  preorderCapReached?: boolean;
+  /**
    * Live shipping-rate table from the backend feed (GOL-969), fetched in the
    * SSR product load. `null` when the feed is unreachable — the estimator then
    * falls back to its bundled snapshot via `resolveRateTable()`.
@@ -113,6 +120,7 @@ export function ProductView({
   variants,
   fallbackPrice,
   saleOk,
+  preorderCapReached,
   shippingRates,
   shippingFeed,
 }: ProductViewProps) {
@@ -129,6 +137,7 @@ export function ProductView({
       shippingTier: v?.shippingTier ?? null,
       format: v?.format ?? null,
       saleOk,
+      capReached: preorderCapReached,
     }).ctaDisabled === false;
 
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
@@ -303,6 +312,7 @@ export function ProductView({
     shippingTier: selected?.shippingTier ?? null,
     format,
     saleOk,
+    capReached: preorderCapReached,
   });
 
   // Selected-format pickup-only flag (Box Engine v2): potted is picked up at the
@@ -644,24 +654,30 @@ export function ProductView({
           </div>
 
           {(buy.mode === "sold-out" || buy.mode === "coming-soon") && (
-            <div className="mt-6 rounded-lg border border-primary/10 bg-secondary/10 p-5">
-              <CaptureForm
-                brand="nursery"
-                source="notify-me"
-                label={`nursery-restock-${productId}`}
-                interests={["nursery", "restock"]}
-                eyebrow={buy.mode === "coming-soon" ? "Coming soon" : "Back-in-stock alert"}
-                heading={
-                  buy.mode === "coming-soon"
-                    ? "Be the first to know when it's available."
-                    : "Want to know when it's back in stock?"
-                }
-                description="We'll send one email when it's ready to ship. That's it."
-                submitLabel="Notify me"
-                successMessage="You're on the list. We'll email you when it's ready."
-                consentText="We'll only email you about this. Unsubscribe anytime."
-              />
-            </div>
+            // One-CTA-per-page (GOL-2178): this restock capture is the page's
+            // highest-priority tier, so registering it here suppresses the
+            // shared footer newsletter for the whole PDP. `restock` always wins
+            // over `newsletter`, so this block itself always renders.
+            <CaptureSlot priority="restock">
+              <div className="mt-6 rounded-lg border border-primary/10 bg-secondary/10 p-5">
+                <CaptureForm
+                  brand="nursery"
+                  source="notify-me"
+                  label={`nursery-restock-${productId}`}
+                  interests={["nursery", "restock"]}
+                  eyebrow={buy.mode === "coming-soon" ? "Coming soon" : "Back-in-stock alert"}
+                  heading={
+                    buy.mode === "coming-soon"
+                      ? "Be the first to know when it's available."
+                      : "Want to know when it's back in stock?"
+                  }
+                  description="We'll send one email when it's ready to ship. That's it."
+                  submitLabel="Notify me"
+                  successMessage="You're on the list. We'll email you when it's ready."
+                  consentText="We'll only email you about this. Unsubscribe anytime."
+                />
+              </div>
+            </CaptureSlot>
           )}
 
           <p className="mt-4 text-xs text-ink-soft">

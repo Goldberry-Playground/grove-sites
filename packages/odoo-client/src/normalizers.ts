@@ -84,6 +84,10 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // ?cat= facets (GOL-760). Default true so mocks and older payloads that
     // omit the field stay purchasable.
     saleOk: raw.sale_ok ?? true,
+    // Preorder cap crossed (GOL-2171): the card renders sold-out + restock,
+    // identical to a stock sell-out. Default false so mocks and pre-field
+    // payloads stay uncapped.
+    preorderCapReached: raw.preorder_cap_reached ?? false,
     featured: raw.grove_featured,
     variants: [],
   };
@@ -132,6 +136,9 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // Default true so list items, mocks, and older payloads that omit the field
     // stay purchasable (GOL-760).
     saleOk: raw.sale_ok ?? true,
+    // Preorder cap crossed (GOL-2171): buy box flips to sold-out + restock even
+    // for a preorder format. Default false so older payloads stay uncapped.
+    preorderCapReached: raw.preorder_cap_reached ?? false,
     featured: raw.grove_featured,
     variants: (raw.variants ?? [])
       .map(normalizeVariant)

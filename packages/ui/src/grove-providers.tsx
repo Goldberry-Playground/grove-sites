@@ -13,6 +13,7 @@ import NextImage from "next/image";
 import {
   GroveLinkProvider,
   GroveImageProvider,
+  CaptureArbiterProvider,
   type GroveLinkProps,
   type GroveImageProps,
 } from "@grove/ui-kit";
@@ -42,7 +43,11 @@ function ImageAdapter({ src, alt, width, height, className }: GroveImageProps) {
 export function GroveProviders({ children }: { children: ReactNode }) {
   return (
     <GroveLinkProvider value={LinkAdapter}>
-      <GroveImageProvider value={ImageAdapter}>{children}</GroveImageProvider>
+      <GroveImageProvider value={ImageAdapter}>
+        {/* One capture registry per app tree (GOL-2178) — the footer newsletter
+            and any restock/state capture arbitrate against it. */}
+        <CaptureArbiterProvider>{children}</CaptureArbiterProvider>
+      </GroveImageProvider>
     </GroveLinkProvider>
   );
 }

@@ -19,6 +19,15 @@ export {
 } from "./CaptureForm";
 export { JournalProductEmbed, type JournalProductEmbedProps } from "./JournalProductEmbed";
 
+// One-CTA-per-page arbitration (GOL-2178): footer newsletter suppresses itself
+// when a page registers a higher-priority capture (restock / state).
+export {
+  CaptureArbiterProvider,
+  CaptureSlot,
+  type CaptureSlotProps,
+  type CapturePriority,
+} from "./CaptureArbiter";
+
 // Shop nav + hero
 export { HeroSlideshow, type HeroSlideshowProps, type HeroSlide } from "./HeroSlideshow";
 export { ShopSubHeader, type ShopSubHeaderProps, type ShopCategory } from "./ShopSubHeader";

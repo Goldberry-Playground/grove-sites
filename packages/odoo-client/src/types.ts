@@ -72,6 +72,17 @@ export interface ApiProductListItem {
    * purchasable.
    */
   sale_ok?: boolean;
+  /**
+   * Preorder cap reached (grove-odoo-modules GOL-2171, PR #191). `true` when the
+   * per-product reservation cap (per-template override or the seeded default of
+   * 50, adjustable in Odoo) has been crossed — the product must render as a hard
+   * sell-out with a restock capture, exactly like a stock sell-out, and even a
+   * preorder (Bareroot) format can take no further reservation. The frontend
+   * never computes the threshold; it only reacts to this flag. Emitted on both
+   * the list and detail endpoints. Optional so mocks and payloads from a
+   * grove_headless build that predates the field stay uncapped.
+   */
+  preorder_cap_reached?: boolean;
 }
 
 /** Paginated product list response. */
@@ -449,6 +460,15 @@ export interface Product {
    * payloads that omit it behave exactly as before.
    */
   saleOk?: boolean;
+  /**
+   * Preorder cap reached (Odoo `grove_preorder_cap_reached`, GOL-2171). `true`
+   * when the per-product reservation cap has been crossed: the buy box flips to
+   * a hard sell-out with a restock capture (no "Reserve"), identical to a stock
+   * sell-out. The normalizer defaults it to false, so list items, mocks, and
+   * pre-field payloads behave exactly as before. The threshold lives in Odoo;
+   * the frontend only reads this flag (`buyStateFor`'s `capReached`).
+   */
+  preorderCapReached?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**

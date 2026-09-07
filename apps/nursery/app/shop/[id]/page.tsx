@@ -151,6 +151,7 @@ export default async function ProductDetailPage({
         variants={variants}
         fallbackPrice={product.price}
         saleOk={product.saleOk}
+        preorderCapReached={product.preorderCapReached}
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
       />

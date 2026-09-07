@@ -65,6 +65,19 @@ describe("normalizeProductListItem", () => {
     expect(normalizeProductListItem(withoutSaleOk).saleOk).toBe(true);
   });
 
+  // GOL-2171: the preorder cap is emitted on the list endpoint (#191), so the
+  // /shop grid can render a cap-reached product as sold-out + restock.
+  it("maps preorder_cap_reached=true to preorderCapReached=true", () => {
+    expect(
+      normalizeProductListItem({ ...honeycrispListItem, preorder_cap_reached: true })
+        .preorderCapReached,
+    ).toBe(true);
+  });
+
+  it("defaults preorderCapReached to false when the field is omitted (uncapped)", () => {
+    expect(normalizeProductListItem(honeycrispListItem).preorderCapReached).toBe(false);
+  });
+
   // GOL-680: grove_headless always emits an image_url path; Odoo serves a gray
   // placeholder at HTTP 200 for imageless products. image_128 is the real signal.
   it("blanks imageUrl when image_128 is false (no real photo → branded placeholder)", () => {
@@ -309,6 +322,20 @@ describe("normalizeProductDetail — saleOk (purchasability, GOL-760)", () => {
   it("defaults saleOk to true when the payload omits sale_ok (older API / purchasable)", () => {
     const result = normalizeProductDetail(honeycrispDetail);
     expect(result.saleOk).toBe(true);
+  });
+});
+
+describe("normalizeProductDetail — preorderCapReached (GOL-2171)", () => {
+  it("maps preorder_cap_reached=true to preorderCapReached=true", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      preorder_cap_reached: true,
+    });
+    expect(result.preorderCapReached).toBe(true);
+  });
+
+  it("defaults preorderCapReached to false when the payload omits the field", () => {
+    expect(normalizeProductDetail(honeycrispDetail).preorderCapReached).toBe(false);
   });
 });
 

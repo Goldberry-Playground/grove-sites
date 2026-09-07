@@ -473,12 +473,59 @@ h1 em, h2 em, h3 em {
   animation: card-enter 0.5s ease both;
 }
 .var-card:hover,
-.var-card:focus-visible {
+.var-card:focus-visible,
+/* The /shop card is a <div> wrapping a <Link> (GOL-2178); keyboard focus lands
+   on the inner link, so lift on :focus-within too, not just the card itself. */
+.var-card:focus-within {
   transform: translateY(-3px);
   box-shadow: 0 16px 32px -8px rgba(31, 63, 43, 0.22);
   border-color: var(--leaf);
   outline: none;
 }
+/* The clickable image+info region of a /shop card. The card container owns the
+   surface (background/border/hover); this owns the navigation + inherits the
+   card's flex column so the layout is unchanged from when the whole card was a
+   single <Link> (GOL-2178). */
+.var-card__link {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+}
+/* Restock disclosure under a sold-out / coming-soon /shop card (GOL-2178).
+   Collapsed by default so it stays quiet across a 24-card grid; opens to the
+   shared CaptureForm on tap. */
+.var-notify {
+  border-top: 1px solid var(--parchment-deep);
+  padding: 0 1.2rem;
+}
+.var-notify__toggle {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.85rem 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  /* Resting link uses --forest (#1f3f2b, 10.5:1 on --parchment-soft): --leaf
+     is a fill/border token — as text at 0.82rem it is only 2.33:1 and fails
+     WCAG 1.4.3 AA. Hover deepens to --forest-deep. (GOL-2188 review, GOL-681) */
+  color: var(--forest);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.var-notify__toggle::-webkit-details-marker { display: none; }
+.var-notify__toggle::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+.var-notify[open] .var-notify__toggle::before { transform: rotate(45deg); }
+.var-notify__toggle:hover { color: var(--forest-deep); }
+.var-notify__body { padding-bottom: 1.1rem; }
 .var-img {
   aspect-ratio: 4/3;
   overflow: hidden;
