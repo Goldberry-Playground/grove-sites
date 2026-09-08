@@ -246,12 +246,18 @@ h1 em, h2 em, h3 em {
   position: relative;
   height: 80vh;
   min-height: 540px;
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
   display: flex;
   align-items: flex-end;
   color: var(--parchment);
 }
+/* GOL-2224: the hero photo is now a `next/image` with `fill` (see page.tsx),
+   not a CSS background. It absolutely fills the section with `z-index:auto`, so
+   it paints below the legibility scrim (`.pano-hero::after`, also auto, painted
+   after real children) and below `.pano-content` (z-index:1). Do NOT give it a
+   z-index — a stacking context here would lift it above the scrim and blow the
+   WCAG text contrast the scrim guarantees (GOL-681/685). */
+.pano-hero-img { object-fit: cover; object-position: center; }
 .pano-hero::after {
   content: '';
   position: absolute; inset: 0;
@@ -810,10 +816,13 @@ h1 em, h2 em, h3 em {
 }
 .split-band > div { padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 3vw, 2.5rem); }
 .split-img {
-  background-size: cover; background-position: center;
+  position: relative;
+  overflow: hidden;
   min-height: 420px;
   padding: 0 !important;
 }
+/* GOL-2224: pollination photo is now a lazy `next/image` with `fill`. */
+.split-img-photo { object-fit: cover; object-position: center; }
 .split-band h2 {
   font-family: var(--font-display);
   font-weight: 400;
