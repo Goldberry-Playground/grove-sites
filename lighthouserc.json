@@ -3,10 +3,7 @@
   "ci": {
     "collect": {
       "numberOfRuns": 3,
-      "//settings": "Mobile preset = simulated Slow-4G + mid-tier CPU, matching the '4G mobile' target in §1a. Median of 3 runs absorbs lab variance.",
-      "settings": {
-        "preset": "mobile"
-      }
+      "//settings": "Mobile is Lighthouse's DEFAULT (formFactor=mobile, simulated Slow-4G + 4x CPU slowdown) — exactly the '4G mobile' target in §1a; no settings.preset needed. NEVER set preset: 'mobile' — the CLI's --preset only accepts perf | experimental | desktop and rejects 'mobile' outright, which made every real collect fail (first seen on the 2026-09-08 dispatch against QA). Median of 3 runs absorbs lab variance."
     },
     "assert": {
       "assertions": {
