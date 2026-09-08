@@ -229,7 +229,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                           odooBase,
                         )}
                         alt={product.name}
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 33vw"
                         // First-row cards are the above-the-fold LCP candidates
                         // (GOL-2074); the rest stay lazy.
                         priority={i < LCP_PRIORITY_COUNT}
