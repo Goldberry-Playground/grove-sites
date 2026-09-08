@@ -6,7 +6,7 @@ import { catalogCards, readShopGrid } from "./qa-helpers";
 /**
  * Ship-to green list mirror (GOL-2128; grove-sites #705 ↔ grove-odoo-modules #186).
  *
- * The storefront hard-codes the states it will offer (ZONE_BY_STATE, 31 as of
+ * The storefront hard-codes the states it will offer (ZONE_BY_STATE, 32 as of
  * 2026-09-07) and grove_headless enforces the same list server-side. A drift
  * between the two is the exact class of bug behind the 2026-09-06 checkout
  * incident (frontend offered a state the backend 500'd on), so this spec pins
