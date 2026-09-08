@@ -35,13 +35,19 @@ describe("checkout state select ⟷ estimator green list (GOL-1055)", () => {
 });
 
 describe("shipping-estimate zone map", () => {
-  it("covers exactly the 31 green states", () => {
-    expect(Object.keys(ZONE_BY_STATE).length).toBe(31);
+  it("covers exactly the 32 green states", () => {
+    expect(Object.keys(ZONE_BY_STATE).length).toBe(32);
   });
 
   it("keeps WV in the nearest zone (zone_1)", () => {
     expect(ZONE_BY_STATE.WV).toBe("zone_1");
     expect(ZONE_BY_STATE.ME).toBe("zone_5");
+  });
+
+  it("prices Florida in its own probed bucket (zone_6, GOL-2235)", () => {
+    // FL's fresh two-SKU probe (2026-09-08) fits no existing zone at true cost,
+    // so it gets zone_6 — mirrors backend ZONE_BY_STATE["FL"].
+    expect(ZONE_BY_STATE.FL).toBe("zone_6");
   });
 
   it("prices the GOL-2128 south/mid tranche at zone_5 (probe-verified upper bound)", () => {
@@ -125,6 +131,7 @@ const SCHEMA2_FEED: ShippingRateFeed = {
     zone_3: { small: { base: 22 }, large: { base: 36 } },
     zone_4: { small: { base: 47 }, large: { base: 54 } },
     zone_5: { small: { base: 41 }, large: { base: 52 } },
+    zone_6: { small: { base: 23 }, large: { base: 28 } }, // FL (GOL-2235)
   },
   zone_by_state: { ...ZONE_BY_STATE },
   green_states: Object.keys(ZONE_BY_STATE).sort(),

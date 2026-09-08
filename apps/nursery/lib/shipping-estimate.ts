@@ -19,7 +19,7 @@ import type {
  *
  * Two kinds of data live here, and they drift at very different rates:
  *
- *   • ZONE_BY_STATE / GREEN_STATES — the 31-state green list and its zone map.
+ *   • ZONE_BY_STATE / GREEN_STATES — the 32-state green list and its zone map.
  *     This is the compliance gate; it changes only when the nursery unlocks a
  *     new state (a deliberate backend PR), so mirroring it in the client is
  *     safe and keeps the estimate honest about *where* we ship.
@@ -52,9 +52,10 @@ export const ZONE_RATE_TABLE: RateTable = {
   zone_3: { bareroot: { base: 23 }, potted: { base: 36 } },
   zone_4: { bareroot: { base: 24 }, potted: { base: 38 } },
   zone_5: { bareroot: { base: 25 }, potted: { base: 40 } },
+  zone_6: { bareroot: { base: 28 }, potted: { base: 40 } }, // FL (GOL-2235); conservative fallback, live feed overrides
 };
 
-/** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 31 green states). */
+/** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 32 green states). */
 export const ZONE_BY_STATE: Record<string, string> = {
   // zone_1 — nearest (UPS ~2–4 from origin 26651). DC joins here (GOL-2128).
   WV: "zone_1", VA: "zone_1", KY: "zone_1", NC: "zone_1", DE: "zone_1", DC: "zone_1",
@@ -64,14 +65,19 @@ export const ZONE_BY_STATE: Record<string, string> = {
   IL: "zone_3", MI: "zone_3", CT: "zone_3", RI: "zone_3",
   // zone_4
   WI: "zone_4", MN: "zone_4", MA: "zone_4", VT: "zone_4", NH: "zone_4",
-  // zone_5 — farthest priced band. GOL-2128 added the ratified south/mid tranche
-  // here: a backend Shippo probe (2026-09-06, origin 26651, cheapest-of-ground)
-  // put every one of these states' worst corners at or below the zone_5 rate for
-  // every box, so none is ever undercharged. Far/western states whose big-box
-  // rate exceeds this band (FL, OK, KS, NE, SD, ND, TX, NM, AZ) are NOT here —
-  // they need new distance zones (GOL-2128 follow-up), never a guessed rate.
+  // zone_5 — GOL-2128 added the ratified south/mid tranche here: a backend
+  // Shippo probe (2026-09-06, origin 26651, cheapest-of-ground) put every one
+  // of these states' worst corners at or below the zone_5 rate for every box,
+  // so none is ever undercharged. The remaining far/western states whose big-box
+  // rate exceeds the table (OK, KS, NE, SD, ND, TX, NM, AZ) are NOT here — they
+  // need new distance zones (GOL-2128 follow-up), never a guessed rate.
   TN: "zone_5", GA: "zone_5", AL: "zone_5", SC: "zone_5", AR: "zone_5",
   MS: "zone_5", LA: "zone_5", MO: "zone_5", IA: "zone_5", ME: "zone_5",
+  // zone_6 — Florida (GOL-2235). A fresh two-SKU probe (2026-09-08) put FL's
+  // southern-tip corners (Miami/Key West) at small=$16.84/large=$21.37, below
+  // every existing zone at true cost, so FL gets its own probed bucket rather
+  // than over-billing on zone_5. Mirrors backend ZONE_BY_STATE["FL"].
+  FL: "zone_6",
 };
 
 /** Count of states we currently ship living trees to — the single source for
