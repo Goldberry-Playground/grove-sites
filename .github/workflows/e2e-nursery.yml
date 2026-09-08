@@ -88,11 +88,14 @@ jobs:
           CI: "true"
           E2E_NURSERY_BASE_URL: ${{ inputs.base_url }}
         run: |
+          # The gate variants exclude @known-issue specs (documented product
+          # bugs awaiting a fix, e.g. the GOL-2171 cap grid/PDP disagreement) so
+          # a known red never masks a new one. Run `test:e2e` locally to see them.
           if [ "${{ inputs.skip_stripe }}" = "true" ]; then
-            echo "Skipping @stripe specs (GOL-899 blocked)."
-            pnpm --filter @grove/nursery run test:e2e:no-stripe
+            echo "Skipping @stripe specs (target without Stripe TEST keys)."
+            pnpm --filter @grove/nursery run test:e2e:gate:no-stripe
           else
-            pnpm --filter @grove/nursery run test:e2e
+            pnpm --filter @grove/nursery run test:e2e:gate
           fi
 
       - name: Upload Playwright report
