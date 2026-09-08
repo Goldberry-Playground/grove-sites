@@ -19,13 +19,20 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Deployed nursery base URL to test against (e.g. https://nursery.pr-123.preview...)"
-        required: true
+        # Defaults to the QA nursery so the release gate (e2e/README.md "QA
+        # release gate") is one click; override with a preview URL to test a PR
+        # droplet instead.
+        description: "Deployed nursery base URL to test against (default: QA; or e.g. https://nursery.pr-123.preview...)"
+        required: false
+        default: "https://nursery.qa.gatheringatthegrove.com"
         type: string
       skip_stripe:
-        description: "Exclude @stripe specs (use while GOL-899 Stripe test keys are blocked)"
+        # QA carries Stripe TEST keys (GOL-899 landed — sessions mint as
+        # cs_test_), so the @stripe specs run by default. Flip to true only for
+        # a target without test keys.
+        description: "Exclude @stripe specs (only for a target without Stripe TEST keys)"
         required: false
-        default: true
+        default: false
         type: boolean
 
 concurrency:
