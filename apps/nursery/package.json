@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:no-stripe": "playwright test --grep-invert @stripe"
+    "test:e2e:no-stripe": "playwright test --grep-invert @stripe",
+    "test:e2e:gate": "playwright test --grep-invert @known-issue",
+    "test:e2e:gate:no-stripe": "playwright test --grep-invert \"@stripe|@known-issue\""
   },
   "dependencies": {
     "@grove/analytics": "workspace:*",

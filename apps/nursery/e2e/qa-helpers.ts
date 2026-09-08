@@ -63,6 +63,12 @@ export function collectFailures(page: Page): {
       // Next's hydration/dev-only noise is not a backend error; everything
       // else (failed fetch, uncaught exception, 5xx logged by the app) is.
       if (/hydrat|Download the React DevTools/i.test(text)) return;
+      // Chromium logs "Failed to load resource: the server responded with a
+      // status of 4xx" for EVERY 4xx fetch, including the validation / business
+      // 400s the checkout is designed to return (off-list state, promo on a
+      // deposit cart). Those are healthy responses, asserted on their own by
+      // the specs; only a 5xx resource failure is a backend error here.
+      if (/Failed to load resource: the server responded with a status of 4\d\d/.test(text)) return;
       failures.push(`console.error: ${text.slice(0, 300)}`);
     }
   });
