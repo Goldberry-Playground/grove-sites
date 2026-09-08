@@ -11,6 +11,7 @@ import {
   submitAndCaptureSession,
   usd,
 } from "./helpers";
+import { LEAFED_SEASON_REASON, shipsNowForBareroot } from "./qa-helpers";
 
 /**
  * Spec 1 — Happy path (GOL-1074).
@@ -28,6 +29,8 @@ test.describe("checkout — happy path", { tag: "@stripe" }, () => {
   test("in-stock cart pays with 4242, lands on success, empties the cart", async ({
     page,
   }) => {
+    // Ships-now flow only exists inside the dormancy window (GOL-1906 / #190).
+    test.skip(!(await shipsNowForBareroot(page)), LEAFED_SEASON_REASON);
     const product = await findProductByCta(page, "Add to Cart");
     await page.goto(product.href);
     await addCurrentProductToCart(page, 2, "Add to Cart");

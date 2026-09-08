@@ -7,6 +7,7 @@ import {
   submitAndCaptureSession,
   usd,
 } from "./helpers";
+import { LEAFED_SEASON_REASON, shipsNowForBareroot } from "./qa-helpers";
 
 /**
  * Spec 2 — Mixed cart (GOL-1074).
@@ -22,6 +23,9 @@ test.describe("checkout — mixed cart", { tag: "@stripe" }, () => {
   test("in-stock + reserve shows both badges and reconciles the due-today split", async ({
     page,
   }) => {
+    // Needs a ships-now line to badge "Ships now" — only inside the dormancy
+    // window (GOL-1906 / #190); in leafed season every line is Reserve.
+    test.skip(!(await shipsNowForBareroot(page)), LEAFED_SEASON_REASON);
     const inStock = await findProductByCta(page, "Add to Cart");
     await page.goto(inStock.href);
     await addCurrentProductToCart(page, 1, "Add to Cart");
