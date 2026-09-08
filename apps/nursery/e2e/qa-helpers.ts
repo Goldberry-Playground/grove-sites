@@ -165,6 +165,52 @@ export async function heroPhoto(
   });
 }
 
+/**
+ * The Odoo origin the deployed storefront is wired to, discovered from the
+ * optimizer URLs the /shop grid emits (`/_next/image?url=<odoo>/web/image/…`).
+ * No per-env config, so it can't drift from what the frontend actually calls.
+ */
+export async function odooOriginFromPage(page: Page): Promise<string> {
+  if (!/\/shop(\?|$)/.test(page.url())) await page.goto("/shop");
+  const origin = await page.evaluate(() => {
+    const img = Array.from(document.images).find((i) =>
+      /web%2Fimage|\/web\/image\//.test(i.currentSrc || i.src),
+    );
+    if (!img) return null;
+    const src = img.currentSrc || img.src;
+    const inner = new URL(src, location.href).searchParams.get("url") ?? src;
+    return new URL(inner, location.href).origin;
+  });
+  if (!origin) throw new Error("could not discover the Odoo origin from /shop image URLs");
+  return origin;
+}
+
+/**
+ * Does a bareroot line ship NOW for a WV destination on the target today?
+ *
+ * GOL-1906 (#190): bareroot ships only inside the nursery dormancy window
+ * (Nov 1 – Apr 15, Odoo-editable). Outside it — "leafed" season — an in-stock
+ * bareroot line is still purchasable but as a $10-per-tree DEPOSIT preorder
+ * for the next dormant wave, never a full-price ships-now line. The suite's
+ * ship-flow specs were written for the ships-now case; they consult this so
+ * they can skip with the reason in leafed season instead of failing, and the
+ * deposit happy-path spec runs in their place. Reads the same server decision
+ * the checkout uses (`/grove/api/v1/shipping/options`).
+ */
+export async function shipsNowForBareroot(page: Page): Promise<boolean> {
+  const odoo = await odooOriginFromPage(page);
+  const res = await page.request.get(
+    `${odoo}/grove/api/v1/shipping/options?state=WV&zip=25301&tier=bareroot`,
+    { headers: { "X-Grove-Tenant": "nursery" }, timeout: 20_000 },
+  );
+  if (!res.ok()) throw new Error(`shipping/options ${res.status()} — cannot decide the season`);
+  const body = (await res.json()) as { ships_now?: boolean; packing_mode?: string };
+  return body.ships_now === true;
+}
+
+export const LEAFED_SEASON_REASON =
+  "leafed season (outside the Nov 1–Apr 15 dormancy window, GOL-1906): bareroot is a deposit preorder, not ships-now — covered by checkout-deposit-happy-path";
+
 /** Type a promo code into the checkout form's "Promo code" field (GOL-2088).
  *  The input upper-cases on change, so the value is asserted case-insensitively. */
 export async function fillPromoCode(page: Page, code: string): Promise<void> {

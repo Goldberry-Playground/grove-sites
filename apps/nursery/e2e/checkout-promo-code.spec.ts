@@ -8,7 +8,7 @@ import {
   submitCheckoutForm,
   usd,
 } from "./helpers";
-import { fillPromoCode } from "./qa-helpers";
+import { LEAFED_SEASON_REASON, fillPromoCode, shipsNowForBareroot } from "./qa-helpers";
 
 /**
  * Promo code at checkout — FLATWOODS (GOL-2088; grove-sites #700 + grove-odoo-modules #179).
@@ -77,6 +77,10 @@ test.describe("checkout — promo code", () => {
     "an eligible promo on an in-stock cart itemizes a discount line that reconciles",
     { tag: ["@stripe", "@promo"] },
     async ({ page }) => {
+      // An "in-stock cart" is only a full-price (promo-eligible) cart inside the
+      // dormancy window (GOL-1906 / #190); in leafed season it is a deposit
+      // cart, and the deposit-rejection test above is the relevant one.
+      test.skip(!(await shipsNowForBareroot(page)), LEAFED_SEASON_REASON);
       const product = await findProductByCta(page, "Add to Cart");
       await page.goto(product.href);
       await addCurrentProductToCart(page, 1, "Add to Cart");

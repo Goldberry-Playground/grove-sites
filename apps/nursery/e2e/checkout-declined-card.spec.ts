@@ -10,6 +10,7 @@ import {
   payAtReview,
   submitAndCaptureSession,
 } from "./helpers";
+import { LEAFED_SEASON_REASON, shipsNowForBareroot } from "./qa-helpers";
 
 /**
  * Spec 5 — Declined card (GOL-1074).
@@ -23,6 +24,10 @@ import {
  */
 test.describe("checkout — declined card", { tag: "@stripe" }, () => {
   test("a declined card surfaces an error and keeps the cart", async ({ page }) => {
+    // Written for the ships-now (full-charge) session; inside the dormancy
+    // window only (GOL-1906 / #190). The deposit-session decline path is a
+    // follow-up once the leafed-season deposit happy path is established.
+    test.skip(!(await shipsNowForBareroot(page)), LEAFED_SEASON_REASON);
     const product = await findProductByCta(page, "Add to Cart");
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, "Add to Cart");
