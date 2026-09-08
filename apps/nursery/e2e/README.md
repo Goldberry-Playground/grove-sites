@@ -88,12 +88,16 @@ QA nursery and `skip_stripe` defaults to **false**.
 | `checkout-ship-to-states.spec.ts` | #705 / GOL-2128 | checkout State select offers **exactly** the 31-state green list; PDP estimator prices a green state and captures a non-green one |
 
 **Known-issue tag.** A spec that documents a confirmed product bug awaiting a
-fix carries `{ tag: "@known-issue" }` and a comment naming the bug. The CI gate
-runs `test:e2e:gate` / `test:e2e:gate:no-stripe`, which exclude that tag, so a
-known red can never mask a new one; run plain `test:e2e` to see them. Removing
-the tag is how the fix is proven. Current: the sold-out arbitration spec
-(GOL-2171 cap — the `/shop` grid says "Sold out" on cap-reached products the PDP
-still sells; first caught on QA 2026-09-08).
+fix carries `{ tag: "@known-issue" }`, a comment naming the bug/issue, and a
+`test.skip(!!process.env.CI && !process.env.E2E_INCLUDE_KNOWN_ISSUES, …)` so
+the CI gate reports it as *skipped with the reason* instead of sitting
+permanently red and masking a new regression (`E2E_INCLUDE_KNOWN_ISSUES=1`
+opts a CI run back in; locally it always runs). `test:e2e:gate` /
+`test:e2e:gate:no-stripe` exclude the tag for local gate runs. Removing the
+tag + skip is how the fix is proven. Current: the sold-out arbitration spec
+([#730](https://github.com/Goldberry-Playground/grove-sites/issues/730) —
+the `/shop` grid says "Sold out" on cap-reached products the PDP still sells;
+first caught on QA 2026-09-08).
 
 Shared helpers for these live in `qa-helpers.ts` (`readShopGrid`, `probeImage`,
 `collectFailures`, `navTiming`, `lcpMs`, `fillPromoCode`); keep checkout/Stripe
