@@ -51,7 +51,8 @@ export function usd(amount: number, currency = "USD"): string {
  *  (mirror of `CheckoutReviewItemizedLine` in @grove/ui-kit). */
 export interface SessionLineItem {
   name: string;
-  kind: "goods" | "deposit" | "shipping" | "tax";
+  /** `discount` = a promo reward line (negative amount; GOL-2088 / #700). */
+  kind: "goods" | "deposit" | "shipping" | "tax" | "discount";
   unitAmount: number;
   quantity: number;
 }
@@ -71,9 +72,12 @@ export interface CheckoutSessionBody {
 /** Every `/shop/<id>` product-detail href on the shop grid, de-duplicated. */
 export async function collectProductHrefs(page: Page): Promise<string[]> {
   await page.goto("/shop");
-  // The nursery shop grid renders each product-detail link as `a.var-card`
-  // (apps/nursery/app/shop/page.tsx), NOT the shared `ProductCard` (.product-card).
-  const cards = page.locator('a.var-card[href^="/shop/"]');
+  // The nursery shop grid renders each product as a `.var-card` container whose
+  // detail link is `a.var-card__link` (apps/nursery/app/shop/page.tsx) — NOT the
+  // shared `ProductCard` (.product-card). GOL-2178 (#719) moved the card from a
+  // single `a.var-card` to a `div.var-card > a.var-card__link` so the restock
+  // capture can sit outside the link; the selector must follow the link.
+  const cards = page.locator('.var-card a.var-card__link[href^="/shop/"]');
   await cards.first().waitFor({ state: "visible", timeout: 15_000 });
   const hrefs = (await cards.evaluateAll((els) =>
     els.map((e) => (e as HTMLAnchorElement).getAttribute("href")),
