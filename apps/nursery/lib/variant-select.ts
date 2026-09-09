@@ -112,18 +112,27 @@ export function variantMatches(
 
 /**
  * Opening Cultivar for the buy box: the first cultivar that owns at least one
- * *purchasable* variant, so the PDP never defaults to a fully sold-out cultivar
- * just because it sorted first (GOL-1862). Falls back to the first cultivar (then
- * null) when none is purchasable, preserving today's sold-out / capture-form path.
- * `isPurchasable` is supplied by the caller (the buy-state authority) to keep
+ * *preferred* variant (when `isPreferred` is supplied — in practice "in stock,
+ * ships now"), then the first with a *purchasable* one, so the PDP never
+ * defaults to a fully sold-out cultivar just because it sorted first
+ * (GOL-1862). The preference tier exists because under the GOL-2233 deposit
+ * rule a 0-stock bareroot is still purchasable (reservable for $10), which
+ * made "purchasable" alone default pages to a sold-out cultivar while a
+ * sibling had real stock. Falls back to the first cultivar (then null) when
+ * none qualifies, preserving today's sold-out / capture-form path. Both
+ * predicates are supplied by the caller (the buy-state authority) to keep
  * this module framework- and policy-free.
  */
 export function defaultCultivar<T extends SelectableVariant>(
   variants: T[],
   cultivars: string[],
   isPurchasable: (variant: T | undefined) => boolean,
+  isPreferred?: (variant: T | undefined) => boolean,
 ): string | null {
   return (
+    (isPreferred
+      ? cultivars.find((c) => variants.some((v) => v.cultivar === c && isPreferred(v)))
+      : undefined) ??
     cultivars.find((c) => variants.some((v) => v.cultivar === c && isPurchasable(v))) ??
     cultivars[0] ??
     null
@@ -143,8 +152,12 @@ export function defaultFormat<T extends SelectableVariant>(
   formats: string[],
   cultivar: string | null,
   isPurchasable: (variant: T | undefined) => boolean,
+  isPreferred?: (variant: T | undefined) => boolean,
 ): string | null {
   return (
+    (isPreferred
+      ? formats.find((f) => isPreferred(pickVariant(variants, { cultivar, format: f })))
+      : undefined) ??
     formats.find((f) => isPurchasable(pickVariant(variants, { cultivar, format: f }))) ??
     formats[0] ??
     null
@@ -163,8 +176,14 @@ export function defaultRootstock<T extends SelectableVariant>(
   cultivar: string | null,
   format: string | null,
   isPurchasable: (variant: T | undefined) => boolean,
+  isPreferred?: (variant: T | undefined) => boolean,
 ): string | null {
   return (
+    (isPreferred
+      ? rootstocks.find((r) =>
+          isPreferred(pickVariant(variants, { cultivar, format, rootstock: r })),
+        )
+      : undefined) ??
     rootstocks.find((r) =>
       isPurchasable(pickVariant(variants, { cultivar, format, rootstock: r })),
     ) ??
