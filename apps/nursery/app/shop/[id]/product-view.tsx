@@ -324,6 +324,21 @@ export function ProductView({
   });
   const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed);
 
+  // Variant-specific charge shape for the buy-box note (GOL-2233 ruling). The
+  // deposit decision keys to the backend `_order_takes_deposit` rule — sold out
+  // OR after the Oct 15 cutover — so it needs THIS variant's stock, unlike the
+  // zone-agnostic `shipMode` above that feeds the generic estimator/format rows.
+  // A `reservable` buy state is exactly a bareroot variant with no free stock.
+  const selectedShipMode = useMemo<FulfillmentResolution | null>(
+    () =>
+      shippingFeed?.calendar
+        ? resolveShippableMode(new Date(), shippingFeed.calendar, null, {
+            soldOut: buy.mode === "reservable",
+          })
+        : null,
+    [shippingFeed, buy.mode],
+  );
+
   // Bind the cart to an EXACT variant match, never to pickVariant's display
   // fallback (GOL-1862). `pickVariant` deliberately degrades to a best-effort
   // variant so price/image/hint always render, but its terminal `?? variants[0]`
@@ -581,12 +596,17 @@ export function ProductView({
             </p>
           )}
 
-          {/* Bareroot fulfillment note, driven by today's shippable mode
-              (GOL-1114): preorder + $10 deposit / ships-now / peat & bagged.
-              Ratified copy (GOL-1302, flat $10). Icon + words, never colour
-              alone. The legacy backend (no calendar feed → shipMode null) keeps
-              the old stock-driven deposit note below. */}
-          {shipMode && selectedTier === "bareroot" && !selectedPickupOnly && (
+          {/* Bareroot fulfillment note, driven by the selected variant's charge
+              shape (GOL-2233 ruling): ships-now + charged in full for in-stock
+              bareroot on/before Oct 15, else a flat $10-per-order reserve deposit
+              (sold out, or after the cutover). Peat & bagged for the leafed
+              window. Icon + words, never colour alone. The legacy backend (no
+              calendar feed → selectedShipMode null) keeps the old stock-driven
+              deposit note below. Coming-soon placeholders show neither. */}
+          {selectedShipMode &&
+            selectedTier === "bareroot" &&
+            !selectedPickupOnly &&
+            buy.mode !== "coming-soon" && (
             <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
               <svg
                 aria-hidden="true"
@@ -596,25 +616,25 @@ export function ProductView({
                 <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6L12 11.5 5.5 7.9 12 4.3ZM5 9.6l6 3.3v6.2l-6-3.3V9.6Zm14 0v6.2l-6 3.3v-6.2l6-3.3Z" />
               </svg>
               <span>
-                {barerootBadge(shipMode) && (
+                {barerootBadge(selectedShipMode) && (
                   <strong className="font-semibold text-foreground">
-                    {barerootBadge(shipMode)}.
+                    {barerootBadge(selectedShipMode)}.
                   </strong>
                 )}{" "}
-                {barerootNote(shipMode)}
+                {barerootNote(selectedShipMode)}
                 {/* Windows are estimates (GOL-1177 `approximate`); a weather-
                     permitting qualifier keeps the promise honest. Suppressed when
                     an explicit hold banner already says more. */}
-                {shipMode.approximate &&
-                  !shipMode.weatherHoldNote &&
-                  shipMode.mode !== "peat-and-bagged" && (
+                {selectedShipMode.approximate &&
+                  !selectedShipMode.weatherHoldNote &&
+                  selectedShipMode.mode !== "peat-and-bagged" && (
                     <span className="text-ink-soft"> Ship dates are estimates, weather permitting.</span>
                   )}
               </span>
             </p>
           )}
 
-          {buy.showDepositNote && !shipMode && (
+          {buy.showDepositNote && !selectedShipMode && (
             <p className="text-xs text-ink-soft mb-4">
               Bareroot ships in fall. Reserve now with a $10 deposit applied to your total.
             </p>

@@ -31,35 +31,63 @@ import type {
  * design — see `isPickupOnly` in `shipping-estimate.ts`). Only ask this resolver
  * about a bareroot-capable product.
  *
- * The calendar a single shippable tree walks through (doc §2):
- *   Jan 1  → May 5   spring bareroot ships now      (in the zone's spring window)
+ * The calendar drives ship-window TIMING (which season a tree ships in, and the
+ * peat & bagged leafed fallback). The CHARGE shape (deposit vs charged-in-full)
+ * is a SEPARATE axis, decided by the GOL-2233 `_order_takes_deposit` rule below,
+ * not by these windows. Ship-window timeline (doc §2):
+ *   Jan 1  → May 5   spring bareroot ships in the zone's spring window
  *   May 6  → Aug 14  peat & bagged (leafed)         (5–10 business days)
- *   Aug 15 → Sep 14  fall bareroot PREORDER          (deposit now; ships fall)
- *   Sep 15 → Oct 30  fall bareroot ships now         (in the zone's fall window)
+ *   Sep 15 → Oct 30  fall bareroot ships in the zone's fall window
  *   Oct 31           past the fall window            → peat & bagged fallback
- *   Nov 1  → Dec 31  spring bareroot PREORDER         (deposit now; ships spring)
- * (window endpoints stagger per zone — GOL-1172. Global preorder switches:
- *  fall Aug 15, spring Nov 1.)
+ * (window endpoints stagger per zone — GOL-1172. The old "PREORDER — deposit now"
+ * mapping for Aug 15–Sep 14 / Nov 1–Dec 31 is RETIRED: an in-stock bareroot on or
+ * before the Oct 15 cutover now ships and is charged in full regardless of the
+ * calendar window; see the deposit-rule note on {@link DEPOSIT_CUTOVER}.)
  */
 
 export type { ShippableMode };
 
 /*
- * Ratified preorder deposit (GOL-1302, Josh 2026-08-12): a flat $10.00 per
- * preorder line, charged when the preorder window opens; the balance is charged
- * to the saved card when the tree ships in the shopper's zone window. This flat
- * amount supersedes the earlier 25% figure (GOL-1173 §3). The exact charge is
- * owned by the backend (`stripe_gateway.PREORDER_DEPOSIT = 10.00`) and surfaced
- * in the checkout order summary from the itemized `line_items` (`kind:
- * "deposit"`); the storefront copy below states the flat amount as a plain
- * string (matching `buy-state.ts` / `shipping-hints.ts`) and never computes it.
+ * Deposit rule (GOL-2233, CEO ruling 2026-09-09): a flat $10.00 deposit for the
+ * WHOLE order (not per line, not per unit — 100 trees is still one $10 deposit),
+ * charged only when the order "takes a deposit"; the balance is charged to the
+ * saved card when the trees ship, timed to the shopper's zone window.
+ *
+ * The charge SHAPE is decided by the backend `_order_takes_deposit` predicate
+ * (grove-odoo-modules#218 + #219), NOT by the ship-window calendar:
+ *   • the variant is SOLD OUT of free stock (a sold-out bareroot line), OR
+ *   • the order is placed AFTER the season cutover (default Oct 15).
+ * Either trigger routes the whole order to the flat deposit. An IN-STOCK bareroot
+ * on or before the cutover ships now and is charged in FULL today. This supersedes
+ * the earlier calendar-window "PREORDER — deposit now" model (GOL-1114/1302): the
+ * ship-window calendar still names WHEN a tree ships and the peat & bagged
+ * (leafed) fallback, but no longer forces the deposit path.
+ *
+ * The exact amount is owned by the backend (`stripe_gateway.PREORDER_DEPOSIT =
+ * 10.00`, flat per order) and surfaced in the checkout order summary from the
+ * itemized `line_items` (`kind: "deposit"`); the storefront copy below states the
+ * flat amount as a plain string and never computes it.
  */
+
+/** The season cutover after which every bareroot order takes the flat deposit
+ *  (GOL-2233). Mirrors the backend `grove_headless.deposit_cutover_md`
+ *  (`DEFAULT_DEPOSIT_CUTOVER_MD = (10, 15)` — Oct 15). Kept in sync by fixture,
+ *  not by import, since this is the storefront copy layer. */
+export const DEPOSIT_CUTOVER: MonthDay = [10, 15];
+
+/** Why an order takes the flat $10 deposit, or `null` when it ships now and is
+ *  charged in full. Drives which reserve lead sentence the buy-box shows. */
+export type DepositReason = "sold-out" | "off-season" | null;
 
 export interface FulfillmentResolution {
   /** The single mode a bareroot-capable tree shows today. */
   mode: ShippableMode;
-  /** True only for `bareroot-preorder` — a deposit is taken now (amount above). */
+  /** True when the order takes the flat $10 deposit (`bareroot-preorder`), per
+   *  the GOL-2233 `_order_takes_deposit` rule (sold-out OR after Oct 15). */
   depositNow: boolean;
+  /** Why the deposit is taken (`"sold-out"` / `"off-season"`), or `null` when the
+   *  order ships now and is charged in full. */
+  depositReason: DepositReason;
   /** Which season a preorder ships in, else `null`. Drives the "ships this
    *  <season>" copy. */
   preorderSeason: "fall" | "spring" | null;
@@ -200,6 +228,18 @@ function aggregateZones(list: ZoneResolution[]): ZoneResolution {
   return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, season: null };
 }
 
+/** Deposit-decision inputs (GOL-2233). Optional so the existing zone-only call
+ *  sites keep working; both fields default to the "ships now, charged in full"
+ *  side of the rule (in-stock, before the cutover). */
+export interface ResolveDepositOpts {
+  /** Selected variant is out of free (shared-pool) stock — the sold-out deposit
+   *  trigger (GOL-2233). Defaults false. */
+  soldOut?: boolean;
+  /** Season cutover after which every bareroot order takes the flat deposit;
+   *  defaults to {@link DEPOSIT_CUTOVER} (Oct 15). Injectable for tests. */
+  depositCutover?: MonthDay;
+}
+
 /**
  * Resolve the single shippable mode for `date` under the feed's `calendar`.
  *
@@ -213,6 +253,7 @@ export function resolveShippableMode(
   date: Date,
   calendar: ShippingCalendar,
   usdaZone?: number | null,
+  opts?: ResolveDepositOpts,
 ): FulfillmentResolution {
   const d = ord(monthDayOf(date));
   const fulfillmentDays = calendar.fulfillment_days ?? [5, 10];
@@ -223,24 +264,61 @@ export function resolveShippableMode(
   const exact =
     usdaZone != null ? calendar.zones?.[String(usdaZone)] : undefined;
 
-  let resolved: ZoneResolution;
+  // Ship-window TIMING (which season / peat & bagged fallback applies today).
+  // This still comes from the per-zone calendar; it names WHEN a tree ships, and
+  // the season word the reserve copy uses, but no longer decides the CHARGE.
+  let timing: ZoneResolution;
   let orderDeadline: MonthDay | null = null;
 
   if (exact) {
-    resolved = resolveZone(d, exact, preorderOpen);
-    orderDeadline = deadlineFor(exact, resolved.season);
+    timing = resolveZone(d, exact, preorderOpen);
+    orderDeadline = deadlineFor(exact, timing.season);
   } else {
     const zones = Object.values(calendar.zones ?? {});
-    resolved =
+    timing =
       zones.length === 0
         ? resolveZone(d, DEFAULT_WINDOWS, preorderOpen)
         : aggregateZones(zones.map((z) => resolveZone(d, z, preorderOpen)));
   }
 
+  // CHARGE shape (GOL-2233): mirror the backend `_order_takes_deposit` — the
+  // order takes the flat $10 deposit when it is sold-out bareroot OR placed after
+  // the season cutover (Oct 15). `soldOut` defaults false, which reduces the
+  // decision to the cutover alone — the honest tier-level default before a
+  // specific variant's stock is known.
+  const soldOut = opts?.soldOut ?? false;
+  const afterCutover = d > ord(opts?.depositCutover ?? DEPOSIT_CUTOVER);
+  const depositReason: DepositReason = afterCutover
+    ? "off-season"
+    : soldOut
+      ? "sold-out"
+      : null;
+  const depositNow = depositReason !== null;
+
+  let mode: ShippableMode;
+  let preorderSeason: "fall" | "spring" | null;
+  if (depositNow) {
+    mode = "bareroot-preorder";
+    // Ship the reserved order in the next dormant wave: the calendar's current
+    // season when known, else the next wave (spring once the fall window has
+    // closed at the cutover, otherwise the coming fall).
+    preorderSeason = timing.preorderSeason ?? timing.season ?? (afterCutover ? "spring" : "fall");
+  } else if (timing.mode === "peat-and-bagged") {
+    // In-stock, on/before the cutover, but in the leafed window → peat & bagged,
+    // charged in full on the normal SLA (never a deposit).
+    mode = "peat-and-bagged";
+    preorderSeason = null;
+  } else {
+    // In-stock bareroot, on or before the cutover → ships now, charged in full.
+    mode = "bareroot-in-window";
+    preorderSeason = null;
+  }
+
   return {
-    mode: resolved.mode,
-    depositNow: resolved.depositNow,
-    preorderSeason: resolved.preorderSeason,
+    mode,
+    depositNow,
+    depositReason,
+    preorderSeason,
     fulfillmentDays,
     orderDeadline,
     approximate,
@@ -263,7 +341,7 @@ function deadlineFor(zone: ShippingCalendarZone, season: ResolvedSeason): MonthD
 export function barerootBadge(res: FulfillmentResolution): string | null {
   switch (res.mode) {
     case "bareroot-preorder":
-      return "Preorder";
+      return "Reserve";
     case "peat-and-bagged":
       return "Peat & bagged";
     default:
@@ -276,27 +354,34 @@ export function barerootBadge(res: FulfillmentResolution): string | null {
 export function barerootTimingShort(res: FulfillmentResolution): string {
   switch (res.mode) {
     case "bareroot-preorder":
-      return `$10 deposit · ships this ${res.preorderSeason}`;
+      return `$10 to reserve · ships this ${res.preorderSeason}`;
     case "bareroot-in-window":
-      return "Ships now";
+      return "Ships now · charged in full";
     case "peat-and-bagged":
       return `Ships in ${res.fulfillmentDays[0]}–${res.fulfillmentDays[1]} business days`;
   }
 }
 
 /**
- * Full buy-box note for the selected bareroot format. The preorder wording is
- * the ratified GOL-1302 flat-$10 copy (Josh 2026-08-12); the in-window
- * and peat & bagged lines are plain factual descriptions of the fulfillment we
- * perform (no persuasive claims, no em dashes) and are safe to render without
- * further brand sign-off.
+ * Full buy-box note for the selected bareroot format (GOL-2233 ruling). The
+ * charge shape is keyed to the backend `_order_takes_deposit` rule: an in-stock
+ * bareroot on or before the Oct 15 cutover ships now and is charged in full; a
+ * sold-out variant or any order after the cutover takes ONE flat $10 deposit for
+ * the whole order, with the balance charged at ship time. The two lead sentences
+ * split on {@link FulfillmentResolution.depositReason} so the shopper knows WHY
+ * a deposit applies. Plain factual copy, no persuasive claims, no em dashes.
  */
 export function barerootNote(res: FulfillmentResolution): string {
   switch (res.mode) {
-    case "bareroot-preorder":
-      return `Reserve now with a $10 deposit per tree. We charge the rest when your tree ships this ${res.preorderSeason}, timed to your area.`;
+    case "bareroot-preorder": {
+      const lead =
+        res.depositReason === "sold-out"
+          ? "This size is sold out for now."
+          : "Bareroot planting season is closed for now.";
+      return `${lead} Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship this ${res.preorderSeason}, timed to your area.`;
+    }
     case "bareroot-in-window":
-      return "It is bareroot season. We dig your trees fresh and ship them dormant, timed to your area.";
+      return "Ships now and charged in full today. We dig your trees fresh and ship them dormant, timed to your area.";
     case "peat-and-bagged":
       return `Shipping now as peat and bagged: leafed-out trees wrapped in damp peat, up to four per box, on our normal ${res.fulfillmentDays[0]} to ${res.fulfillmentDays[1]} business day timeline.`;
   }
