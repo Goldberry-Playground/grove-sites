@@ -52,6 +52,11 @@ export const ZONE_RATE_TABLE: RateTable = {
   zone_3: { bareroot: { base: 23 }, potted: { base: 36 } },
   zone_4: { bareroot: { base: 24 }, potted: { base: 38 } },
   zone_5: { bareroot: { base: 25 }, potted: { base: 40 } },
+  // GOL-2238 real probe-derived mid/near-plains bands (provisional per-tier
+  // fallback only — the live estimator prices bareroot off the box feed and
+  // reads potted from here until the rate-checker publishes potted rows).
+  zone_6: { bareroot: { base: 23 }, potted: { base: 38 } },
+  zone_7: { bareroot: { base: 29 }, potted: { base: 39 } },
 };
 
 /** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 31 green states). */
@@ -64,14 +69,20 @@ export const ZONE_BY_STATE: Record<string, string> = {
   IL: "zone_3", MI: "zone_3", CT: "zone_3", RI: "zone_3",
   // zone_4
   WI: "zone_4", MN: "zone_4", MA: "zone_4", VT: "zone_4", NH: "zone_4",
-  // zone_5 — farthest priced band. GOL-2128 added the ratified south/mid tranche
-  // here: a backend Shippo probe (2026-09-06, origin 26651, cheapest-of-ground)
-  // put every one of these states' worst corners at or below the zone_5 rate for
-  // every box, so none is ever undercharged. Far/western states whose big-box
-  // rate exceeds this band (FL, OK, KS, NE, SD, ND, TX, NM, AZ) are NOT here —
-  // they need new distance zones (GOL-2128 follow-up), never a guessed rate.
-  TN: "zone_5", GA: "zone_5", AL: "zone_5", SC: "zone_5", AR: "zone_5",
-  MS: "zone_5", LA: "zone_5", MO: "zone_5", IA: "zone_5", ME: "zone_5",
+  // zone_5 — farthest priced band. GOL-2128 opened the south/mid tranche here;
+  // GOL-2238 re-probed it against the two-SKU catalog (2026-09-08) and found
+  // only GA/SC/AL/MS/LA (+ ME) genuinely belong at zone_5 (39/43) — the others
+  // quote materially cheaper and moved to their own real bands below, ending a
+  // Maine-tier overcharge. Every zone still dominates its members' worst-corner
+  // targets, so no state is ever undercharged. Mirrors backend ZONE_BY_STATE.
+  GA: "zone_5", AL: "zone_5", SC: "zone_5", MS: "zone_5", LA: "zone_5", ME: "zone_5",
+  // zone_6 — mid-continent band (GOL-2238): AR/MO/IA target 23/28 (small/large).
+  AR: "zone_6", MO: "zone_6", IA: "zone_6",
+  // zone_7 — near-plains band (GOL-2238): TN (Memphis) targets 29/32.
+  TN: "zone_7",
+  // Ratified far states (OK/KS/NE/SD/ND/TX/NM/AZ) and FL are still NOT green:
+  // they clear on cost but await the per-product NPB compliance carve-out gate
+  // (GOL-2132) — see the GOL-2238 far-states follow-up.
 };
 
 /** Count of states we currently ship living trees to — the single source for
