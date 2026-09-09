@@ -11,53 +11,58 @@ import {
   submitAndCaptureSession,
   usd,
 } from "./helpers";
-import { shipsNowForBareroot } from "./qa-helpers";
+import { afterDepositCutover } from "./qa-helpers";
 
 /**
- * Leafed-season happy path — the DEPOSIT preorder flow (GOL-1906 / #190).
+ * Deposit happy path — the flat $10-per-order deposit flow (GOL-2233 / #218).
  *
- * Outside the nursery dormancy window (Nov 1 – Apr 15) bareroot never ships
- * now: an in-stock bareroot line is sold as a $10-per-tree deposit that
- * reserves the tree for the next dormant wave, with the balance charged at
- * ship time (GOL-2053). From 2026-09-08 this is what a September shopper
- * actually experiences, so it is the money path the release gate must prove
- * in this season — the classic ships-now happy path skips itself here and
- * runs in its place from Nov 1.
+ * grove_headless takes ONE flat $10 deposit for the WHOLE order when EITHER
+ * trigger fires: (a) a bareroot line is sold out / short on free stock, or
+ * (b) the order is placed after the season cutover (default Oct 15,
+ * `grove_headless.deposit_cutover_md`). The deposit reserves the trees; the
+ * balance (goods + shipping + WV tax) settles off-session at ship time
+ * (GOL-2053). Nothing else is charged today — no goods, no shipping, no tax.
+ *
+ * A sold-out bareroot renders a "Reserve" CTA on the grid, so it is the
+ * primary trigger this spec proves. Before the cutover, with no sold-out
+ * bareroot on QA, the deposit path is not exercisable and the test skips;
+ * after the cutover ANY product qualifies.
  *
  * Asserts, against the real session and the real Stripe TEST hosted page:
- *   - the session is a preorder (`hasPreorder`) whose charged-today lines are
- *     ALL `deposit` lines summing to `amountDueToday` (nothing else is charged
- *     now — no goods, no shipping, no tax on the deposit leg);
+ *   - the order is a preorder (`hasPreorder`) charged EXACTLY one `deposit`
+ *     line, quantity 1, $10, with `amountDueToday === 10` and no
+ *     goods/shipping/tax lines;
  *   - `amountDueToday` < `amountTotal` (a real balance remains for ship time);
- *   - the review page shows the due-today / due-later split, every line badged
- *     Reserve and none badged Ships now;
+ *   - the review page shows the due-today / due-later split, badged Reserve and
+ *     never Ships now;
  *   - 4242 pays the deposit, lands on /checkout/success, and the cart empties.
  *
  * @stripe — real Stripe TEST session + payment on QA.
  */
-test.describe("checkout — deposit happy path (leafed season)", { tag: "@stripe" }, () => {
-  test("in-stock bareroot in leafed season pays a $10 deposit, lands on success, empties the cart", async ({
+test.describe("checkout — deposit happy path (flat $10 per order)", { tag: "@stripe" }, () => {
+  test("a deposit order pays a single $10 deposit, lands on success, empties the cart", async ({
     page,
   }) => {
     // Deployed target + Stripe's hosted page + a real test payment: give it
     // room beyond the suite default so a slow Stripe render is a retry, not a
     // torn-down browser mid-poll.
     test.setTimeout(180_000);
-    test.skip(
-      await shipsNowForBareroot(page),
-      "dormant season: bareroot ships now — the classic checkout-happy-path covers it",
-    );
 
-    // Must be a BAREROOT line: the potted E2E fixture is pickup-only and a ship
-    // submit on it is a (correct) 400 — "Potted trees are available for farm
-    // pickup only" — which is exactly the intermittent failure this guard
-    // prevents. Walk the grid's Bareroot-named products first, then fall back
-    // to any product with a live CTA (dormant-season data may differ).
-    const bareroot = await findProductByCta(page, ["Add to Cart", "Reserve"], {
-      nameMatch: /bareroot/i,
-    }).catch(() => null);
-    const product = bareroot ?? (await findProductByCta(page, ["Add to Cart", "Reserve"]));
+    // The flat deposit triggers on a sold-out bareroot line OR after the season
+    // cutover. Prefer a sold-out bareroot (a "Reserve" CTA on the grid) so the
+    // deposit path is proven by its primary stock trigger. If there is none:
+    //   - before the cutover the path is not exercisable → skip with a reason;
+    //   - after the cutover ANY product deposits → fall back to any live CTA.
+    const bareroot = await findProductByCta(page, "Reserve", { nameMatch: /bareroot/i }).catch(
+      () => null,
+    );
+    test.skip(
+      !bareroot && !afterDepositCutover(),
+      "no sold-out bareroot on QA and before the cutover — deposit path not exercisable",
+    );
+    const product = bareroot ?? (await findProductByCta(page, ["Reserve", "Add to Cart"]));
     await page.goto(product.href);
+    // Quantity 2 proves the deposit is flat PER ORDER, not per unit.
     await addCurrentProductToCart(page, 2, product.buyLabel);
 
     await page.goto("/checkout");
@@ -65,25 +70,29 @@ test.describe("checkout — deposit happy path (leafed season)", { tag: "@stripe
     const { status, body, errorBody } = await submitAndCaptureSession(page);
     expect(
       status,
-      `a deposit session should be created for a leafed-season bareroot order${errorBody ? ` — server said: ${errorBody}` : ""}`,
+      `a deposit session should be created for a flat-deposit order${errorBody ? ` — server said: ${errorBody}` : ""}`,
     ).toBe(200);
     expect(body).not.toBeNull();
     const session = body!;
 
-    // Preorder economics: only deposits are charged today, and a balance remains.
-    expect(session.hasPreorder, "leafed-season bareroot must be a preorder").toBe(true);
+    // Preorder economics: a single flat $10 deposit is the whole charge today.
+    expect(session.hasPreorder, "a flat-deposit order is a preorder").toBe(true);
     const lines = session.lineItems ?? [];
-    expect(lines.length, "session must be itemized").toBeGreaterThan(0);
+    expect(lines.length, "the flat-per-order deposit is a single line").toBe(1);
+    const [deposit] = lines;
+    expect(deposit.kind, "the only charged-today line is the deposit").toBe("deposit");
+    expect(deposit.quantity, "one flat deposit for the whole order, regardless of cart quantity").toBe(1);
+    expect(deposit.unitAmount, "the flat deposit is $10").toBe(10);
     expect(
-      lines.map((l) => l.kind),
-      "charged-today lines in leafed season must be deposits only",
-    ).toEqual(lines.map(() => "deposit"));
-    const chargedToday = lines.reduce((s, l) => s + l.unitAmount * l.quantity, 0);
-    expect(Math.round(chargedToday * 100)).toBe(Math.round(session.amountDueToday * 100));
-    expect(session.amountDueToday, "a balance must remain for ship time").toBeLessThan(session.amountTotal);
-    expect(session.amountDueToday).toBeGreaterThan(0);
+      lines.some((l) => l.kind === "goods" || l.kind === "shipping" || l.kind === "tax"),
+      "nothing but the deposit is charged today — goods/shipping/tax defer to ship time",
+    ).toBe(false);
+    expect(session.amountDueToday, "only the $10 deposit is due today").toBe(10);
+    expect(session.amountDueToday, "a balance must remain for ship time").toBeLessThan(
+      session.amountTotal,
+    );
 
-    // Review page mirrors the split and badges every line Reserve.
+    // Review page mirrors the split and badges the line Reserve, never Ships now.
     await expectOnReview(page);
     await expect(page.getByText("Due today").first()).toBeVisible();
     await expect(page.getByText("Due when it ships").first()).toBeVisible();
@@ -100,7 +109,9 @@ test.describe("checkout — deposit happy path (leafed season)", { tag: "@stripe
     await payAtReview(page);
     await fillStripeCheckoutAndPay(page, STRIPE_TEST_CARD_OK);
     await page.waitForURL(/\/checkout\/success(\?|$)/, { timeout: 60_000 });
-    await expect(page.getByRole("heading", { name: /Payment received|Deposit received|Order confirmed/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /Payment received|Deposit received|Order confirmed/i }),
+    ).toBeVisible();
     await expectCartEmpty(page);
   });
 });
