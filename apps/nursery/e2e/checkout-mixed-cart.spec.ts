@@ -7,32 +7,47 @@ import {
   submitAndCaptureSession,
   usd,
 } from "./helpers";
-import { LEAFED_SEASON_REASON, shipsNowForBareroot } from "./qa-helpers";
+import { afterDepositCutover } from "./qa-helpers";
 
 /**
- * Spec 2 — Mixed cart (GOL-1074).
+ * Mixed cart — the whole-order deposit collapse (GOL-1074 → re-keyed for GOL-2233 / #218).
  *
- * In-stock + reserve (bareroot preorder) items → review shows goods lines
- * ("Ships now") and per-unit **Deposit** lines ("Reserve"); the due-today vs
- * due-later split reconciles against the session `line_items` — each tagged by
- * `kind`, summing to `amount_due_today`.
+ * Under the flat-per-order deposit rule a cart that mixes an in-stock line with
+ * a Reserve (sold-out bareroot) line is NOT a per-line split any more: the
+ * sold-out trigger collapses the WHOLE order onto a single flat $10 deposit, so
+ * even the in-stock line's goods defer to the ship-time settlement. The review
+ * shows one deposit (Reserve) line, the due-today / due-later split, and nothing
+ * billed as goods today.
+ *
+ * The Reserve line is the deposit trigger before the cutover; with no Reserve
+ * product on QA and before the cutover the whole-order deposit is not
+ * exercisable, so the test skips. After the cutover any order deposits anyway.
  *
  * @stripe — creates a real Stripe session; expected-red until GOL-899.
  */
 test.describe("checkout — mixed cart", { tag: "@stripe" }, () => {
-  test("in-stock + reserve shows both badges and reconciles the due-today split", async ({
+  test("an in-stock + Reserve cart collapses to one whole-order $10 deposit", async ({
     page,
   }) => {
-    // Needs a ships-now line to badge "Ships now" — only inside the dormancy
-    // window (GOL-1906 / #190); in leafed season every line is Reserve.
-    test.skip(!(await shipsNowForBareroot(page)), LEAFED_SEASON_REASON);
+    // A Reserve (sold-out bareroot) line is what collapses the cart to a deposit
+    // before the cutover; skip when QA has none and we are still before it.
+    const reserve = await findProductByCta(page, "Reserve").catch(() => null);
+    test.skip(
+      !reserve && !afterDepositCutover(),
+      "no Reserve product on QA and before the cutover — whole-order deposit not exercisable",
+    );
+
     const inStock = await findProductByCta(page, "Add to Cart");
     await page.goto(inStock.href);
     await addCurrentProductToCart(page, 1, "Add to Cart");
 
-    const reserve = await findProductByCta(page, "Reserve", { skipHref: inStock.href });
-    await page.goto(reserve.href);
-    await addCurrentProductToCart(page, 1, "Reserve");
+    // Add the Reserve line when one exists — its sold-out trigger is what
+    // collapses the whole cart to a deposit. After the cutover the in-stock line
+    // alone already deposits, so a Reserve line is not required.
+    if (reserve) {
+      await page.goto(reserve.href);
+      await addCurrentProductToCart(page, 1, "Reserve");
+    }
 
     await page.goto("/checkout");
     await fillCheckoutForm(page, { state: "WV" });
@@ -43,16 +58,27 @@ test.describe("checkout — mixed cart", { tag: "@stripe" }, () => {
 
     await expectOnReview(page);
 
-    // A mixed cart carries a preorder → the review shows the two-part split.
-    expect(session.hasPreorder).toBe(true);
+    // Whole-order deposit: a single $10 deposit due today, everything else
+    // (including the in-stock line's goods) deferred to ship time.
+    expect(session.hasPreorder, "a whole-order deposit is a preorder").toBe(true);
+    const lines = session.lineItems ?? [];
+    expect(lines.length, "the whole-order deposit is a single line").toBe(1);
+    const [deposit] = lines;
+    expect(deposit.kind).toBe("deposit");
+    expect(deposit.quantity).toBe(1);
+    expect(deposit.unitAmount, "the flat deposit is $10").toBe(10);
+    expect(
+      lines.some((l) => l.kind === "goods"),
+      "no goods are billed today — the in-stock line defers to ship time",
+    ).toBe(false);
+    expect(session.amountDueToday, "only the $10 deposit is due today").toBe(10);
+
+    // Review shows the two-part split; the line is badged Reserve, never Ships now.
     await expect(page.getByText("Due today").first()).toBeVisible();
     await expect(page.getByText("Due when it ships").first()).toBeVisible();
-
-    // Both fulfillment badges are present.
-    await expect(page.locator(".grove-review__badge--ship").first()).toBeVisible();
     await expect(page.locator(".grove-review__badge--reserve").first()).toBeVisible();
+    await expect(page.locator(".grove-review__badge--ship")).toHaveCount(0);
 
-    // Split amounts match the session.
     const dueLater = Math.max(0, session.amountTotal - session.amountDueToday);
     await expect(
       page.locator(".grove-review__amount--today .grove-review__amount-value"),
@@ -60,16 +86,5 @@ test.describe("checkout — mixed cart", { tag: "@stripe" }, () => {
     await expect(
       page.locator(".grove-review__amount--later .grove-review__amount-value"),
     ).toHaveText(usd(dueLater, session.currency));
-
-    // Reconcile: the itemized charged-today lines sum to amount_due_today.
-    const lines = session.lineItems ?? [];
-    expect(lines.length, "session must be itemized for a GOL-1057 build").toBeGreaterThan(0);
-    const chargedToday = lines.reduce((sum, l) => sum + l.unitAmount * l.quantity, 0);
-    expect(Math.round(chargedToday * 100)).toBe(Math.round(session.amountDueToday * 100));
-
-    // The mixed cart must carry at least one deposit (reserve) line and one
-    // goods (ships-now) line.
-    expect(lines.some((l) => l.kind === "deposit")).toBe(true);
-    expect(lines.some((l) => l.kind === "goods")).toBe(true);
   });
 });

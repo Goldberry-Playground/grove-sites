@@ -189,13 +189,13 @@ export async function odooOriginFromPage(page: Page): Promise<string> {
  * Does a bareroot line ship NOW for a WV destination on the target today?
  *
  * GOL-1906 (#190): bareroot ships only inside the nursery dormancy window
- * (Nov 1 – Apr 15, Odoo-editable). Outside it — "leafed" season — an in-stock
- * bareroot line is still purchasable but as a $10-per-tree DEPOSIT preorder
- * for the next dormant wave, never a full-price ships-now line. The suite's
- * ship-flow specs were written for the ships-now case; they consult this so
- * they can skip with the reason in leafed season instead of failing, and the
- * deposit happy-path spec runs in their place. Reads the same server decision
- * the checkout uses (`/grove/api/v1/shipping/options`).
+ * (Nov 1 – Apr 15, Odoo-editable). Reads the same server decision the storefront
+ * uses for its ship-window DISPLAY (`/grove/api/v1/shipping/options`).
+ *
+ * NOTE (GOL-2233 / #218): this NO LONGER decides whether an order charges a
+ * deposit — the flat-per-order deposit rule does (see `afterDepositCutover` and
+ * the sold-out-bareroot trigger). Kept for ship-window display checks only;
+ * never use it as a CHARGE guard.
  */
 export async function shipsNowForBareroot(page: Page): Promise<boolean> {
   const odoo = await odooOriginFromPage(page);
@@ -210,6 +210,37 @@ export async function shipsNowForBareroot(page: Page): Promise<boolean> {
 
 export const LEAFED_SEASON_REASON =
   "leafed season (outside the Nov 1–Apr 15 dormancy window, GOL-1906): bareroot is a deposit preorder, not ships-now — covered by checkout-deposit-happy-path";
+
+/**
+ * Is "today" (or a supplied clock) AFTER the GOL-2233 season cutover, past which
+ * EVERY order takes the single flat $10 deposit regardless of stock?
+ *
+ * Mirror of the backend `_after_deposit_cutover` / `_deposit_cutover_md` in
+ * grove_headless (#218): a strict `(month, day) > cutover` comparison — the
+ * cutover day itself is NOT "after" — defaulting to Oct 15
+ * (`grove_headless.deposit_cutover_md`, `MM-DD`). The e2e override
+ * `E2E_DEPOSIT_CUTOVER_MD=MM-DD` lets a run pin the boundary to whatever QA's
+ * ir.config_parameter is set to; a malformed value falls back to Oct 15 so a
+ * typo can never silently flip the gate (matching the backend's warn-and-default).
+ *
+ * This is the CHARGE guard the full-charge specs skip on and the deposit specs
+ * fall back to — it replaces `shipsNowForBareroot` for that purpose.
+ */
+export function afterDepositCutover(now: Date = new Date()): boolean {
+  let month = 10;
+  let day = 15;
+  const raw = (process.env.E2E_DEPOSIT_CUTOVER_MD ?? "").trim();
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(raw);
+  if (m) {
+    month = Number(m[1]);
+    day = Number(m[2]);
+  }
+  const nowMonth = now.getMonth() + 1;
+  return nowMonth > month || (nowMonth === month && now.getDate() > day);
+}
+
+export const AFTER_CUTOVER_REASON =
+  "after the GOL-2233 season cutover (default Oct 15): every order takes the flat $10 deposit, so the full-charge path is not exercisable — covered by checkout-deposit-happy-path";
 
 /** Type a promo code into the checkout form's "Promo code" field (GOL-2088).
  *  The input upper-cases on change, so the value is asserted case-insensitively. */
