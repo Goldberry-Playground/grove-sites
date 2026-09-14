@@ -130,7 +130,7 @@ export function ProductView({
   // pickup-only Potted is a dead end. Deriving the opening selection from this —
   // rather than a blind axis `[0]` — is what keeps the PDP from opening on an
   // unbuyable format when per-environment variant order sorts a dead SKU first.
-  const isPurchasable = (v: ViewVariant | undefined) =>
+  const buyStateOf = (v: ViewVariant | undefined) =>
     buyStateFor({
       available: v ? v.available : true,
       qtyAvailable: v?.qtyAvailable ?? null,
@@ -138,19 +138,25 @@ export function ProductView({
       format: v?.format ?? null,
       saleOk,
       capReached: preorderCapReached,
-    }).ctaDisabled === false;
+    });
+  const isPurchasable = (v: ViewVariant | undefined) => buyStateOf(v).ctaDisabled === false;
+  // Opening-default preference: real stock beats a $10-deposit reservation.
+  // Without this tier, the GOL-2233 rule (sold-out bareroot stays reservable)
+  // makes every cultivar "purchasable", so pages defaulted to a 0-stock
+  // cultivar that merely sorted first while a sibling had trees on hand.
+  const isInStock = (v: ViewVariant | undefined) => buyStateOf(v).mode === "in-stock";
 
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
   const [cultivar, setCultivar] = useState<string | null>(() =>
-    defaultCultivar(variants, cultivars, isPurchasable),
+    defaultCultivar(variants, cultivars, isPurchasable, isInStock),
   );
   const formats = useMemo(() => formatOptions(variants, cultivar), [variants, cultivar]);
   const [format, setFormat] = useState<string | null>(() =>
-    defaultFormat(variants, formats, cultivar, isPurchasable),
+    defaultFormat(variants, formats, cultivar, isPurchasable, isInStock),
   );
   const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
   const [rootstock, setRootstock] = useState<string | null>(() =>
-    defaultRootstock(variants, rootstocks, cultivar, format, isPurchasable),
+    defaultRootstock(variants, rootstocks, cultivar, format, isPurchasable, isInStock),
   );
   // Thumbnail the buyer explicitly clicked; null → follow the selected variant.
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
@@ -274,7 +280,7 @@ export function ProductView({
     const nextFormat =
       format && nextFormats.includes(format)
         ? format
-        : defaultFormat(variants, nextFormats, next, isPurchasable);
+        : defaultFormat(variants, nextFormats, next, isPurchasable, isInStock);
     setFormat(nextFormat);
     // Same reconciliation for the rootstock axis: a cultivar sold seedling-only
     // shouldn't keep a "M.111" selection from the previous one (GOL-1112), and
@@ -284,7 +290,7 @@ export function ProductView({
     const nextRootstock =
       rootstock && nextRootstocks.includes(rootstock)
         ? rootstock
-        : defaultRootstock(variants, nextRootstocks, next, nextFormat, isPurchasable);
+        : defaultRootstock(variants, nextRootstocks, next, nextFormat, isPurchasable, isInStock);
     setRootstock(nextRootstock);
     setPinnedImage(null);
   }

@@ -15,6 +15,7 @@ import {
   readModalText,
   type Platform,
 } from "./approval.ts";
+import { parseOrderAction } from "./orders.ts";
 import { parsePeriod } from "./period.ts";
 import {
   IDEA_COMMAND_NAME,
@@ -84,6 +85,12 @@ export type Followup =
       targets: Platform[];
       text: string;
       message: unknown;
+    }
+  | {
+      kind: "mark_shipped";
+      orderId: string;
+      actor: string;
+      message: unknown;
     };
 
 export interface InteractionResult {
@@ -93,9 +100,11 @@ export interface InteractionResult {
   followup?: Followup;
 }
 
-/** Routing context (Phase 2 needs the approver allowlist). */
+/** Routing context (Phase 2 needs the approver + order-operator allowlists). */
 export interface RouteContext {
   approverIds: Set<string>;
+  /** Order-ops operators allowed to mark orders shipped (GOL-1980). */
+  operatorIds?: Set<string>;
 }
 
 function optionValue(interaction: DiscordInteraction, name: string): string | undefined {
@@ -153,6 +162,26 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
     return {
       response: { type: ResponseType.DEFERRED_UPDATE_MESSAGE },
       followup: { kind: "digest", period },
+    };
+  }
+
+  // Phase 2 (GOL-1980): order-ops "Mark shipped" button.
+  const order = parseOrderAction(customId);
+  if (order) {
+    const operators = ctx.operatorIds ?? new Set<string>();
+    if (!isApprover(interaction, operators)) return orderDenied();
+    const actor = actorId(interaction) ?? "unknown";
+    // Defer with an UPDATE ack: the button stays until the server confirms the
+    // Odoo write, then edits the card to "Shipped" (success) or posts an
+    // ephemeral error and leaves the button clickable for retry (failure).
+    return {
+      response: { type: ResponseType.DEFERRED_UPDATE_MESSAGE },
+      followup: {
+        kind: "mark_shipped",
+        orderId: order.orderId,
+        actor,
+        message: interaction.message,
+      },
     };
   }
 
@@ -250,4 +279,8 @@ function denied(): InteractionResult {
 
 function ideaDenied(): InteractionResult {
   return ephemeral("🚫 Only Macy and Josh can file content ideas via /idea.");
+}
+
+function orderDenied(): InteractionResult {
+  return ephemeral("🚫 You're not on the order-ops operator list — ask Josh to add you.");
 }

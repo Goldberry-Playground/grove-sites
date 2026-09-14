@@ -13,7 +13,10 @@ export type AuditAction =
   | "content_approved"
   | "content_revised"
   | "content_rejected"
-  | "idea_submitted";
+  | "idea_submitted"
+  // Phase 2 order-ops (GOL-1980).
+  | "order_shipped"
+  | "order_ship_failed";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -27,6 +30,8 @@ export interface AuditEventInput {
   suggestion_id?: string;
   /** Phase 3 (GOL-471): the `/idea` intake id filed for Sora. */
   idea_id?: string;
+  /** Phase 2 order-ops (GOL-1980): the Odoo sale.order id the action applies to. */
+  order_id?: string;
   /** Phase 2: platforms drafted to (approve/revise). */
   platforms?: string[];
   /** Phase 2: Buffer draft ids created (approve/revise). */
@@ -72,6 +77,7 @@ export function renderMirrorComment(event: AuditEvent): string {
     `**\`${event.event_id}\`** — ${event.action} by <@${event.actor}> (${event.publish_mode})`,
   ];
   if (event.idea_id) parts.push(`idea: \`${event.idea_id}\``);
+  if (event.order_id) parts.push(`order: \`${event.order_id}\``);
   if (event.suggestion_id) parts.push(`suggestion: \`${event.suggestion_id}\``);
   if (event.platforms?.length) parts.push(`platforms: ${event.platforms.join(", ")}`);
   if (event.buffer_draft_ids?.length) parts.push(`buffer drafts: ${event.buffer_draft_ids.join(", ")}`);
