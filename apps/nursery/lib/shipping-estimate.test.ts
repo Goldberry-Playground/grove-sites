@@ -44,12 +44,18 @@ describe("shipping-estimate zone map", () => {
     expect(ZONE_BY_STATE.ME).toBe("zone_5");
   });
 
-  it("prices the GOL-2128 south/mid tranche at zone_5 (probe-verified upper bound)", () => {
-    // Backend probe (2026-09-06) put every one of these states' worst corners at
-    // or below the zone_5 rate for every box — never undercharged. DC fits zone_1.
-    for (const s of ["TN", "GA", "AL", "SC", "AR", "MS", "LA", "MO", "IA"]) {
+  it("assigns the south/mid tranche its real GOL-2238 probe-derived zones", () => {
+    // GOL-2238 re-probed the GOL-2128 tranche against the two-SKU catalog
+    // (2026-09-08): only GA/SC/AL/MS/LA stay at zone_5 (39/43); AR/MO/IA drop to
+    // zone_6 (23/28) and TN to zone_7 (29/32) — each zone still an upper bound
+    // for its members' worst corners, so none is ever undercharged. DC = zone_1.
+    for (const s of ["GA", "AL", "SC", "MS", "LA"]) {
       expect(ZONE_BY_STATE[s]).toBe("zone_5");
     }
+    for (const s of ["AR", "MO", "IA"]) {
+      expect(ZONE_BY_STATE[s]).toBe("zone_6");
+    }
+    expect(ZONE_BY_STATE.TN).toBe("zone_7");
     expect(ZONE_BY_STATE.DC).toBe("zone_1");
   });
 });
