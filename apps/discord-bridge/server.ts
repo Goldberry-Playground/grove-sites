@@ -15,7 +15,9 @@ import { BufferClient } from "./lib/buffer.ts";
 import { loadConfig } from "./lib/config.ts";
 import { generateDigest } from "./lib/insights.ts";
 import {
+  createInteractionFollowup,
   editInteractionOriginal,
+  postChannelMessage,
 } from "./lib/discord.ts";
 import { routeInteraction, type DiscordInteraction } from "./lib/interactions.ts";
 import { renderDigestMessage, type DiscordMessage } from "./lib/render.ts";
@@ -23,6 +25,8 @@ import { verifyDiscordRequest, ed25519PublicKey } from "./lib/verify.ts";
 import { buildAuditEvent, emitAuditEvent, mirrorAuditEvent } from "./lib/audit.ts";
 import { executeDecision, executeRevise, type DecideDeps } from "./lib/decide.ts";
 import { fileIdeaIntake, newIdeaId, type IdeaSubmission } from "./lib/idea.ts";
+import { buildOrderCard, resolveOrderChannel, shippedCard, type OrderAlert } from "./lib/orders.ts";
+import { markShipped } from "./lib/order-client.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BUFFER_ANALYTICS_URL = process.env.BUFFER_ANALYTICS_URL || "https://publish.buffer.com";
@@ -88,7 +92,10 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
     return;
   }
 
-  const result = routeInteraction(interaction, { approverIds: cfg.approverIds });
+  const result = routeInteraction(interaction, {
+    approverIds: cfg.approverIds,
+    operatorIds: cfg.orderOperatorIds,
+  });
   // Reply immediately (PONG / deferred / modal / ephemeral error) — Discord's 3s budget.
   json(res, 200, result.response);
 
@@ -159,6 +166,57 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
         return;
       }
 
+      if (followup.kind === "mark_shipped") {
+        const now = new Date().toISOString();
+        const res = await markShipped(
+          { odooApiBase: cfg.odooApiBase ?? "", odooBridgeKey: cfg.odooBridgeKey ?? "" },
+          followup.orderId,
+          followup.actor,
+        );
+        const mirror = {
+          bridgeKey: cfg.bridgeKey,
+          auditIssueId: cfg.auditIssueId,
+          apiBase: cfg.paperclipApiBase,
+        };
+        if (res.ok) {
+          const tail = res.alreadyShipped ? "already shipped" : "shipped";
+          const track = res.tracking?.length ? ` · tracking: ${res.tracking.join(", ")}` : "";
+          const detail = `${res.orderRef ?? `order:${followup.orderId}`} — ${tail}${track}`;
+          if (token) {
+            await editInteractionOriginal(cfg.discordAppId, token, shippedCard(followup.message, followup.actor, detail));
+          }
+          const event = buildAuditEvent({
+            action: "order_shipped",
+            actor: followup.actor,
+            ts: now,
+            order_id: followup.orderId,
+            reason: res.alreadyShipped ? "already_shipped" : undefined,
+          });
+          emitAuditEvent(event);
+          void mirrorAuditEvent(event, mirror);
+        } else {
+          // No silent ack (GOL-1975 guard): surface the failure to the operator
+          // as an ephemeral message and LEAVE the button clickable for retry.
+          if (token) {
+            await createInteractionFollowup(
+              cfg.discordAppId,
+              token,
+              `⚠️ Couldn't mark order:${followup.orderId} shipped — ${res.error ?? "unknown error"}. The order is unchanged; try again.`,
+            );
+          }
+          const event = buildAuditEvent({
+            action: "order_ship_failed",
+            actor: followup.actor,
+            ts: now,
+            order_id: followup.orderId,
+            reason: res.error,
+          });
+          emitAuditEvent(event);
+          void mirrorAuditEvent(event, mirror);
+        }
+        return;
+      }
+
       const deps: DecideDeps = {
         buffer,
         mirror: {
@@ -181,9 +239,63 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
   })();
 }
 
+/**
+ * Inbound order alert (GOL-1980 items 1 & 4). The Phase-1 new-order hook
+ * (grove_headless, GOL-1933) POSTs the order here so the BRIDGE bot-posts the
+ * card WITH the Mark-Shipped button to the brand's own order channel — an
+ * incoming webhook (the Phase-1 default) cannot carry a custom_id button, and
+ * only this app can receive the resulting click. Authenticated by a shared
+ * secret; inert (503) until the secret + channel map are provisioned.
+ */
+async function handleOrderAlert(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!cfg.orderAlertSecret) {
+    json(res, 503, { error: "order alerts are not configured" });
+    return;
+  }
+  // Constant-work header check — a missing/short secret still compares equal-
+  // length-safely via the strict !== below (the secret is provisioned, not
+  // attacker-chosen length).
+  const provided = req.headers["x-order-alert-secret"];
+  if (typeof provided !== "string" || provided !== cfg.orderAlertSecret) {
+    json(res, 401, { error: "invalid alert secret" });
+    return;
+  }
+
+  let alert: OrderAlert;
+  try {
+    alert = JSON.parse(await readRawBody(req)) as OrderAlert;
+  } catch {
+    json(res, 400, { error: "invalid JSON" });
+    return;
+  }
+  if (alert?.orderId === undefined || !alert?.orderRef || alert?.companyId === undefined) {
+    json(res, 400, { error: "orderId, orderRef and companyId are required" });
+    return;
+  }
+
+  const channelId = resolveOrderChannel(alert.companyId, cfg.orderChannels);
+  if (!channelId) {
+    // A brand with no mapped channel is a provisioning gap, not a client error
+    // we should retry — surface it clearly (422) so it's visible in Odoo logs.
+    json(res, 422, { error: `no order channel mapped for company_id ${alert.companyId}` });
+    return;
+  }
+
+  await postChannelMessage(cfg.discordBotToken, channelId, buildOrderCard(alert));
+  json(res, 200, { ok: true, channel_id: channelId });
+}
+
 const server = createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     json(res, 200, { ok: true, service: "discord-bridge" });
+    return;
+  }
+  if (req.method === "POST" && req.url === "/orders/alert") {
+    handleOrderAlert(req, res).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("discord-bridge: order alert handler error:", err);
+      if (!res.headersSent) json(res, 500, { error: "internal error" });
+    });
     return;
   }
   if (req.method === "POST" && req.url === "/interactions") {

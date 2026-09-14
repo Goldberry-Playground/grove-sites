@@ -150,6 +150,52 @@ describe("defaultCultivar", () => {
   });
 });
 
+// Preference-tier fixture: the Persimmon prod scenario (2026-09-09). Under the
+// GOL-2233 deposit rule EVERY bareroot is purchasable (0-stock = reservable),
+// so "purchasable" alone can't tell a sold-out cultivar from a stocked one —
+// Meader (0 on hand, reservable) sorted first while Seedling held all 30 trees.
+interface TieredVariant extends StockVariant {
+  inStock: boolean;
+}
+const PERSIMMON: TieredVariant[] = [
+  { id: 89, cultivar: "Meader", format: "Potted", buyable: true, inStock: false },
+  { id: 90, cultivar: "Meader", format: "Bareroot", buyable: true, inStock: false },
+  { id: 91, cultivar: "Seedling", format: "Potted", buyable: true, inStock: true },
+  { id: 92, cultivar: "Seedling", format: "Bareroot", buyable: true, inStock: false },
+];
+const inStock = (v: TieredVariant | undefined) => v?.inStock === true;
+
+describe("opening-default in-stock preference (GOL-2233 tier)", () => {
+  it("defaultCultivar prefers a cultivar with real stock over a reservable one", () => {
+    expect(defaultCultivar(PERSIMMON, ["Meader", "Seedling"], buyable, inStock)).toBe("Seedling");
+  });
+  it("defaultCultivar falls back to purchasable, then first, when nothing is stocked", () => {
+    const allReserve = PERSIMMON.map((v) => ({ ...v, inStock: false }));
+    expect(defaultCultivar(allReserve, ["Meader", "Seedling"], buyable, inStock)).toBe("Meader");
+    const dead = allReserve.map((v) => ({ ...v, buyable: false }));
+    expect(defaultCultivar(dead, ["Meader", "Seedling"], buyable, inStock)).toBe("Meader");
+  });
+  it("defaultFormat lands on the stocked format within the preferred cultivar", () => {
+    expect(defaultFormat(PERSIMMON, ["Potted", "Bareroot"], "Seedling", buyable, inStock)).toBe(
+      "Potted",
+    );
+  });
+  it("defaultFormat falls back to the purchasable tier when no format is stocked", () => {
+    expect(defaultFormat(PERSIMMON, ["Potted", "Bareroot"], "Meader", buyable, inStock)).toBe(
+      "Potted",
+    );
+  });
+  it("defaultRootstock honours the preference tier and its fallbacks", () => {
+    const roots: TieredVariant[] = [
+      { id: 1, cultivar: "C", format: "Bareroot", rootstock: "M.111", buyable: true, inStock: false },
+      { id: 2, cultivar: "C", format: "Bareroot", rootstock: "Seedling", buyable: true, inStock: true },
+    ];
+    expect(defaultRootstock(roots, ["M.111", "Seedling"], "C", "Bareroot", buyable, inStock)).toBe(
+      "Seedling",
+    );
+  });
+});
+
 describe("defaultRootstock", () => {
   const ROOTS: StockVariant[] = [
     { id: 200, cultivar: "Honeycrisp", format: "Bareroot", rootstock: "M.111", buyable: false },
