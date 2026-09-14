@@ -1,0 +1,41 @@
+{
+  "_comment": "GOL-2292 drift guard. A captured slice of the live /grove/api/v1/shipping/rates feed — the storefront-facing zone_by_state + green_states the backend prices checkout with (grove-odoo-modules grove_headless/models/shipping_zones.py ZONE_BY_STATE / GREEN_STATES). The baked SNAPSHOT in shipping-estimate.ts is only a fallback for when the live feed is unreachable, but it must stay HONEST: when the backend re-zones (GOL-2128 green-list, GOL-2238 zone_6/zone_7) refresh THIS fixture from the live feed and update ZONE_BY_STATE to match, in the same PR. The test in shipping-estimate.test.ts fails on any divergence so drift is caught in CI, not on prod. Captured 2026-09-14 against backend 22fbb71e (zone_7 = TN band).",
+  "zone_by_state": {
+    "WV": "zone_1",
+    "VA": "zone_1",
+    "KY": "zone_1",
+    "NC": "zone_1",
+    "DE": "zone_1",
+    "DC": "zone_1",
+    "MD": "zone_2",
+    "PA": "zone_2",
+    "OH": "zone_2",
+    "IN": "zone_2",
+    "NJ": "zone_2",
+    "NY": "zone_2",
+    "IL": "zone_3",
+    "MI": "zone_3",
+    "CT": "zone_3",
+    "RI": "zone_3",
+    "WI": "zone_4",
+    "MN": "zone_4",
+    "MA": "zone_4",
+    "VT": "zone_4",
+    "NH": "zone_4",
+    "GA": "zone_5",
+    "AL": "zone_5",
+    "SC": "zone_5",
+    "MS": "zone_5",
+    "LA": "zone_5",
+    "ME": "zone_5",
+    "AR": "zone_6",
+    "MO": "zone_6",
+    "IA": "zone_6",
+    "TN": "zone_7"
+  },
+  "green_states": [
+    "AL", "AR", "CT", "DC", "DE", "GA", "IA", "IL", "IN", "KY",
+    "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "NC", "NH",
+    "NJ", "NY", "OH", "PA", "RI", "SC", "TN", "VA", "VT", "WI", "WV"
+  ]
+}

@@ -1,6 +1,7 @@
 import type {
   ShippingTier,
   ShippingRateFeed,
+  ShippingZoneMap,
   ShippingBoxId,
   PackingMode,
 } from "@grove/odoo-client";
@@ -86,9 +87,58 @@ export const ZONE_BY_STATE: Record<string, string> = {
 };
 
 /** Count of states we currently ship living trees to — the single source for
- *  every "ships to N states" copy so it can never drift from the green list.
- *  Derives from `ZONE_BY_STATE`, which mirrors the backend compliance gate. */
+ *  every *static* "ships to N states" copy (marketing pages, footers) so it can
+ *  never drift from the baked green list. Derives from `ZONE_BY_STATE`. Interactive
+ *  surfaces that receive a live feed should prefer `resolveZoneMap(...).greenStates`
+ *  so the count reflects the live backend, not this snapshot (GOL-2292). */
 export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
+
+/**
+ * Resolved state→zone map + green list the estimator prices *which zone* against.
+ * Feed-driven when a live feed is present, else the baked snapshot — the same
+ * drift-safe seam as `resolveRateTable()`, but for the compliance zone map rather
+ * than the dollar values (GOL-2292). `zoneByState` is camelCase (idiomatic TS);
+ * the wire shape (`ShippingZoneMap.zone_by_state`) stays snake_case.
+ */
+export interface ZoneMap {
+  zoneByState: Record<string, string>;
+  greenStates: string[];
+}
+
+/** The bundled snapshot as a `ZoneMap` — the fallback when no live feed reaches
+ *  the estimator. Kept in sync with the backend by the drift test (GOL-2292). */
+export const SNAPSHOT_ZONE_MAP: ZoneMap = {
+  zoneByState: ZONE_BY_STATE,
+  greenStates: Object.keys(ZONE_BY_STATE),
+};
+
+/**
+ * Prefer the live feed's `zone_by_state` / `green_states` over the baked snapshot,
+ * degrading to the snapshot when the feed is unreachable or carries no map — the
+ * mirror of `resolveRateTable()` for the compliance zone map (GOL-2292).
+ *
+ * This is the fix for the PDP-vs-checkout drift where a backend re-zoning (e.g.
+ * TN → zone_7, GOL-2238) repriced checkout but the storefront kept quoting the
+ * stale baked zone until a frontend release. Accepts either the schema-agnostic
+ * {@link ShippingZoneMap} (from `shipping.zoneMap()`) or the full schema-2
+ * {@link ShippingRateFeed}, since both carry the wire fields.
+ */
+export function resolveZoneMap(
+  feed?:
+    | Pick<ShippingZoneMap, "zone_by_state" | "green_states">
+    | { zone_by_state?: Record<string, string> | null; green_states?: string[] | null }
+    | null,
+): ZoneMap {
+  const zoneByState = feed?.zone_by_state;
+  if (zoneByState && Object.keys(zoneByState).length > 0) {
+    const greenStates =
+      feed?.green_states && feed.green_states.length > 0
+        ? feed.green_states
+        : Object.keys(zoneByState);
+    return { zoneByState, greenStates };
+  }
+  return SNAPSHOT_ZONE_MAP;
+}
 
 /** Every US state + DC, for the selector. Non-green entries drive the
  *  "not shipping there yet" path, so demand for expansion is measurable. */
@@ -112,9 +162,14 @@ function normalizeState(state: string | null | undefined): string {
   return (state ?? "").trim().toUpperCase();
 }
 
-/** True when we currently ship living trees to `state` (in the green list). */
-export function shipsTo(state: string | null | undefined): boolean {
-  return normalizeState(state) in ZONE_BY_STATE;
+/** True when we currently ship living trees to `state` (in the green list).
+ *  Pass a resolved `zoneMap` (from `resolveZoneMap(feed)`) to gate on the LIVE
+ *  green list; omit it to use the baked snapshot (GOL-2292). */
+export function shipsTo(
+  state: string | null | undefined,
+  zoneMap: ZoneMap = SNAPSHOT_ZONE_MAP,
+): boolean {
+  return normalizeState(state) in zoneMap.zoneByState;
 }
 
 /** Resolve the shipping tier for a variant, mirroring `shippingHintFor`'s
@@ -137,14 +192,17 @@ export function tierFor(input: {
  * guessed charge", exactly like the backend engine's fail-safe.
  *
  * Pass `rates` to price against a live table fetched from the backend; omit it
- * to use the bundled provisional snapshot.
+ * to use the bundled provisional snapshot. Pass `zoneByState` (from
+ * `resolveZoneMap(feed).zoneByState`) to resolve the state's zone from the LIVE
+ * green list; omit it to use the baked snapshot (GOL-2292).
  */
 export function estimateShipping(
   state: string | null | undefined,
   tier: ShippingTier,
   rates: RateTable = ZONE_RATE_TABLE,
+  zoneByState: Record<string, string> = ZONE_BY_STATE,
 ): number | null {
-  const zone = ZONE_BY_STATE[normalizeState(state)];
+  const zone = zoneByState[normalizeState(state)];
   if (!zone) return null;
   const tierKey = tier === "bareroot" || tier === "potted" ? tier : DEFAULT_TIER;
   const rule = rates[zone]?.[tierKey];
@@ -261,16 +319,26 @@ export function estimateBoxFloor(
  * potted always uses the tier-keyed path — until the potted=farm-pickup-only
  * flip is ratified (GOL-1114 gate), potted keeps its existing behaviour and is
  * never routed through the box feed (which has no potted rate by design).
+ *
+ * The box-feed path resolves the state's zone from `feed.zone_by_state`, which is
+ * intrinsically live; the tier-keyed path resolves it from `opts.zoneMap` (from
+ * `resolveZoneMap(feed)`), falling back to the baked snapshot — so BOTH paths
+ * price against the live green list, never a stale baked zone (GOL-2292).
  */
 export function estimateTierShipping(
   state: string | null | undefined,
   tier: ShippingTier,
-  opts: { feed?: ShippingRateFeed | null; rates?: RateTable } = {},
+  opts: { feed?: ShippingRateFeed | null; rates?: RateTable; zoneMap?: ZoneMap } = {},
 ): number | null {
   if (tier === "bareroot" && hasBoxFeed(opts.feed)) {
     return estimateBoxShipping(state, opts.feed);
   }
-  return estimateShipping(state, tier, opts.rates ?? ZONE_RATE_TABLE);
+  return estimateShipping(
+    state,
+    tier,
+    opts.rates ?? ZONE_RATE_TABLE,
+    (opts.zoneMap ?? SNAPSHOT_ZONE_MAP).zoneByState,
+  );
 }
 
 /** True when `feed` is a usable schema-2 Box Engine v2 feed (has box-keyed

@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ShippingTier, ShippingRateTable, ShippingRateFeed } from "@grove/odoo-client";
+import type {
+  ShippingTier,
+  ShippingRateTable,
+  ShippingRateFeed,
+  ShippingZoneMap,
+} from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
@@ -26,6 +31,7 @@ import {
   isPickupOnly,
   PICKUP_ONLY_FULFILLMENT,
   resolveRateTable,
+  resolveZoneMap,
   shipsTo,
   tierFor,
 } from "../../../lib/shipping-estimate";
@@ -102,6 +108,13 @@ export interface ProductViewProps {
    * its legacy tier behaviour until the pickup-only flip is ratified.
    */
   shippingFeed?: ShippingRateFeed | null;
+  /**
+   * Live state→zone map + green list (GOL-2292), fetched in the SSR product load.
+   * Resolved ahead of the baked snapshot so the estimator prices *which zone* a
+   * state is in — and gates eligibility — off the live backend, not a stale build.
+   * `null` when the feed is unreachable → the estimator keeps its snapshot.
+   */
+  shippingZoneMap?: ShippingZoneMap | null;
 }
 
 /**
@@ -123,6 +136,7 @@ export function ProductView({
   preorderCapReached,
   shippingRates,
   shippingFeed,
+  shippingZoneMap,
 }: ProductViewProps) {
   // Availability authority, reused by the buy box, the opening-default pickers,
   // and the cart guard so all three agree on what "purchasable" means (GOL-1862):
@@ -207,6 +221,13 @@ export function ProductView({
   // estimate degrades gracefully and both the Format cards and the estimator
   // panel below price against the same table.
   const rateTable = useMemo(() => resolveRateTable(shippingRates), [shippingRates]);
+
+  // Live state→zone map + green list, feed-first with the baked snapshot as
+  // fallback (GOL-2292). resolveZoneMap() is drift-safe the same way rateTable is:
+  // null/empty feed → snapshot. This is what makes the estimate resolve *which
+  // zone* a state is in — and gate eligibility — off the live backend, so a
+  // backend re-zoning (e.g. TN → zone_7) reprices the PDP without a rebuild.
+  const zoneMap = useMemo(() => resolveZoneMap(shippingZoneMap), [shippingZoneMap]);
 
   // Which of the three shippable modes bareroot is in TODAY (GOL-1114). Resolved
   // from the schema-2 feed's per-USDA-zone calendar (GOL-1172/1177) against the
@@ -431,6 +452,7 @@ export function ProductView({
                       ? estimateTierShipping(shipState, fTier, {
                           feed: shippingFeed,
                           rates: rateTable,
+                          zoneMap,
                         })
                       : null;
                   // Pickup-only formats never quote a ship rate; every other
@@ -444,7 +466,7 @@ export function ProductView({
                     ? "farm pickup only"
                     : fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
-                      : shipState && !shipsTo(shipState)
+                      : shipState && !shipsTo(shipState, zoneMap)
                         ? `not shipping to ${shipState} yet`
                         : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
@@ -553,6 +575,7 @@ export function ProductView({
               tiers={estimatorTiers}
               rates={rateTable}
               feed={shippingFeed}
+              zoneMap={zoneMap}
             />
           )}
 

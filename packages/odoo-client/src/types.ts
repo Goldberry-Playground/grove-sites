@@ -240,6 +240,19 @@ export interface ApiShippingRatesResponse {
   schema?: number;
 }
 
+/** Storefront-facing state→zone map + green list, surfaced by
+ * {@link OdooClient.shipping.zoneMap} from GET /grove/api/v1/shipping/rates. Both
+ * schema generations carry these fields (the schema-1
+ * {@link ApiShippingRatesResponse} and the schema-2 {@link ShippingRateFeed}), so
+ * this is the schema-agnostic slice the estimator needs to resolve *which zone* a
+ * state is in. The estimator prefers this live map over its baked ZONE_BY_STATE
+ * snapshot, so a backend re-zoning (GOL-2128/GOL-2238) reprices the PDP without a
+ * storefront rebuild (GOL-2292). Wire keys stay snake_case to match the payload. */
+export interface ShippingZoneMap {
+  zone_by_state: Record<string, string>;
+  green_states: string[];
+}
+
 // ── Schema-2 rate feed — Box Engine v2 (GOL-1038) ───────────────────────────
 // Box Engine v2 (grove-odoo-modules #60) reprices bareroot shipping PER PACKED
 // BOX instead of per tree, because under UPS DIM billing the box drives the cost.
@@ -833,6 +846,15 @@ export interface OdooClient {
      * Returns null when the feed is unreachable, empty, or still schema 1 (Odoo
      * not yet upgraded), so a caller can safely fall back to its snapshot. */
     rateFeed(): Promise<ShippingRateFeed | null>;
+    /** Live state→zone map + green list (GOL-2292), surfaced from the same
+     * endpoint as `rates()`/`rateFeed()` in BOTH schema generations. Unlike
+     * `rates()` — which collapses to the tier-keyed table and drops the zone map —
+     * this keeps just the storefront-facing `zone_by_state` / `green_states` the
+     * estimator resolves ahead of its baked ZONE_BY_STATE snapshot, so a backend
+     * re-zoning reprices the PDP without a storefront rebuild. Returns null when
+     * the feed is unreachable or carries no zone map, so the caller keeps its
+     * snapshot. */
+    zoneMap(): Promise<ShippingZoneMap | null>;
   };
   cart: {
     get(): Promise<Cart>;

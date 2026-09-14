@@ -12,8 +12,11 @@ import {
   shipsTo,
   tierFor,
   resolveRateTable,
+  resolveZoneMap,
+  SNAPSHOT_ZONE_MAP,
   ZONE_RATE_TABLE,
 } from "./shipping-estimate";
+import zoneMapFixture from "./__fixtures__/shipping-zone-map.fixture.json";
 
 // GOL-1055 drift guard: the checkout State <select> (SHIP_TO_STATES) and the
 // shipping estimator (ZONE_BY_STATE) must offer the SAME states. If they drift,
@@ -116,6 +119,87 @@ describe("resolveRateTable", () => {
     expect(resolveRateTable(live)).toBe(live);
     expect(resolveRateTable(null)).toBe(ZONE_RATE_TABLE);
     expect(resolveRateTable({})).toBe(ZONE_RATE_TABLE);
+  });
+});
+
+// ── GOL-2292: the estimator's zone map must be feed-driven ───────────────────
+// The PDP once showed $39 for TN while checkout charged $29: a backend re-zoning
+// (TN → zone_7, GOL-2238) repriced checkout, but the storefront resolved *which
+// zone* a state is in from the baked ZONE_BY_STATE snapshot, which only updates on
+// a frontend release. These tests lock in the two halves of the fix: (1) a drift
+// guard so the baked snapshot can't silently diverge from the live feed, and
+// (2) resolveZoneMap()/shipsTo()/estimate* prefer the live feed over the snapshot.
+
+// The baked snapshot is a FALLBACK, but it must stay honest: it can't quietly
+// drift from what the backend actually prices. The fixture is a captured slice of
+// the live /shipping/rates feed (grove_headless ZONE_BY_STATE / GREEN_STATES). If
+// the backend re-zones without refreshing both the fixture AND ZONE_BY_STATE in
+// the same PR, this fails in CI rather than mispricing a PDP on prod.
+describe("snapshot ⟷ live-feed zone map drift guard (GOL-2292)", () => {
+  it("baked ZONE_BY_STATE matches the captured feed fixture exactly", () => {
+    expect(ZONE_BY_STATE).toEqual(zoneMapFixture.zone_by_state);
+  });
+
+  it("baked green list matches the feed's green_states (sorted)", () => {
+    expect(Object.keys(ZONE_BY_STATE).sort()).toEqual(
+      [...zoneMapFixture.green_states].sort(),
+    );
+  });
+
+  it("SNAPSHOT_ZONE_MAP mirrors the baked constant", () => {
+    expect(SNAPSHOT_ZONE_MAP.zoneByState).toBe(ZONE_BY_STATE);
+    expect(SNAPSHOT_ZONE_MAP.greenStates.sort()).toEqual(Object.keys(ZONE_BY_STATE).sort());
+  });
+});
+
+describe("resolveZoneMap (feed-first, snapshot fallback — GOL-2292)", () => {
+  it("prefers the live feed's zone_by_state / green_states", () => {
+    const live = { zone_by_state: { FL: "zone_5", TN: "zone_7" }, green_states: ["FL", "TN"] };
+    const resolved = resolveZoneMap(live);
+    expect(resolved.zoneByState).toBe(live.zone_by_state);
+    expect(resolved.greenStates).toEqual(["FL", "TN"]);
+  });
+
+  it("derives green_states from zone_by_state keys when the feed omits them", () => {
+    const resolved = resolveZoneMap({ zone_by_state: { WV: "zone_1", OH: "zone_2" } });
+    expect(resolved.greenStates.sort()).toEqual(["OH", "WV"]);
+  });
+
+  it("falls back to the baked snapshot for a null/empty/mapless feed", () => {
+    expect(resolveZoneMap(null)).toBe(SNAPSHOT_ZONE_MAP);
+    expect(resolveZoneMap(undefined)).toBe(SNAPSHOT_ZONE_MAP);
+    expect(resolveZoneMap({ zone_by_state: {}, green_states: [] })).toBe(SNAPSHOT_ZONE_MAP);
+  });
+
+  it("accepts the full schema-2 feed shape (same wire fields)", () => {
+    const resolved = resolveZoneMap(SCHEMA2_FEED);
+    expect(resolved.zoneByState).toBe(SCHEMA2_FEED.zone_by_state);
+  });
+});
+
+describe("shipsTo / estimate* honour a live zone map over the snapshot (GOL-2292)", () => {
+  // A hypothetical backend re-zoning the snapshot doesn't know about yet: FL is
+  // opened and TN is moved to a different band than the baked map holds.
+  const liveMap = resolveZoneMap({
+    zone_by_state: { ...ZONE_BY_STATE, FL: "zone_5", TN: "zone_1" },
+  });
+
+  it("shipsTo gates on the live green list, not the baked one", () => {
+    expect(shipsTo("FL")).toBe(false); // snapshot: not green yet
+    expect(shipsTo("FL", liveMap)).toBe(true); // live feed opened it
+  });
+
+  it("estimateTierShipping resolves the state's zone from the live map", () => {
+    // Baked TN is zone_7 (potted $39). The live map re-bands TN to zone_1 (potted
+    // $32): passing the live zoneMap must follow the feed, not the stale snapshot —
+    // exactly the PDP-vs-checkout drift this ticket fixes.
+    expect(estimateTierShipping("TN", "potted")).toBe(39); // snapshot zone_7
+    expect(estimateTierShipping("TN", "potted", { zoneMap: liveMap })).toBe(32); // live zone_1
+  });
+
+  it("estimateShipping accepts a zoneByState override directly", () => {
+    expect(estimateShipping("FL", "potted")).toBeNull(); // not in the snapshot
+    expect(estimateShipping("FL", "potted", ZONE_RATE_TABLE, liveMap.zoneByState)).toBe(40); // zone_5
   });
 });
 

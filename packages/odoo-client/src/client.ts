@@ -19,6 +19,7 @@ import type {
   ApiShippingRatesResponse,
   ShippingRateTable,
   ShippingRateFeed,
+  ShippingZoneMap,
   ShippingCalendar,
   NewsletterSubscribeInput,
   NewsletterSubscribeResult,
@@ -279,6 +280,36 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           }
           return raw;
         } catch {
+          return null;
+        }
+      },
+      async zoneMap(): Promise<ShippingZoneMap | null> {
+        // Same cached endpoint as rates()/rateFeed() — Next dedupes the fetch by
+        // URL + revalidate, so this adds no extra backend round-trip. Unlike
+        // rates() (which collapses to the tier table and DROPS the zone map) and
+        // rateFeed() (which is null on a legacy schema-1 backend), this returns
+        // just the storefront-facing state→zone map + green list, which the raw
+        // payload carries in BOTH schema generations. The estimator resolves it
+        // ahead of its baked ZONE_BY_STATE snapshot so a backend re-zoning
+        // reprices the PDP without a storefront rebuild (GOL-2292).
+        try {
+          const raw = await api<ApiShippingRatesResponse>(
+            config,
+            "/grove/api/v1/shipping/rates",
+            { next: { revalidate: 21600 } }
+          );
+          const zoneByState = raw?.zone_by_state;
+          // Empty/absent map → null so the caller's resolveZoneMap() keeps the
+          // bundled snapshot rather than treating every state as unshippable.
+          if (!zoneByState || Object.keys(zoneByState).length === 0) return null;
+          const greenStates =
+            raw.green_states && raw.green_states.length > 0
+              ? raw.green_states
+              : Object.keys(zoneByState);
+          return { zone_by_state: zoneByState, green_states: greenStates };
+        } catch {
+          // Feed unreachable: degrade to the snapshot. A missing zone map must
+          // never break a product page.
           return null;
         }
       },
