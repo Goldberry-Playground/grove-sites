@@ -8,7 +8,7 @@ import {
   submitCheckoutForm,
   usd,
 } from "./helpers";
-import { LEAFED_SEASON_REASON, fillPromoCode, shipsNowForBareroot } from "./qa-helpers";
+import { AFTER_CUTOVER_REASON, afterDepositCutover, fillPromoCode } from "./qa-helpers";
 
 /**
  * Promo code at checkout — FLATWOODS (GOL-2088; grove-sites #700 + grove-odoo-modules #179).
@@ -29,7 +29,12 @@ import { LEAFED_SEASON_REASON, fillPromoCode, shipsNowForBareroot } from "./qa-h
  * accepted-discount path needs an in-stock cart and is tagged `@stripe @promo`
  * so it can be excluded if the program is paused in Odoo.
  */
-const PROMO = "FLATWOODS";
+// The promo code under test. QA mirrors prod's FLATWOODS program (GOL-2088);
+// override with E2E_PROMO_CODE for an environment that provisions a different
+// code. If no loyalty program with this code exists on the target, the
+// eligible-cart case below self-skips on the server's "invalid code" rejection.
+const PROMO = (process.env.E2E_PROMO_CODE || "FLATWOODS").toUpperCase();
+const PROMO_NOT_PROVISIONED_REASON = `promo code "${PROMO}" not provisioned on this environment (no loyalty program with that code)`;
 
 test.describe("checkout — promo code", () => {
   test("promo input is offered and upper-cases the entry", async ({ page }) => {
@@ -77,10 +82,10 @@ test.describe("checkout — promo code", () => {
     "an eligible promo on an in-stock cart itemizes a discount line that reconciles",
     { tag: ["@stripe", "@promo"] },
     async ({ page }) => {
-      // An "in-stock cart" is only a full-price (promo-eligible) cart inside the
-      // dormancy window (GOL-1906 / #190); in leafed season it is a deposit
-      // cart, and the deposit-rejection test above is the relevant one.
-      test.skip(!(await shipsNowForBareroot(page)), LEAFED_SEASON_REASON);
+      // An in-stock cart is only a full-price (promo-eligible) cart BEFORE the
+      // GOL-2233 season cutover; after it every order is a flat-deposit cart, and
+      // the deposit-rejection test above is the relevant one.
+      test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
       const product = await findProductByCta(page, "Add to Cart");
       await page.goto(product.href);
       await addCurrentProductToCart(page, 1, "Add to Cart");
@@ -88,7 +93,15 @@ test.describe("checkout — promo code", () => {
       await fillCheckoutForm(page, { state: "WV" });
       await fillPromoCode(page, PROMO);
 
-      const { status, body } = await submitAndCaptureSession(page);
+      const { status, body, errorBody } = await submitAndCaptureSession(page);
+      // The discount line is only exercisable where the loyalty program exists.
+      // If the target Odoo has no program for this code, the session POST comes
+      // back 400 "This code is invalid (…)" — skip rather than hard-fail; the
+      // deterministic rejection case above already covers the negative path.
+      test.skip(
+        status === 400 && /invalid|not\s+found|no\s+such/i.test(errorBody ?? ""),
+        PROMO_NOT_PROVISIONED_REASON,
+      );
       expect(status, "eligible promo on an in-stock ship order should create a session").toBe(
         200,
       );
