@@ -118,10 +118,13 @@ export default async function ProductDetailPage({
             )}
           </p>
 
+          {/* Description is HTML (Odoo description_ecommerce, or the escaped
+              description_sale fallback) — sanitize before injecting (GOL-2386). */}
           {product.description && (
-            <div className="prose prose-sm text-foreground/80 mb-6">
-              <p>{product.description}</p>
-            </div>
+            <div
+              className="prose prose-sm text-foreground/80 mb-6"
+              dangerouslySetInnerHTML={{ __html: sanitizeGuideHtml(product.description) }}
+            />
           )}
 
           {product.sku && (

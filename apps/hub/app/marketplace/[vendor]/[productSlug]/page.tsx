@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BuyAtVendorForm } from "../../../../components/BuyAtVendorForm";
 import { fetchProductByVendorSlug } from "../../../../lib/marketplace";
+import { sanitizePostHtml } from "../../../../lib/sanitize";
 
 export const revalidate = 300;
 
@@ -51,7 +52,12 @@ export default async function ProductDetailPage({
           <div className="product-detail__price">{priceFormatted}</div>
 
           {product.description ? (
-            <p className="product-detail__desc">{product.description}</p>
+            // HTML from Odoo (description_ecommerce or the escaped
+            // description_sale fallback) — sanitize before injecting (GOL-2386).
+            <div
+              className="product-detail__desc"
+              dangerouslySetInnerHTML={{ __html: sanitizePostHtml(product.description) }}
+            />
           ) : null}
 
           <div className="product-detail__buy">
