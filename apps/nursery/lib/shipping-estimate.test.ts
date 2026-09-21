@@ -38,8 +38,8 @@ describe("checkout state select ⟷ estimator green list (GOL-1055)", () => {
 });
 
 describe("shipping-estimate zone map", () => {
-  it("covers exactly the 31 green states", () => {
-    expect(Object.keys(ZONE_BY_STATE).length).toBe(31);
+  it("covers exactly the 32 green states", () => {
+    expect(Object.keys(ZONE_BY_STATE).length).toBe(32);
   });
 
   it("keeps WV in the nearest zone (zone_1)", () => {
@@ -47,19 +47,29 @@ describe("shipping-estimate zone map", () => {
     expect(ZONE_BY_STATE.ME).toBe("zone_5");
   });
 
-  it("assigns the south/mid tranche its real GOL-2238 probe-derived zones", () => {
-    // GOL-2238 re-probed the GOL-2128 tranche against the two-SKU catalog
-    // (2026-09-08): only GA/SC/AL/MS/LA stay at zone_5 (39/43); AR/MO/IA drop to
-    // zone_6 (23/28) and TN to zone_7 (29/32) — each zone still an upper bound
-    // for its members' worst corners, so none is ever undercharged. DC = zone_1.
-    for (const s of ["GA", "AL", "SC", "MS", "LA"]) {
+  it("mirrors the GOL-2238 P1 correction (5 zones, no zone_6/zone_7)", () => {
+    // GOL-2238 P1 (2026-09-14) retired the 2026-09-08 zone_6/zone_7 mis-bin: a
+    // live re-probe folded TN back to zone_1 (Memphis quotes the zone_1 rate
+    // exactly; it borders KY/VA/NC) and AR/MO/IA back to their real zone_5 rate.
+    // The backend rate table is 5 zones again — the baked map must match.
+    for (const s of ["GA", "AL", "SC", "MS", "LA", "AR", "MO", "IA"]) {
       expect(ZONE_BY_STATE[s]).toBe("zone_5");
     }
-    for (const s of ["AR", "MO", "IA"]) {
-      expect(ZONE_BY_STATE[s]).toBe("zone_6");
-    }
-    expect(ZONE_BY_STATE.TN).toBe("zone_7");
+    expect(ZONE_BY_STATE.TN).toBe("zone_1");
     expect(ZONE_BY_STATE.DC).toBe("zone_1");
+    // no state binds to a retired band, and the rate table carries none.
+    expect(Object.values(ZONE_BY_STATE)).not.toContain("zone_6");
+    expect(Object.values(ZONE_BY_STATE)).not.toContain("zone_7");
+    expect(ZONE_RATE_TABLE.zone_6).toBeUndefined();
+    expect(ZONE_RATE_TABLE.zone_7).toBeUndefined();
+  });
+
+  it("green-lists Florida at zone_5 (GOL-2235, mirrors backend)", () => {
+    // FL opened on the GOL-2132 compliance carve-out gate; its worst corners
+    // (Miami/Key West) quote at or under the zone_5 published rate, so it bins
+    // there with no new band and is never undercharged.
+    expect(ZONE_BY_STATE.FL).toBe("zone_5");
+    expect(shipsTo("FL")).toBe(true);
   });
 });
 
@@ -178,28 +188,30 @@ describe("resolveZoneMap (feed-first, snapshot fallback — GOL-2292)", () => {
 });
 
 describe("shipsTo / estimate* honour a live zone map over the snapshot (GOL-2292)", () => {
-  // A hypothetical backend re-zoning the snapshot doesn't know about yet: FL is
-  // opened and TN is moved to a different band than the baked map holds.
+  // A hypothetical backend re-zoning the snapshot doesn't know about yet: TX
+  // (still a NOT-green far state in the baked map) is opened, and WV is moved to
+  // a farther band than the baked snapshot holds. Uses states whose baked value
+  // still differs from the feed so the feed-first behaviour is actually exercised.
   const liveMap = resolveZoneMap({
-    zone_by_state: { ...ZONE_BY_STATE, FL: "zone_5", TN: "zone_1" },
+    zone_by_state: { ...ZONE_BY_STATE, TX: "zone_5", WV: "zone_5" },
   });
 
   it("shipsTo gates on the live green list, not the baked one", () => {
-    expect(shipsTo("FL")).toBe(false); // snapshot: not green yet
-    expect(shipsTo("FL", liveMap)).toBe(true); // live feed opened it
+    expect(shipsTo("TX")).toBe(false); // snapshot: not green yet
+    expect(shipsTo("TX", liveMap)).toBe(true); // live feed opened it
   });
 
   it("estimateTierShipping resolves the state's zone from the live map", () => {
-    // Baked TN is zone_7 (potted $39). The live map re-bands TN to zone_1 (potted
-    // $32): passing the live zoneMap must follow the feed, not the stale snapshot —
+    // Baked WV is zone_1 (potted $32). The live map re-bands WV to zone_5 (potted
+    // $40): passing the live zoneMap must follow the feed, not the stale snapshot —
     // exactly the PDP-vs-checkout drift this ticket fixes.
-    expect(estimateTierShipping("TN", "potted")).toBe(39); // snapshot zone_7
-    expect(estimateTierShipping("TN", "potted", { zoneMap: liveMap })).toBe(32); // live zone_1
+    expect(estimateTierShipping("WV", "potted")).toBe(32); // snapshot zone_1
+    expect(estimateTierShipping("WV", "potted", { zoneMap: liveMap })).toBe(40); // live zone_5
   });
 
   it("estimateShipping accepts a zoneByState override directly", () => {
-    expect(estimateShipping("FL", "potted")).toBeNull(); // not in the snapshot
-    expect(estimateShipping("FL", "potted", ZONE_RATE_TABLE, liveMap.zoneByState)).toBe(40); // zone_5
+    expect(estimateShipping("TX", "potted")).toBeNull(); // not in the snapshot
+    expect(estimateShipping("TX", "potted", ZONE_RATE_TABLE, liveMap.zoneByState)).toBe(40); // zone_5
   });
 });
 
