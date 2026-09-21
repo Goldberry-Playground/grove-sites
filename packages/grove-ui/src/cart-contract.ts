@@ -40,3 +40,21 @@ export interface GroveCartLineItem {
  * can override it without a fork. WV state 6% + municipal 1% ⇒ 0.07 default.
  */
 export const DEFAULT_TAX_RATE_ESTIMATE = 0.07;
+
+/**
+ * "Due today" block for the cart and checkout-form summaries: what the buyer
+ * actually pays now when the order takes a flat reservation deposit instead of
+ * the full goods total (GOL-2233). The kit renders it; the consumer decides
+ * WHEN it applies (the nursery quotes it from `/api/cart/quote`). Null/omitted
+ * means "charged in full" and the summary shows its plain subtotal/total.
+ */
+export interface GroveDueToday {
+  /** Dollars charged today (the flat deposit). */
+  amount: number;
+  /** Row label, e.g. "Due today (reservation deposit)". */
+  label: string;
+  /** Plain-language note on what the deposit covers and when the balance is charged. */
+  note: string;
+  /** Short banner word replacing "ready to ship", e.g. "reservation". */
+  eyebrow?: string;
+}

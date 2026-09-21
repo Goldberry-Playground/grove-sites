@@ -3,6 +3,8 @@
 import { CartPage as UICartPage } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
+import { dueTodayFor } from "../due-today";
+import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
 import { WithGroveNext } from "./grove-next-seam";
 
 /**
@@ -14,10 +16,19 @@ import { WithGroveNext } from "./grove-next-seam";
  * its products — the nursery's live-plant "arrive-alive" promise must not leak
  * onto GGG woodwork or goldberry pantry goods (GOL-1090). Defaults to
  * `nursery`, the only live purchasable surface today.
+ *
+ * `depositQuoteHref` (optional) points at the storefront's `/api/cart/quote`
+ * route; when set, the summary shows the flat reservation deposit as "due
+ * today" whenever the backend would charge one (GOL-2233) instead of leaving
+ * the buyer to read the goods total as the charge.
  */
-export function CartPage({ brand = "nursery" }: { brand?: GroveBrand } = {}) {
+export function CartPage({
+  brand = "nursery",
+  depositQuoteHref,
+}: { brand?: GroveBrand; depositQuoteHref?: string } = {}) {
   const { items, hydrated, setQuantity, remove, subtotal, totalQuantity } =
     useCart();
+  const dueToday = dueTodayFor(useCartDepositQuote(depositQuoteHref, items));
 
   return (
     <WithGroveNext>
@@ -29,6 +40,7 @@ export function CartPage({ brand = "nursery" }: { brand?: GroveBrand } = {}) {
         onSetQuantity={setQuantity}
         onRemove={remove}
         trustItems={BRAND_TRUST[brand].cart}
+        dueToday={dueToday}
       />
     </WithGroveNext>
   );

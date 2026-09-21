@@ -4,6 +4,7 @@ import { Button } from "../Button";
 import {
   DEFAULT_TAX_RATE_ESTIMATE,
   type GroveCartLineItem,
+  type GroveDueToday,
 } from "../cart-contract";
 import { useGroveLink } from "../link-context";
 import type { GroveTrustItem } from "../trust-items";
@@ -155,6 +156,18 @@ export interface CheckoutPageProps {
    * server-side; an invalid/ineligible code surfaces as the form error.
    */
   allowPromoCode?: boolean;
+  /**
+   * What the buyer pays today when the order takes a flat reservation deposit
+   * instead of the full total (GOL-2233). Rendered as an emphasised row above
+   * the estimated total and in the sticky banner. Omit / null when the cart is
+   * charged in full.
+   */
+  dueToday?: GroveDueToday | null;
+  /**
+   * Fired when the buyer switches between ship and pickup, so the consumer can
+   * re-quote what is due today (pickup changes the charge rule).
+   */
+  onFulfillmentChange?: (fulfillment: GroveFulfillment) => void;
 }
 
 /**
@@ -217,11 +230,17 @@ export function CheckoutPage({
   allowPickup = false,
   pickupCopy = DEFAULT_PICKUP_COPY,
   allowPromoCode = false,
+  dueToday = null,
+  onFulfillmentChange,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const [fulfillment, setFulfillment] = useState<GroveFulfillment>("ship");
+  function chooseFulfillment(next: GroveFulfillment) {
+    setFulfillment(next);
+    onFulfillmentChange?.(next);
+  }
   // Pickup collapses the ship-to address; ship keeps it required.
   const isPickup = allowPickup && fulfillment === "pickup";
 
@@ -311,13 +330,30 @@ export function CheckoutPage({
           <div>
             <div className="grove-checkout__banner-eyebrow">
               {totalQuantity} {totalQuantity === 1 ? "item" : "items"} ·{" "}
-              {isPickup ? "farm pickup" : "ready to ship"}
+              {dueToday
+                ? isPickup
+                  ? `farm pickup · ${dueToday.eyebrow ?? "reservation"}`
+                  : (dueToday.eyebrow ?? "reservation")
+                : isPickup
+                  ? "farm pickup"
+                  : "ready to ship"}
             </div>
             <div className="grove-checkout__banner-total">
-              {formatPrice(total)}
-              <span className="grove-checkout__banner-note">
-                {isPickup ? "with est. tax" : "before shipping & tax"}
-              </span>
+              {dueToday ? (
+                <>
+                  {formatPrice(dueToday.amount)}
+                  <span className="grove-checkout__banner-note">
+                    due today · balance when your trees ship
+                  </span>
+                </>
+              ) : (
+                <>
+                  {formatPrice(total)}
+                  <span className="grove-checkout__banner-note">
+                    {isPickup ? "with est. tax" : "before shipping & tax"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
           <button
@@ -393,7 +429,7 @@ export function CheckoutPage({
                       name="fulfillment"
                       value="ship"
                       checked={fulfillment === "ship"}
-                      onChange={() => setFulfillment("ship")}
+                      onChange={() => chooseFulfillment("ship")}
                     />
                     <span>{pickupCopy.shipLabel}</span>
                   </label>
@@ -403,7 +439,7 @@ export function CheckoutPage({
                       name="fulfillment"
                       value="pickup"
                       checked={fulfillment === "pickup"}
-                      onChange={() => setFulfillment("pickup")}
+                      onChange={() => chooseFulfillment("pickup")}
                     />
                     <span>{pickupCopy.pickupLabel}</span>
                   </label>
@@ -546,11 +582,29 @@ export function CheckoutPage({
                 <dt>Tax (estimated)</dt>
                 <dd>{formatPrice(taxEstimate)}</dd>
               </div>
+              {dueToday && (
+                <div className="grove-checkout__summary-row grove-checkout__summary-row--due">
+                  <dt>{dueToday.label}</dt>
+                  <dd>{formatPrice(dueToday.amount)}</dd>
+                </div>
+              )}
               <div className="grove-checkout__summary-total">
-                <dt>{isPickup ? "Total" : "Estimated total"}</dt>
+                <dt>
+                  {dueToday
+                    ? "Estimated order total"
+                    : isPickup
+                      ? "Total"
+                      : "Estimated total"}
+                </dt>
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>
+
+            {dueToday && (
+              <p className="grove-checkout__field-note grove-checkout__field-note--block">
+                {dueToday.note}
+              </p>
+            )}
 
             {!isPickup && (
               <p className="grove-checkout__field-note grove-checkout__field-note--block">

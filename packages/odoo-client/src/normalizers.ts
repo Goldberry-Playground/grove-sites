@@ -16,6 +16,7 @@ import type {
   ApiOrderCreateResponse,
   ApiOrderDetail,
   ApiCheckoutSessionResponse,
+  ApiCheckoutQuoteResponse,
   ApiZoneResponse,
   Product,
   ProductVariant,
@@ -27,6 +28,7 @@ import type {
   OrderSummary,
   OrderDetail,
   CheckoutSession,
+  CheckoutQuote,
   ZoneLookupResult,
 } from "./types";
 
@@ -263,6 +265,23 @@ export function normalizeCheckoutSession(
       kind: li.kind,
       unitAmount: li.unit_amount,
       quantity: li.quantity,
+    })),
+  };
+}
+
+export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQuote {
+  return {
+    depositNow: raw.deposit_now,
+    depositReason: raw.deposit_reason ?? null,
+    depositAmount: raw.deposit_amount,
+    amountDueToday: raw.amount_due_today ?? null,
+    afterCutover: raw.after_cutover,
+    lines: (raw.lines ?? []).map((l) => ({
+      variantId: l.variant_id,
+      quantity: l.quantity,
+      bareroot: l.bareroot,
+      soldOut: l.sold_out,
+      freeQty: l.free_qty ?? null,
     })),
   };
 }

@@ -19,6 +19,8 @@ export type {
   OrderDetail,
   CheckoutSessionInput,
   CheckoutSession,
+  CheckoutQuoteInput,
+  CheckoutQuote,
   ZoneLookupResult,
   ShippingZoneTierRate,
   ShippingRateTable,

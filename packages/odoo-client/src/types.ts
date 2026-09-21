@@ -747,6 +747,49 @@ export interface CheckoutSession {
   lineItems: CheckoutLineItem[];
 }
 
+/** Input to POST /grove/api/v1/checkout/quote — the cart lines and the
+ *  buyer's fulfillment choice (null when not yet chosen). */
+export interface CheckoutQuoteInput {
+  items: OrderItemInput[];
+  fulfillment?: "ship" | "pickup" | null;
+}
+
+/** Raw response from POST /grove/api/v1/checkout/quote (GOL-2233). */
+export interface ApiCheckoutQuoteResponse {
+  deposit_now: boolean;
+  deposit_reason: "sold-out" | "off-season" | null;
+  deposit_amount: number;
+  amount_due_today: number | null;
+  after_cutover: boolean;
+  lines: {
+    variant_id: number;
+    quantity: number;
+    bareroot: boolean;
+    sold_out: boolean;
+    free_qty: number | null;
+  }[];
+}
+
+/** Pre-checkout charge preview: whether THIS cart takes the flat reservation
+ *  deposit today, decided by the backend on live free stock with the exact
+ *  predicate the checkout session charges by. */
+export interface CheckoutQuote {
+  depositNow: boolean;
+  depositReason: "sold-out" | "off-season" | null;
+  /** The flat deposit in dollars (backend constant). */
+  depositAmount: number;
+  /** Dollars charged today under the deposit path; null when charged in full. */
+  amountDueToday: number | null;
+  afterCutover: boolean;
+  lines: {
+    variantId: number;
+    quantity: number;
+    bareroot: boolean;
+    soldOut: boolean;
+    freeQty: number | null;
+  }[];
+}
+
 /** One itemized charged-today line (camelCase mirror of ApiCheckoutLineItem). */
 export interface CheckoutLineItem {
   name: string;
@@ -866,6 +909,10 @@ export interface OdooClient {
   };
   checkout: {
     createSession(input: CheckoutSessionInput): Promise<CheckoutSession>;
+    /** Read-only deposit preview for a cart (GOL-2233). Throws
+     *  {@link OdooApiError} on a non-2xx — a 404 means the backend predates the
+     *  route, so callers can fall back to a local estimate. */
+    quote(input: CheckoutQuoteInput): Promise<CheckoutQuote>;
   };
   newsletter: {
     /** Best-effort CRM opt-in (GOL-221): upsert a tagged `res.partner` for the

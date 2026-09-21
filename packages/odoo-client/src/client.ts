@@ -14,6 +14,9 @@ import type {
   CheckoutSessionInput,
   CheckoutSession,
   ApiCheckoutSessionResponse,
+  CheckoutQuoteInput,
+  CheckoutQuote,
+  ApiCheckoutQuoteResponse,
   ApiZoneResponse,
   ZoneLookupResult,
   ApiShippingRatesResponse,
@@ -32,6 +35,7 @@ import {
   normalizeOrderSummary,
   normalizeOrderDetail,
   normalizeCheckoutSession,
+  normalizeCheckoutQuote,
   normalizeZone,
 } from "./normalizers";
 
@@ -390,6 +394,24 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           }
         );
         return normalizeCheckoutSession(raw);
+      },
+
+      async quote(input: CheckoutQuoteInput): Promise<CheckoutQuote> {
+        const raw = await api<ApiCheckoutQuoteResponse>(
+          config,
+          "/grove/api/v1/checkout/quote",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              fulfillment: input.fulfillment ?? null,
+              items: input.items.map((i) => ({
+                variant_id: i.variantId,
+                quantity: i.quantity,
+              })),
+            }),
+          }
+        );
+        return normalizeCheckoutQuote(raw);
       },
     },
 
