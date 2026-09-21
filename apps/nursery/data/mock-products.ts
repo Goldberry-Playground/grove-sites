@@ -20,8 +20,9 @@ const mockProductsBase: Product[] = [
     slug: "honeycrisp-apple",
     name: "Honeycrisp Apple",
     sku: "GN-APL-001",
+    // HTML, like the normalized Odoo `description_html` (GOL-2386).
     description:
-      "The dessert apple that pretends to be a cooking apple. Crisp, juicy, sweet-tart, and shockingly cold-hardy. Grafted onto M.111 semi-dwarf rootstock — 12-15ft mature, bears in year 3-4, harvests in late September.",
+      "<p>The dessert apple that pretends to be a cooking apple. <strong>Crisp, juicy, sweet-tart</strong>, and shockingly cold-hardy.</p><p>Grafted onto M.111 semi-dwarf rootstock, 12-15ft mature, bears in year 3-4, harvests in late September.</p>",
     seoDescription: "Honeycrisp apple, bare-root, grafted on M.111.",
     // Guide-ready fixture: exercises the Odoo `website_description` guide path
     // (GOL-1024). `guideReady: true` opens the gate; the HTML mirrors what Odoo's
@@ -42,6 +43,26 @@ const mockProductsBase: Product[] = [
       // axis so the dev/preview fallback exercises the GOL-1112 metadata pill.
       { id: 2011, name: "Bare-root, 4-5ft whip", sku: "GN-APL-001-BR", price: 42, available: true, imageUrl: "", rootstock: "M.111" },
     ],
+    // Complete listing-content fixture (GOL-2386): every spec-block row renders.
+    facts: {
+      botanicalName: "Malus domestica 'Honeycrisp'",
+      zoneMin: 3,
+      zoneMax: 7,
+      layer: "canopy",
+      sun: "full",
+      matureSize: "12–15 ft",
+      spacing: "12–15 ft",
+      soil: "Well-drained loam, pH 6.0–7.0",
+      growthRate: "moderate",
+      bloomSeason: "Mid spring",
+      harvestSeason: "Late September",
+      watering: "moderate",
+      wildlife: "Attracts bees",
+      matureSpread: "10–12 ft",
+      chillHours: "800–1000",
+      pollination: "Needs a second variety",
+      yearsToFruit: "3–4 years",
+    },
   },
   {
     id: 202,

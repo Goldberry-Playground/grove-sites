@@ -150,6 +150,21 @@ export interface ApiFacts {
   mature_size: string;
   spacing: string;
   soil: string;
+  // Listing-content gate facts (grove-odoo-modules listing-content spec §A/§E,
+  // GOL-2382 / GOL-2386). Optional so a grove_headless build that predates the
+  // gate still type-checks and normalizes to null. Chars serialize "" when
+  // unset; selections serialize null.
+  /** Selection: "slow" | "moderate" | "fast". */
+  growth_rate?: string | null;
+  bloom_season?: string;
+  harvest_season?: string;
+  /** Selection: "low" | "moderate" | "high". */
+  watering?: string | null;
+  wildlife?: string;
+  mature_spread?: string;
+  chill_hours?: string;
+  pollination?: string;
+  years_to_fruit?: string;
 }
 
 /** Raw product detail from /grove/api/v1/products/:id.
@@ -166,7 +181,15 @@ export interface ApiProductDetail
   slug?: string;
   /** Canonical Odoo slug — always returned by the detail endpoint. */
   grove_slug: string;
+  /** Plain-text sales description. Legacy storefront copy; only read while
+   *  `description_html` is empty (backfill window, GOL-2386). */
   description_sale: string | false;
+  /**
+   * Storefront product description HTML (Odoo `description_ecommerce`,
+   * listing-content spec §E / GOL-2386). Unsanitized: the app sanitizes on
+   * render. Optional so pre-gate payloads fall back to `description_sale`.
+   */
+  description_html?: string | false;
   grove_seo_description: string | false;
   /**
    * eCommerce Description HTML (Odoo `website_description`) — the single source
@@ -416,6 +439,13 @@ export interface Product {
   slug: string;
   name: string;
   sku: string | null;
+  /**
+   * Product description as HTML, UNSANITIZED — render it through the app's
+   * sanitizer (nursery: `lib/sanitize.ts`), never as raw markup. Sourced from
+   * Odoo `description_ecommerce` (`description_html`); while that is empty the
+   * plain-text `description_sale` is escaped and wrapped in `<p>` so the
+   * contract stays "always HTML" (GOL-2386). null when neither is set.
+   */
   description: string | null;
   seoDescription: string | null;
   /**
@@ -542,6 +572,17 @@ export interface GrowingFacts {
   matureSize: string | null;
   spacing: string | null;
   soil: string | null;
+  /** "slow" | "moderate" | "fast" (GOL-2386). */
+  growthRate: string | null;
+  bloomSeason: string | null;
+  harvestSeason: string | null;
+  /** "low" | "moderate" | "high" (GOL-2386). */
+  watering: string | null;
+  wildlife: string | null;
+  matureSpread: string | null;
+  chillHours: string | null;
+  pollination: string | null;
+  yearsToFruit: string | null;
 }
 
 /** ZIP → USDA hardiness zone lookup result (GET /grove/api/v1/zone). Powers

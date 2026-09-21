@@ -34,8 +34,49 @@ import type {
 
 /** Odoo Selection/Char fields serialize "" when unset — collapse to null so
  * the UI can `??`-fall-back uniformly instead of testing for empty strings. */
-function emptyToNull(value: string | undefined): string | null {
+function emptyToNull(value: string | null | false | undefined): string | null {
   return value ? value : null;
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+/** True when an HTML fragment has visible text once tags, entities-as-space
+ *  and whitespace are stripped. Odoo's editor leaves `<p><br></p>` behind in
+ *  an "empty" HTML field, which must still count as empty. */
+function hasVisibleText(html: string): boolean {
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\u00a0/g, " ").trim().length > 0;
+}
+
+/** Plain text → HTML: escape, blank lines become paragraphs, single newlines
+ *  become `<br>`. */
+function plainTextToHtml(text: string): string {
+  return text
+    .trim()
+    .split(/\n\s*\n/)
+    .map((para) => para.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]).replace(/\n/g, "<br>"))
+    .map((para) => `<p>${para}</p>`)
+    .join("");
+}
+
+/**
+ * Storefront description (GOL-2386, listing-content spec §E): Odoo's
+ * `description_ecommerce` HTML, falling back to the plain-text
+ * `description_sale` only while the HTML field is empty (backfill window).
+ * Always HTML out; the app sanitizes on render.
+ */
+export function normalizeDescription(
+  html: string | false | undefined,
+  sale: string | false | undefined,
+): string | null {
+  if (html && hasVisibleText(html)) return html;
+  if (sale && sale.trim()) return plainTextToHtml(sale);
+  return null;
 }
 
 /**
@@ -113,7 +154,7 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     slug: raw.slug ?? raw.grove_slug,
     name: raw.name,
     sku: raw.default_code || null,
-    description: raw.description_sale || null,
+    description: normalizeDescription(raw.description_html, raw.description_sale),
     seoDescription: raw.grove_seo_description || null,
     // Guide prose from Odoo's eCommerce Description (publish-pipeline v2 SoR).
     // `false`/"" collapse to null so the UI can `??`-fall-back uniformly.
@@ -184,6 +225,15 @@ export function normalizeFacts(raw: ApiFacts): GrowingFacts {
     matureSize: emptyToNull(raw.mature_size),
     spacing: emptyToNull(raw.spacing),
     soil: emptyToNull(raw.soil),
+    growthRate: emptyToNull(raw.growth_rate),
+    bloomSeason: emptyToNull(raw.bloom_season),
+    harvestSeason: emptyToNull(raw.harvest_season),
+    watering: emptyToNull(raw.watering),
+    wildlife: emptyToNull(raw.wildlife),
+    matureSpread: emptyToNull(raw.mature_spread),
+    chillHours: emptyToNull(raw.chill_hours),
+    pollination: emptyToNull(raw.pollination),
+    yearsToFruit: emptyToNull(raw.years_to_fruit),
   };
 }
 
