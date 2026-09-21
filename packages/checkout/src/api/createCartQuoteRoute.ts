@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { OdooClient, ShippingTier } from "@grove/odoo-client";
+import { OdooApiError, type OdooClient, type ShippingTier } from "@grove/odoo-client";
 import { isOriginAllowed, rejectOrigin } from "./origins";
 import { requireJsonContentType } from "./contentType";
 import { sanitizeUpstreamError } from "./upstreamError";
@@ -31,6 +31,15 @@ export interface CartQuoteRouteOptions<Quote> {
     lines: CartQuoteLine[],
     context: { fulfillment: CartQuoteFulfillment | null },
   ) => Quote;
+  /**
+   * Ask the backend's authoritative `POST /checkout/quote` first (GOL-2233):
+   * it runs the exact predicate the checkout session charges by, on live FREE
+   * stock (on-hand minus reserved), which the catalog's on-hand count can't
+   * see. Falls back to `resolve` when the backend predates the route (404) or
+   * fails, so the storefront ships safely ahead of the modules pin bump.
+   * Default true.
+   */
+  preferBackend?: boolean;
 }
 
 const MAX_ITEMS = 50;
@@ -52,7 +61,7 @@ function isPositiveInt(value: unknown): value is number {
  */
 export function createCartQuoteRoute<Quote>(
   odoo: OdooClient,
-  { allowedOrigins, resolve }: CartQuoteRouteOptions<Quote>,
+  { allowedOrigins, resolve, preferBackend = true }: CartQuoteRouteOptions<Quote>,
 ) {
   async function POST(request: Request) {
     if (!isOriginAllowed(request, allowedOrigins)) return rejectOrigin();
@@ -98,6 +107,26 @@ export function createCartQuoteRoute<Quote>(
       return NextResponse.json({ error: 'fulfillment must be "ship" or "pickup"' }, { status: 400 });
     }
 
+    const fulfillmentChoice: CartQuoteFulfillment | null =
+      fulfillment === "ship" || fulfillment === "pickup" ? fulfillment : null;
+
+    // Backend first: the authoritative answer, straight from the predicate the
+    // checkout session charges by. A 404 means the modules pin predates the
+    // route; any other failure is logged by the fallback path's own errors.
+    if (preferBackend) {
+      try {
+        const quote = await odoo.checkout.quote({
+          items: requested.map((r) => ({ variantId: r.variantId, quantity: r.quantity })),
+          fulfillment: fulfillmentChoice,
+        });
+        return NextResponse.json(quote);
+      } catch (e) {
+        if (!(e instanceof OdooApiError && e.status === 404)) {
+          console.warn("cart/quote: backend quote unavailable, using catalog estimate:", e);
+        }
+      }
+    }
+
     // One catalog read per distinct template; every line of that template
     // resolves from the same payload.
     const templateIds = [...new Set(requested.map((r) => r.templateId))];
@@ -128,9 +157,7 @@ export function createCartQuoteRoute<Quote>(
       lines.push({ ...r, ...v });
     }
 
-    const quote = resolve(lines, {
-      fulfillment: fulfillment === "ship" || fulfillment === "pickup" ? fulfillment : null,
-    });
+    const quote = resolve(lines, { fulfillment: fulfillmentChoice });
     return NextResponse.json(quote);
   }
 
