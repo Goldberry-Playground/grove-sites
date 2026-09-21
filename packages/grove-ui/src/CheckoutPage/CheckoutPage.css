@@ -224,3 +224,10 @@
 .grove-checkout__back:hover {
   color: var(--grove-color-primary);
 }
+
+/* "Due today" — the flat reservation deposit row (GOL-2233). Emphasised so a
+   buyer reads the $10 they pay now before the estimated order total beneath. */
+.grove-checkout__summary-row--due {
+  font-weight: 700;
+  color: var(--grove-color-primary);
+}

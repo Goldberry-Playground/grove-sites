@@ -7,9 +7,12 @@ import {
   CheckoutPage as UICheckoutPage,
   CheckoutReview,
   type GroveCheckoutOrder,
+  type GroveFulfillment,
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
+import { dueTodayFor } from "../due-today";
+import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
 import { SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
@@ -63,10 +66,19 @@ const CHECKOUT_ERROR =
  */
 export function CheckoutPage({
   brand = "nursery",
-}: { brand?: GroveBrand } = {}) {
+  depositQuoteHref,
+}: { brand?: GroveBrand; depositQuoteHref?: string } = {}) {
   const { items, hydrated, subtotal } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  // Mirrors the form's ship/pickup radio so the "due today" quote follows the
+  // buyer's choice (pickup changes the charge rule after the season cutover).
+  const [fulfillment, setFulfillment] = useState<GroveFulfillment>("ship");
+  // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
+  // from the storefront's `/api/cart/quote` when wired; null = charged in full.
+  const dueToday = dueTodayFor(
+    useCartDepositQuote(depositQuoteHref, items, fulfillment),
+  );
   // Pickup availability + copy ride the brand seam: only brands with a physical
   // pickup point (nursery) offer it, and each carries its own product-true copy
   // so the shared kit never shows a live-tree/WV claim on woodwork or pantry
@@ -189,6 +201,8 @@ export function CheckoutPage({
         submitPendingLabel="Starting secure checkout…"
         reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
         trustItems={BRAND_TRUST[brand].checkout}
+        dueToday={dueToday}
+        onFulfillmentChange={setFulfillment}
       />
     </WithGroveNext>
   );

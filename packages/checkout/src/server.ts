@@ -20,3 +20,9 @@ export {
 } from "./api/createPublishWebhookRoute";
 export { createOrderSuccessPage } from "./components/createOrderSuccessPage";
 export { createCheckoutSuccessPage } from "./components/createCheckoutSuccessPage";
+export {
+  createCartQuoteRoute,
+  type CartQuoteLine,
+  type CartQuoteFulfillment,
+  type CartQuoteRouteOptions,
+} from "./api/createCartQuoteRoute";

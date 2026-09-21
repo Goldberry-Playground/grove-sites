@@ -34,7 +34,11 @@ export { ShopSubHeader, type ShopSubHeaderProps, type ShopCategory } from "./Sho
 export { CategoryBar, type CategoryBarProps, type CategoryBarItem } from "./CategoryBar";
 
 // Cart-coupled checkout (presentational; cart state via props/callbacks — see cart-contract)
-export { type GroveCartLineItem, DEFAULT_TAX_RATE_ESTIMATE } from "./cart-contract";
+export {
+  type GroveCartLineItem,
+  type GroveDueToday,
+  DEFAULT_TAX_RATE_ESTIMATE,
+} from "./cart-contract";
 export { AddToCartButton, type AddToCartButtonProps } from "./AddToCartButton";
 export { StickyAddToCartBar, type StickyAddToCartBarProps } from "./StickyAddToCartBar";
 export { MiniCartDrawer, type MiniCartDrawerProps } from "./MiniCartDrawer";

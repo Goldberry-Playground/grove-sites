@@ -4,6 +4,7 @@ import { Button } from "../Button";
 import {
   DEFAULT_TAX_RATE_ESTIMATE,
   type GroveCartLineItem,
+  type GroveDueToday,
 } from "../cart-contract";
 import { useGroveImage, useGroveLink } from "../link-context";
 import { clampQuantity } from "../quantity";
@@ -42,6 +43,13 @@ export interface CartPageProps {
    * (GOL-1090, GOL-1314).
    */
   trustItems?: GroveTrustItem[];
+  /**
+   * What the buyer pays today when the order takes a flat reservation deposit
+   * instead of the full total (GOL-2233). Rendered as an emphasised row above
+   * the total, with its note replacing the generic reassurance line. Omit /
+   * null when the cart is charged in full.
+   */
+  dueToday?: GroveDueToday | null;
 }
 
 function formatPrice(amount: number): string {
@@ -65,6 +73,7 @@ export function CartPage({
   checkoutHref = "/checkout",
   productHref = (templateId) => `/shop/${templateId}`,
   trustItems = [],
+  dueToday = null,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -105,10 +114,22 @@ export function CartPage({
           <div>
             <div className="grove-cart__banner-eyebrow">
               {totalQuantity} {totalQuantity === 1 ? "item" : "items"} in cart
+              {dueToday ? ` · ${dueToday.eyebrow ?? "reservation"}` : ""}
             </div>
             <div className="grove-cart__banner-total">
-              {formatPrice(total)}
-              <span className="grove-cart__banner-note">with est. tax</span>
+              {dueToday ? (
+                <>
+                  {formatPrice(dueToday.amount)}
+                  <span className="grove-cart__banner-note">
+                    due today · {formatPrice(total)} order total
+                  </span>
+                </>
+              ) : (
+                <>
+                  {formatPrice(total)}
+                  <span className="grove-cart__banner-note">with est. tax</span>
+                </>
+              )}
             </div>
           </div>
           <Link href={checkoutHref} className="grove-cart__banner-cta">
@@ -202,20 +223,31 @@ export function CartPage({
                 </dt>
                 <dd>{formatPrice(taxEstimate)}</dd>
               </div>
+              {dueToday && (
+                <div className="grove-cart__summary-row grove-cart__summary-row--due">
+                  <dt>{dueToday.label}</dt>
+                  <dd>{formatPrice(dueToday.amount)}</dd>
+                </div>
+              )}
               <div className="grove-cart__summary-total">
-                <dt>Total</dt>
+                <dt>{dueToday ? "Order total" : "Total"}</dt>
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>
+            {dueToday && (
+              <p className="grove-cart__summary-due-note">{dueToday.note}</p>
+            )}
 
             <Link href={checkoutHref} className="grove-cart__summary-cta">
               Proceed to Checkout →
             </Link>
 
-            <p className="grove-cart__reassure">
-              You will not be charged today. We confirm every order by email before
-              processing payment.
-            </p>
+            {!dueToday && (
+              <p className="grove-cart__reassure">
+                You will not be charged today. We confirm every order by email before
+                processing payment.
+              </p>
+            )}
 
             <Link href={shopHref} className="grove-cart__summary-continue">
               Continue Shopping
