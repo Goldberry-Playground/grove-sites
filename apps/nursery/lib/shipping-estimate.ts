@@ -20,7 +20,7 @@ import type {
  *
  * Two kinds of data live here, and they drift at very different rates:
  *
- *   • ZONE_BY_STATE / GREEN_STATES — the 31-state green list and its zone map.
+ *   • ZONE_BY_STATE / GREEN_STATES — the 32-state green list and its zone map.
  *     This is the compliance gate; it changes only when the nursery unlocks a
  *     new state (a deliberate backend PR), so mirroring it in the client is
  *     safe and keeps the estimate honest about *where* we ship.
@@ -53,37 +53,44 @@ export const ZONE_RATE_TABLE: RateTable = {
   zone_3: { bareroot: { base: 23 }, potted: { base: 36 } },
   zone_4: { bareroot: { base: 24 }, potted: { base: 38 } },
   zone_5: { bareroot: { base: 25 }, potted: { base: 40 } },
-  // GOL-2238 real probe-derived mid/near-plains bands (provisional per-tier
-  // fallback only — the live estimator prices bareroot off the box feed and
-  // reads potted from here until the rate-checker publishes potted rows).
-  zone_6: { bareroot: { base: 23 }, potted: { base: 38 } },
-  zone_7: { bareroot: { base: 29 }, potted: { base: 39 } },
+  // zone_6 / zone_7 were retired by GOL-2238 P1 (2026-09-14): the 2026-09-08
+  // probe's mid/near-plains split was a mis-bin — a live re-probe folded TN back
+  // to zone_1 and AR/MO/IA back to zone_5 (their real bands), so the backend
+  // `data/shipping_rates.json` is 5 zones again. Keep this in lock-step.
 };
 
-/** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 31 green states). */
+/** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 32 green states). */
 export const ZONE_BY_STATE: Record<string, string> = {
   // zone_1 — nearest (UPS ~2–4 from origin 26651). DC joins here (GOL-2128).
+  // TN belongs here (GOL-2238 P1, 2026-09-14): a live re-probe put TN's worst
+  // corner (Memphis 38103) at the zone_1 published rate exactly, and it borders
+  // KY/VA/NC (all zone_1). The 2026-09-08 zone_7 mis-bin had it above Iowa.
   WV: "zone_1", VA: "zone_1", KY: "zone_1", NC: "zone_1", DE: "zone_1", DC: "zone_1",
+  TN: "zone_1",
   // zone_2
   MD: "zone_2", PA: "zone_2", OH: "zone_2", IN: "zone_2", NJ: "zone_2", NY: "zone_2",
   // zone_3
   IL: "zone_3", MI: "zone_3", CT: "zone_3", RI: "zone_3",
   // zone_4
   WI: "zone_4", MN: "zone_4", MA: "zone_4", VT: "zone_4", NH: "zone_4",
-  // zone_5 — farthest priced band. GOL-2128 opened the south/mid tranche here;
-  // GOL-2238 re-probed it against the two-SKU catalog (2026-09-08) and found
-  // only GA/SC/AL/MS/LA (+ ME) genuinely belong at zone_5 (39/43) — the others
-  // quote materially cheaper and moved to their own real bands below, ending a
-  // Maine-tier overcharge. Every zone still dominates its members' worst-corner
-  // targets, so no state is ever undercharged. Mirrors backend ZONE_BY_STATE.
+  // zone_5 — farthest priced band. GA/SC/AL/MS/LA (+ ME) and the mid-continent
+  // AR/MO/IA all bin here: GOL-2238 P1 (2026-09-14) re-probed the 2026-09-08
+  // split and folded AR/MO/IA back to their real zone_5 rate (worst corners
+  // 23/28 small/large, 26/41 potted — the zone_5 published rate exactly), so
+  // the interim zone_6 that overcharged them is retired. Every zone still
+  // dominates its members' worst-corner targets, so no state is ever
+  // undercharged. Mirrors backend ZONE_BY_STATE.
   GA: "zone_5", AL: "zone_5", SC: "zone_5", MS: "zone_5", LA: "zone_5", ME: "zone_5",
-  // zone_6 — mid-continent band (GOL-2238): AR/MO/IA target 23/28 (small/large).
-  AR: "zone_6", MO: "zone_6", IA: "zone_6",
-  // zone_7 — near-plains band (GOL-2238): TN (Memphis) targets 29/32.
-  TN: "zone_7",
-  // Ratified far states (OK/KS/NE/SD/ND/TX/NM/AZ) and FL are still NOT green:
-  // they clear on cost but await the per-product NPB compliance carve-out gate
-  // (GOL-2132) — see the GOL-2238 far-states follow-up.
+  AR: "zone_5", MO: "zone_5", IA: "zone_5",
+  // Florida (GOL-2235): green as of the GOL-2132 compliance carve-out gate
+  // (Castanea/Cornus blocked into FL). Its worst corners (Miami 33101, Key West
+  // 33040) quote at or under the zone_5 published rate on the Pirate Ship source
+  // (2026-09-14 targets 20/24 small/large, 23/30 potted), so FL bins at zone_5 —
+  // no new band, never undercharged. Mirrors backend ZONE_BY_STATE["FL"].
+  FL: "zone_5",
+  // Ratified far states (OK/KS/NE/SD/ND/TX/NM/AZ) are still NOT green: they
+  // clear on cost but await the per-product NPB compliance carve-out gate
+  // (GOL-2132) — see the GOL-2243 far-states follow-up.
 };
 
 /** Count of states we currently ship living trees to — the single source for
@@ -118,7 +125,7 @@ export const SNAPSHOT_ZONE_MAP: ZoneMap = {
  * mirror of `resolveRateTable()` for the compliance zone map (GOL-2292).
  *
  * This is the fix for the PDP-vs-checkout drift where a backend re-zoning (e.g.
- * TN → zone_7, GOL-2238) repriced checkout but the storefront kept quoting the
+ * TN → zone_1, GOL-2238 P1) repriced checkout but the storefront kept quoting the
  * stale baked zone until a frontend release. Accepts either the schema-agnostic
  * {@link ShippingZoneMap} (from `shipping.zoneMap()`) or the full schema-2
  * {@link ShippingRateFeed}, since both carry the wire fields.
