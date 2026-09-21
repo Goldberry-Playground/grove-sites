@@ -19,7 +19,7 @@ export function GrowingGuide({ html }: { html: string | null }) {
       </h2>
       {html ? (
         <div
-          className="prose prose-sm max-w-none text-foreground/80"
+          className="rich-text text-foreground/80"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       ) : (

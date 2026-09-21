@@ -9,6 +9,7 @@ import { inferCompanions, toCompanionInput } from "../../../lib/companions";
 import { stripVariantCode } from "../../../lib/variant-select";
 import { ProductView, type ViewImage, type ViewVariant } from "./product-view";
 import { SpecBlock } from "./spec-block";
+import { ProductDescription } from "./product-description";
 import { GrowingGuide } from "./growing-guide";
 import { CompanionsStrip } from "./companions-strip";
 import { ZoneCheck } from "./zone-check";
@@ -165,11 +166,7 @@ export default async function ProductDetailPage({
         shippingZoneMap={shippingZoneMap}
       />
 
-      {product.description && (
-        <div className="prose prose-sm max-w-none text-foreground/80 mt-10">
-          <p>{product.description}</p>
-        </div>
-      )}
+      <ProductDescription html={product.description} />
 
       <ZoneCheck
         zoneMin={product.facts?.zoneMin ?? null}

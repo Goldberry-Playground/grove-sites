@@ -1,10 +1,13 @@
 import type { GrowingFacts } from "@grove/odoo-client";
 
 /**
- * Growing-facts spec block (design spec §"Page anatomy"): Zones · Mature size ·
- * Spacing · Sun · Soil · Layer, sourced from Odoo `grove_*` fields via the
- * catalog API `facts` block. Rows with no value are omitted so a sparsely-filled
- * product doesn't render a wall of "—". Renders nothing when facts are absent
+ * Growing-facts spec block, sourced from Odoo `grove_*` fields via the catalog
+ * API `facts` block. Rows follow the Arbor Day plant-profile order
+ * (listing-content spec §E, GOL-2386): zones and growth first, then size, site,
+ * seasons, wildlife, fruiting, and layer last. Spacing sits with the size rows
+ * (it is a required fact the spec's row list doesn't name). Rows with no value
+ * are omitted so a sparsely-filled product doesn't render a wall of "—"; a
+ * complete listing shows every row. Renders nothing when facts are absent
  * (list-only products / older API) so commerce never blocks on content.
  */
 export function SpecBlock({ facts }: { facts?: GrowingFacts }) {
@@ -18,14 +21,23 @@ export function SpecBlock({ facts }: { facts?: GrowingFacts }) {
         : null;
 
   const rows: Array<[string, string | null]> = [
-    ["USDA Zones", zones],
-    ["Mature size", facts.matureSize],
+    ["USDA zones", zones],
+    ["Growth rate", capitalize(facts.growthRate)],
+    ["Mature height", facts.matureSize],
+    ["Mature spread", facts.matureSpread],
     ["Spacing", facts.spacing],
     ["Sun", capitalize(facts.sun)],
     ["Soil", facts.soil],
+    ["Watering", capitalize(facts.watering)],
+    ["Bloom", facts.bloomSeason],
+    ["Harvest", facts.harvestSeason],
+    ["Wildlife", facts.wildlife],
+    ["Pollination", facts.pollination],
+    ["Years to fruit", facts.yearsToFruit],
+    ["Chill hours", facts.chillHours],
     ["Layer", capitalize(facts.layer)],
   ];
-  const present = rows.filter(([, v]) => v != null && v !== "");
+  const present = rows.filter(([, v]) => v != null && v.trim() !== "");
   if (present.length === 0) return null;
 
   return (

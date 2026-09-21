@@ -160,6 +160,45 @@ h1 em, h2 em, h3 em {
   margin: -0.8rem 0 1.6rem 0;
 }
 
+/* Odoo-authored rich text on the PDP: product description + growing guide
+   (GOL-2386). Both are sanitized to the lib/sanitize.ts allow-list and injected
+   as HTML. There is no typography plugin in this app, so the old `prose` class
+   was a no-op and Tailwind's preflight flattened paragraphs, headings and list
+   bullets. This restores a minimal vertical rhythm for exactly the tags the
+   content drafter may emit (p, h2, h3, ul, ol, li, strong, em, a[href]). Links
+   use --orange-deep (text-safe, >=4.5:1 on parchment) and stay underlined so
+   they don't rely on colour alone (WCAG 1.4.1). */
+.rich-text {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  max-width: 68ch;
+}
+.rich-text > * + * { margin-top: 0.85em; }
+.rich-text h2,
+.rich-text h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.rich-text h2 { font-size: 1.2rem; }
+.rich-text h3 { font-size: 1.05rem; }
+.rich-text * + h2,
+.rich-text * + h3 { margin-top: 1.4em; }
+.rich-text ul,
+.rich-text ol { padding-left: 1.4em; }
+.rich-text ul { list-style: disc; }
+.rich-text ol { list-style: decimal; }
+.rich-text li + li { margin-top: 0.3em; }
+.rich-text li::marker { color: var(--forest); }
+.rich-text strong { font-weight: 600; color: var(--ink); }
+.rich-text a {
+  color: var(--orange-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rich-text a:hover { color: var(--forest); }
+
 /* Empty state — shown when a category filter returns no products. Honest "we
    don't have any yet" beats a blank grid for QA confidence and user trust. */
 .shop-empty {
