@@ -149,3 +149,28 @@ variable "geo_block_countries" {
   type        = list(string)
   default     = ["CN", "RU"]
 }
+
+# ── GOL-2073: Accept-keyed /_next/image edge cache (Worker) ─────────────────
+
+variable "next_image_cache_zones" {
+  description = <<-EOT
+    Keys of var.zones whose `<domain>/_next/image*` is routed through the
+    grove-next-image-cache Worker (Accept-bucketed Cache API key — the Free-plan
+    stand-in for an Enterprise Accept cache key). DEFAULT [] = no Worker, no
+    routes, no-op plan. Enroll nursery first, run the README acceptance probe,
+    then widen. Rollback = back to [].
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for z in var.next_image_cache_zones : contains(keys(var.zones), z)])
+    error_message = "next_image_cache_zones entries must be keys of var.zones."
+  }
+}
+
+variable "next_image_cache_edge_ttl_seconds" {
+  description = "Edge TTL the Worker stores /_next/image variants for. Client-facing Cache-Control stays the origin's. Product photos are effectively immutable per (url,w,q)."
+  type        = number
+  default     = 86400
+}
