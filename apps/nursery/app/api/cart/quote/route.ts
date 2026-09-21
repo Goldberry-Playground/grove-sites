@@ -8,7 +8,7 @@ import { tenantConfig } from "../../../../tenant.config";
 // mirrors the backend flat-deposit rule so the cart and checkout summaries can
 // show "$10 due today" for a reservation before the Stripe session exists.
 // Read-only: no order is created here.
-export const POST = createCartQuoteRoute(odoo, {
+export const { POST } = createCartQuoteRoute(odoo, {
   allowedOrigins: tenantConfig.allowedOrigins,
   resolve: (lines, { fulfillment }) => resolveCartDeposit(lines, { fulfillment }),
 });
