@@ -104,4 +104,54 @@ describe("buyStateFor", () => {
     expect(s.stockTone).toBe("sold-out");
     expect(s.showDepositNote).toBe(false);
   });
+
+  // Preorder cap reached (GOL-2171): the per-product reservation cap has been
+  // crossed, so even a preorder (Bareroot) format is a hard sell-out.
+  it("capReached forces a preorder (Bareroot) format to sold-out, not reservable", () => {
+    const s = buyStateFor({
+      available: false,
+      qtyAvailable: 0,
+      shippingTier: "bareroot",
+      format: "Bareroot",
+      capReached: true,
+    });
+    expect(s.mode).toBe("sold-out"); // would be "reservable" without capReached
+    expect(s.ctaDisabled).toBe(true);
+    expect(s.ctaLabel).toBe("Sold out");
+    expect(s.showDepositNote).toBe(false); // no reservation left to deposit against
+  });
+
+  it("capReached does not override real on-hand stock (cap gates only the preorder path)", () => {
+    const s = buyStateFor({
+      available: true,
+      qtyAvailable: 4,
+      shippingTier: "bareroot",
+      format: "Bareroot",
+      capReached: true,
+    });
+    expect(s.mode).toBe("in-stock"); // on-hand inventory still sells
+  });
+
+  it("capReached omitted / false keeps the reservable preorder behaviour", () => {
+    const s = buyStateFor({
+      available: false,
+      qtyAvailable: 0,
+      shippingTier: "bareroot",
+      format: "Bareroot",
+      capReached: false,
+    });
+    expect(s.mode).toBe("reservable");
+  });
+
+  it("coming-soon (saleOk=false) outranks capReached", () => {
+    const s = buyStateFor({
+      available: false,
+      qtyAvailable: 0,
+      shippingTier: "bareroot",
+      format: "Bareroot",
+      saleOk: false,
+      capReached: true,
+    });
+    expect(s.mode).toBe("coming-soon");
+  });
 });

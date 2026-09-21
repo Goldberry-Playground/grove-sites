@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
+  GREEN_STATE_COUNT,
   US_STATE_NAMES,
-  ZONE_BY_STATE,
   ZONE_RATE_TABLE,
+  SNAPSHOT_ZONE_MAP,
   estimateTierShipping,
   shipsTo,
   type RateTable,
+  type ZoneMap,
 } from "../../../lib/shipping-estimate";
 
 const STORAGE_KEY = "grove:ship-state";
@@ -43,6 +45,12 @@ export interface ShippingEstimatorProps {
   /** Schema-2 Box Engine v2 feed (GOL-1114). When present, bareroot rows price
    *  per packed box off this feed; potted stays on the tier-keyed `rates`. */
   feed?: ShippingRateFeed | null;
+  /** Resolved live state→zone map + green list (GOL-2292), from the parent's
+   *  `resolveZoneMap(feed)`. Drives eligibility (`shipsTo`), the tier-keyed zone
+   *  lookup, and the "ships to N states" count off the LIVE backend rather than
+   *  the baked snapshot. Defaults to the snapshot so the component works
+   *  standalone (e.g. in tests). */
+  zoneMap?: ZoneMap;
 }
 
 /**
@@ -72,6 +80,7 @@ export function ShippingEstimator({
   tiers,
   rates = ZONE_RATE_TABLE,
   feed,
+  zoneMap = SNAPSHOT_ZONE_MAP,
 }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
@@ -94,8 +103,12 @@ export function ShippingEstimator({
     }
   }
 
-  const eligible = shipsTo(state);
+  const eligible = shipsTo(state, zoneMap);
   const stateName = state ? US_STATE_NAMES[state] : "";
+  // Live green-state count when the feed reached us, else the baked snapshot
+  // count (GOL-2292) — the interactive panel reflects the live backend, unlike
+  // the static marketing pages that keep the module-level GREEN_STATE_COUNT.
+  const greenCount = zoneMap.greenStates.length || GREEN_STATE_COUNT;
 
   return (
     <section
@@ -127,7 +140,7 @@ export function ShippingEstimator({
       <div aria-live="polite" className="mt-3">
         {state === "" && (
           <p className="text-xs text-foreground/60">
-            We ship living trees to {GREEN_STATE_COUNT} states — pick yours to see your
+            We ship living trees to {greenCount} states — pick yours to see your
             rate. Your trees ship together in as few boxes as possible, priced per box;
             your exact rate is confirmed at checkout.
           </p>
@@ -143,7 +156,7 @@ export function ShippingEstimator({
               {tiers.map(({ tier, label, fulfillment, pickupOnly, badge }) => {
                 const amount = pickupOnly
                   ? null
-                  : estimateTierShipping(state, tier, { feed, rates });
+                  : estimateTierShipping(state, tier, { feed, rates, zoneMap });
                 return (
                   <li
                     key={tier}
@@ -228,5 +241,6 @@ export function ShippingEstimator({
   );
 }
 
-/** Exposed for parent copy: the count of states we currently ship to. */
-export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
+/** Re-exported for parent copy from the estimate lib, the single source of the
+ *  green-state count so every "ships to N states" line stays in lockstep. */
+export { GREEN_STATE_COUNT };

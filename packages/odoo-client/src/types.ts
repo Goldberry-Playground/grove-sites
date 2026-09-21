@@ -72,6 +72,17 @@ export interface ApiProductListItem {
    * purchasable.
    */
   sale_ok?: boolean;
+  /**
+   * Preorder cap reached (grove-odoo-modules GOL-2171, PR #191). `true` when the
+   * per-product reservation cap (per-template override or the seeded default of
+   * 50, adjustable in Odoo) has been crossed — the product must render as a hard
+   * sell-out with a restock capture, exactly like a stock sell-out, and even a
+   * preorder (Bareroot) format can take no further reservation. The frontend
+   * never computes the threshold; it only reacts to this flag. Emitted on both
+   * the list and detail endpoints. Optional so mocks and payloads from a
+   * grove_headless build that predates the field stay uncapped.
+   */
+  preorder_cap_reached?: boolean;
 }
 
 /** Paginated product list response. */
@@ -229,6 +240,19 @@ export interface ApiShippingRatesResponse {
   schema?: number;
 }
 
+/** Storefront-facing state→zone map + green list, surfaced by
+ * {@link OdooClient.shipping.zoneMap} from GET /grove/api/v1/shipping/rates. Both
+ * schema generations carry these fields (the schema-1
+ * {@link ApiShippingRatesResponse} and the schema-2 {@link ShippingRateFeed}), so
+ * this is the schema-agnostic slice the estimator needs to resolve *which zone* a
+ * state is in. The estimator prefers this live map over its baked ZONE_BY_STATE
+ * snapshot, so a backend re-zoning (GOL-2128/GOL-2238) reprices the PDP without a
+ * storefront rebuild (GOL-2292). Wire keys stay snake_case to match the payload. */
+export interface ShippingZoneMap {
+  zone_by_state: Record<string, string>;
+  green_states: string[];
+}
+
 // ── Schema-2 rate feed — Box Engine v2 (GOL-1038) ───────────────────────────
 // Box Engine v2 (grove-odoo-modules #60) reprices bareroot shipping PER PACKED
 // BOX instead of per tree, because under UPS DIM billing the box drives the cost.
@@ -240,11 +264,12 @@ export interface ApiShippingRatesResponse {
 // snake_case to match the payload exactly (parity guarantee). Potted has no rates
 // by design — potted is farm pickup only.
 
-/** Box-catalog id from grove_headless `models/shipping_boxes.py` BOXES:
- * `br16` (single small whip), `s20`/`s32`/`s46` (8×8 boxes by length class),
- * `b20`/`b32` (12×12 dormant bulk boxes). A union so a fetched feed is checked
+/** Box-catalog id from grove_headless `models/shipping_boxes.py` BOXES.
+ * Two-SKU bareroot catalog (CEO directive 2026-09-07): `small` (24×6×4, holds
+ * 1-5 trees) and `large` (24×9×6, holds 6-10). Both are 24" long, so the packer
+ * selects by tree count, not height. A union so a fetched feed is checked
  * against the known catalog — the backend rate-checker only ever emits these. */
-export type ShippingBoxId = "br16" | "s20" | "s32" | "s46" | "b20" | "b32";
+export type ShippingBoxId = "small" | "large";
 
 /** Packing mode from `shipping_boxes.py` MODES. Trees are dormant or leafed-out
  * at the nursery by season, which drives per-box capacity. */
@@ -266,9 +291,10 @@ export type ShippingBoxRateTable = Record<
 
 /** One box in the catalog, as surfaced by the feed's `packing.boxes` — a subset
  * of `shipping_boxes.py` BOXES (dimensions + capacity only; packaging/tare are
- * backend-internal). Dimensions in inches; `capacity` is trees-per-box by mode,
- * omitting any mode the box is never used in (`br16`/`b20`/`b32` have no
- * `leafed` capacity). */
+ * backend-internal). Dimensions in inches; `capacity` is trees-per-box by mode.
+ * The two-SKU catalog carries both modes at the same count (1-5 small, 6-10
+ * large), but the type keeps `capacity` per-mode so it survives a future box
+ * that is used in only one mode. */
 export interface ShippingBoxSpec {
   length: number;
   width: number;
@@ -280,7 +306,7 @@ export interface ShippingBoxSpec {
  * catalog plus the constants a client needs to mirror `pack_order` exactly. */
 export interface ShippingPackingSpec {
   boxes: Partial<Record<ShippingBoxId, ShippingBoxSpec>>;
-  /** Minimum box length (in) a tree's height class can require: e.g. [16,20,32,46]. */
+  /** Minimum box length (in) a tree's height class can require: e.g. [16,20]. */
   length_classes: number[];
   modes: PackingMode[];
 }
@@ -449,6 +475,15 @@ export interface Product {
    * payloads that omit it behave exactly as before.
    */
   saleOk?: boolean;
+  /**
+   * Preorder cap reached (Odoo `grove_preorder_cap_reached`, GOL-2171). `true`
+   * when the per-product reservation cap has been crossed: the buy box flips to
+   * a hard sell-out with a restock capture (no "Reserve"), identical to a stock
+   * sell-out. The normalizer defaults it to false, so list items, mocks, and
+   * pre-field payloads behave exactly as before. The threshold lives in Odoo;
+   * the frontend only reads this flag (`buyStateFor`'s `capReached`).
+   */
+  preorderCapReached?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**
@@ -811,6 +846,15 @@ export interface OdooClient {
      * Returns null when the feed is unreachable, empty, or still schema 1 (Odoo
      * not yet upgraded), so a caller can safely fall back to its snapshot. */
     rateFeed(): Promise<ShippingRateFeed | null>;
+    /** Live state→zone map + green list (GOL-2292), surfaced from the same
+     * endpoint as `rates()`/`rateFeed()` in BOTH schema generations. Unlike
+     * `rates()` — which collapses to the tier-keyed table and drops the zone map —
+     * this keeps just the storefront-facing `zone_by_state` / `green_states` the
+     * estimator resolves ahead of its baked ZONE_BY_STATE snapshot, so a backend
+     * re-zoning reprices the PDP without a storefront rebuild. Returns null when
+     * the feed is unreachable or carries no zone map, so the caller keeps its
+     * snapshot. */
+    zoneMap(): Promise<ShippingZoneMap | null>;
   };
   cart: {
     get(): Promise<Cart>;

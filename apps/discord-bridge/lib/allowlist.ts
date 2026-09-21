@@ -23,6 +23,21 @@ export function parseApproverIds(csv: string | undefined): Set<string> {
   return new Set<string>([MACY_DISCORD_ID, ...ids]);
 }
 
+/**
+ * Parse the order-ops OPERATOR allowlist (GOL-1980) — the people who may mark an
+ * order shipped. Deliberately DISTINCT from the CMO approver roster: a content
+ * approver is not automatically a fulfilment operator, and no id is baked in
+ * (unlike Macy above), so an empty/unset env means "nobody" and the button is
+ * inert until Josh provisions the roster (DISCORD_ORDER_OPERATOR_IDS).
+ */
+export function parseOperatorIds(csv: string | undefined): Set<string> {
+  const ids = (csv ?? "")
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^\d{5,}$/.test(s));
+  return new Set<string>(ids);
+}
+
 /** A Discord interaction carrying the invoking user (guild `member` or DM `user`). */
 export interface ActorCarrier {
   member?: { user?: { id?: string } };

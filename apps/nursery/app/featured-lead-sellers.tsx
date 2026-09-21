@@ -105,7 +105,7 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                   // images ≤ 1024px (the current nursery photos).
                   src={resolveOdooImageUrl(withOdooImageSize(p.imageUrl, 1024), odooBase)}
                   alt={p.name}
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 33vw"
                 />
               </div>
               <div className="var-info">

@@ -1,6 +1,7 @@
 import type {
   ShippingTier,
   ShippingRateFeed,
+  ShippingZoneMap,
   ShippingBoxId,
   PackingMode,
 } from "@grove/odoo-client";
@@ -19,7 +20,7 @@ import type {
  *
  * Two kinds of data live here, and they drift at very different rates:
  *
- *   • ZONE_BY_STATE / GREEN_STATES — the 21-state green list and its zone map.
+ *   • ZONE_BY_STATE / GREEN_STATES — the 31-state green list and its zone map.
  *     This is the compliance gate; it changes only when the nursery unlocks a
  *     new state (a deliberate backend PR), so mirroring it in the client is
  *     safe and keeps the estimate honest about *where* we ship.
@@ -52,21 +53,92 @@ export const ZONE_RATE_TABLE: RateTable = {
   zone_3: { bareroot: { base: 23 }, potted: { base: 36 } },
   zone_4: { bareroot: { base: 24 }, potted: { base: 38 } },
   zone_5: { bareroot: { base: 25 }, potted: { base: 40 } },
+  // GOL-2238 real probe-derived mid/near-plains bands (provisional per-tier
+  // fallback only — the live estimator prices bareroot off the box feed and
+  // reads potted from here until the rate-checker publishes potted rows).
+  zone_6: { bareroot: { base: 23 }, potted: { base: 38 } },
+  zone_7: { bareroot: { base: 29 }, potted: { base: 39 } },
 };
 
-/** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 21 green states). */
+/** state code → zone id, mirroring backend `ZONE_BY_STATE` (the 31 green states). */
 export const ZONE_BY_STATE: Record<string, string> = {
-  // zone_1 — nearest (UPS ~2–4 from origin 26651)
-  WV: "zone_1", VA: "zone_1", KY: "zone_1", NC: "zone_1", DE: "zone_1",
+  // zone_1 — nearest (UPS ~2–4 from origin 26651). DC joins here (GOL-2128).
+  WV: "zone_1", VA: "zone_1", KY: "zone_1", NC: "zone_1", DE: "zone_1", DC: "zone_1",
   // zone_2
   MD: "zone_2", PA: "zone_2", OH: "zone_2", IN: "zone_2", NJ: "zone_2", NY: "zone_2",
   // zone_3
   IL: "zone_3", MI: "zone_3", CT: "zone_3", RI: "zone_3",
   // zone_4
   WI: "zone_4", MN: "zone_4", MA: "zone_4", VT: "zone_4", NH: "zone_4",
-  // zone_5 — farthest (UPS ~5)
-  ME: "zone_5",
+  // zone_5 — farthest priced band. GOL-2128 opened the south/mid tranche here;
+  // GOL-2238 re-probed it against the two-SKU catalog (2026-09-08) and found
+  // only GA/SC/AL/MS/LA (+ ME) genuinely belong at zone_5 (39/43) — the others
+  // quote materially cheaper and moved to their own real bands below, ending a
+  // Maine-tier overcharge. Every zone still dominates its members' worst-corner
+  // targets, so no state is ever undercharged. Mirrors backend ZONE_BY_STATE.
+  GA: "zone_5", AL: "zone_5", SC: "zone_5", MS: "zone_5", LA: "zone_5", ME: "zone_5",
+  // zone_6 — mid-continent band (GOL-2238): AR/MO/IA target 23/28 (small/large).
+  AR: "zone_6", MO: "zone_6", IA: "zone_6",
+  // zone_7 — near-plains band (GOL-2238): TN (Memphis) targets 29/32.
+  TN: "zone_7",
+  // Ratified far states (OK/KS/NE/SD/ND/TX/NM/AZ) and FL are still NOT green:
+  // they clear on cost but await the per-product NPB compliance carve-out gate
+  // (GOL-2132) — see the GOL-2238 far-states follow-up.
 };
+
+/** Count of states we currently ship living trees to — the single source for
+ *  every *static* "ships to N states" copy (marketing pages, footers) so it can
+ *  never drift from the baked green list. Derives from `ZONE_BY_STATE`. Interactive
+ *  surfaces that receive a live feed should prefer `resolveZoneMap(...).greenStates`
+ *  so the count reflects the live backend, not this snapshot (GOL-2292). */
+export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
+
+/**
+ * Resolved state→zone map + green list the estimator prices *which zone* against.
+ * Feed-driven when a live feed is present, else the baked snapshot — the same
+ * drift-safe seam as `resolveRateTable()`, but for the compliance zone map rather
+ * than the dollar values (GOL-2292). `zoneByState` is camelCase (idiomatic TS);
+ * the wire shape (`ShippingZoneMap.zone_by_state`) stays snake_case.
+ */
+export interface ZoneMap {
+  zoneByState: Record<string, string>;
+  greenStates: string[];
+}
+
+/** The bundled snapshot as a `ZoneMap` — the fallback when no live feed reaches
+ *  the estimator. Kept in sync with the backend by the drift test (GOL-2292). */
+export const SNAPSHOT_ZONE_MAP: ZoneMap = {
+  zoneByState: ZONE_BY_STATE,
+  greenStates: Object.keys(ZONE_BY_STATE),
+};
+
+/**
+ * Prefer the live feed's `zone_by_state` / `green_states` over the baked snapshot,
+ * degrading to the snapshot when the feed is unreachable or carries no map — the
+ * mirror of `resolveRateTable()` for the compliance zone map (GOL-2292).
+ *
+ * This is the fix for the PDP-vs-checkout drift where a backend re-zoning (e.g.
+ * TN → zone_7, GOL-2238) repriced checkout but the storefront kept quoting the
+ * stale baked zone until a frontend release. Accepts either the schema-agnostic
+ * {@link ShippingZoneMap} (from `shipping.zoneMap()`) or the full schema-2
+ * {@link ShippingRateFeed}, since both carry the wire fields.
+ */
+export function resolveZoneMap(
+  feed?:
+    | Pick<ShippingZoneMap, "zone_by_state" | "green_states">
+    | { zone_by_state?: Record<string, string> | null; green_states?: string[] | null }
+    | null,
+): ZoneMap {
+  const zoneByState = feed?.zone_by_state;
+  if (zoneByState && Object.keys(zoneByState).length > 0) {
+    const greenStates =
+      feed?.green_states && feed.green_states.length > 0
+        ? feed.green_states
+        : Object.keys(zoneByState);
+    return { zoneByState, greenStates };
+  }
+  return SNAPSHOT_ZONE_MAP;
+}
 
 /** Every US state + DC, for the selector. Non-green entries drive the
  *  "not shipping there yet" path, so demand for expansion is measurable. */
@@ -90,9 +162,14 @@ function normalizeState(state: string | null | undefined): string {
   return (state ?? "").trim().toUpperCase();
 }
 
-/** True when we currently ship living trees to `state` (in the green list). */
-export function shipsTo(state: string | null | undefined): boolean {
-  return normalizeState(state) in ZONE_BY_STATE;
+/** True when we currently ship living trees to `state` (in the green list).
+ *  Pass a resolved `zoneMap` (from `resolveZoneMap(feed)`) to gate on the LIVE
+ *  green list; omit it to use the baked snapshot (GOL-2292). */
+export function shipsTo(
+  state: string | null | undefined,
+  zoneMap: ZoneMap = SNAPSHOT_ZONE_MAP,
+): boolean {
+  return normalizeState(state) in zoneMap.zoneByState;
 }
 
 /** Resolve the shipping tier for a variant, mirroring `shippingHintFor`'s
@@ -115,14 +192,17 @@ export function tierFor(input: {
  * guessed charge", exactly like the backend engine's fail-safe.
  *
  * Pass `rates` to price against a live table fetched from the backend; omit it
- * to use the bundled provisional snapshot.
+ * to use the bundled provisional snapshot. Pass `zoneByState` (from
+ * `resolveZoneMap(feed).zoneByState`) to resolve the state's zone from the LIVE
+ * green list; omit it to use the baked snapshot (GOL-2292).
  */
 export function estimateShipping(
   state: string | null | undefined,
   tier: ShippingTier,
   rates: RateTable = ZONE_RATE_TABLE,
+  zoneByState: Record<string, string> = ZONE_BY_STATE,
 ): number | null {
-  const zone = ZONE_BY_STATE[normalizeState(state)];
+  const zone = zoneByState[normalizeState(state)];
   if (!zone) return null;
   const tierKey = tier === "bareroot" || tier === "potted" ? tier : DEFAULT_TIER;
   const rule = rates[zone]?.[tierKey];
@@ -150,11 +230,12 @@ export function resolveRateTable(fetched?: RateTable | null): RateTable {
  *  own class; a longer box is always usable, never a shorter one. */
 export const DEFAULT_LENGTH_CLASS = 20;
 
-/** Packing mode for the product-card estimate. Leafed is the conservative
- *  choice — it excludes the cheap single-whip (`br16`) and the dormant-only
- *  bulk boxes, so a single-tree quote never *under*-states the season's cost.
- *  Mirrors backend `single_tree_rate(..., mode="leafed")`. Real season is
- *  resolved server-side at checkout; here we only need a "from $X" floor. */
+/** Packing mode for the product-card estimate. Under the two-SKU catalog both
+ *  boxes carry the same count in either mode, so the mode no longer changes
+ *  which box a single tree picks; leafed stays the default to mirror backend
+ *  `single_tree_rate(..., mode="leafed")` and keep the estimate stable across
+ *  seasons. Real season is resolved server-side at checkout; here we only need a
+ *  "from $X" floor. */
 const DEFAULT_MODE: PackingMode = "leafed";
 
 /**
@@ -238,16 +319,26 @@ export function estimateBoxFloor(
  * potted always uses the tier-keyed path — until the potted=farm-pickup-only
  * flip is ratified (GOL-1114 gate), potted keeps its existing behaviour and is
  * never routed through the box feed (which has no potted rate by design).
+ *
+ * The box-feed path resolves the state's zone from `feed.zone_by_state`, which is
+ * intrinsically live; the tier-keyed path resolves it from `opts.zoneMap` (from
+ * `resolveZoneMap(feed)`), falling back to the baked snapshot — so BOTH paths
+ * price against the live green list, never a stale baked zone (GOL-2292).
  */
 export function estimateTierShipping(
   state: string | null | undefined,
   tier: ShippingTier,
-  opts: { feed?: ShippingRateFeed | null; rates?: RateTable } = {},
+  opts: { feed?: ShippingRateFeed | null; rates?: RateTable; zoneMap?: ZoneMap } = {},
 ): number | null {
   if (tier === "bareroot" && hasBoxFeed(opts.feed)) {
     return estimateBoxShipping(state, opts.feed);
   }
-  return estimateShipping(state, tier, opts.rates ?? ZONE_RATE_TABLE);
+  return estimateShipping(
+    state,
+    tier,
+    opts.rates ?? ZONE_RATE_TABLE,
+    (opts.zoneMap ?? SNAPSHOT_ZONE_MAP).zoneByState,
+  );
 }
 
 /** True when `feed` is a usable schema-2 Box Engine v2 feed (has box-keyed

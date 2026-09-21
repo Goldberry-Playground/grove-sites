@@ -81,11 +81,11 @@ describe("client.shipping.rates (live shipping-rate feed, GOL-969)", () => {
 const SCHEMA2_FEED = {
   schema: 2,
   zones: {
-    zone_1: { br16: { base: 18 }, s20: { base: 22 }, s32: { base: 24 }, s46: { base: 26 }, b20: { base: 28 }, b32: { base: 30 } },
-    zone_2: { br16: { base: 19 }, s20: { base: 23 }, s32: { base: 25 }, s46: { base: 27 }, b20: { base: 29 }, b32: { base: 31 } },
-    zone_3: { br16: { base: 20 }, s20: { base: 24 }, s32: { base: 26 }, s46: { base: 28 }, b20: { base: 31 }, b32: { base: 33 } },
-    zone_4: { br16: { base: 21 }, s20: { base: 25 }, s32: { base: 27 }, s46: { base: 30 }, b20: { base: 32 }, b32: { base: 34 } },
-    zone_5: { br16: { base: 22 }, s20: { base: 26 }, s32: { base: 28 }, s46: { base: 31 }, b20: { base: 33 }, b32: { base: 36 } },
+    zone_1: { small: { base: 22 }, large: { base: 36 } },
+    zone_2: { small: { base: 22 }, large: { base: 36 } },
+    zone_3: { small: { base: 22 }, large: { base: 36 } },
+    zone_4: { small: { base: 47 }, large: { base: 54 } },
+    zone_5: { small: { base: 41 }, large: { base: 52 } },
   },
   zone_by_state: {
     WV: "zone_1", VA: "zone_1", KY: "zone_1", NC: "zone_1", DE: "zone_1",
@@ -100,14 +100,10 @@ const SCHEMA2_FEED = {
   ],
   packing: {
     boxes: {
-      br16: { length: 16, width: 6, height: 4, capacity: { dormant: 1 } },
-      s20: { length: 20, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      s32: { length: 32, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      s46: { length: 46, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      b20: { length: 20, width: 12, height: 12, capacity: { dormant: 50 } },
-      b32: { length: 32, width: 12, height: 12, capacity: { dormant: 50 } },
+      small: { length: 24, width: 6, height: 4, capacity: { dormant: 5, leafed: 5 } },
+      large: { length: 24, width: 9, height: 6, capacity: { dormant: 10, leafed: 10 } },
     },
-    length_classes: [16, 20, 32, 46],
+    length_classes: [16, 20],
     modes: ["dormant", "leafed"],
   },
   calendar: {
@@ -145,9 +141,9 @@ describe("client.shipping.rateFeed (schema-2 Box Engine v2 feed, GOL-1038)", () 
     // Parity contract: the client mirrors rate_feed() exactly, no field dropped.
     expect(feed).toEqual(SCHEMA2_FEED);
     // Box-keyed rates (not tier-keyed) and the packing catalog survive typed.
-    expect(feed?.zones.zone_5?.b32?.base).toBe(36);
-    expect(feed?.packing.boxes.br16?.capacity.dormant).toBe(1);
-    expect(feed?.packing.length_classes).toEqual([16, 20, 32, 46]);
+    expect(feed?.zones.zone_5?.large?.base).toBe(52);
+    expect(feed?.packing.boxes.small?.capacity.dormant).toBe(5);
+    expect(feed?.packing.length_classes).toEqual([16, 20]);
     expect(feed?.zone_by_state.ME).toBe("zone_5");
     expect(feed?.green_states).toHaveLength(21);
   });

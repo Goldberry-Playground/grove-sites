@@ -10,6 +10,7 @@ import {
   payAtReview,
   submitAndCaptureSession,
 } from "./helpers";
+import { AFTER_CUTOVER_REASON, afterDepositCutover } from "./qa-helpers";
 
 /**
  * Spec 6 — Cart cleared after success, across BOTH success routes (GOL-1074).
@@ -28,6 +29,10 @@ import {
  */
 test.describe("checkout — cart cleared after success", { tag: "@stripe" }, () => {
   test("Stripe return route (/checkout/success) empties the cart", async ({ page }) => {
+    // Full-charge success routes; only before the GOL-2233 season cutover (after
+    // it every order deposits). After the cutover checkout-deposit-happy-path
+    // covers the /checkout/success cart-clear on the deposit session.
+    test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
     const product = await findProductByCta(page, "Add to Cart");
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, "Add to Cart");
@@ -50,6 +55,10 @@ test.describe("checkout — cart cleared after success", { tag: "@stripe" }, () 
   test("order confirmation route (/checkout/success/[id]) empties the cart", async ({ page }) => {
     // Populate the cart via the real UI so localStorage genuinely holds a line —
     // the exact state that used to survive the buggy clear().
+    // Full-charge success routes; only before the GOL-2233 season cutover (after
+    // it every order deposits). After the cutover checkout-deposit-happy-path
+    // covers the /checkout/success cart-clear on the deposit session.
+    test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
     const product = await findProductByCta(page, "Add to Cart");
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, "Add to Cart");

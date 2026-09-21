@@ -10,6 +10,7 @@ import {
   payAtReview,
   submitAndCaptureSession,
 } from "./helpers";
+import { AFTER_CUTOVER_REASON, afterDepositCutover } from "./qa-helpers";
 
 /**
  * Spec 5 — Declined card (GOL-1074).
@@ -23,6 +24,10 @@ import {
  */
 test.describe("checkout — declined card", { tag: "@stripe" }, () => {
   test("a declined card surfaces an error and keeps the cart", async ({ page }) => {
+    // Written for the full-charge session; only before the GOL-2233 season
+    // cutover (after it every order deposits). The deposit-session decline path
+    // is a follow-up once the deposit happy path is established.
+    test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
     const product = await findProductByCta(page, "Add to Cart");
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, "Add to Cart");

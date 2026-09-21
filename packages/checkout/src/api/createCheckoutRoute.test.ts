@@ -392,7 +392,7 @@ describe("createCheckoutRoute payload validation", () => {
       "Odoo API error: 400 Bad Request — …",
       JSON.stringify({
         error:
-          "We can't ship live trees to Florida. Shipping is limited to our 21-state region for plant-health compliance — choose a supported ship-to state or farm pickup.",
+          "We can't ship live trees to Florida. Shipping is limited to our 31-state region for plant-health compliance — choose a supported ship-to state or farm pickup.",
       }),
     );
     const odoo = makeOdoo({ create: vi.fn().mockRejectedValue(rejection) });
@@ -401,6 +401,6 @@ describe("createCheckoutRoute payload validation", () => {
     const res = await handler(postReq(validPayload()));
 
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("21-state region");
+    expect((await res.json()).error).toContain("31-state region");
   });
 });

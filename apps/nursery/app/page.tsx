@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { assetPath } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
 import { NURSERY_CATEGORIES } from "../data/categories";
@@ -33,16 +34,28 @@ export default async function HomePage() {
     <>
       <CategoryBar />
 
-      <section
-        className="pano-hero"
-        // Verified content: a spring apple orchard in full white bloom over
-        // dandelion-covered grass. Sourced from Wikimedia Commons
-        // (Apple_orchard_Moscow_State_University_05.JPG, CC BY-SA 3.0),
-        // compressed to webp @ 1800w.
-        style={{ backgroundImage: `url('${assetPath("nursery", "hero/spring-orchard.webp")}')` }}
-        role="img"
-        aria-label="A spring apple orchard with rows of trees in full white bloom over grass dotted with yellow dandelions."
-      >
+      <section className="pano-hero">
+        {/* GOL-2224: the hero was an inline CSS `background-image`, so the
+            browser could not discover it until CSS parsed and could not
+            fetchpriority/srcset it — the single 578 KB 1800×1350 master was
+            most of the 8.8 s mobile LCP. Rendering it as a `next/image` with
+            `fill`+`priority`+`sizes="100vw"` gives the optimizer's responsive
+            AVIF/WebP srcset (a 390 px phone pulls a ~640 px rung, not 1800 px)
+            plus `fetchpriority=high` and a `<link rel=preload>`, so it paints
+            as the LCP element without the full-master penalty. The legibility
+            scrim (`.pano-hero::after`) still layers above it; `.pano-content`
+            (z-index:1) still sits on top. Verified content: a spring apple
+            orchard in full white bloom over dandelion-covered grass (Wikimedia
+            Commons Apple_orchard_Moscow_State_University_05.JPG, CC BY-SA 3.0). */}
+        <Image
+          className="pano-hero-img"
+          src={assetPath("nursery", "hero/spring-orchard.webp")}
+          alt="A spring apple orchard with rows of trees in full white bloom over grass dotted with yellow dandelions."
+          fill
+          priority
+          sizes="100vw"
+          style={{ objectFit: "cover", objectPosition: "center" }}
+        />
         <div className="pano-content">
           <div>
             <div className="pano-eyebrow">Bare-root season · Through March 30</div>
@@ -181,15 +194,23 @@ export default async function HomePage() {
       </section>
 
       <section className="split-band">
-        <div
-          className="split-img"
-          // Verified content: honeybee perched on a pale-pink apple blossom in
-          // direct sun. Sourced from Wikimedia Commons (Honey_bee_on_apple_
-          // blossom_Sandy_Bedfordshire.jpg by Orangeaurochs, CC BY 2.0).
-          style={{ backgroundImage: `url('${assetPath("nursery", "hero/pollination.webp")}')` }}
-          role="img"
-          aria-label="A honeybee resting in the center of a pale-pink apple blossom, with another open blossom in the foreground."
-        />
+        {/* GOL-2224: second CSS-background hero → lazy `next/image` (no
+            `priority` — it is well below the fold). It shrinks the 87 KB
+            master to a viewport-fit AVIF/WebP rung and stops the background
+            from re-downloading at full width on phones. Verified content: a
+            honeybee perched on a pale-pink apple blossom in direct sun
+            (Wikimedia Commons Honey_bee_on_apple_blossom_Sandy_Bedfordshire.jpg
+            by Orangeaurochs, CC BY 2.0). */}
+        <div className="split-img">
+          <Image
+            className="split-img-photo"
+            src={assetPath("nursery", "hero/pollination.webp")}
+            alt="A honeybee resting in the center of a pale-pink apple blossom, with another open blossom in the foreground."
+            fill
+            sizes="(max-width: 900px) 100vw, 50vw"
+            style={{ objectFit: "cover", objectPosition: "center" }}
+          />
+        </div>
         <div>
           <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", letterSpacing: "0.2em", color: "var(--orange)", textTransform: "uppercase" }}>
             A Note on Pollination

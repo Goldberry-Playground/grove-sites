@@ -46,6 +46,15 @@ export interface BuyStateInput {
    * mocks are unaffected.
    */
   saleOk?: boolean;
+  /**
+   * Preorder cap reached (Odoo `grove_preorder_cap_reached`, GOL-2171). `true`
+   * once the per-product reservation cap is crossed: the box reads as a hard
+   * sell-out with a restock capture — even a preorder (Bareroot) format can take
+   * no further reservation, so this OUTRANKS the reservable branch. The
+   * threshold is computed in Odoo; the frontend only reads the flag. Optional
+   * and defaulted to uncapped so existing callers and mocks are unaffected.
+   */
+  capReached?: boolean;
 }
 
 export interface BuyState {
@@ -100,6 +109,23 @@ export function buyStateFor(input: BuyStateInput): BuyState {
       ctaLabel: "Add to Cart",
       stockLabel,
       stockTone: "in-stock",
+      showDepositNote: false,
+    };
+  }
+
+  // Preorder cap reached (GOL-2171): the per-product reservation cap has been
+  // crossed, so there is no reservation left to sell — a Bareroot preorder that
+  // hit its cap reads as a hard sell-out, NOT "Reserve". Checked before the
+  // preorder branch so it outranks it; the restock capture then mirrors a stock
+  // sell-out. (Only reached when out of on-hand stock — real on-hand inventory
+  // above still sells as in-stock; the cap gates the reservation path only.)
+  if (input.capReached) {
+    return {
+      mode: "sold-out",
+      ctaDisabled: true,
+      ctaLabel: "Sold out",
+      stockLabel: "Sold out",
+      stockTone: "sold-out",
       showDepositNote: false,
     };
   }

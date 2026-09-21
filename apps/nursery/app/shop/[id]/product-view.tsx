@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ShippingTier, ShippingRateTable, ShippingRateFeed } from "@grove/odoo-client";
+import type {
+  ShippingTier,
+  ShippingRateTable,
+  ShippingRateFeed,
+  ShippingZoneMap,
+} from "@grove/odoo-client";
 import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { ProductImage } from "../../product-image";
 import {
   cultivarOptions,
@@ -21,10 +26,12 @@ import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateBoxFloor,
   estimateTierShipping,
+  GREEN_STATE_COUNT,
   hasBoxFeed,
   isPickupOnly,
   PICKUP_ONLY_FULFILLMENT,
   resolveRateTable,
+  resolveZoneMap,
   shipsTo,
   tierFor,
 } from "../../../lib/shipping-estimate";
@@ -82,6 +89,13 @@ export interface ProductViewProps {
    */
   saleOk?: boolean;
   /**
+   * Preorder cap reached (Odoo `grove_preorder_cap_reached`, GOL-2171). `true`
+   * once the per-product reservation cap is crossed — the buy box flips to a
+   * hard sell-out with a restock capture, even for a preorder (Bareroot)
+   * format. Optional/defaulted to uncapped so older payloads are unaffected.
+   */
+  preorderCapReached?: boolean;
+  /**
    * Live shipping-rate table from the backend feed (GOL-969), fetched in the
    * SSR product load. `null` when the feed is unreachable — the estimator then
    * falls back to its bundled snapshot via `resolveRateTable()`.
@@ -94,6 +108,13 @@ export interface ProductViewProps {
    * its legacy tier behaviour until the pickup-only flip is ratified.
    */
   shippingFeed?: ShippingRateFeed | null;
+  /**
+   * Live state→zone map + green list (GOL-2292), fetched in the SSR product load.
+   * Resolved ahead of the baked snapshot so the estimator prices *which zone* a
+   * state is in — and gates eligibility — off the live backend, not a stale build.
+   * `null` when the feed is unreachable → the estimator keeps its snapshot.
+   */
+  shippingZoneMap?: ShippingZoneMap | null;
 }
 
 /**
@@ -112,8 +133,10 @@ export function ProductView({
   variants,
   fallbackPrice,
   saleOk,
+  preorderCapReached,
   shippingRates,
   shippingFeed,
+  shippingZoneMap,
 }: ProductViewProps) {
   // Availability authority, reused by the buy box, the opening-default pickers,
   // and the cart guard so all three agree on what "purchasable" means (GOL-1862):
@@ -121,26 +144,33 @@ export function ProductView({
   // pickup-only Potted is a dead end. Deriving the opening selection from this —
   // rather than a blind axis `[0]` — is what keeps the PDP from opening on an
   // unbuyable format when per-environment variant order sorts a dead SKU first.
-  const isPurchasable = (v: ViewVariant | undefined) =>
+  const buyStateOf = (v: ViewVariant | undefined) =>
     buyStateFor({
       available: v ? v.available : true,
       qtyAvailable: v?.qtyAvailable ?? null,
       shippingTier: v?.shippingTier ?? null,
       format: v?.format ?? null,
       saleOk,
-    }).ctaDisabled === false;
+      capReached: preorderCapReached,
+    });
+  const isPurchasable = (v: ViewVariant | undefined) => buyStateOf(v).ctaDisabled === false;
+  // Opening-default preference: real stock beats a $10-deposit reservation.
+  // Without this tier, the GOL-2233 rule (sold-out bareroot stays reservable)
+  // makes every cultivar "purchasable", so pages defaulted to a 0-stock
+  // cultivar that merely sorted first while a sibling had trees on hand.
+  const isInStock = (v: ViewVariant | undefined) => buyStateOf(v).mode === "in-stock";
 
   const cultivars = useMemo(() => cultivarOptions(variants), [variants]);
   const [cultivar, setCultivar] = useState<string | null>(() =>
-    defaultCultivar(variants, cultivars, isPurchasable),
+    defaultCultivar(variants, cultivars, isPurchasable, isInStock),
   );
   const formats = useMemo(() => formatOptions(variants, cultivar), [variants, cultivar]);
   const [format, setFormat] = useState<string | null>(() =>
-    defaultFormat(variants, formats, cultivar, isPurchasable),
+    defaultFormat(variants, formats, cultivar, isPurchasable, isInStock),
   );
   const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
   const [rootstock, setRootstock] = useState<string | null>(() =>
-    defaultRootstock(variants, rootstocks, cultivar, format, isPurchasable),
+    defaultRootstock(variants, rootstocks, cultivar, format, isPurchasable, isInStock),
   );
   // Thumbnail the buyer explicitly clicked; null → follow the selected variant.
   const [pinnedImage, setPinnedImage] = useState<string | null>(null);
@@ -192,6 +222,13 @@ export function ProductView({
   // panel below price against the same table.
   const rateTable = useMemo(() => resolveRateTable(shippingRates), [shippingRates]);
 
+  // Live state→zone map + green list, feed-first with the baked snapshot as
+  // fallback (GOL-2292). resolveZoneMap() is drift-safe the same way rateTable is:
+  // null/empty feed → snapshot. This is what makes the estimate resolve *which
+  // zone* a state is in — and gate eligibility — off the live backend, so a
+  // backend re-zoning (e.g. TN → zone_7) reprices the PDP without a rebuild.
+  const zoneMap = useMemo(() => resolveZoneMap(shippingZoneMap), [shippingZoneMap]);
+
   // Which of the three shippable modes bareroot is in TODAY (GOL-1114). Resolved
   // from the schema-2 feed's per-USDA-zone calendar (GOL-1172/1177) against the
   // current date: preorder (deposit now) / ships-now / peat & bagged. Null on the
@@ -230,14 +267,15 @@ export function ProductView({
       const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
       // Single presentation authority for tier timing + badge (GOL-1313), shared
       // with the Format cards below so the two can never drift.
-      const { fulfillment, badge } = tierFulfillment({
+      const { label, fulfillment, badge } = tierFulfillment({
         tier,
+        label: TIER_LABEL[tier],
         pickupOnly,
         pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
         hintFulfillment: hint.fulfillment,
         shipMode,
       });
-      out.push({ tier, label: TIER_LABEL[tier], fulfillment, pickupOnly, badge });
+      out.push({ tier, label, fulfillment, pickupOnly, badge });
     }
     return out;
   }, [formats, variants, cultivar, shippingFeed, shipMode]);
@@ -263,7 +301,7 @@ export function ProductView({
     const nextFormat =
       format && nextFormats.includes(format)
         ? format
-        : defaultFormat(variants, nextFormats, next, isPurchasable);
+        : defaultFormat(variants, nextFormats, next, isPurchasable, isInStock);
     setFormat(nextFormat);
     // Same reconciliation for the rootstock axis: a cultivar sold seedling-only
     // shouldn't keep a "M.111" selection from the previous one (GOL-1112), and
@@ -273,7 +311,7 @@ export function ProductView({
     const nextRootstock =
       rootstock && nextRootstocks.includes(rootstock)
         ? rootstock
-        : defaultRootstock(variants, nextRootstocks, next, nextFormat, isPurchasable);
+        : defaultRootstock(variants, nextRootstocks, next, nextFormat, isPurchasable, isInStock);
     setRootstock(nextRootstock);
     setPinnedImage(null);
   }
@@ -301,6 +339,7 @@ export function ProductView({
     shippingTier: selected?.shippingTier ?? null,
     format,
     saleOk,
+    capReached: preorderCapReached,
   });
 
   // Selected-format pickup-only flag (Box Engine v2): potted is picked up at the
@@ -311,6 +350,21 @@ export function ProductView({
     format,
   });
   const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed);
+
+  // Variant-specific charge shape for the buy-box note (GOL-2233 ruling). The
+  // deposit decision keys to the backend `_order_takes_deposit` rule — sold out
+  // OR after the Oct 15 cutover — so it needs THIS variant's stock, unlike the
+  // zone-agnostic `shipMode` above that feeds the generic estimator/format rows.
+  // A `reservable` buy state is exactly a bareroot variant with no free stock.
+  const selectedShipMode = useMemo<FulfillmentResolution | null>(
+    () =>
+      shippingFeed?.calendar
+        ? resolveShippableMode(new Date(), shippingFeed.calendar, null, {
+            soldOut: buy.mode === "reservable",
+          })
+        : null,
+    [shippingFeed, buy.mode],
+  );
 
   // Bind the cart to an EXACT variant match, never to pickVariant's display
   // fallback (GOL-1862). `pickVariant` deliberately degrades to a best-effort
@@ -413,6 +467,7 @@ export function ProductView({
                       ? estimateTierShipping(shipState, fTier, {
                           feed: shippingFeed,
                           rates: rateTable,
+                          zoneMap,
                         })
                       : null;
                   // Pickup-only formats never quote a ship rate; every other
@@ -426,13 +481,18 @@ export function ProductView({
                     ? "farm pickup only"
                     : fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
-                      : shipState && !shipsTo(shipState)
+                      : shipState && !shipsTo(shipState, zoneMap)
                         ? `not shipping to ${shipState} yet`
                         : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
                   // (GOL-1313): bareroot follows today's mode, potted stays pickup.
-                  const { fulfillment: fFulfillment, badge: fBadge } = tierFulfillment({
+                  const {
+                    label: fLabel,
+                    fulfillment: fFulfillment,
+                    badge: fBadge,
+                  } = tierFulfillment({
                     tier: fTier,
+                    label: f,
                     pickupOnly: fPickupOnly,
                     pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
                     hintFulfillment: fHint.fulfillment,
@@ -452,7 +512,7 @@ export function ProductView({
                       }`}
                     >
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
-                        {f}
+                        {fLabel}
                         {fBadge && (
                           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
                             {fBadge}
@@ -530,6 +590,7 @@ export function ProductView({
               tiers={estimatorTiers}
               rates={rateTable}
               feed={shippingFeed}
+              zoneMap={zoneMap}
             />
           )}
 
@@ -564,12 +625,17 @@ export function ProductView({
             </p>
           )}
 
-          {/* Bareroot fulfillment note, driven by today's shippable mode
-              (GOL-1114): preorder + $10 deposit / ships-now / peat & bagged.
-              Ratified copy (GOL-1302, flat $10). Icon + words, never colour
-              alone. The legacy backend (no calendar feed → shipMode null) keeps
-              the old stock-driven deposit note below. */}
-          {shipMode && selectedTier === "bareroot" && !selectedPickupOnly && (
+          {/* Bareroot fulfillment note, driven by the selected variant's charge
+              shape (GOL-2233 ruling): ships-now + charged in full for in-stock
+              bareroot on/before Oct 15, else a flat $10-per-order reserve deposit
+              (sold out, or after the cutover). Peat & bagged for the leafed
+              window. Icon + words, never colour alone. The legacy backend (no
+              calendar feed → selectedShipMode null) keeps the old stock-driven
+              deposit note below. Coming-soon placeholders show neither. */}
+          {selectedShipMode &&
+            selectedTier === "bareroot" &&
+            !selectedPickupOnly &&
+            buy.mode !== "coming-soon" && (
             <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
               <svg
                 aria-hidden="true"
@@ -579,25 +645,25 @@ export function ProductView({
                 <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6L12 11.5 5.5 7.9 12 4.3ZM5 9.6l6 3.3v6.2l-6-3.3V9.6Zm14 0v6.2l-6 3.3v-6.2l6-3.3Z" />
               </svg>
               <span>
-                {barerootBadge(shipMode) && (
+                {barerootBadge(selectedShipMode) && (
                   <strong className="font-semibold text-foreground">
-                    {barerootBadge(shipMode)}.
+                    {barerootBadge(selectedShipMode)}.
                   </strong>
                 )}{" "}
-                {barerootNote(shipMode)}
+                {barerootNote(selectedShipMode)}
                 {/* Windows are estimates (GOL-1177 `approximate`); a weather-
                     permitting qualifier keeps the promise honest. Suppressed when
                     an explicit hold banner already says more. */}
-                {shipMode.approximate &&
-                  !shipMode.weatherHoldNote &&
-                  shipMode.mode !== "peat-and-bagged" && (
+                {selectedShipMode.approximate &&
+                  !selectedShipMode.weatherHoldNote &&
+                  selectedShipMode.mode !== "peat-and-bagged" && (
                     <span className="text-ink-soft"> Ship dates are estimates, weather permitting.</span>
                   )}
               </span>
             </p>
           )}
 
-          {buy.showDepositNote && !shipMode && (
+          {buy.showDepositNote && !selectedShipMode && (
             <p className="text-xs text-ink-soft mb-4">
               Bareroot ships in fall. Reserve now with a $10 deposit applied to your total.
             </p>
@@ -637,31 +703,37 @@ export function ProductView({
           </div>
 
           {(buy.mode === "sold-out" || buy.mode === "coming-soon") && (
-            <div className="mt-6 rounded-lg border border-primary/10 bg-secondary/10 p-5">
-              <CaptureForm
-                brand="nursery"
-                source="notify-me"
-                label={`nursery-restock-${productId}`}
-                interests={["nursery", "restock"]}
-                eyebrow={buy.mode === "coming-soon" ? "Coming soon" : "Back-in-stock alert"}
-                heading={
-                  buy.mode === "coming-soon"
-                    ? "Be the first to know when it's available."
-                    : "Want to know when it's back in stock?"
-                }
-                description="We'll send one email when it's ready to ship. That's it."
-                submitLabel="Notify me"
-                successMessage="You're on the list. We'll email you when it's ready."
-                consentText="We'll only email you about this. Unsubscribe anytime."
-              />
-            </div>
+            // One-CTA-per-page (GOL-2178): this restock capture is the page's
+            // highest-priority tier, so registering it here suppresses the
+            // shared footer newsletter for the whole PDP. `restock` always wins
+            // over `newsletter`, so this block itself always renders.
+            <CaptureSlot priority="restock">
+              <div className="mt-6 rounded-lg border border-primary/10 bg-secondary/10 p-5">
+                <CaptureForm
+                  brand="nursery"
+                  source="notify-me"
+                  label={`nursery-restock-${productId}`}
+                  interests={["nursery", "restock"]}
+                  eyebrow={buy.mode === "coming-soon" ? "Coming soon" : "Back-in-stock alert"}
+                  heading={
+                    buy.mode === "coming-soon"
+                      ? "Be the first to know when it's available."
+                      : "Want to know when it's back in stock?"
+                  }
+                  description="We'll send one email when it's ready to ship. That's it."
+                  submitLabel="Notify me"
+                  successMessage="You're on the list. We'll email you when it's ready."
+                  consentText="We'll only email you about this. Unsubscribe anytime."
+                />
+              </div>
+            </CaptureSlot>
           )}
 
           <p className="mt-4 text-xs text-ink-soft">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
           </p>
           <p className="mt-1 text-xs text-ink-soft">
-            Ships to 21 states, priced live at checkout. <PolicyLink /> for full
+            Ships to {GREEN_STATE_COUNT} states, priced live at checkout. <PolicyLink /> for full
             shipping and warranty terms.
           </p>
         </div>

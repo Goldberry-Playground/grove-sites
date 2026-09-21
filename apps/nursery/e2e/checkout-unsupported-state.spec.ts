@@ -9,7 +9,7 @@ import {
 /**
  * Spec 3 — Unsupported ship-to state (GOL-1074).
  *
- * The State `<select>` now only offers the 21 green-list states (GOL-1055), so
+ * The State `<select>` now only offers the 31 green-list states (GOL-1055), so
  * a shopper can no longer *pick* an unsupported state through the UI. This spec
  * therefore validates the defence-in-depth server gate: we submit a valid
  * selectable state but rewrite the outbound payload's `shipping.state` to an

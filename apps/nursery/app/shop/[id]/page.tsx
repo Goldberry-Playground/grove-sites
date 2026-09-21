@@ -53,9 +53,17 @@ export default async function ProductDetailPage({
   //                  potted (no potted box by design). GOL-1114.
   // Exactly one is non-null on a configured backend; both null → the client's
   // bundled snapshot. Best-effort and drift-safe — neither call ever blocks.
-  const [shippingRates, shippingFeed] = await Promise.all([
+  //
+  // zoneMap() carries the LIVE state→zone map + green list, present in BOTH schema
+  // generations (GOL-2292). It's the fix for the PDP-vs-checkout drift: without it
+  // the estimator resolves *which zone* a state is in from the baked snapshot, so
+  // a backend re-zoning (e.g. TN → zone_7) repriced checkout but not the PDP until
+  // a storefront rebuild. All three hit the same cached endpoint, so Next dedupes
+  // the fetch — no extra backend round-trip.
+  const [shippingRates, shippingFeed, shippingZoneMap] = await Promise.all([
     odoo.shipping.rates(),
     odoo.shipping.rateFeed(),
+    odoo.shipping.zoneMap(),
   ]);
 
   // Growing guide from Odoo's eCommerce Description (`website_description`),
@@ -151,8 +159,10 @@ export default async function ProductDetailPage({
         variants={variants}
         fallbackPrice={product.price}
         saleOk={product.saleOk}
+        preorderCapReached={product.preorderCapReached}
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
+        shippingZoneMap={shippingZoneMap}
       />
 
       {product.description && (

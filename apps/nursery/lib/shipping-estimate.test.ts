@@ -12,8 +12,11 @@ import {
   shipsTo,
   tierFor,
   resolveRateTable,
+  resolveZoneMap,
+  SNAPSHOT_ZONE_MAP,
   ZONE_RATE_TABLE,
 } from "./shipping-estimate";
+import zoneMapFixture from "./__fixtures__/shipping-zone-map.fixture.json";
 
 // GOL-1055 drift guard: the checkout State <select> (SHIP_TO_STATES) and the
 // shipping estimator (ZONE_BY_STATE) must offer the SAME states. If they drift,
@@ -35,13 +38,28 @@ describe("checkout state select ⟷ estimator green list (GOL-1055)", () => {
 });
 
 describe("shipping-estimate zone map", () => {
-  it("covers exactly the 21 green states", () => {
-    expect(Object.keys(ZONE_BY_STATE).length).toBe(21);
+  it("covers exactly the 31 green states", () => {
+    expect(Object.keys(ZONE_BY_STATE).length).toBe(31);
   });
 
   it("keeps WV in the nearest zone (zone_1)", () => {
     expect(ZONE_BY_STATE.WV).toBe("zone_1");
     expect(ZONE_BY_STATE.ME).toBe("zone_5");
+  });
+
+  it("assigns the south/mid tranche its real GOL-2238 probe-derived zones", () => {
+    // GOL-2238 re-probed the GOL-2128 tranche against the two-SKU catalog
+    // (2026-09-08): only GA/SC/AL/MS/LA stay at zone_5 (39/43); AR/MO/IA drop to
+    // zone_6 (23/28) and TN to zone_7 (29/32) — each zone still an upper bound
+    // for its members' worst corners, so none is ever undercharged. DC = zone_1.
+    for (const s of ["GA", "AL", "SC", "MS", "LA"]) {
+      expect(ZONE_BY_STATE[s]).toBe("zone_5");
+    }
+    for (const s of ["AR", "MO", "IA"]) {
+      expect(ZONE_BY_STATE[s]).toBe("zone_6");
+    }
+    expect(ZONE_BY_STATE.TN).toBe("zone_7");
+    expect(ZONE_BY_STATE.DC).toBe("zone_1");
   });
 });
 
@@ -104,6 +122,87 @@ describe("resolveRateTable", () => {
   });
 });
 
+// ── GOL-2292: the estimator's zone map must be feed-driven ───────────────────
+// The PDP once showed $39 for TN while checkout charged $29: a backend re-zoning
+// (TN → zone_7, GOL-2238) repriced checkout, but the storefront resolved *which
+// zone* a state is in from the baked ZONE_BY_STATE snapshot, which only updates on
+// a frontend release. These tests lock in the two halves of the fix: (1) a drift
+// guard so the baked snapshot can't silently diverge from the live feed, and
+// (2) resolveZoneMap()/shipsTo()/estimate* prefer the live feed over the snapshot.
+
+// The baked snapshot is a FALLBACK, but it must stay honest: it can't quietly
+// drift from what the backend actually prices. The fixture is a captured slice of
+// the live /shipping/rates feed (grove_headless ZONE_BY_STATE / GREEN_STATES). If
+// the backend re-zones without refreshing both the fixture AND ZONE_BY_STATE in
+// the same PR, this fails in CI rather than mispricing a PDP on prod.
+describe("snapshot ⟷ live-feed zone map drift guard (GOL-2292)", () => {
+  it("baked ZONE_BY_STATE matches the captured feed fixture exactly", () => {
+    expect(ZONE_BY_STATE).toEqual(zoneMapFixture.zone_by_state);
+  });
+
+  it("baked green list matches the feed's green_states (sorted)", () => {
+    expect(Object.keys(ZONE_BY_STATE).sort()).toEqual(
+      [...zoneMapFixture.green_states].sort(),
+    );
+  });
+
+  it("SNAPSHOT_ZONE_MAP mirrors the baked constant", () => {
+    expect(SNAPSHOT_ZONE_MAP.zoneByState).toBe(ZONE_BY_STATE);
+    expect(SNAPSHOT_ZONE_MAP.greenStates.sort()).toEqual(Object.keys(ZONE_BY_STATE).sort());
+  });
+});
+
+describe("resolveZoneMap (feed-first, snapshot fallback — GOL-2292)", () => {
+  it("prefers the live feed's zone_by_state / green_states", () => {
+    const live = { zone_by_state: { FL: "zone_5", TN: "zone_7" }, green_states: ["FL", "TN"] };
+    const resolved = resolveZoneMap(live);
+    expect(resolved.zoneByState).toBe(live.zone_by_state);
+    expect(resolved.greenStates).toEqual(["FL", "TN"]);
+  });
+
+  it("derives green_states from zone_by_state keys when the feed omits them", () => {
+    const resolved = resolveZoneMap({ zone_by_state: { WV: "zone_1", OH: "zone_2" } });
+    expect(resolved.greenStates.sort()).toEqual(["OH", "WV"]);
+  });
+
+  it("falls back to the baked snapshot for a null/empty/mapless feed", () => {
+    expect(resolveZoneMap(null)).toBe(SNAPSHOT_ZONE_MAP);
+    expect(resolveZoneMap(undefined)).toBe(SNAPSHOT_ZONE_MAP);
+    expect(resolveZoneMap({ zone_by_state: {}, green_states: [] })).toBe(SNAPSHOT_ZONE_MAP);
+  });
+
+  it("accepts the full schema-2 feed shape (same wire fields)", () => {
+    const resolved = resolveZoneMap(SCHEMA2_FEED);
+    expect(resolved.zoneByState).toBe(SCHEMA2_FEED.zone_by_state);
+  });
+});
+
+describe("shipsTo / estimate* honour a live zone map over the snapshot (GOL-2292)", () => {
+  // A hypothetical backend re-zoning the snapshot doesn't know about yet: FL is
+  // opened and TN is moved to a different band than the baked map holds.
+  const liveMap = resolveZoneMap({
+    zone_by_state: { ...ZONE_BY_STATE, FL: "zone_5", TN: "zone_1" },
+  });
+
+  it("shipsTo gates on the live green list, not the baked one", () => {
+    expect(shipsTo("FL")).toBe(false); // snapshot: not green yet
+    expect(shipsTo("FL", liveMap)).toBe(true); // live feed opened it
+  });
+
+  it("estimateTierShipping resolves the state's zone from the live map", () => {
+    // Baked TN is zone_7 (potted $39). The live map re-bands TN to zone_1 (potted
+    // $32): passing the live zoneMap must follow the feed, not the stale snapshot —
+    // exactly the PDP-vs-checkout drift this ticket fixes.
+    expect(estimateTierShipping("TN", "potted")).toBe(39); // snapshot zone_7
+    expect(estimateTierShipping("TN", "potted", { zoneMap: liveMap })).toBe(32); // live zone_1
+  });
+
+  it("estimateShipping accepts a zoneByState override directly", () => {
+    expect(estimateShipping("FL", "potted")).toBeNull(); // not in the snapshot
+    expect(estimateShipping("FL", "potted", ZONE_RATE_TABLE, liveMap.zoneByState)).toBe(40); // zone_5
+  });
+});
+
 // ── Box Engine v2 (schema-2) estimator leg — GOL-1114 ────────────────────────
 // Verbatim mirror of grove_headless `rate_feed()` (data/shipping_rates.json v2
 // + shipping_boxes.py BOXES). Kept identical to the odoo-client parity fixture
@@ -111,24 +210,20 @@ describe("resolveRateTable", () => {
 const SCHEMA2_FEED: ShippingRateFeed = {
   schema: 2,
   zones: {
-    zone_1: { br16: { base: 18 }, s20: { base: 22 }, s32: { base: 24 }, s46: { base: 26 }, b20: { base: 28 }, b32: { base: 30 } },
-    zone_2: { br16: { base: 19 }, s20: { base: 23 }, s32: { base: 25 }, s46: { base: 27 }, b20: { base: 29 }, b32: { base: 31 } },
-    zone_3: { br16: { base: 20 }, s20: { base: 24 }, s32: { base: 26 }, s46: { base: 28 }, b20: { base: 31 }, b32: { base: 33 } },
-    zone_4: { br16: { base: 21 }, s20: { base: 25 }, s32: { base: 27 }, s46: { base: 30 }, b20: { base: 32 }, b32: { base: 34 } },
-    zone_5: { br16: { base: 22 }, s20: { base: 26 }, s32: { base: 28 }, s46: { base: 31 }, b20: { base: 33 }, b32: { base: 36 } },
+    zone_1: { small: { base: 22 }, large: { base: 36 } },
+    zone_2: { small: { base: 22 }, large: { base: 36 } },
+    zone_3: { small: { base: 22 }, large: { base: 36 } },
+    zone_4: { small: { base: 47 }, large: { base: 54 } },
+    zone_5: { small: { base: 41 }, large: { base: 52 } },
   },
   zone_by_state: { ...ZONE_BY_STATE },
   green_states: Object.keys(ZONE_BY_STATE).sort(),
   packing: {
     boxes: {
-      br16: { length: 16, width: 6, height: 4, capacity: { dormant: 1 } },
-      s20: { length: 20, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      s32: { length: 32, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      s46: { length: 46, width: 8, height: 8, capacity: { dormant: 15, leafed: 4 } },
-      b20: { length: 20, width: 12, height: 12, capacity: { dormant: 50 } },
-      b32: { length: 32, width: 12, height: 12, capacity: { dormant: 50 } },
+      small: { length: 24, width: 6, height: 4, capacity: { dormant: 5, leafed: 5 } },
+      large: { length: 24, width: 9, height: 6, capacity: { dormant: 10, leafed: 10 } },
     },
-    length_classes: [16, 20, 32, 46],
+    length_classes: [16, 20],
     modes: ["dormant", "leafed"],
   },
   calendar: {
@@ -150,25 +245,23 @@ const SCHEMA2_FEED: ShippingRateFeed = {
 };
 
 describe("estimateBoxShipping (Box Engine v2 single-tree bareroot floor)", () => {
-  it("picks the cheapest leafed-usable box ≥ the tree's length class, per zone", () => {
-    // Default class 20, leafed → usable {s20,s32,s46}; cheapest is s20.
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED)).toBe(22); // zone_1 s20
-    expect(estimateBoxShipping("ME", SCHEMA2_FEED)).toBe(26); // zone_5 s20
+  it("picks the cheapest usable box ≥ the tree's length class, per zone", () => {
+    // Two-SKU catalog: a single tree takes the cheaper box (small), per zone.
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED)).toBe(22); // zone_1 small
+    expect(estimateBoxShipping("ME", SCHEMA2_FEED)).toBe(41); // zone_5 small
   });
 
-  it("excludes the single-whip/bulk boxes in leafed mode (never undercharge)", () => {
-    // A class-16 tree *could* ride the $18 br16 — but only when dormant. In the
-    // conservative leafed default, br16 (and dormant-only b20/b32) drop out, so
-    // the floor stays s20 = $22, not $18.
+  it("prices the same in either mode (both boxes carry both modes)", () => {
+    // The descoped catalog holds the same count dormant or leafed, so a
+    // single-tree quote no longer depends on the season.
     expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 16 })).toBe(22);
-    // Dormant mode admits the whip: class-16 dormant → br16 = $18.
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(18);
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(22);
   });
 
-  it("requires a box at least as long as a tall tree's class", () => {
-    // Class 46 leafed → only s46 is long enough (b-boxes are dormant-only).
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 46 })).toBe(26);
-    expect(estimateBoxShipping("ME", SCHEMA2_FEED, { lengthClass: 46 })).toBe(31);
+  it("returns null for a tree taller than any box (both are 24\")", () => {
+    // A 24" tree still fits (box length 24 ≥ 24); a 30" tree has no box.
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 24 })).toBe(22);
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED, { lengthClass: 30 })).toBeNull();
   });
 
   it("returns null for an ineligible state or blank input (never a guess)", () => {
@@ -188,17 +281,16 @@ describe("estimateBoxShipping (Box Engine v2 single-tree bareroot floor)", () =>
 
 describe("estimateBoxFloor (stateless Format-card 'from' floor — GOL-1822)", () => {
   it("is the cheapest single-tree box rate over every zone (class 20, leafed)", () => {
-    // Leafed-usable ≥ class 20 → {s20,s32,s46}; global min is zone_1 s20 = 22.
+    // Usable ≥ class 20 → {small,large}; global min is zone_1 small = 22.
     expect(estimateBoxFloor(SCHEMA2_FEED)).toBe(22);
   });
 
   it("honours the same box-eligibility rules as the per-state estimate", () => {
-    // Leafed excludes the whip even for a class-16 tree → floor stays s20 = 22.
+    // Same catalog in either mode → floor stays small = 22.
     expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16 })).toBe(22);
-    // Dormant admits br16 → global min br16 is zone_1 = 18.
-    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(18);
-    // Class 46 leafed → only s46 qualifies; global min s46 is zone_1 = 26.
-    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 46 })).toBe(26);
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 16, mode: "dormant" })).toBe(22);
+    // A 30" tree has no box in this catalog → no floor.
+    expect(estimateBoxFloor(SCHEMA2_FEED, { lengthClass: 30 })).toBeNull();
   });
 
   it("never exceeds any priced state's per-box estimate (a true 'from' floor)", () => {
@@ -224,7 +316,7 @@ describe("estimateBoxFloor (stateless Format-card 'from' floor — GOL-1822)", (
 
 describe("estimateTierShipping (Format-card ⟷ estimator seam)", () => {
   it("prices bareroot off the box feed when one is present", () => {
-    // Box feed floor for WV bareroot is s20 = $22 (vs the $21 legacy snapshot).
+    // Box feed floor for WV bareroot is the small box = $22.
     expect(estimateTierShipping("WV", "bareroot", { feed: SCHEMA2_FEED })).toBe(22);
   });
 

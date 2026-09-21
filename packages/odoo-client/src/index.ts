@@ -23,6 +23,7 @@ export type {
   ShippingZoneTierRate,
   ShippingRateTable,
   ApiShippingRatesResponse,
+  ShippingZoneMap,
   ShippingBoxId,
   PackingMode,
   ShippingBoxRate,

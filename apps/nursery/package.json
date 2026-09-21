@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:no-stripe": "playwright test --grep-invert @stripe"
+    "test:e2e:no-stripe": "playwright test --grep-invert @stripe",
+    "test:e2e:gate": "playwright test --grep-invert @known-issue",
+    "test:e2e:gate:no-stripe": "playwright test --grep-invert \"@stripe|@known-issue\""
   },
   "dependencies": {
     "@grove/analytics": "workspace:*",
@@ -22,7 +24,7 @@
     "@grove/tokens": "workspace:*",
     "@grove/ui": "workspace:*",
     "@grove/ui-kit": "workspace:*",
-    "next": "^15.5.21",
+    "next": "^15.5.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sanitize-html": "^2.17.4",
