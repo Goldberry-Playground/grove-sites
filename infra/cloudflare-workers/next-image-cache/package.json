@@ -1,0 +1,9 @@
+{
+  "name": "grove-next-image-cache",
+  "private": true,
+  "type": "module",
+  "description": "Accept-keyed edge cache for /_next/image on Cloudflare Free zones (GOL-2073)",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}

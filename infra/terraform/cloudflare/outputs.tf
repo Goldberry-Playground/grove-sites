@@ -10,3 +10,8 @@ output "hardened_zones" {
     }
   }
 }
+
+output "next_image_cache_routes" {
+  description = "GOL-2073: zone short-name => Worker route pattern for the Accept-keyed /_next/image edge cache (empty until enrolled)."
+  value       = { for k, r in cloudflare_workers_route.next_image_cache : k => r.pattern }
+}
