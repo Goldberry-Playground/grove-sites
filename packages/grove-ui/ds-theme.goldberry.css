@@ -1327,6 +1327,20 @@
 .grove-cart__summary-row dt {
   color: var(--grove-color-ink-a70);
 }
+/* "Due today" — the flat reservation deposit row (GOL-2233), emphasised so a
+   buyer reads the $10 they pay now before the full order total beneath it.
+   Same markup on the cart and the checkout form, so it lives here once. */
+.grove-checkout__summary-row--due,
+.grove-cart__summary-row--due {
+  font-weight: 700;
+  color: var(--grove-color-primary);
+}
+.grove-cart__summary-due-note {
+  margin: var(--grove-space-2) 0 0;
+  font-size: var(--grove-text-xs);
+  line-height: 1.5;
+  color: var(--grove-color-ink-a70);
+}
 .grove-checkout__summary-total,
 .grove-cart__summary-total {
   display: flex;
