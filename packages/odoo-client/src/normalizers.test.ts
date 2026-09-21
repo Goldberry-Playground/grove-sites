@@ -231,6 +231,16 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
       matureSize: "14–18 ft",
       spacing: "15 ft",
       soil: "Well-drained loam",
+      // Pre-gate payload (no listing-content keys) → the nine new facts are null.
+      growthRate: null,
+      bloomSeason: null,
+      harvestSeason: null,
+      watering: null,
+      wildlife: null,
+      matureSpread: null,
+      chillHours: null,
+      pollination: null,
+      yearsToFruit: null,
     });
   });
 
@@ -257,6 +267,73 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
       matureSize: null,
       spacing: null,
       soil: null,
+      growthRate: null,
+      bloomSeason: null,
+      harvestSeason: null,
+      watering: null,
+      wildlife: null,
+      matureSpread: null,
+      chillHours: null,
+      pollination: null,
+      yearsToFruit: null,
+    });
+  });
+
+  it("maps the nine listing-content facts (GOL-2386, spec §E)", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      facts: {
+        ...honeycrispDetail.facts,
+        growth_rate: "moderate",
+        bloom_season: "Mid spring",
+        harvest_season: "Late September",
+        watering: "moderate",
+        wildlife: "Attracts bees, birds",
+        mature_spread: "12–15 ft",
+        chill_hours: "800–1000",
+        pollination: "Needs a second variety",
+        years_to_fruit: "3–4 years",
+      },
+    });
+    expect(result.facts).toMatchObject({
+      growthRate: "moderate",
+      bloomSeason: "Mid spring",
+      harvestSeason: "Late September",
+      watering: "moderate",
+      wildlife: "Attracts bees, birds",
+      matureSpread: "12–15 ft",
+      chillHours: "800–1000",
+      pollination: "Needs a second variety",
+      yearsToFruit: "3–4 years",
+    });
+  });
+
+  it("collapses blank listing-content chars ('') and unset selections (null) to null", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      facts: {
+        ...honeycrispDetail.facts,
+        growth_rate: null,
+        bloom_season: "",
+        harvest_season: "",
+        watering: null,
+        wildlife: "",
+        mature_spread: "",
+        chill_hours: "",
+        pollination: "",
+        years_to_fruit: "",
+      },
+    });
+    expect(result.facts).toMatchObject({
+      growthRate: null,
+      bloomSeason: null,
+      harvestSeason: null,
+      watering: null,
+      wildlife: null,
+      matureSpread: null,
+      chillHours: null,
+      pollination: null,
+      yearsToFruit: null,
     });
   });
 
@@ -365,6 +442,55 @@ describe("normalizeProductDetail — guide prose (publish-pipeline v2, GOL-1012)
     const result = normalizeProductDetail(honeycrispDetail);
     expect(result.guideReady).toBe(false);
     expect(result.websiteDescription).toBeNull();
+  });
+});
+
+describe("normalizeProductDetail — description (description_html, GOL-2386)", () => {
+  it("uses description_html when it has visible text, passing the HTML through", () => {
+    const html = "<p>A <strong>cold-hardy</strong> apple.</p><ul><li>Zones 3–7</li></ul>";
+    const result = normalizeProductDetail({ ...honeycrispDetail, description_html: html });
+    expect(result.description).toBe(html);
+  });
+
+  it("falls back to description_sale while description_html is absent (pre-gate payload)", () => {
+    expect(normalizeProductDetail(honeycrispDetail).description).toBe(
+      "<p>Cold-hardy semi-dwarf apple tree, prized for sweet-tart fruit and " +
+        "exceptional storage life. Ripens late September. Pollinator required.</p>",
+    );
+  });
+
+  it.each([
+    ["false", false],
+    ["empty string", ""],
+    ["Odoo's empty editor residue", "<p><br></p>"],
+    ["whitespace and &nbsp; only", "<p> &nbsp; </p>\n"],
+  ])("falls back to description_sale when description_html is %s", (_label, html) => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      description_html: html as string | false,
+      description_sale: "Sweet & tart.",
+    });
+    expect(result.description).toBe("<p>Sweet &amp; tart.</p>");
+  });
+
+  it("escapes the plain-text fallback and keeps its paragraphs and line breaks", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      description_html: false,
+      description_sale: "First <b>para</b>\nsame para\n\nSecond para",
+    });
+    expect(result.description).toBe(
+      "<p>First &lt;b&gt;para&lt;/b&gt;<br>same para</p><p>Second para</p>",
+    );
+  });
+
+  it("is null when both description_html and description_sale are empty", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      description_html: "<p></p>",
+      description_sale: "   ",
+    });
+    expect(result.description).toBeNull();
   });
 });
 
