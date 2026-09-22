@@ -52,10 +52,57 @@ export interface CheckoutReviewProps {
 }
 
 function formatPrice(amount: number, currency: string): string {
-  return amount.toLocaleString("en-US", {
+  const formatted = Math.abs(amount).toLocaleString("en-US", {
     style: "currency",
     currency: currency || "USD",
   });
+  // A true minus sign (U+2212), not a hyphen, for the discount row.
+  return amount < 0 ? `\u2212${formatted}` : formatted;
+}
+
+/** Canonical summary order (Josh, 2026-09-22 — GOL-2432/2450): goods (or the
+ *  deposit), then ONE Discount line, then Shipping, then tax. */
+const KIND_ORDER: Record<CheckoutReviewItemizedLine["kind"], number> = {
+  goods: 0,
+  deposit: 0,
+  discount: 1,
+  shipping: 2,
+  tax: 3,
+};
+
+interface SummaryLine extends CheckoutReviewItemizedLine {
+  /** Secondary text under the row label (the code / tier behind a discount). */
+  detail?: string;
+}
+
+/**
+ * Put the session lines in the canonical order and fold any discount lines
+ * into the single pre-tax "Discount" row. The backend (GOL-2450) already sends
+ * one discount line in this order; folding + sorting here keeps the summary
+ * right against an older build that split the reward per tax group. Amounts are
+ * the backend's, only re-labelled and re-ordered: no tax math happens here.
+ */
+function toSummaryLines(lines: CheckoutReviewItemizedLine[]): SummaryLine[] {
+  const discounts = lines.filter((l) => l.kind === "discount");
+  const rest: SummaryLine[] = lines.filter((l) => l.kind !== "discount");
+  if (discounts.length > 0) {
+    const names = [...new Set(discounts.map((l) => l.name.trim()))];
+    const only = names.length === 1 ? names[0] : "";
+    // "Discount (FLATWOODS)" is already the row label; anything else
+    // ("Volume discount 10%") rides as detail under a plain "Discount".
+    const named = /^discount\b/i.test(only);
+    rest.push({
+      name: named ? only : "Discount",
+      kind: "discount",
+      unitAmount: discounts.reduce((n, l) => n + l.unitAmount * l.quantity, 0),
+      quantity: 1,
+      detail: named || !only ? undefined : only,
+    });
+  }
+  // Array.prototype.sort is stable, so goods keep their session order.
+  return rest
+    .map((l) => (l.kind === "shipping" ? { ...l, name: "Shipping" } : l))
+    .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
 }
 
 /**
@@ -94,7 +141,8 @@ export function CheckoutReview({
   onBack,
 }: CheckoutReviewProps) {
   const dueLater = Math.max(0, amountTotal - amountDueToday);
-  const itemized = lineItems && lineItems.length > 0 ? lineItems : null;
+  const itemized =
+    lineItems && lineItems.length > 0 ? toSummaryLines(lineItems) : null;
   const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
 
   return (
@@ -110,7 +158,9 @@ export function CheckoutReview({
       <ul className="grove-review__lines">
         {itemized
           ? itemized.map((line, i) => {
-              const badge = KIND_BADGE[line.kind];
+              // Ship/reserve badges only mean something when a deposit line
+              // sits beside goods; a ships-now summary reads clean (GOL-2432).
+              const badge = hasPreorder ? KIND_BADGE[line.kind] : null;
               return (
                 <li
                   key={`${line.kind}-${line.name}-${i}`}
@@ -133,6 +183,11 @@ export function CheckoutReview({
                         {badge.label}
                       </span>
                     )}
+                    {line.detail && (
+                      <span className="grove-review__line-detail">
+                        {line.detail}
+                      </span>
+                    )}
                   </span>
                   <span className="grove-review__line-price">
                     {formatPrice(line.unitAmount * line.quantity, currency)}
@@ -151,6 +206,12 @@ export function CheckoutReview({
                 </span>
               </li>
             ))}
+        {!hasPreorder && (
+          <li className="grove-review__total">
+            <span>Total due today</span>
+            <span>{formatPrice(amountDueToday, currency)}</span>
+          </li>
+        )}
       </ul>
 
       {hasPreorder ? (
@@ -187,23 +248,12 @@ export function CheckoutReview({
           </p>
         </div>
       ) : (
-        <div className="grove-review__split">
-          <div className="grove-review__amount grove-review__amount--today grove-review__amount--sole">
-            <div className="grove-review__amount-label">
-              <span aria-hidden="true" className="grove-review__amount-icon">
-                ●
-              </span>
-              Total due today
-            </div>
-            <div className="grove-review__amount-value">
-              {formatPrice(amountDueToday, currency)}
-            </div>
-          </div>
-          <p className="grove-review__split-note">
-            Includes any shipping and sales tax. You pay this once on the next screen —
-            nothing is stored on our servers.
-          </p>
-        </div>
+        // Ships-now: the emphasised "Total due today" row closes the line list
+        // above (goods, Discount, Shipping, tax, total — GOL-2432 ruling).
+        <p className="grove-review__split-note grove-review__total-note">
+          You pay this once on the next screen. Nothing is stored on our
+          servers.
+        </p>
       )}
 
       {error && (

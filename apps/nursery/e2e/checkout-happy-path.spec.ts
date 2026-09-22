@@ -43,23 +43,25 @@ test.describe("checkout — happy path", { tag: "@stripe" }, () => {
     expect(body).not.toBeNull();
     const session = body!;
 
-    // Review page: an all-in-stock order has no preorder, so the split shows a
-    // single "Total due today" equal to the session's charged-today amount.
+    // Review page: an all-in-stock order has no preorder, so the line list ends
+    // on the emphasised "Total due today" row equal to the session's
+    // charged-today amount (GOL-2432 ruling: goods, Discount, Shipping, tax,
+    // total).
     await expectOnReview(page);
     expect(session.hasPreorder).toBe(false);
-    await expect(page.locator(".grove-review__amount--today .grove-review__amount-value")).toHaveText(
+    await expect(page.locator(".grove-review__total")).toContainText(
       usd(session.amountDueToday, session.currency),
     );
 
-    // Itemized parity: every session line renders on the review page with the
-    // correct badge and the same per-line math the buyer will be charged.
+    // Itemized parity: every goods/tax line renders on the review page with the
+    // same per-line math the buyer will be charged.
     for (const line of session.lineItems ?? []) {
+      if (line.kind !== "goods" && line.kind !== "tax") continue;
       const lineEl = page.locator(".grove-review__line", { hasText: line.name }).first();
       await expect(lineEl).toContainText(usd(line.unitAmount * line.quantity, session.currency));
-      if (line.kind === "goods") await expect(lineEl).toContainText("Ships now");
     }
-    // No in-stock line should ever be badged "Reserve".
-    await expect(page.locator(".grove-review__badge--reserve")).toHaveCount(0);
+    // A ships-now summary carries no ship/reserve badges at all.
+    await expect(page.locator(".grove-review__badge")).toHaveCount(0);
 
     // GOL-1823 regression: a shipped order MUST carry shipping as its own line
     // item, and the itemized lines MUST sum to the charged total. The original
@@ -75,8 +77,9 @@ test.describe("checkout — happy path", { tag: "@stripe" }, () => {
       "a shipped order must itemize shipping as its own line (GOL-1823)",
     ).toBeGreaterThan(0);
     for (const s of shipping) {
+      // The review labels the fee "Shipping" whatever the product is named.
       const feeEl = page
-        .locator(".grove-review__line", { hasText: s.name })
+        .locator(".grove-review__line", { hasText: "Shipping" })
         .first();
       await expect(feeEl).toContainText(usd(s.unitAmount * s.quantity, session.currency));
     }

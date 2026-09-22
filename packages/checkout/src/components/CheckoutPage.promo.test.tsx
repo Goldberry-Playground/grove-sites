@@ -73,7 +73,7 @@ describe("<CheckoutPage /> — promo Apply + discount preview (GOL-2432)", () =>
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("Apply shows 'FLATWOODS applied: −$10.00' in the summary and re-does the math", async () => {
+  it("Apply shows one 'Discount' row (FLATWOODS, −$10.00) and no client-side tax", async () => {
     seedCart();
     const spy = mockFetch({
       promo: (b) =>
@@ -88,11 +88,20 @@ describe("<CheckoutPage /> — promo Apply + discount preview (GOL-2432)", () =>
     await user.type(await screen.findByLabelText("Promo code"), "flatwoods");
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    const row = (await within(summary()).findByText("FLATWOODS applied")).parentElement!;
+    const row = (await within(summary()).findByText("FLATWOODS applied")).closest(
+      ".grove-checkout__summary-row",
+    )!;
+    expect(row.querySelector("dt")!.textContent).toMatch(/^Discount/);
     expect(row.textContent).toContain("−$10.00");
-    // $60 − $10 = $50 goods; 7% est. tax on the discounted goods = $3.50.
-    expect(within(summary()).getByText("$3.50")).toBeTruthy();
-    expect(within(summary()).getByText("$53.50")).toBeTruthy();
+    // Josh's ruling (2026-09-22): rows in order Discount, Shipping, Sales tax,
+    // then the figure; tax is the backend's line on Review & pay, never
+    // estimated here. $60 − $10 = $50 subtotal.
+    const labels = [...summary().querySelectorAll(".grove-checkout__summary-list dt")].map(
+      (dt) => dt.firstChild?.textContent,
+    );
+    expect(labels).toEqual(["Discount", "Shipping", "Sales tax", "Subtotal"]);
+    expect(within(summary()).getByText("$50.00")).toBeTruthy();
+    expect(within(summary()).queryByText("$3.50")).toBeNull();
     expect(within(summary()).getByText(/The discount is applied on the secure payment page/)).toBeTruthy();
 
     const last = promoCalls(spy).at(-1)!;
@@ -153,7 +162,9 @@ describe("<CheckoutPage /> — promo Apply + discount preview (GOL-2432)", () =>
     renderCheckout();
 
     // The automatic tier shows without typing a code (no reason line yet).
-    const row = (await within(summary()).findByText("Volume discount (20% for 10+ trees)")).parentElement!;
+    const row = (await within(summary()).findByText("Volume discount (20% for 10+ trees)")).closest(
+      ".grove-checkout__summary-row",
+    )!;
     expect(row.textContent).toContain("−$60.00");
     expect(screen.queryByText(reason)).toBeNull();
     expect(await within(summary()).findByText("20% off unlocked")).toBeTruthy();

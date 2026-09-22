@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { Button } from "../Button";
 import {
-  DEFAULT_TAX_RATE_ESTIMATE,
   type GroveCartLineItem,
   type GroveDueToday,
 } from "../cart-contract";
@@ -27,7 +26,7 @@ export interface CartPageProps {
   onSetQuantity: (variantId: number, quantity: number) => void;
   /** Remove a line. */
   onRemove: (variantId: number) => void;
-  /** On-page tax estimate rate (final tax is server-computed at checkout). */
+  /** @deprecated Ignored: the cart no longer estimates tax (GOL-2432). */
   taxRateEstimate?: number;
   /** Shop route (empty state + keep-shopping). */
   shopHref?: string;
@@ -75,7 +74,6 @@ export function CartPage({
   loading = false,
   onSetQuantity,
   onRemove,
-  taxRateEstimate = DEFAULT_TAX_RATE_ESTIMATE,
   shopHref = "/shop",
   checkoutHref = "/checkout",
   productHref = (templateId) => `/shop/${templateId}`,
@@ -111,8 +109,9 @@ export function CartPage({
     );
   }
 
-  const taxEstimate = subtotal * taxRateEstimate;
-  const total = subtotal + taxEstimate;
+  // No client-side tax math: shipping and tax are backend lines shown on
+  // Review & pay once the ship-to is known (Josh, 2026-09-22; GOL-2432).
+  const total = subtotal;
 
   return (
     <>
@@ -129,13 +128,13 @@ export function CartPage({
                 <>
                   {formatPrice(dueToday.amount)}
                   <span className="grove-cart__banner-note">
-                    due today · {formatPrice(total)} order total
+                    due today · {formatPrice(total)} order subtotal
                   </span>
                 </>
               ) : (
                 <>
                   {formatPrice(total)}
-                  <span className="grove-cart__banner-note">with est. tax</span>
+                  <span className="grove-cart__banner-note">before shipping &amp; tax</span>
                 </>
               )}
             </div>
@@ -219,17 +218,8 @@ export function CartPage({
             <h2 className="grove-cart__summary-title">Order Summary</h2>
             <dl className="grove-cart__summary-list">
               <div className="grove-cart__summary-row">
-                <dt>Subtotal</dt>
-                <dd>{formatPrice(subtotal)}</dd>
-              </div>
-              <div className="grove-cart__summary-row">
-                <dt>
-                  Tax (estimated {Math.round(taxRateEstimate * 100)}%)
-                  <span className="grove-cart__summary-note">
-                    Final tax calculated at checkout
-                  </span>
-                </dt>
-                <dd>{formatPrice(taxEstimate)}</dd>
+                <dt>Shipping &amp; sales tax</dt>
+                <dd>At checkout</dd>
               </div>
               {dueToday && (
                 <div className="grove-cart__summary-row grove-cart__summary-row--due">
@@ -238,7 +228,7 @@ export function CartPage({
                 </div>
               )}
               <div className="grove-cart__summary-total">
-                <dt>{dueToday ? "Order total" : "Total"}</dt>
+                <dt>{dueToday ? "Order subtotal" : "Subtotal"}</dt>
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>

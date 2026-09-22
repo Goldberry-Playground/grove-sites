@@ -181,7 +181,8 @@
   color: var(--grove-color-ink-a70);
 }
 .grove-checkout__summary-total,
-.grove-cart__summary-total {
+.grove-cart__summary-total,
+.grove-review__total {
   display: flex;
   justify-content: space-between;
   border-top: 2px solid var(--grove-color-line-strong);
@@ -277,6 +278,12 @@
 /* Discount amount: success tint, but the label + minus sign carry the meaning. */
 .grove-checkout__summary-row--discount {
   gap: var(--grove-space-3);
+}
+/* The code or tier behind the single "Discount" row (GOL-2432). */
+.grove-checkout__summary-detail {
+  display: block;
+  font-size: var(--grove-text-xs);
+  color: var(--grove-color-ink-a70);
 }
 .grove-checkout__summary-row--discount dd {
   white-space: nowrap;

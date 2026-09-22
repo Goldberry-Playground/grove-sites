@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../Button";
 import { TierNudge } from "../TierNudge";
 import {
-  DEFAULT_TAX_RATE_ESTIMATE,
   type GroveCartLineItem,
   type GroveDueToday,
 } from "../cart-contract";
@@ -110,7 +109,8 @@ export interface CheckoutPageProps {
    * inline. Resolving means success — the app has already navigated away.
    */
   onPlaceOrder: (order: GroveCheckoutOrder) => Promise<void> | void;
-  /** On-page tax estimate rate (final tax is server-computed). */
+  /** @deprecated Ignored: the form no longer estimates tax; Review & pay shows
+   *  the backend's tax line (GOL-2432). Kept so existing callers compile. */
   taxRateEstimate?: number;
   /** Selectable payment methods. */
   paymentMethods?: GroveCheckoutPaymentMethod[];
@@ -256,7 +256,6 @@ export function CheckoutPage({
   subtotal,
   loading = false,
   onPlaceOrder,
-  taxRateEstimate = DEFAULT_TAX_RATE_ESTIMATE,
   paymentMethods = DEFAULT_PAYMENT_METHODS,
   hidePaymentMethods = false,
   submitLabel = "Place Order →",
@@ -392,11 +391,11 @@ export function CheckoutPage({
     );
   }
 
-  // An applied discount comes off the goods before the tax estimate, the way
-  // Odoo taxes the discounted order (GOL-2088: the reward line is de-taxed).
+  // The backend preview's discount comes off the goods. Shipping and tax are
+  // backend numbers that exist only once the ship-to is known, so the form
+  // does no tax math: both are shown on Review & pay (Josh, 2026-09-22).
   const discount = promo?.applied ? Math.min(promo.discountAmount, subtotal) : 0;
-  const taxEstimate = (subtotal - discount) * taxRateEstimate;
-  const total = subtotal - discount + taxEstimate;
+  const total = subtotal - discount;
   const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -452,7 +451,7 @@ export function CheckoutPage({
                 <>
                   {formatPrice(total)}
                   <span className="grove-checkout__banner-note">
-                    {isPickup ? "with est. tax" : "before shipping & tax"}
+                    {isPickup ? "before tax" : "before shipping & tax"}
                   </span>
                 </>
               )}
@@ -665,30 +664,30 @@ export function CheckoutPage({
               ))}
             </ul>
 
+            {/* Same rows, same order as Review & pay (Josh, 2026-09-22):
+                goods, Discount, Shipping, tax, then the emphasised figure.
+                Shipping is priced server-side once the destination is known;
+                the row still shows so the figure here never reads as the
+                charged total (GOL-1823). Pickup is the $0-shipping case. */}
             <dl className="grove-checkout__summary-list">
-              <div className="grove-checkout__summary-row">
-                <dt>Subtotal</dt>
-                <dd>{formatPrice(subtotal)}</dd>
-              </div>
               {promo?.applied && discount > 0 && (
                 <div className="grove-checkout__summary-row grove-checkout__summary-row--discount">
-                  <dt>{promo.label}</dt>
+                  <dt>
+                    Discount
+                    {promo.label && (
+                      <span className="grove-checkout__summary-detail">{promo.label}</span>
+                    )}
+                  </dt>
                   <dd>−{formatPrice(discount)}</dd>
                 </div>
               )}
-              {/* Shipping is priced server-side by the box engine once the
-                  destination is known, so the form can't show a final figure.
-                  We still list the line — a missing shipping row is what made
-                  the form's "Total" read below the amount actually charged at
-                  the payment step (GOL-1823). Pickup is the one $0-shipping
-                  case, so it can be shown as free. */}
               <div className="grove-checkout__summary-row">
                 <dt>Shipping</dt>
-                <dd>{isPickup ? "Free (pickup)" : "Calculated at payment"}</dd>
+                <dd>{isPickup ? "Free (pickup)" : "On the next step"}</dd>
               </div>
               <div className="grove-checkout__summary-row">
-                <dt>Tax (estimated)</dt>
-                <dd>{formatPrice(taxEstimate)}</dd>
+                <dt>Sales tax</dt>
+                <dd>On the next step</dd>
               </div>
               {dueToday && (
                 <div className="grove-checkout__summary-row grove-checkout__summary-row--due">
@@ -697,13 +696,7 @@ export function CheckoutPage({
                 </div>
               )}
               <div className="grove-checkout__summary-total">
-                <dt>
-                  {dueToday
-                    ? "Estimated order total"
-                    : isPickup
-                      ? "Total"
-                      : "Estimated total"}
-                </dt>
+                <dt>{dueToday ? "Order subtotal" : "Subtotal"}</dt>
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>
@@ -726,13 +719,11 @@ export function CheckoutPage({
               </p>
             )}
 
-            {!isPickup && (
-              <p className="grove-checkout__field-note grove-checkout__field-note--block">
-                Shipping and final sales tax are calculated on the secure
-                payment page. You&apos;ll see and confirm the full total before
-                you&apos;re charged.
-              </p>
-            )}
+            <p className="grove-checkout__field-note grove-checkout__field-note--block">
+              {isPickup ? "Sales tax is" : "Shipping and sales tax are"} added on
+              the next step, Review &amp; pay. You&apos;ll see and confirm the
+              full total before you&apos;re charged.
+            </p>
 
             {/* Nudge sits with the promo field: one "discounts" group. */}
             {tierNudge && <TierNudge>{tierNudge}</TierNudge>}

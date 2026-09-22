@@ -71,3 +71,79 @@ describe("<CheckoutReview /> itemized parity (GOL-1057)", () => {
     expect(container.querySelectorAll(".grove-review__badge")).toHaveLength(0);
   });
 });
+
+// Josh's ruling (2026-09-22, GOL-2432/2450): every ships-now Review & pay
+// summary reads goods, ONE pre-tax Discount, Shipping, WV tax, then the
+// emphasised TOTAL DUE TODAY, all backend numbers.
+describe("<CheckoutReview /> ships-now summary shape (GOL-2432)", () => {
+  const RULING_LINES: CheckoutReviewItemizedLine[] = [
+    { name: "Pear (Magness, Potted)", kind: "goods", unitAmount: 35, quantity: 2 },
+    { name: "Discount (FLATWOODS)", kind: "discount", unitAmount: -10, quantity: 1 },
+    { name: "Shipping", kind: "shipping", unitAmount: 22, quantity: 1 },
+    { name: "WV Sales Tax (6%)", kind: "tax", unitAmount: 4.92, quantity: 1 },
+  ];
+
+  function renderShipsNow(lineItems: CheckoutReviewItemizedLine[]) {
+    return render(
+      <CheckoutReview
+        items={[{ variantId: 7, name: "Pear (Magness, Potted)", quantity: 2, price: 35 }]}
+        lineItems={lineItems}
+        amountDueToday={86.92}
+        amountTotal={86.92}
+        hasPreorder={false}
+        onPay={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+  }
+
+  const rows = (container: HTMLElement) =>
+    [...container.querySelectorAll(".grove-review__lines > li")].map((li) => [
+      li.firstElementChild!.firstChild!.textContent,
+      li.lastElementChild!.textContent,
+    ]);
+
+  it("renders the exact ruling example in order, ending on the emphasised total", () => {
+    const { container } = renderShipsNow(RULING_LINES);
+    expect(rows(container)).toEqual([
+      ["Pear (Magness, Potted)", "$70.00"],
+      ["Discount (FLATWOODS)", "−$10.00"],
+      ["Shipping", "$22.00"],
+      ["WV Sales Tax (6%)", "$4.92"],
+      ["Total due today", "$86.92"],
+    ]);
+    // The total is the shared emphasised summary-total row; ships-now lines
+    // carry no badges.
+    expect(container.querySelector(".grove-review__total")).toBeTruthy();
+    expect(container.querySelectorAll(".grove-review__badge")).toHaveLength(0);
+  });
+
+  it("re-orders an older build's lines and folds a per-tax-group split into ONE Discount", () => {
+    // Pre-GOL-2450 order: goods, shipping, tax, then the reward split in two.
+    const legacy: CheckoutReviewItemizedLine[] = [
+      RULING_LINES[0],
+      RULING_LINES[2],
+      RULING_LINES[3],
+      { name: "$10 on your order", kind: "discount", unitAmount: -6, quantity: 1 },
+      { name: "$10 on your order", kind: "discount", unitAmount: -4, quantity: 1 },
+    ];
+    const { container } = renderShipsNow(legacy);
+    expect(rows(container).map(([label]) => label)).toEqual([
+      "Pear (Magness, Potted)",
+      "Discount",
+      "Shipping",
+      "WV Sales Tax (6%)",
+      "Total due today",
+    ]);
+    expect(rows(container)[1][1]).toBe("−$10.00");
+    // One row; the loyalty wording rides as its detail, not a second line.
+    expect(screen.getAllByText("$10 on your order")).toHaveLength(1);
+    expect(container.querySelectorAll(".grove-review__line-detail")).toHaveLength(1);
+  });
+
+  it("shows no tax row for an out-of-state order (backend sends none)", () => {
+    const { container } = renderShipsNow(RULING_LINES.filter((l) => l.kind !== "tax"));
+    expect(container.querySelectorAll('.grove-review__lines > li')).toHaveLength(4);
+    expect(screen.queryByText(/Sales Tax/)).toBeNull();
+  });
+});
