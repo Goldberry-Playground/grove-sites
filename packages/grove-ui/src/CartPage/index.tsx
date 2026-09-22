@@ -6,6 +6,7 @@ import {
   type GroveCartLineItem,
   type GroveDueToday,
 } from "../cart-contract";
+import { TierNudge } from "../TierNudge";
 import { useGroveImage, useGroveLink } from "../link-context";
 import { clampQuantity } from "../quantity";
 import type { GroveTrustItem } from "../trust-items";
@@ -50,6 +51,12 @@ export interface CartPageProps {
    * null when the cart is charged in full.
    */
   dueToday?: GroveDueToday | null;
+  /**
+   * One-line volume-discount nudge ("Add 2 more trees to unlock 10% off",
+   * GOL-2432), shown under the summary total. Omit/null to hide — the consumer
+   * hides it for deposit carts and when the tier feed is unavailable.
+   */
+  tierNudge?: string | null;
 }
 
 function formatPrice(amount: number): string {
@@ -74,6 +81,7 @@ export function CartPage({
   productHref = (templateId) => `/shop/${templateId}`,
   trustItems = [],
   dueToday = null,
+  tierNudge = null,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -234,6 +242,7 @@ export function CartPage({
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>
+            {tierNudge && <TierNudge>{tierNudge}</TierNudge>}
             {dueToday && (
               <p className="grove-cart__summary-due-note">{dueToday.note}</p>
             )}
