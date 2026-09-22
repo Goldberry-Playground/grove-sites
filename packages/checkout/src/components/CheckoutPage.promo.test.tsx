@@ -199,6 +199,23 @@ describe("<CheckoutPage /> — promo Apply + discount preview (GOL-2432)", () =>
     expect((await screen.findByRole("alert")).textContent).toContain(refusal);
     expect(within(summary()).queryByText(/applied$/)).toBeNull();
   });
+
+  it("quote fails: never flashes the nudge on a cart whose charge mode is unknown", async () => {
+    // The tiers feed says this cart qualifies, but the deposit quote errors, so
+    // we can't know it ships now. The nudge must stay closed (fail-closed): a
+    // reservation cart earns no discount (GOL-2088), and a discount promise on
+    // one it can't honour is worse than showing nothing.
+    seedCart(4);
+    mockFetch({
+      quote: () => json({ error: "quote down" }, 500),
+      tiers: () => json({ tiers: [{ minQty: 5, percent: 10, label: "" }], qualifyingUnits: 4 }),
+    });
+    renderCheckout();
+    // Let both debounced fetches resolve; the nudge must never appear.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.queryByText(/unlock/)).toBeNull();
+    expect(trackEvent).not.toHaveBeenCalledWith("tier_nudge_shown", expect.anything());
+  });
 });
 
 describe("<CartPage /> — volume nudge (GOL-2432)", () => {

@@ -120,18 +120,24 @@ export function CheckoutPage({
   const [fulfillment, setFulfillment] = useState<GroveFulfillment>("ship");
   // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
   // from the storefront's `/api/cart/quote` when wired; null = charged in full.
-  const dueToday = dueTodayFor(
-    useCartDepositQuote(depositQuoteHref, items, fulfillment),
+  const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
+    depositQuoteHref,
+    items,
+    fulfillment,
   );
+  const dueToday = dueTodayFor(depositQuote);
   // Pickup availability + copy ride the brand seam: only brands with a physical
   // pickup point (nursery) offer it, and each carries its own product-true copy
   // so the shared kit never shows a live-tree/WV claim on woodwork or pantry
   // goods (GOL-1314).
   const pickup = BRAND_TRUST[brand].pickup;
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
-  // get no "unlock 10% off" promise either.
+  // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
+  // confirms a charged-in-full cart — a still-loading or failed quote leaves the
+  // charge mode unknown, and we must not flash a discount promise on what may be
+  // a reservation cart.
   const { nudge, tiers } = useTierNudge(tiersHref, items, {
-    hidden: dueToday !== null,
+    hidden: !(depositSettled && !depositQuote?.depositNow),
     surface: "checkout",
   });
 

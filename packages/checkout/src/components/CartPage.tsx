@@ -36,10 +36,17 @@ export function CartPage({
 } = {}) {
   const { items, hydrated, setQuantity, remove, subtotal, totalQuantity } =
     useCart();
-  const dueToday = dueTodayFor(useCartDepositQuote(depositQuoteHref, items));
-  // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432).
+  const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
+    depositQuoteHref,
+    items,
+  );
+  const dueToday = dueTodayFor(depositQuote);
+  // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
+  // nudge only once the quote confirms a charged-in-full cart — never while the
+  // quote is loading or if it failed (both leave the charge mode unknown), so a
+  // reservation cart can't flash a discount promise it will never honour.
   const { nudge } = useTierNudge(tiersHref, items, {
-    hidden: dueToday !== null,
+    hidden: !(depositSettled && !depositQuote?.depositNow),
     surface: "cart",
   });
 
