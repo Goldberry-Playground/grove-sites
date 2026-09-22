@@ -5,6 +5,9 @@ import { CartPage } from "@grove/checkout";
 // so the default export satisfies Next's PageProps constraint (GOL-1090).
 // `depositQuoteHref` lets the summary show the flat $10 reservation deposit
 // when the cart takes one (GOL-2233) instead of the goods subtotal alone.
+// `tiersHref` adds the volume-discount nudge line (GOL-2432).
 export default function Page() {
-  return <CartPage brand="nursery" depositQuoteHref="/api/cart/quote" />;
+  return (
+    <CartPage brand="nursery" depositQuoteHref="/api/cart/quote" tiersHref="/api/cart/tiers" />
+  );
 }

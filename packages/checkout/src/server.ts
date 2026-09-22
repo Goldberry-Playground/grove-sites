@@ -26,3 +26,9 @@ export {
   type CartQuoteFulfillment,
   type CartQuoteRouteOptions,
 } from "./api/createCartQuoteRoute";
+export {
+  createPromoPreviewRoute,
+  createCartTiersRoute,
+  PROMO_PREVIEW_UNAVAILABLE,
+  type PromoRouteOptions,
+} from "./api/createPromoRoutes";

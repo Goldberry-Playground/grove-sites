@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import { trackBeginCheckout } from "@grove/analytics";
-import type { CheckoutSession } from "@grove/odoo-client";
+import type { CheckoutSession, PromoPreview } from "@grove/odoo-client";
+import type { CartTiers } from "../hooks/useTierNudge";
 import {
   CheckoutPage as UICheckoutPage,
   CheckoutReview,
   type GroveCheckoutOrder,
   type GroveFulfillment,
+  type GrovePromoPreview,
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { useTierNudge } from "../hooks/useTierNudge";
+import { tierFor, tierLabel } from "../tier-nudge";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
 import { SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
@@ -47,6 +51,36 @@ async function readJsonBody(
   }
 }
 
+/**
+ * Map the backend preview to what the summary shows (GOL-2432). The backend
+ * picks the single best discount; this only words the row:
+ *   code → "FLATWOODS applied: −$10.00"
+ *   tier → "Volume discount (10% for 5+ trees): −$xx.xx", plus the backend's
+ *          reason line when the buyer typed a code the tier beat.
+ */
+export function toPromoPreview(
+  preview: PromoPreview,
+  typedCode: string | undefined,
+  tiers: CartTiers | null,
+): GrovePromoPreview {
+  if (preview.applied === "code" && preview.discountAmount > 0) {
+    const code = preview.code || typedCode || "Promo code";
+    return { applied: true, discountAmount: preview.discountAmount, label: `${code} applied`, message: null };
+  }
+  if (preview.applied === "tier" && preview.discountAmount > 0) {
+    const tier =
+      preview.tier ??
+      (tiers?.qualifyingUnits != null ? tierFor(tiers.tiers, tiers.qualifyingUnits) : null);
+    return {
+      applied: true,
+      discountAmount: preview.discountAmount,
+      label: tier ? tierLabel(tier) : "Volume discount",
+      message: typedCode ? preview.message : null,
+    };
+  }
+  return { applied: false, discountAmount: 0, label: "", message: preview.message };
+}
+
 const CHECKOUT_ERROR =
   "We couldn't start secure checkout. Please try again.";
 
@@ -67,7 +101,17 @@ const CHECKOUT_ERROR =
 export function CheckoutPage({
   brand = "nursery",
   depositQuoteHref,
-}: { brand?: GroveBrand; depositQuoteHref?: string } = {}) {
+  promoPreviewHref,
+  tiersHref,
+}: {
+  brand?: GroveBrand;
+  depositQuoteHref?: string;
+  /** Storefront `/api/checkout/promo` route — enables the promo Apply button
+   *  and the automatic volume-discount row (GOL-2432). */
+  promoPreviewHref?: string;
+  /** Storefront `/api/cart/tiers` route — enables the volume nudge line. */
+  tiersHref?: string;
+} = {}) {
   const { items, hydrated, subtotal } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
@@ -84,6 +128,37 @@ export function CheckoutPage({
   // so the shared kit never shows a live-tree/WV claim on woodwork or pantry
   // goods (GOL-1314).
   const pickup = BRAND_TRUST[brand].pickup;
+  // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
+  // get no "unlock 10% off" promise either.
+  const { nudge, tiers } = useTierNudge(tiersHref, items, {
+    hidden: dueToday !== null,
+    surface: "checkout",
+  });
+
+  async function previewPromo(
+    code: string | undefined,
+    { fulfillment: mode }: { fulfillment: GroveFulfillment },
+  ): Promise<GrovePromoPreview> {
+    const response = await fetch(promoPreviewHref!, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        fulfillment: mode,
+        promoCode: code,
+      }),
+    }).catch(() => {
+      throw new Error("We couldn't check that code. Check your connection and try again.");
+    });
+    const data = await readJsonBody(response);
+    if (!response.ok || !data) {
+      // Client-safe backend refusals (e.g. a deposit cart) arrive as `{error}`.
+      throw new Error(
+        typeof data?.error === "string" ? data.error : "We couldn't check that code. Please try again.",
+      );
+    }
+    return toPromoPreview(data as unknown as PromoPreview, code, tiers);
+  }
 
   async function createSession(order: GroveCheckoutOrder) {
     const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
@@ -195,6 +270,8 @@ export function CheckoutPage({
         // FLATWOODS runs on the nursery storefront only (GOL-2088). Other brands
         // keep the leaner form until they have a live promotion.
         allowPromoCode={brand === "nursery"}
+        onApplyPromo={promoPreviewHref ? previewPromo : undefined}
+        tierNudge={nudge?.message ?? null}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
         submitLabel="Continue to payment →"
