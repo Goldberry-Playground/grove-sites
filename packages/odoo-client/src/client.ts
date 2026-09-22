@@ -15,6 +15,11 @@ import type {
   CheckoutSession,
   ApiCheckoutSessionResponse,
   CheckoutQuoteInput,
+  PromoPreviewInput,
+  PromoPreview,
+  PromotionTier,
+  ApiPromoPreviewResponse,
+  ApiPromotionTier,
   CheckoutQuote,
   ApiCheckoutQuoteResponse,
   ApiZoneResponse,
@@ -36,6 +41,8 @@ import {
   normalizeOrderDetail,
   normalizeCheckoutSession,
   normalizeCheckoutQuote,
+  normalizePromoPreview,
+  normalizePromotionTiers,
   normalizeZone,
 } from "./normalizers";
 
@@ -412,6 +419,46 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           }
         );
         return normalizeCheckoutQuote(raw);
+      },
+
+      async promoPreview(input: PromoPreviewInput): Promise<PromoPreview> {
+        const raw = await api<ApiPromoPreviewResponse>(
+          config,
+          "/grove/api/v1/checkout/promo/preview",
+          {
+            method: "POST",
+            // A preview is per-cart and per-code; never serve a cached answer.
+            cache: "no-store",
+            body: JSON.stringify({
+              fulfillment: input.fulfillment ?? null,
+              promo_code: input.promoCode,
+              items: input.items.map((i) => ({
+                variant_id: i.variantId,
+                quantity: i.quantity,
+              })),
+            }),
+          }
+        );
+        return normalizePromoPreview(raw);
+      },
+    },
+
+    promotions: {
+      async auto(): Promise<PromotionTier[]> {
+        // Same cache posture as the rate feed: marketing edits the Odoo
+        // program rarely, and a stale tier list only mis-words a nudge — the
+        // discount itself is always computed server-side at checkout.
+        try {
+          const raw = await api<ApiPromotionTier[]>(
+            config,
+            "/grove/api/v1/promotions/auto",
+            { next: { revalidate: 21600 } }
+          );
+          return normalizePromotionTiers(raw);
+        } catch {
+          // Unreachable / predates the route: no nudge, never a broken cart.
+          return [];
+        }
       },
     },
 

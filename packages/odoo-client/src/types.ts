@@ -130,6 +130,11 @@ export interface ApiVariant {
   /** Selection field: `false` only if the compute somehow yielded no tier. */
   shipping_tier: ShippingTier | false;
   image_url: string | null;
+  /** Qualifying tree units ONE of this variant counts as toward the automatic
+   *  volume discount (GOL-2431/2432): 1 for a nursery plant, the component tree
+   *  count for a bundle (Remembrance Grove = 5), 0 for supplies / gift cards /
+   *  services. Absent on a backend that predates the field. */
+  tree_count?: number;
 }
 
 /** Gallery image from the product detail endpoint (catalog API v1). */
@@ -560,6 +565,13 @@ export interface ProductVariant {
    * rather than a misleading count.
    */
   qtyAvailable?: number | null;
+  /**
+   * Qualifying tree units one of this variant counts as toward the volume
+   * discount tiers (GOL-2432): 1 per plant, the bundle's tree count for a
+   * bundle, 0 for anything that never qualifies. null when the payload predates
+   * the field — callers must treat that as "unknown" and not guess.
+   */
+  treeCount?: number | null;
 }
 
 /** Filterable + display growing facts, normalized from the detail endpoint. */
@@ -831,6 +843,59 @@ export interface CheckoutQuote {
   }[];
 }
 
+/** Input to POST /grove/api/v1/checkout/promo/preview (GOL-2431/2432). The
+ *  checkout payload the discount depends on — contact and address are omitted
+ *  because the buyer may press Apply before filling them in. */
+export interface PromoPreviewInput {
+  items: OrderItemInput[];
+  fulfillment?: "ship" | "pickup" | null;
+  /** The code the buyer typed; omit to preview only the automatic volume tier. */
+  promoCode?: string;
+}
+
+/** Raw response from POST /grove/api/v1/checkout/promo/preview. */
+export interface ApiPromoPreviewResponse {
+  ok: boolean;
+  /** Which single discount won: the typed code, the volume tier, or neither. */
+  applied: "code" | "tier" | null;
+  code: string | null;
+  discount_amount: number;
+  subtotal_after: number;
+  /** Shopper-facing sentence: the shortfall, the refusal, or why the tier won. */
+  message: string | null;
+  /** Tier the backend applied (only when `applied === "tier"`). Optional so a
+   *  backend that omits it still validates — the label is then built from the
+   *  feed or dropped. */
+  tier?: { min_qty: number; percent: number } | null;
+}
+
+/** Read-only discount preview: what the order will be discounted at payment. */
+export interface PromoPreview {
+  ok: boolean;
+  applied: "code" | "tier" | null;
+  code: string | null;
+  /** Dollars off (positive number). 0 when nothing applied. */
+  discountAmount: number;
+  subtotalAfter: number;
+  message: string | null;
+  tier: { minQty: number; percent: number } | null;
+}
+
+/** Raw tier from GET /grove/api/v1/promotions/auto. */
+export interface ApiPromotionTier {
+  min_qty: number;
+  percent: number;
+  label: string;
+}
+
+/** One automatic volume-discount tier: `percent` off the order at `minQty`+
+ *  qualifying trees. Thresholds live in the Odoo loyalty program (GOL-2431). */
+export interface PromotionTier {
+  minQty: number;
+  percent: number;
+  label: string;
+}
+
 /** One itemized charged-today line (camelCase mirror of ApiCheckoutLineItem). */
 export interface CheckoutLineItem {
   name: string;
@@ -954,6 +1019,18 @@ export interface OdooClient {
      *  {@link OdooApiError} on a non-2xx — a 404 means the backend predates the
      *  route, so callers can fall back to a local estimate. */
     quote(input: CheckoutQuoteInput): Promise<CheckoutQuote>;
+    /** Read-only promo / volume-discount preview (GOL-2432). The backend builds
+     *  the draft order in a savepoint and rolls it back — no order, no Stripe.
+     *  Throws {@link OdooApiError} on a non-2xx (a 400 carries the shopper-facing
+     *  refusal, e.g. a deposit cart). */
+    promoPreview(input: PromoPreviewInput): Promise<PromoPreview>;
+  };
+  promotions: {
+    /** Automatic volume-discount tiers, ascending by `minQty` (GOL-2432).
+     *  Cached like the rate feed. Returns [] when the feed is unreachable, the
+     *  backend predates it, or no automatic program is live — the storefront
+     *  then simply shows no nudge. */
+    auto(): Promise<PromotionTier[]>;
   };
   newsletter: {
     /** Best-effort CRM opt-in (GOL-221): upsert a tagged `res.partner` for the

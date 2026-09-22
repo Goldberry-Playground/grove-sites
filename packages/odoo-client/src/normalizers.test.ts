@@ -3,6 +3,8 @@ import {
   normalizeProductListItem,
   normalizeProductDetail,
   normalizeVariant,
+  normalizePromoPreview,
+  normalizePromotionTiers,
   normalizeCart,
   normalizeCartItem,
   normalizeOrderSummary,
@@ -701,5 +703,63 @@ describe("normalizeOrderDetail", () => {
       unitPrice: 38.0,
       totalPrice: 38.0,
     });
+  });
+});
+
+describe("promo preview + volume tiers (GOL-2432)", () => {
+  it("normalizes a tier-won preview and keeps the discount positive", () => {
+    expect(
+      normalizePromoPreview({
+        ok: true,
+        applied: "tier",
+        code: "FLATWOODS",
+        discount_amount: -60,
+        subtotal_after: 240,
+        message: "Your 20% volume discount is worth more than FLATWOODS, so we applied that",
+        tier: { min_qty: 10, percent: 20 },
+      }),
+    ).toEqual({
+      ok: true,
+      applied: "tier",
+      code: "FLATWOODS",
+      discountAmount: 60,
+      subtotalAfter: 240,
+      message: "Your 20% volume discount is worth more than FLATWOODS, so we applied that",
+      tier: { minQty: 10, percent: 20 },
+    });
+  });
+
+  it("zeroes the discount when nothing applied", () => {
+    const p = normalizePromoPreview({
+      ok: false,
+      applied: null,
+      code: "FLATWOODS",
+      discount_amount: 10,
+      subtotal_after: 30,
+      message: "needs 2 qualifying trees",
+    });
+    expect(p.discountAmount).toBe(0);
+    expect(p.tier).toBeNull();
+  });
+
+  it("sorts tiers and drops malformed rows", () => {
+    expect(
+      normalizePromotionTiers([
+        { min_qty: 10, percent: 20, label: "20%" },
+        { min_qty: 0, percent: 5, label: "bad" },
+        { min_qty: 5, percent: 10, label: "10%" },
+        { min_qty: 3, percent: 150, label: "bad" },
+      ]),
+    ).toEqual([
+      { minQty: 5, percent: 10, label: "10%" },
+      { minQty: 10, percent: 20, label: "20%" },
+    ]);
+    expect(normalizePromotionTiers({ not: "an array" })).toEqual([]);
+  });
+
+  it("reads a variant's tree_count, null when absent", () => {
+    const base = { id: 1, display_name: "x", sku: false as const, cultivar: "", format: "", price: 1, qty_available: 1, shipping_tier: false as const, image_url: null };
+    expect(normalizeVariant({ ...base, tree_count: 5 }).treeCount).toBe(5);
+    expect(normalizeVariant(base).treeCount).toBeNull();
   });
 });
