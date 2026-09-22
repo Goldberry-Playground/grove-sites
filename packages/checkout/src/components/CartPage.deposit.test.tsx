@@ -51,7 +51,7 @@ describe("<CartPage /> — flat reservation deposit shown as due today", () => {
 
     expect(await screen.findByText("Due today (reservation deposit)")).toBeTruthy();
     expect(screen.getAllByText("$10.00").length).toBeGreaterThan(0);
-    expect(screen.getByText("Order total")).toBeTruthy();
+    expect(screen.getByText("Order subtotal")).toBeTruthy();
     expect(screen.getByText(/one flat \$10 deposit today, no matter how many trees/)).toBeTruthy();
     // The generic "not charged today" reassurance would contradict the row.
     expect(screen.queryByText(/You will not be charged today/)).toBeNull();
@@ -77,7 +77,9 @@ describe("<CartPage /> — flat reservation deposit shown as due today", () => {
     await screen.findByText("Order Summary");
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     expect(screen.queryByText("Due today (reservation deposit)")).toBeNull();
-    expect(screen.getByText("Total")).toBeTruthy();
+    expect(screen.getByText("Subtotal")).toBeTruthy();
+    // No client-side tax estimate: tax is a backend line on Review & pay.
+    expect(screen.queryByText(/Tax \(estimated/)).toBeNull();
   });
 
   it("never quotes when no href is wired (brands without a charge rule)", async () => {

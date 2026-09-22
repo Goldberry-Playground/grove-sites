@@ -17,6 +17,8 @@ import type {
   ApiOrderDetail,
   ApiCheckoutSessionResponse,
   ApiCheckoutQuoteResponse,
+  ApiPromoPreviewResponse,
+  ApiPromotionTier,
   ApiZoneResponse,
   Product,
   ProductVariant,
@@ -29,6 +31,8 @@ import type {
   OrderDetail,
   CheckoutSession,
   CheckoutQuote,
+  PromoPreview,
+  PromotionTier,
   ZoneLookupResult,
 } from "./types";
 
@@ -212,7 +216,51 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     format: emptyToNull(raw.format),
     rootstock: emptyToNull(raw.rootstock),
     shippingTier: raw.shipping_tier || null,
+    treeCount: normalizeTreeCount(raw.tree_count),
   };
+}
+
+/** A non-negative integer tree count, else null ("unknown" — never guessed). */
+function normalizeTreeCount(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 ? raw : null;
+}
+
+export function normalizePromoPreview(raw: ApiPromoPreviewResponse): PromoPreview {
+  const applied = raw.applied === "code" || raw.applied === "tier" ? raw.applied : null;
+  return {
+    ok: raw.ok === true,
+    applied,
+    code: raw.code || null,
+    discountAmount: applied && Number.isFinite(raw.discount_amount) ? Math.abs(raw.discount_amount) : 0,
+    subtotalAfter: raw.subtotal_after,
+    message: typeof raw.message === "string" && raw.message ? raw.message : null,
+    tier:
+      applied === "tier" && raw.tier && Number.isFinite(raw.tier.min_qty) && Number.isFinite(raw.tier.percent)
+        ? { minQty: raw.tier.min_qty, percent: raw.tier.percent }
+        : null,
+  };
+}
+
+/**
+ * Normalize the automatic-tier feed: drop malformed rows (a tier with no
+ * positive threshold or percent can't drive a nudge) and sort ascending by
+ * threshold so "next tier" is always the first one above the cart's count.
+ */
+export function normalizePromotionTiers(raw: unknown): PromotionTier[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (t): t is ApiPromotionTier =>
+        !!t &&
+        typeof t === "object" &&
+        Number.isInteger((t as ApiPromotionTier).min_qty) &&
+        (t as ApiPromotionTier).min_qty > 0 &&
+        typeof (t as ApiPromotionTier).percent === "number" &&
+        (t as ApiPromotionTier).percent > 0 &&
+        (t as ApiPromotionTier).percent <= 100,
+    )
+    .map((t) => ({ minQty: t.min_qty, percent: t.percent, label: typeof t.label === "string" ? t.label : "" }))
+    .sort((a, b) => a.minQty - b.minQty);
 }
 
 export function normalizeFacts(raw: ApiFacts): GrowingFacts {

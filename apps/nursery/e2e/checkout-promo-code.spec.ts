@@ -113,12 +113,13 @@ test.describe("checkout — promo code", () => {
       expect(discounts.length, "session should itemize the promo as a discount line").toBeGreaterThan(0);
       for (const d of discounts) {
         expect(d.unitAmount * d.quantity, "a discount line is negative").toBeLessThan(0);
-        // Rendered as a fee-style line (no ship/reserve badge), showing the
-        // negative amount exactly as formatted everywhere else.
-        const el = page.locator(".grove-review__line--fee", { hasText: d.name }).first();
-        await expect(el).toBeVisible();
-        await expect(el).toContainText(usd(d.unitAmount * d.quantity, session.currency));
       }
+      // Rendered as ONE pre-tax "Discount" row (GOL-2432 ruling) showing the
+      // face value with a true minus sign, whatever the backend split it into.
+      const off = discounts.reduce((s, d) => s + d.unitAmount * d.quantity, 0);
+      const row = page.locator(".grove-review__line--fee", { hasText: "Discount" });
+      await expect(row).toHaveCount(1);
+      await expect(row).toContainText(`\u2212${usd(Math.abs(off), session.currency)}`);
       // Itemized parity still holds with the discount applied (GOL-1823 rule).
       const itemized = lines.reduce((s, l) => s + l.unitAmount * l.quantity, 0);
       expect(Math.round(itemized * 100)).toBe(Math.round(session.amountDueToday * 100));

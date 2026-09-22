@@ -95,15 +95,18 @@ describe("<CheckoutPage /> kit — truthful-by-default (GOL-1314)", () => {
 // pure presentational assertion over the ship-fulfillment default state, so it
 // needs no DOM/act and stays green independent of the React-act test harness.
 describe("<CheckoutPage /> summary — shipping honesty (GOL-1823)", () => {
-  it("lists a shipping line and labels the figure 'Estimated total' for a ship order", () => {
+  it("lists shipping + tax lines and labels the figure 'Subtotal' for a ship order", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} />,
     );
     // Shipping is a visible line — priced at the payment step, not omitted.
-    expect(html).toContain("Shipping");
-    expect(html).toContain("Calculated at payment");
-    // The pre-shipping figure must not masquerade as the final total.
-    expect(html).toContain("Estimated total");
+    expect(html).toContain("<dt>Shipping</dt>");
+    expect(html).toContain("<dt>Sales tax</dt>");
+    expect(html).toContain("On the next step");
+    // The pre-shipping figure must not masquerade as the final total, and the
+    // form never estimates tax itself (Josh, 2026-09-22).
+    expect(html).toContain("<dt>Subtotal</dt>");
+    expect(html).not.toContain("Tax (estimated)");
     expect(html).not.toMatch(/<dt>Total<\/dt>/);
     // The banner headline number is flagged as pre-shipping, not a hard total.
     expect(html).toContain("before shipping &amp; tax");
@@ -122,8 +125,8 @@ describe("<CheckoutPage /> summary — shipping honesty (GOL-1823)", () => {
     );
     // Even with pickup available, the form opens on ship — the buggy path — so
     // the shipping line and estimated-total caveat must still be present.
-    expect(html).toContain("Shipping");
-    expect(html).toContain("Calculated at payment");
-    expect(html).toContain("Estimated total");
+    expect(html).toContain("<dt>Shipping</dt>");
+    expect(html).toContain("On the next step");
+    expect(html).toContain("<dt>Subtotal</dt>");
   });
 });

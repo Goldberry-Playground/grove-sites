@@ -54,7 +54,9 @@ export {
   type GroveCheckoutPaymentMethod,
   type GroveShipToOption,
   type GrovePickupCopy,
+  type GrovePromoPreview,
 } from "./CheckoutPage";
+export { TierNudge } from "./TierNudge";
 export {
   CheckoutReview,
   type CheckoutReviewProps,

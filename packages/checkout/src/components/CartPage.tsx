@@ -5,6 +5,7 @@ import { useCart } from "../cart-store";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { useTierNudge } from "../hooks/useTierNudge";
 import { WithGroveNext } from "./grove-next-seam";
 
 /**
@@ -25,10 +26,29 @@ import { WithGroveNext } from "./grove-next-seam";
 export function CartPage({
   brand = "nursery",
   depositQuoteHref,
-}: { brand?: GroveBrand; depositQuoteHref?: string } = {}) {
+  tiersHref,
+}: {
+  brand?: GroveBrand;
+  depositQuoteHref?: string;
+  /** Storefront `/api/cart/tiers` route — enables the volume-discount nudge
+   *  ("Add 2 more trees to unlock 10% off", GOL-2432). */
+  tiersHref?: string;
+} = {}) {
   const { items, hydrated, setQuantity, remove, subtotal, totalQuantity } =
     useCart();
-  const dueToday = dueTodayFor(useCartDepositQuote(depositQuoteHref, items));
+  const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
+    depositQuoteHref,
+    items,
+  );
+  const dueToday = dueTodayFor(depositQuote);
+  // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
+  // nudge only once the quote confirms a charged-in-full cart — never while the
+  // quote is loading or if it failed (both leave the charge mode unknown), so a
+  // reservation cart can't flash a discount promise it will never honour.
+  const { nudge } = useTierNudge(tiersHref, items, {
+    hidden: !(depositSettled && !depositQuote?.depositNow),
+    surface: "cart",
+  });
 
   return (
     <WithGroveNext>
@@ -41,6 +61,7 @@ export function CartPage({
         onRemove={remove}
         trustItems={BRAND_TRUST[brand].cart}
         dueToday={dueToday}
+        tierNudge={nudge?.message ?? null}
       />
     </WithGroveNext>
   );

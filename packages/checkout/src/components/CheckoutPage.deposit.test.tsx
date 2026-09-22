@@ -53,7 +53,7 @@ describe("<CheckoutPage /> — flat reservation deposit shown before the Stripe 
     expect(await screen.findByText("Due today (reservation deposit)")).toBeTruthy();
     expect(screen.getByText(/1 item · reservation/)).toBeTruthy();
     expect(screen.getByText(/due today · balance when your trees ship/)).toBeTruthy();
-    expect(screen.getByText("Estimated order total")).toBeTruthy();
+    expect(screen.getByText("Order subtotal")).toBeTruthy();
 
     const firstBody = JSON.parse(String((fetchSpy.mock.calls[0] as [string, RequestInit])[1].body));
     expect(firstBody.fulfillment).toBe("ship");
@@ -81,7 +81,7 @@ describe("<CheckoutPage /> — flat reservation deposit shown before the Stripe 
     await screen.findByLabelText(/Full name/);
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     expect(screen.queryByText("Due today (reservation deposit)")).toBeNull();
-    expect(screen.getByText("Estimated total")).toBeTruthy();
+    expect(screen.getByText("Subtotal")).toBeTruthy();
     expect(screen.getByText(/ready to ship/)).toBeTruthy();
   });
 });

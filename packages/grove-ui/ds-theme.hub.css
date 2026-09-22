@@ -651,11 +651,6 @@
   justify-content: space-between;
   gap: var(--grove-space-4);
 }
-.grove-cart__summary-note {
-  display: block;
-  font-size: var(--grove-text-xs);
-  color: color-mix(in srgb, var(--grove-color-ink) 40%, transparent);
-}
 
 /* Checkout CTA — shared forest fill (CheckoutShared.css); cart renders an <a>. */
 .grove-cart__summary-cta {
@@ -935,12 +930,9 @@
 .grove-checkout__back:hover {
   color: var(--grove-color-primary);
 }
-/* CheckoutReview — order review + payment hand-off shown between the checkout
- * form and the Stripe redirect. Token-mapped per TOKEN-MAP.md. The pay-today /
- * due-later split is signalled by label + icon + copy (never color alone), so
- * it reads in grayscale and for color-blind buyers. Shared shell/CTA/error/
- * reassure patterns live in CheckoutShared.css; only review-specific rules here.
- */
+/* CheckoutReview: order review + Stripe hand-off. Token-mapped (TOKEN-MAP.md).
+ * States pair label + icon + copy, never color alone. Shared shell/CTA/error/
+ * reassure rules live in CheckoutShared.css. */
 
 .grove-review {
   max-width: 40rem;
@@ -992,6 +984,18 @@
   color: var(--grove-color-ink);
 }
 
+.grove-review__line-detail {
+  display: block;
+  font-size: var(--grove-text-xs);
+  color: var(--grove-color-ink-a70);
+}
+/* Ships-now closing total (GOL-2432); the row itself is the shared
+   summary-total pattern (CheckoutShared.css). */
+.grove-review__total > :first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 /* Pay-today / due-later split */
 .grove-review__split {
   display: grid;
@@ -1011,9 +1015,6 @@
 .grove-review__amount--later {
   background: color-mix(in srgb, var(--grove-color-ink) 4%, transparent);
   border-style: dashed;
-}
-.grove-review__amount--sole {
-  grid-column: 1 / -1;
 }
 .grove-review__amount-label {
   display: flex;
@@ -1058,15 +1059,16 @@
   color: var(--grove-color-ink-a70);
 }
 
+.grove-review__total-note {
+  margin-bottom: var(--grove-space-4);
+}
+
 /* Error — shared surface (CheckoutShared.css); only the top margin differs. */
 .grove-review__error {
   margin: var(--grove-space-4) 0 0;
 }
 
-/* Pay CTA — shared forest fill (CheckoutShared.css); review-only deltas below.
-   Forest (primary) fill, not accent: parchment-on-forest clears ~11:1 where
-   parchment-on-accent-orange is only ~3.1:1 (fails 4.5:1 for this text size).
-   Accent energy stays on the checkout banner CTA. */
+/* Pay CTA: forest fill (~11:1 with parchment; accent-orange is ~3.1:1, fails). */
 .grove-review__pay {
   border: none;
   cursor: pointer;
@@ -1128,11 +1130,10 @@
   }
 }
 
-/* Ship/reserve badge on itemized lines (GOL-1057). Fee rows (shipping/tax)
-   carry no badge and read muted. Badge never signals by color alone — it has
-   a text label so it survives grayscale and color-blind viewing. */
+/* Ship/reserve badge (GOL-1057): text label, so never color alone. Fee rows
+   (discount/shipping/tax) carry none and read muted. */
 .grove-review__line--fee .grove-review__line-name {
-  color: var(--grove-color-ink-a50);
+  color: var(--grove-color-ink-a70);
 }
 .grove-review__badge {
   display: inline-block;
@@ -1332,7 +1333,8 @@
   color: var(--grove-color-ink-a70);
 }
 .grove-checkout__summary-total,
-.grove-cart__summary-total {
+.grove-cart__summary-total,
+.grove-review__total {
   display: flex;
   justify-content: space-between;
   border-top: 2px solid var(--grove-color-line-strong);
@@ -1403,6 +1405,60 @@
 .grove-checkout__error-icon,
 .grove-review__error-icon {
   flex-shrink: 0;
+}
+
+/* ── Promo code + Apply, discount row, volume nudge (GOL-2432) ──
+   Here, not in CheckoutPage.css (at its 6 KB ceiling): the discount row and
+   the nudge render on both the cart and checkout summaries. */
+.grove-checkout__promo-row {
+  display: flex;
+  gap: var(--grove-space-2);
+}
+.grove-checkout__promo-row > * {
+  min-height: 2.75rem; /* 44px touch target on the input and Apply alike */
+}
+.grove-checkout__promo-apply {
+  flex-shrink: 0;
+}
+.grove-checkout__promo-apply:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.grove-checkout__error.grove-checkout__promo-error {
+  margin-top: var(--grove-space-2);
+}
+/* Discount amount: success tint, but the label + minus sign carry the meaning. */
+.grove-checkout__summary-row--discount {
+  gap: var(--grove-space-3);
+}
+/* The code or tier behind the single "Discount" row (GOL-2432). */
+.grove-checkout__summary-detail {
+  display: block;
+  font-size: var(--grove-text-xs);
+  color: var(--grove-color-ink-a70);
+}
+.grove-checkout__summary-row--discount dd {
+  white-space: nowrap;
+  color: var(--grove-color-success-fg);
+  font-weight: var(--grove-font-weight-semibold);
+}
+.grove-tier-nudge {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--grove-space-2);
+  margin: var(--grove-space-4) 0 0;
+  padding: var(--grove-space-2) var(--grove-space-3);
+  border: 1px solid var(--grove-color-success-solid);
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-success-surface);
+  color: var(--grove-color-success-fg);
+  font-size: var(--grove-text-sm);
+  font-weight: var(--grove-font-weight-semibold);
+  line-height: 1.4;
+}
+.grove-tier-nudge__icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
 }
 /* ─── Hero slideshow ─── */
 .hero-slideshow {

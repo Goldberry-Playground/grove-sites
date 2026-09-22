@@ -181,7 +181,8 @@
   color: var(--grove-color-ink-a70);
 }
 .grove-checkout__summary-total,
-.grove-cart__summary-total {
+.grove-cart__summary-total,
+.grove-review__total {
   display: flex;
   justify-content: space-between;
   border-top: 2px solid var(--grove-color-line-strong);
@@ -252,4 +253,58 @@
 .grove-checkout__error-icon,
 .grove-review__error-icon {
   flex-shrink: 0;
+}
+
+/* ── Promo code + Apply, discount row, volume nudge (GOL-2432) ──
+   Here, not in CheckoutPage.css (at its 6 KB ceiling): the discount row and
+   the nudge render on both the cart and checkout summaries. */
+.grove-checkout__promo-row {
+  display: flex;
+  gap: var(--grove-space-2);
+}
+.grove-checkout__promo-row > * {
+  min-height: 2.75rem; /* 44px touch target on the input and Apply alike */
+}
+.grove-checkout__promo-apply {
+  flex-shrink: 0;
+}
+.grove-checkout__promo-apply:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.grove-checkout__error.grove-checkout__promo-error {
+  margin-top: var(--grove-space-2);
+}
+/* Discount amount: success tint, but the label + minus sign carry the meaning. */
+.grove-checkout__summary-row--discount {
+  gap: var(--grove-space-3);
+}
+/* The code or tier behind the single "Discount" row (GOL-2432). */
+.grove-checkout__summary-detail {
+  display: block;
+  font-size: var(--grove-text-xs);
+  color: var(--grove-color-ink-a70);
+}
+.grove-checkout__summary-row--discount dd {
+  white-space: nowrap;
+  color: var(--grove-color-success-fg);
+  font-weight: var(--grove-font-weight-semibold);
+}
+.grove-tier-nudge {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--grove-space-2);
+  margin: var(--grove-space-4) 0 0;
+  padding: var(--grove-space-2) var(--grove-space-3);
+  border: 1px solid var(--grove-color-success-solid);
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-success-surface);
+  color: var(--grove-color-success-fg);
+  font-size: var(--grove-text-sm);
+  font-weight: var(--grove-font-weight-semibold);
+  line-height: 1.4;
+}
+.grove-tier-nudge__icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
 }

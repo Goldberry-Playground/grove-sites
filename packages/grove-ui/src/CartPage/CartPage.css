@@ -201,11 +201,6 @@
   justify-content: space-between;
   gap: var(--grove-space-4);
 }
-.grove-cart__summary-note {
-  display: block;
-  font-size: var(--grove-text-xs);
-  color: color-mix(in srgb, var(--grove-color-ink) 40%, transparent);
-}
 
 /* Checkout CTA — shared forest fill (CheckoutShared.css); cart renders an <a>. */
 .grove-cart__summary-cta {

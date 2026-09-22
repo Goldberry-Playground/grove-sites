@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "../Button";
+import { TierNudge } from "../TierNudge";
 import {
-  DEFAULT_TAX_RATE_ESTIMATE,
   type GroveCartLineItem,
   type GroveDueToday,
 } from "../cart-contract";
@@ -38,6 +38,29 @@ export interface GroveCheckoutOrder {
   /** Storefront promo code the shopper entered, trimmed; `undefined` when the
    *  field is empty or not shown. The server validates + applies it (GOL-2088). */
   promoCode?: string;
+}
+
+/**
+ * Result of pressing Apply on a promo code (GOL-2432) — the consumer asks the
+ * backend's read-only preview and maps its answer to what the summary shows.
+ * The backend decides everything: whether the code qualifies, whether the
+ * automatic volume tier beats it (best single discount wins), and the copy.
+ */
+export interface GrovePromoPreview {
+  /** A discount will be applied at payment (the code, or a tier that beat it). */
+  applied: boolean;
+  /** Dollars off, positive. Ignored when `applied` is false. */
+  discountAmount: number;
+  /** Summary row label, e.g. "FLATWOODS applied" or
+   *  "Volume discount (10% for 5+ trees)". */
+  label: string;
+  /**
+   * Backend sentence, shown verbatim. With `applied: false` it is the reason
+   * the code didn't apply ("needs 2 qualifying trees … add 1 more") and renders
+   * under the field; with `applied: true` it explains the choice ("Your 20%
+   * volume discount is worth more than FLATWOODS…") and renders in the summary.
+   */
+  message?: string | null;
 }
 
 /** A selectable ship-to state or country: 2-letter `code` sent to the server,
@@ -86,7 +109,8 @@ export interface CheckoutPageProps {
    * inline. Resolving means success — the app has already navigated away.
    */
   onPlaceOrder: (order: GroveCheckoutOrder) => Promise<void> | void;
-  /** On-page tax estimate rate (final tax is server-computed). */
+  /** @deprecated Ignored: the form no longer estimates tax; Review & pay shows
+   *  the backend's tax line (GOL-2432). Kept so existing callers compile. */
   taxRateEstimate?: number;
   /** Selectable payment methods. */
   paymentMethods?: GroveCheckoutPaymentMethod[];
@@ -157,6 +181,24 @@ export interface CheckoutPageProps {
    */
   allowPromoCode?: boolean;
   /**
+   * Check a promo code before payment (GOL-2432). When provided, an Apply
+   * button sits beside the code field (Enter in the field applies, it never
+   * submits the order) and the answer renders as a discount row in the summary
+   * or a message under the field. It is also called once with `undefined` on
+   * load and on each ship/pickup switch, so an automatic volume discount shows
+   * in the summary without the buyer typing anything. Reject/throw with an
+   * Error to show its message under the field.
+   */
+  onApplyPromo?: (
+    code: string | undefined,
+    context: { fulfillment: GroveFulfillment },
+  ) => Promise<GrovePromoPreview>;
+  /**
+   * One-line volume-discount nudge ("Add 2 more trees to unlock 10% off"),
+   * rendered in the summary. Omit/null to hide (e.g. a deposit cart).
+   */
+  tierNudge?: string | null;
+  /**
    * What the buyer pays today when the order takes a flat reservation deposit
    * instead of the full total (GOL-2233). Rendered as an emphasised row above
    * the estimated total and in the sticky banner. Omit / null when the cart is
@@ -214,7 +256,6 @@ export function CheckoutPage({
   subtotal,
   loading = false,
   onPlaceOrder,
-  taxRateEstimate = DEFAULT_TAX_RATE_ESTIMATE,
   paymentMethods = DEFAULT_PAYMENT_METHODS,
   hidePaymentMethods = false,
   submitLabel = "Place Order →",
@@ -230,6 +271,8 @@ export function CheckoutPage({
   allowPickup = false,
   pickupCopy = DEFAULT_PICKUP_COPY,
   allowPromoCode = false,
+  onApplyPromo,
+  tierNudge = null,
   dueToday = null,
   onFulfillmentChange,
 }: CheckoutPageProps) {
@@ -263,8 +306,63 @@ export function CheckoutPage({
     paymentMethods[0]?.value ?? "",
   );
   const [promoCode, setPromoCode] = useState("");
+  // Last Apply/auto-preview answer. Cleared whenever the code is edited so the
+  // summary never shows a discount for a code other than the one in the field.
+  const [promo, setPromo] = useState<GrovePromoPreview | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  // The code the current preview was run with ("" = automatic tier only), so a
+  // ship/pickup switch re-runs the same question.
+  const appliedCodeRef = useRef("");
+  const previewSeq = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function runPreview(code: string, silent: boolean) {
+    if (!onApplyPromo) return;
+    const seq = ++previewSeq.current;
+    appliedCodeRef.current = code;
+    if (!silent) {
+      setApplying(true);
+      setPromoError(null);
+    }
+    try {
+      const result = await onApplyPromo(code || undefined, { fulfillment });
+      if (seq !== previewSeq.current) return; // a newer preview superseded this one
+      if (result.applied) {
+        setPromo(result);
+        setPromoError(null);
+      } else {
+        setPromo(null);
+        // A silent (no-code) preview that finds nothing says nothing.
+        if (!silent) setPromoError(result.message || "This code can't be applied to your order.");
+      }
+    } catch (e) {
+      if (seq !== previewSeq.current) return;
+      setPromo(null);
+      if (!silent) setPromoError(e instanceof Error ? e.message : "This code can't be applied to your order.");
+    } finally {
+      if (seq === previewSeq.current) setApplying(false);
+    }
+  }
+
+  // Automatic volume tier: preview with no code on load and on every
+  // ship/pickup switch (re-using an applied code, loudly, so a code that stops
+  // qualifying says why). Cart lines can't change on this page.
+  const cartKey = items.map((i) => `${i.variantId}x${i.quantity}`).join(",");
+  useEffect(() => {
+    if (loading || items.length === 0 || !onApplyPromo) return;
+    const code = appliedCodeRef.current;
+    void runPreview(code, code === "");
+    // runPreview is recreated each render; the inputs are fulfillment + cart.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fulfillment, cartKey, loading]);
+
+  function applyPromo() {
+    const code = promoCode.trim();
+    if (!code || applying) return;
+    void runPreview(code, false);
+  }
 
   if (loading) {
     return (
@@ -293,8 +391,11 @@ export function CheckoutPage({
     );
   }
 
-  const taxEstimate = subtotal * taxRateEstimate;
-  const total = subtotal + taxEstimate;
+  // The backend preview's discount comes off the goods. Shipping and tax are
+  // backend numbers that exist only once the ship-to is known, so the form
+  // does no tax math: both are shown on Review & pay (Josh, 2026-09-22).
+  const discount = promo?.applied ? Math.min(promo.discountAmount, subtotal) : 0;
+  const total = subtotal - discount;
   const totalQuantity = items.reduce((n, it) => n + it.quantity, 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -350,7 +451,7 @@ export function CheckoutPage({
                 <>
                   {formatPrice(total)}
                   <span className="grove-checkout__banner-note">
-                    {isPickup ? "with est. tax" : "before shipping & tax"}
+                    {isPickup ? "before tax" : "before shipping & tax"}
                   </span>
                 </>
               )}
@@ -563,24 +664,30 @@ export function CheckoutPage({
               ))}
             </ul>
 
+            {/* Same rows, same order as Review & pay (Josh, 2026-09-22):
+                goods, Discount, Shipping, tax, then the emphasised figure.
+                Shipping is priced server-side once the destination is known;
+                the row still shows so the figure here never reads as the
+                charged total (GOL-1823). Pickup is the $0-shipping case. */}
             <dl className="grove-checkout__summary-list">
-              <div className="grove-checkout__summary-row">
-                <dt>Subtotal</dt>
-                <dd>{formatPrice(subtotal)}</dd>
-              </div>
-              {/* Shipping is priced server-side by the box engine once the
-                  destination is known, so the form can't show a final figure.
-                  We still list the line — a missing shipping row is what made
-                  the form's "Total" read below the amount actually charged at
-                  the payment step (GOL-1823). Pickup is the one $0-shipping
-                  case, so it can be shown as free. */}
+              {promo?.applied && discount > 0 && (
+                <div className="grove-checkout__summary-row grove-checkout__summary-row--discount">
+                  <dt>
+                    Discount
+                    {promo.label && (
+                      <span className="grove-checkout__summary-detail">{promo.label}</span>
+                    )}
+                  </dt>
+                  <dd>−{formatPrice(discount)}</dd>
+                </div>
+              )}
               <div className="grove-checkout__summary-row">
                 <dt>Shipping</dt>
-                <dd>{isPickup ? "Free (pickup)" : "Calculated at payment"}</dd>
+                <dd>{isPickup ? "Free (pickup)" : "On the next step"}</dd>
               </div>
               <div className="grove-checkout__summary-row">
-                <dt>Tax (estimated)</dt>
-                <dd>{formatPrice(taxEstimate)}</dd>
+                <dt>Sales tax</dt>
+                <dd>On the next step</dd>
               </div>
               {dueToday && (
                 <div className="grove-checkout__summary-row grove-checkout__summary-row--due">
@@ -589,16 +696,22 @@ export function CheckoutPage({
                 </div>
               )}
               <div className="grove-checkout__summary-total">
-                <dt>
-                  {dueToday
-                    ? "Estimated order total"
-                    : isPickup
-                      ? "Total"
-                      : "Estimated total"}
-                </dt>
+                <dt>{dueToday ? "Order subtotal" : "Subtotal"}</dt>
                 <dd>{formatPrice(total)}</dd>
               </div>
             </dl>
+
+            {promo?.applied && discount > 0 && (
+              <p className="grove-checkout__field-note grove-checkout__field-note--block">
+                {promo.message && (
+                  <>
+                    {promo.message}
+                    <br />
+                  </>
+                )}
+                The discount is applied on the secure payment page.
+              </p>
+            )}
 
             {dueToday && (
               <p className="grove-checkout__field-note grove-checkout__field-note--block">
@@ -606,13 +719,14 @@ export function CheckoutPage({
               </p>
             )}
 
-            {!isPickup && (
-              <p className="grove-checkout__field-note grove-checkout__field-note--block">
-                Shipping and final sales tax are calculated on the secure
-                payment page. You&apos;ll see and confirm the full total before
-                you&apos;re charged.
-              </p>
-            )}
+            <p className="grove-checkout__field-note grove-checkout__field-note--block">
+              {isPickup ? "Sales tax is" : "Shipping and sales tax are"} added on
+              the next step, Review &amp; pay. You&apos;ll see and confirm the
+              full total before you&apos;re charged.
+            </p>
+
+            {/* Nudge sits with the promo field: one "discounts" group. */}
+            {tierNudge && <TierNudge>{tierNudge}</TierNudge>}
 
             {allowPromoCode && (
               // Spacing reuses the form's existing `--block` top-spacer idiom
@@ -625,22 +739,71 @@ export function CheckoutPage({
                 >
                   Promo code
                 </label>
-                <input
-                  id="grove-checkout-promo"
-                  type="text"
-                  className="grove-checkout__input"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  spellCheck={false}
-                  maxLength={64}
-                  inputMode="text"
-                  placeholder="Enter a code"
-                />
-                <p className="grove-checkout__field-note grove-checkout__field-note--block">
-                  The discount is applied on the secure payment page.
-                </p>
+                <div className="grove-checkout__promo-row">
+                  <input
+                    id="grove-checkout-promo"
+                    type="text"
+                    className="grove-checkout__input"
+                    value={promoCode}
+                    onChange={(e) => {
+                      setPromoCode(e.target.value.toUpperCase());
+                      // A typed-over code no longer matches the preview.
+                      if (appliedCodeRef.current) {
+                        previewSeq.current++;
+                        appliedCodeRef.current = "";
+                        setPromo(null);
+                        setApplying(false);
+                      }
+                      setPromoError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      // Enter applies the code; it must never submit the order.
+                      if (e.key === "Enter" && onApplyPromo) {
+                        e.preventDefault();
+                        applyPromo();
+                      }
+                    }}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={64}
+                    inputMode="text"
+                    placeholder="Enter a code"
+                    aria-invalid={promoError ? true : undefined}
+                    aria-describedby={promoError ? "grove-checkout-promo-msg" : undefined}
+                  />
+                  {onApplyPromo && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="md"
+                      onClick={applyPromo}
+                      disabled={applying || promoCode.trim() === ""}
+                      aria-busy={applying || undefined}
+                      className="grove-checkout__promo-apply"
+                    >
+                      {applying ? "Applying…" : "Apply"}
+                    </Button>
+                  )}
+                </div>
+                {promoError ? (
+                  <p
+                    id="grove-checkout-promo-msg"
+                    role="alert"
+                    className="grove-checkout__error grove-checkout__promo-error"
+                  >
+                    <span aria-hidden="true" className="grove-checkout__error-icon">
+                      ⚠
+                    </span>
+                    {promoError}
+                  </p>
+                ) : (
+                  !(promo?.applied && discount > 0) && (
+                    <p className="grove-checkout__field-note grove-checkout__field-note--block">
+                      The discount is applied on the secure payment page.
+                    </p>
+                  )
+                )}
               </div>
             )}
 
