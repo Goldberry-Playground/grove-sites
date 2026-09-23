@@ -8,9 +8,10 @@ import type { ShippingCalendar } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import {
   resolveShippableMode,
-  barerootNote,
   barerootTimingShort,
   zoneShipNote,
+  formatMonthDay,
+  DEPOSIT_CUTOVER,
 } from "../lib/fulfillment-mode";
 
 // USDA zones offered by the qsearch band above (line ~93) — the Field Notes
@@ -218,11 +219,11 @@ export default async function HomePage() {
 
         <aside className="field-notes">
           <div className="field-notes-eyebrow">Field Notes — This Week</div>
-          <h3>This week&apos;s bareroot shipping windows, by zone.</h3>
+          <h3>Bareroot ship windows, by zone.</h3>
           <p>
-            {heroResolution
-              ? barerootNote(heroResolution)
-              : "Reserve now with a $10 deposit per tree. Your exact ship week is timed to your zone and confirmed at checkout."}
+            {heroResolution?.depositNow
+              ? "Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship, timed to your zone's window."
+              : `In-stock bareroot ships now and is charged in full. After ${formatMonthDay(DEPOSIT_CUTOVER)}, or once a size sells out, reserve with a flat $10 deposit per order and we charge the balance when your zone's window opens.`}
           </p>
           {heroResolution && (
             <p>

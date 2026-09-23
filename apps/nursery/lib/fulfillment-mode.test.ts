@@ -387,7 +387,7 @@ describe("monthDayOf — timezone-stable extraction", () => {
 });
 
 describe("zoneShipNote — homepage Field Notes row", () => {
-  const CAL_DEADLINES: ShippingCalendar = {
+  const Z: ShippingCalendar = {
     ...CAL,
     zones: {
       "3": {
@@ -399,22 +399,29 @@ describe("zoneShipNote — homepage Field Notes row", () => {
     },
   };
 
-  it("preorder: shows the zone's ship window and order-by (never a hand-typed season)", () => {
-    // Sep 23 is inside fall preorder (Aug 15 → ship start Nov 2).
-    expect(zoneShipNote(on(9, 23), CAL_DEADLINES, 3)).toEqual({
+  it("before the fall window: shows the zone's fall window + order-by", () => {
+    expect(zoneShipNote(on(9, 23), Z, 3)).toEqual({
       label: "Ships Nov 2 – Nov 13",
       note: "Order by Nov 12",
     });
   });
 
-  it("in-window: falls back to the short timing line", () => {
-    expect(zoneShipNote(on(11, 5), CAL_DEADLINES, 3).label).toBe("Ships now");
+  it("inside the fall window: still the fall window", () => {
+    expect(zoneShipNote(on(11, 5), Z, 3).label).toBe("Ships Nov 2 – Nov 13");
   });
 
-  it("peat & bagged: business-day timing and no order-by note", () => {
-    expect(zoneShipNote(on(7, 4), CAL_DEADLINES, 3)).toEqual({
-      label: "Ships in 5–10 business days",
-      note: null,
+  it("past the fall window: rolls to next spring", () => {
+    expect(zoneShipNote(on(12, 1), Z, 3)).toEqual({
+      label: "Ships Apr 19 – Jun 6",
+      note: "Order by May 31",
     });
+  });
+
+  it("before the spring window ends: shows spring", () => {
+    expect(zoneShipNote(on(3, 1), Z, 3).label).toBe("Ships Apr 19 – Jun 6");
+  });
+
+  it("unknown zone: no invented dates", () => {
+    expect(zoneShipNote(on(9, 23), Z, 9)).toEqual({ label: "Confirmed at checkout", note: null });
   });
 });
