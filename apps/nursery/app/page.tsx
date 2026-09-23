@@ -17,7 +17,6 @@ import {
 // USDA zones offered by the qsearch band above (line ~93) — the Field Notes
 // card mirrors that same zone set so the two never disagree.
 const FIELD_NOTE_ZONES = [3, 4, 5, 6, 7] as const;
-const DEFAULT_ZONE = 5;
 
 // At The Grove Nursery homepage — port of wireframes/nursery/index.html.
 // Sections in wireframe order: cat-bar → pano-hero → qsearch → lead-sellers →
@@ -58,7 +57,7 @@ export default async function HomePage() {
   }
   const now = new Date();
   const heroResolution = shippingCalendar
-    ? resolveShippableMode(now, shippingCalendar, DEFAULT_ZONE)
+    ? resolveShippableMode(now, shippingCalendar)
     : null;
   const zoneNotes = shippingCalendar
     ? FIELD_NOTE_ZONES.map((zone) => ({ zone, ...zoneShipNote(now, shippingCalendar, zone) }))
@@ -219,7 +218,7 @@ export default async function HomePage() {
 
         <aside className="field-notes">
           <div className="field-notes-eyebrow">Field Notes — This Week</div>
-          <h3>Bareroot ship windows, by zone.</h3>
+          <h3>If you reserve, here&apos;s when your zone ships.</h3>
           <p>
             {heroResolution?.depositNow
               ? "Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship, timed to your zone's window."
@@ -231,18 +230,19 @@ export default async function HomePage() {
               {heroResolution.fulfillmentDays[1]} business days.
             </p>
           )}
-          <ul>
-            {(
-              zoneNotes ??
-              FIELD_NOTE_ZONES.map((zone) => ({ zone, label: "Confirmed at checkout", note: null }))
-            ).map(({ zone, label, note }) => (
-              <li key={zone}>
-                <span>Zone {zone}</span>
-                <strong>{label}</strong>
-                {note && <small>{note}</small>}
-              </li>
-            ))}
-          </ul>
+          {zoneNotes ? (
+            <ul>
+              {zoneNotes.map(({ zone, label, note }) => (
+                <li key={zone}>
+                  <span>Zone {zone}</span>
+                  <strong>{label}</strong>
+                  {note && <small>{note}</small>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Ship windows are confirmed at checkout for your zone.</p>
+          )}
         </aside>
       </section>
 
