@@ -844,7 +844,9 @@ h1 em, h2 em, h3 em {
   font-family: var(--font-mono);
   font-size: 12px;
 }
+.field-notes li { flex-wrap: wrap; }
 .field-notes li strong { color: var(--orange); }
+.field-notes li small { flex-basis: 100%; font-size: 11px; opacity: 0.75; }
 
 /* Cinematic split band */
 .split-band {
