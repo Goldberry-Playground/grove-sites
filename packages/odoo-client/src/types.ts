@@ -83,6 +83,18 @@ export interface ApiProductListItem {
    * grove_headless build that predates the field stay uncapped.
    */
   preorder_cap_reached?: boolean;
+  /**
+   * Live stock signal for the grid card (grove-odoo-modules GOL-2517). `true`
+   * when any variant has sellable on-hand quantity, computed pool-aware from
+   * `variant.grove_shared_pool_qty("qty_available")` so a Bareroot placeholder
+   * backed by its potted siblings is not falsely sold out. Without this the
+   * list payload carried no availability and `/shop` could never render a
+   * sell-out (the PDP, being force-dynamic, read `qty_available` and did).
+   * Present only when the Odoo `stock` module is installed; optional so mocks
+   * and payloads from a grove_headless build that predates the field fall back
+   * to `website_published` (see normalizeProductListItem).
+   */
+  in_stock?: boolean;
 }
 
 /** Paginated product list response. */
