@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { siblingSitesForHost, GroveProviders } from "@grove/ui";
+import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
@@ -80,6 +80,11 @@ export default async function RootLayout({
                   hubOptIn
                 />
               </CaptureSlot>
+              <FooterContact
+                phone={tenantConfig.contact.phone}
+                email={tenantConfig.contact.email}
+                className="text-center"
+              />
               <p className="text-center">
                 &copy; {new Date().getFullYear()} {tenantConfig.legalName}. All rights reserved.
               </p>

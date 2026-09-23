@@ -3,8 +3,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import "./globals.css";
 import { AnalyticsProvider } from "@grove/analytics";
-import { siblingSitesForHost, GroveProviders } from "@grove/ui";
+import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip } from "@grove/ui-kit";
+import { tenantConfig } from "../tenant.config";
 
 export const metadata: Metadata = {
   title: {
@@ -65,6 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <a key={site.name} href={site.href}>{site.name}</a>
             ))}
           </nav>
+          <FooterContact phone={tenantConfig.contact.phone} className="hub-footer__contact" />
           <p className="hub-footer__small">
             © 2026 Gather at the Grove · The hub never takes a cut.
           </p>

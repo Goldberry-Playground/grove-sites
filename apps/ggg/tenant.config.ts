@@ -27,6 +27,12 @@ export const tenantConfig = {
     background: "#EFE6D3",         // bone
     foreground: "#1F1611",         // deep walnut
   },
+  // Public support contact rendered in the footer on every page (GOL-2492).
+  // Phone is shared across all three businesses for now.
+  contact: {
+    phone: "4457875140",
+    email: "commissions@woodworkingeorge.com",
+  },
   /** Exact Origin values accepted on state-changing BFF POSTs. Keep in
    *  sync with prod hostnames + the QA host + the dev port from package.json. */
   allowedOrigins: [

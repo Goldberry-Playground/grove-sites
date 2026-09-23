@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { siblingSitesForHost, GroveProviders } from "@grove/ui";
+import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
@@ -92,6 +92,14 @@ export default async function RootLayout({
                 <strong>Lead times</strong>
                 <span>Small pieces: 4–8 weeks</span>
                 <span>Furniture: 10–16 weeks</span>
+              </div>
+              <div className="footer-col">
+                <strong>Contact</strong>
+                <FooterContact
+                  phone={tenantConfig.contact.phone}
+                  email={tenantConfig.contact.email}
+                  className="footer-contact"
+                />
               </div>
             </div>
             <div className="footer-copy">

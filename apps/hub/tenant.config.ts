@@ -18,6 +18,12 @@ export const tenantConfig = {
     foreground: "#1A1410",     // ink
     moss: "#2E4530",           // sub-accent for journal/eyebrow
   },
+  // Public support contact rendered in the footer on every page (GOL-2492).
+  // The hub is the aggregator, so it shows the shared phone only; per-business
+  // support emails live on each vendor's own site.
+  contact: {
+    phone: "4457875140",
+  },
   allowedOrigins: [
     "https://gatheringatthegrove.com",
     "https://www.gatheringatthegrove.com",

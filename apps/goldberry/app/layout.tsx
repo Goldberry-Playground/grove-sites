@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { assetPath, siblingSitesForHost, GroveProviders } from "@grove/ui";
+import { assetPath, siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
@@ -128,6 +128,11 @@ export default async function RootLayout({
                 src={assetPath("goldberry", "photos/logo-bw.svg")}
                 alt="Goldberry Grove"
                 className="brand-footer__logo"
+              />
+              <FooterContact
+                phone={tenantConfig.contact.phone}
+                email={tenantConfig.contact.email}
+                className="brand-footer__contact"
               />
               <p className="brand-footer__small">
                 &copy; {new Date().getFullYear()} {tenantConfig.name}. All rights reserved.

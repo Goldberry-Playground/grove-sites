@@ -862,6 +862,12 @@ h1 em, h2 em, h3 em, h4 em {
      more compact even with the dominant mark inside it. */
   padding: clamp(1.4rem, 2.5vw, 2.2rem) clamp(1rem, 3vw, 2.4rem);
   margin-top: 0;
+  /* The footer background IS --chestnut-reserve, which is also the global
+     --focus-ring color — so the ring would render 1:1 on the GOL-2492
+     contact links (the first focusable children here). Re-scope the token
+     to ivory (6.5:1 on chestnut) rather than overriding outline-color, per
+     the "always reuse --focus-ring" convention above. */
+  --focus-ring: var(--ivory-mist);
 }
 .brand-footer__inner {
   max-width: 1300px;
@@ -880,6 +886,13 @@ h1 em, h2 em, h3 em, h4 em {
   width: clamp(140px, 18vw, 200px);
   height: auto;
   display: block;
+}
+.brand-footer__contact {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ivory-mist);
+  text-align: center;
 }
 .brand-footer__small {
   font-family: var(--font-mono);
