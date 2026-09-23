@@ -165,15 +165,22 @@ export async function addCurrentProductToCart(
   quantity = 1,
   label: BuyLabel = "Add to Cart",
 ): Promise<void> {
-  const anchor = page.locator("[data-add-to-cart-anchor]");
+  // Scope to the first anchor and the first Quantity input within it. Under a
+  // transient double-render window on the PDP (SSR + client add-to-cart forms
+  // coexisting for a tick, and/or a client-nav overlap that briefly keeps two
+  // `[data-add-to-cart-anchor]` nodes mounted), an unscoped `getByLabel` matched
+  // two `grove-atc__qty` inputs and tripped Playwright strict mode (GOL-2486).
+  // Only one stepper is ever stably present per PDP, so `.first()` is unambiguous
+  // and self-heals the window without waiting on it.
+  const anchor = page.locator("[data-add-to-cart-anchor]").first();
   if (quantity !== 1) {
-    const qty = anchor.getByLabel("Quantity", { exact: true });
+    const qty = anchor.getByLabel("Quantity", { exact: true }).first();
     await qty.fill(String(quantity));
     await qty.blur();
   }
-  await anchor.getByRole("button", { name: label, exact: true }).click();
+  await anchor.getByRole("button", { name: label, exact: true }).first().click();
   await expect(
-    anchor.getByRole("button", { name: "Added!", exact: true }),
+    anchor.getByRole("button", { name: "Added!", exact: true }).first(),
   ).toBeVisible({ timeout: 5_000 });
 }
 
