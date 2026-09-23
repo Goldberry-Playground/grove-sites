@@ -448,11 +448,9 @@
   font-size: 0.75rem;
   font-weight: 500;
 }
-/* CartPage — full cart with sticky checkout banner, trust strip, line items, and
- * order summary. Token-mapped per TOKEN-MAP.md. The remove action pairs the
- * accessible error role with labelled text — never color alone. Shell / banner /
- * trust strip / summary card / summary CTA are shared with CheckoutPage/
- * CheckoutReview via CheckoutShared.css; only cart-specific rules live here.
+/* CartPage — cart-specific rules only; shell/banner/trust/summary live in
+ * CheckoutShared.css. Token-mapped per TOKEN-MAP.md. Remove is labelled text,
+ * never color alone. Tap targets (step/qty/remove) are 44px (2.75rem).
  */
 
 .grove-cart__title {
@@ -497,15 +495,15 @@
   text-underline-offset: 2px;
 }
 
-/* Grid */
+/* Grid — minmax(0,…) so a line's min-content can't widen the page (GOL-2440). */
 .grove-cart__grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--grove-space-6);
 }
 @media (min-width: 1024px) {
   .grove-cart__grid {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   }
 }
 
@@ -534,6 +532,12 @@
   border-radius: var(--grove-radius-sm);
   background: color-mix(in srgb, var(--grove-color-secondary) 20%, transparent);
 }
+@media (max-width: 23rem) {
+  .grove-cart__line-img {
+    width: 4rem;
+    height: 4rem;
+  }
+}
 .grove-cart__line-img img {
   width: 100%;
   height: 100%;
@@ -550,6 +554,7 @@
   font-weight: var(--grove-font-weight-medium);
   color: var(--grove-color-ink);
   text-decoration: none;
+  overflow-wrap: anywhere;
   transition: color var(--grove-motion-fast);
 }
 .grove-cart__line-name:hover {
@@ -562,19 +567,22 @@
 }
 .grove-cart__line-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--grove-space-4);
+  gap: var(--grove-space-2) var(--grove-space-4);
   margin-top: var(--grove-space-3);
 }
 .grove-cart__stepper {
   display: flex;
-  align-items: center;
   border: 1px solid var(--grove-color-line-strong);
   border-radius: var(--grove-radius-sm);
 }
-.grove-cart__step {
-  padding: 0.375rem var(--grove-space-3);
+.grove-cart__step,
+.grove-cart__remove {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -588,11 +596,10 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* Typed quantity input — editable count between the −/+ steps. Native spinners
- * hidden (the buttons are the affordance); side borders delineate it. */
+/* Typed qty between the −/+ steps; native spinners hidden. */
 .grove-cart__qty {
   width: 2.75rem;
-  padding: 0.375rem var(--grove-space-1);
+  padding: 0 var(--grove-space-1);
   text-align: center;
   background: transparent;
   border: none;
@@ -625,9 +632,6 @@
   font-weight: var(--grove-font-weight-semibold);
 }
 .grove-cart__remove {
-  background: transparent;
-  border: none;
-  cursor: pointer;
   font-size: var(--grove-text-xs);
   color: var(--grove-color-ink-a50);
   text-underline-offset: 2px;
