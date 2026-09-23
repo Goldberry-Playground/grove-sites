@@ -670,6 +670,13 @@ a { color: inherit; text-decoration: none; }
 }
 .hub-footer nav a { color: rgba(244, 239, 227, 0.78); }
 .hub-footer nav a:hover { color: var(--amber); }
+.hub-footer__contact {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: rgba(244, 239, 227, 0.78);
+}
 .hub-footer__small {
   grid-column: 1 / -1;
   font-family: var(--font-mono);

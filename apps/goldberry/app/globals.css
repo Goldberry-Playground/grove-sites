@@ -881,6 +881,13 @@ h1 em, h2 em, h3 em, h4 em {
   height: auto;
   display: block;
 }
+.brand-footer__contact {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ivory-mist);
+  text-align: center;
+}
 .brand-footer__small {
   font-family: var(--font-mono);
   font-size: 10px;
