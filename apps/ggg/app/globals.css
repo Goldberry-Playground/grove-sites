@@ -547,7 +547,10 @@ h1 em, h2 em, h3 em {
   margin: 0 auto;
   padding: clamp(2rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem);
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  /* Brand column (1.5fr) + one 1fr track per content column. The GOL-2492
+     Contact column is the 4th content column, so this is now repeat(4) —
+     otherwise it orphans onto a second row below the brand track. */
+  grid-template-columns: 1.5fr repeat(4, 1fr);
   gap: 2rem;
 }
 .footer-logo {
