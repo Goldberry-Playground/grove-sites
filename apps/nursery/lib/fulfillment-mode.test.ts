@@ -10,6 +10,7 @@ import {
   orderDeadlineLine,
   tierFulfillment,
   DEPOSIT_CUTOVER,
+  zoneShipNote,
   type ShippableMode,
 } from "./fulfillment-mode";
 
@@ -382,5 +383,38 @@ describe("monthDayOf — timezone-stable extraction", () => {
   it("reads the UTC month/day", () => {
     expect(monthDayOf(new Date(Date.UTC(2026, 7, 15)))).toEqual([8, 15]);
     expect(monthDayOf(new Date(Date.UTC(2026, 0, 1)))).toEqual([1, 1]);
+  });
+});
+
+describe("zoneShipNote — homepage Field Notes row", () => {
+  const CAL_DEADLINES: ShippingCalendar = {
+    ...CAL,
+    zones: {
+      "3": {
+        fall: [[11, 2], [11, 13]],
+        spring: [[4, 19], [6, 6]],
+        fall_order_deadline: [11, 12],
+        spring_order_deadline: [5, 31],
+      },
+    },
+  };
+
+  it("preorder: shows the zone's ship window and order-by (never a hand-typed season)", () => {
+    // Sep 23 is inside fall preorder (Aug 15 → ship start Nov 2).
+    expect(zoneShipNote(on(9, 23), CAL_DEADLINES, 3)).toEqual({
+      label: "Ships Nov 2 – Nov 13",
+      note: "Order by Nov 12",
+    });
+  });
+
+  it("in-window: falls back to the short timing line", () => {
+    expect(zoneShipNote(on(11, 5), CAL_DEADLINES, 3).label).toBe("Ships now");
+  });
+
+  it("peat & bagged: business-day timing and no order-by note", () => {
+    expect(zoneShipNote(on(7, 4), CAL_DEADLINES, 3)).toEqual({
+      label: "Ships in 5–10 business days",
+      note: null,
+    });
   });
 });

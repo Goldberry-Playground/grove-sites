@@ -10,8 +10,7 @@ import {
   resolveShippableMode,
   barerootNote,
   barerootTimingShort,
-  orderDeadlineLine,
-  formatMonthDay,
+  zoneShipNote,
 } from "../lib/fulfillment-mode";
 
 // USDA zones offered by the qsearch band above (line ~93) — the Field Notes
@@ -61,19 +60,7 @@ export default async function HomePage() {
     ? resolveShippableMode(now, shippingCalendar, DEFAULT_ZONE)
     : null;
   const zoneNotes = shippingCalendar
-    ? FIELD_NOTE_ZONES.map((zone) => {
-        const res = resolveShippableMode(now, shippingCalendar, zone);
-        const win = res.preorderSeason
-          ? shippingCalendar.zones?.[String(zone)]?.[res.preorderSeason]
-          : undefined;
-        return {
-          zone,
-          label: win
-            ? `Ships ${formatMonthDay(win[0])} – ${formatMonthDay(win[1])}`
-            : barerootTimingShort(res),
-          note: orderDeadlineLine(res),
-        };
-      })
+    ? FIELD_NOTE_ZONES.map((zone) => ({ zone, ...zoneShipNote(now, shippingCalendar, zone) }))
     : null;
 
   return (

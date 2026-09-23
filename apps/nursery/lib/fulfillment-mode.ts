@@ -442,3 +442,24 @@ export function orderDeadlineLine(res: FulfillmentResolution): string | null {
   if (res.mode === "peat-and-bagged") return null;
   return `Order by ${formatMonthDay(res.orderDeadline)}`;
 }
+
+/**
+ * One row of the homepage "Field Notes" per-zone list: the zone's ship window
+ * when it is on preorder (`Ships Nov 2 – Nov 13`), else the short timing line,
+ * plus its order-by note. Reads the same calendar/resolver as the product page
+ * so the homepage never hand-types a season.
+ */
+export function zoneShipNote(
+  date: Date,
+  calendar: ShippingCalendar,
+  zone: number,
+): { label: string; note: string | null } {
+  const res = resolveShippableMode(date, calendar, zone);
+  const win = res.preorderSeason ? calendar.zones?.[String(zone)]?.[res.preorderSeason] : undefined;
+  return {
+    label: win
+      ? `Ships ${formatMonthDay(win[0])} – ${formatMonthDay(win[1])}`
+      : barerootTimingShort(res),
+    note: orderDeadlineLine(res),
+  };
+}
