@@ -53,6 +53,30 @@ describe("normalizeProductListItem", () => {
     ).toBe(false);
   });
 
+  // GOL-2517: the list payload now carries live stock so the grid card can show
+  // a sell-out (before this it read "In stock" forever after an item zeroed).
+  it("maps in_stock=false to available=false so the grid can show a sell-out", () => {
+    expect(
+      normalizeProductListItem({ ...honeycrispListItem, in_stock: false }).available,
+    ).toBe(false);
+  });
+
+  it("maps in_stock=true + published to available=true", () => {
+    expect(
+      normalizeProductListItem({ ...honeycrispListItem, in_stock: true }).available,
+    ).toBe(true);
+  });
+
+  it("treats in_stock=true but unpublished as unavailable (stock AND published)", () => {
+    expect(
+      normalizeProductListItem({
+        ...honeycrispListItem,
+        in_stock: true,
+        website_published: false,
+      }).available,
+    ).toBe(false);
+  });
+
   // GOL-760: coming-soon placeholders (sale_ok=false) now appear in the grid,
   // so the list normalizer must surface saleOk for the card to render them as
   // "Coming soon" rather than "In stock".

@@ -126,7 +126,11 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     priceMin: raw.price_min,
     variantCount: raw.variant_count,
     cultivarCount: raw.cultivar_count,
-    available: raw.website_published,
+    // Live stock (GOL-2517): the card can finally show a sell-out. `available`
+    // = in stock AND published. Fall back to website_published when the field
+    // is absent (mocks / a grove_headless build without the stock signal) so
+    // those payloads stay purchasable rather than flipping to sold out.
+    available: raw.in_stock === undefined ? raw.website_published : raw.in_stock && raw.website_published,
     // Coming-soon placeholders (sale_ok=false) now appear in the grid and
     // ?cat= facets (GOL-760). Default true so mocks and older payloads that
     // omit the field stay purchasable.
