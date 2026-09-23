@@ -10,6 +10,7 @@ import {
   orderDeadlineLine,
   tierFulfillment,
   DEPOSIT_CUTOVER,
+  zoneShipNote,
   type ShippableMode,
 } from "./fulfillment-mode";
 
@@ -382,5 +383,45 @@ describe("monthDayOf — timezone-stable extraction", () => {
   it("reads the UTC month/day", () => {
     expect(monthDayOf(new Date(Date.UTC(2026, 7, 15)))).toEqual([8, 15]);
     expect(monthDayOf(new Date(Date.UTC(2026, 0, 1)))).toEqual([1, 1]);
+  });
+});
+
+describe("zoneShipNote — homepage Field Notes row", () => {
+  const Z: ShippingCalendar = {
+    ...CAL,
+    zones: {
+      "3": {
+        fall: [[11, 2], [11, 13]],
+        spring: [[4, 19], [6, 6]],
+        fall_order_deadline: [11, 12],
+        spring_order_deadline: [5, 31],
+      },
+    },
+  };
+
+  it("before the fall window: shows the zone's fall window + order-by", () => {
+    expect(zoneShipNote(on(9, 23), Z, 3)).toEqual({
+      label: "Ships Nov 2 – Nov 13",
+      note: "Order by Nov 12",
+    });
+  });
+
+  it("inside the fall window: still the fall window", () => {
+    expect(zoneShipNote(on(11, 5), Z, 3).label).toBe("Ships Nov 2 – Nov 13");
+  });
+
+  it("past the fall window: rolls to next spring", () => {
+    expect(zoneShipNote(on(12, 1), Z, 3)).toEqual({
+      label: "Ships Apr 19 – Jun 6",
+      note: "Order by May 31",
+    });
+  });
+
+  it("before the spring window ends: shows spring", () => {
+    expect(zoneShipNote(on(3, 1), Z, 3).label).toBe("Ships Apr 19 – Jun 6");
+  });
+
+  it("unknown zone: no invented dates", () => {
+    expect(zoneShipNote(on(9, 23), Z, 9)).toEqual({ label: "Confirmed at checkout", note: null });
   });
 });

@@ -839,12 +839,16 @@ h1 em, h2 em, h3 em {
 .field-notes li {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 0.75rem;
+  row-gap: 2px;
   padding: 5px 0;
   color: var(--parchment-deep);
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.field-notes li strong { color: var(--orange); }
+.field-notes li strong { color: var(--parchment-deep); }
+.field-notes li small { flex: 0 0 100%; font-size: 11px; opacity: 0.75; }
 
 /* Cinematic split band */
 .split-band {

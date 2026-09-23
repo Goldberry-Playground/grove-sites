@@ -442,3 +442,28 @@ export function orderDeadlineLine(res: FulfillmentResolution): string | null {
   if (res.mode === "peat-and-bagged") return null;
   return `Order by ${formatMonthDay(res.orderDeadline)}`;
 }
+
+/**
+ * One row of the homepage "Field Notes" per-zone list: the zone's NEXT bareroot
+ * ship window (`Ships Nov 2 – Nov 13`) and its order-by note. Reads the per-zone
+ * calendar directly — the window names WHEN a deposit/reserved order ships; it
+ * does not decide the charge shape (that is the GOL-2233 deposit rule, see
+ * {@link DEPOSIT_CUTOVER}). Spring windows end earliest in the year, then fall,
+ * then (past the fall window) next spring. Unknown zone → no invented dates.
+ */
+export function zoneShipNote(
+  date: Date,
+  calendar: ShippingCalendar,
+  zone: number,
+): { label: string; note: string | null } {
+  const z = calendar.zones?.[String(zone)];
+  if (!z) return { label: "Confirmed at checkout", note: null };
+  const d = ord(monthDayOf(date));
+  const season = d <= ord(z.spring[1]) ? "spring" : d <= ord(z.fall[1]) ? "fall" : "spring";
+  const win = z[season];
+  const deadline = season === "fall" ? z.fall_order_deadline : z.spring_order_deadline;
+  return {
+    label: `Ships ${formatMonthDay(win[0])} – ${formatMonthDay(win[1])}`,
+    note: deadline ? `Order by ${formatMonthDay(deadline)}` : null,
+  };
+}

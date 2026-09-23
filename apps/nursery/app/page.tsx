@@ -4,6 +4,19 @@ import { assetPath } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
 import { NURSERY_CATEGORIES } from "../data/categories";
 import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
+import type { ShippingCalendar } from "@grove/odoo-client";
+import { odoo } from "../lib/clients";
+import {
+  resolveShippableMode,
+  barerootTimingShort,
+  zoneShipNote,
+  formatMonthDay,
+  DEPOSIT_CUTOVER,
+} from "../lib/fulfillment-mode";
+
+// USDA zones offered by the qsearch band above (line ~93) — the Field Notes
+// card mirrors that same zone set so the two never disagree.
+const FIELD_NOTE_ZONES = [3, 4, 5, 6, 7] as const;
 
 // At The Grove Nursery homepage — port of wireframes/nursery/index.html.
 // Sections in wireframe order: cat-bar → pano-hero → qsearch → lead-sellers →
@@ -29,6 +42,26 @@ export default async function HomePage() {
   // One catalog fetch for the whole page — feeds the hero "varieties" stat and
   // the data-driven lead-seller row so their counts always agree.
   const { products, total } = await fetchCatalog();
+
+  // Live per-USDA-zone bareroot calendar (GOL-1172/1177), same feed + resolver
+  // the product page uses (lib/fulfillment-mode.ts). Previously this section
+  // hand-typed a spring calendar (Mar 7-30, zones 6/7 "now shipping") that went
+  // stale the moment the season turned — the fix is to stop hand-typing dates
+  // and read the same live calendar checkout prices against. Best-effort: a
+  // missing/degraded feed falls back to zone-agnostic copy, never a wrong date.
+  let shippingCalendar: ShippingCalendar | null = null;
+  try {
+    shippingCalendar = (await odoo.shipping.rateFeed())?.calendar ?? null;
+  } catch {
+    shippingCalendar = null;
+  }
+  const now = new Date();
+  const heroResolution = shippingCalendar
+    ? resolveShippableMode(now, shippingCalendar)
+    : null;
+  const zoneNotes = shippingCalendar
+    ? FIELD_NOTE_ZONES.map((zone) => ({ zone, ...zoneShipNote(now, shippingCalendar, zone) }))
+    : null;
 
   return (
     <>
@@ -58,7 +91,11 @@ export default async function HomePage() {
         />
         <div className="pano-content">
           <div>
-            <div className="pano-eyebrow">Bare-root season · Through March 30</div>
+            <div className="pano-eyebrow">
+              {heroResolution
+                ? `Bareroot: ${barerootTimingShort(heroResolution)}`
+                : "Bare-root & potted trees, shipped to your zone"}
+            </div>
             <h1>
               Fruit trees, berries &amp;<br />
               edible perennials —<br />
@@ -181,15 +218,31 @@ export default async function HomePage() {
 
         <aside className="field-notes">
           <div className="field-notes-eyebrow">Field Notes — This Week</div>
-          <h3>Bare-root shipping is open through March 30.</h3>
-          <p>After March 30 we switch to potted stock. The same trees, just heavier to ship and less forgiving of late planting.</p>
-          <ul>
-            <li><span>Zone 3</span><strong>Ship Mar 22-27</strong></li>
-            <li><span>Zone 4</span><strong>Ship Mar 14-20</strong></li>
-            <li><span>Zone 5</span><strong>Ship Mar 7-13</strong></li>
-            <li><span>Zone 6</span><strong>Now shipping</strong></li>
-            <li><span>Zone 7</span><strong>Last call</strong></li>
-          </ul>
+          <h3>If you reserve, here&apos;s when your zone ships.</h3>
+          <p>
+            {heroResolution?.depositNow
+              ? "Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship, timed to your zone's window."
+              : `In-stock bareroot ships now and is charged in full. After ${formatMonthDay(DEPOSIT_CUTOVER)}, or once a size sells out, reserve with a flat $10 deposit per order and we charge the balance when your zone's window opens.`}
+          </p>
+          {heroResolution && (
+            <p>
+              In-stock potted trees ship now, peat &amp; bagged, in {heroResolution.fulfillmentDays[0]}–
+              {heroResolution.fulfillmentDays[1]} business days.
+            </p>
+          )}
+          {zoneNotes ? (
+            <ul>
+              {zoneNotes.map(({ zone, label, note }) => (
+                <li key={zone}>
+                  <span>Zone {zone}</span>
+                  <strong>{label}</strong>
+                  {note && <small>{note}</small>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Ship windows are confirmed at checkout for your zone.</p>
+          )}
         </aside>
       </section>
 
