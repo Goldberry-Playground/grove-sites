@@ -442,6 +442,56 @@ describe("normalizeProductDetail — preorderCapReached (GOL-2171)", () => {
   });
 });
 
+/**
+ * GOL-2587 P1 → GOL-2588: the fulfillment flags the hotfix added to BOTH the list
+ * and detail payloads via `_fulfillment_flags`. Both default to the permissive
+ * pre-hotfix behaviour (shippable, not exempt) so a grove_headless build that
+ * predates the fields, and every mock, behaves exactly as it did before.
+ */
+describe("fulfillment flags — pickupOnly / complianceExempt (GOL-2587 P1)", () => {
+  it("maps pickup_only + compliance_exempt on the LIST payload", () => {
+    const result = normalizeProductListItem({
+      ...honeycrispListItem,
+      pickup_only: true,
+      compliance_exempt: true,
+    });
+    expect(result.pickupOnly).toBe(true);
+    expect(result.complianceExempt).toBe(true);
+  });
+
+  it("maps pickup_only + compliance_exempt on the DETAIL payload", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      pickup_only: true,
+      compliance_exempt: true,
+    });
+    expect(result.pickupOnly).toBe(true);
+    expect(result.complianceExempt).toBe(true);
+  });
+
+  it("maps the flags independently (pickup-only but not exempt)", () => {
+    const result = normalizeProductDetail({ ...honeycrispDetail, pickup_only: true });
+    expect(result.pickupOnly).toBe(true);
+    expect(result.complianceExempt).toBe(false);
+  });
+
+  it("defaults BOTH to false when a pre-hotfix payload omits them", () => {
+    const list = normalizeProductListItem(honeycrispListItem);
+    expect(list.pickupOnly).toBe(false);
+    expect(list.complianceExempt).toBe(false);
+    const detail = normalizeProductDetail(honeycrispDetail);
+    expect(detail.pickupOnly).toBe(false);
+    expect(detail.complianceExempt).toBe(false);
+  });
+
+  it("never coerces a truthy non-boolean into true (plain bools on the wire)", () => {
+    // The serializer emits `bool(...)`, so anything else is a contract break we
+    // should not paper over with a truthy cast.
+    const result = normalizeProductDetail({ ...honeycrispDetail, pickup_only: false });
+    expect(result.pickupOnly).toBe(false);
+  });
+});
+
 describe("normalizeProductDetail — guide prose (publish-pipeline v2, GOL-1012)", () => {
   it("maps website_description → websiteDescription and grove_guide_ready → guideReady", () => {
     const result = normalizeProductDetail({

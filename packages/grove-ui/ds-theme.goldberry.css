@@ -880,6 +880,14 @@
   border-color: var(--grove-color-primary);
   background: var(--grove-color-surface-raised);
 }
+/* A fulfillment option the cart forbids: a pickup-only line makes shipping
+   impossible (GOL-2588). ink-soft still clears AA, and the reason is always
+   stated in words beside it, so the dimming reinforces meaning and never
+   carries it. */
+.grove-checkout__payment--locked {
+  cursor: not-allowed;
+  color: var(--grove-color-ink-soft);
+}
 .grove-checkout__payment-note {
   margin-top: var(--grove-space-3);
   font-size: var(--grove-text-xs);

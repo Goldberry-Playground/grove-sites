@@ -161,6 +161,12 @@ export default async function ProductDetailPage({
         fallbackPrice={product.price}
         saleOk={product.saleOk}
         preorderCapReached={product.preorderCapReached}
+        // Farm-pickup-only override (GOL-2587 P1 / GOL-2588). `complianceExempt`
+        // is deliberately NOT passed: the storefront's only per-state notice is
+        // the green-list gate, which the exemption does not widen (it lets a line
+        // ship anywhere ON the green list, never beyond it), so an exempt product
+        // renders identically. See the flag's doc in @grove/odoo-client.
+        pickupOnly={product.pickupOnly}
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
         shippingZoneMap={shippingZoneMap}

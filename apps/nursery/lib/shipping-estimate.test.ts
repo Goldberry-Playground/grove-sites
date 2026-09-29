@@ -372,3 +372,54 @@ describe("isPickupOnly (potted = farm pickup only under Box Engine v2)", () => {
     expect(isPickupOnly("bareroot", null)).toBe(false);
   });
 });
+
+// GOL-2587 P1 → GOL-2588: the per-template `grove_pickup_only` override. The
+// backend gate it mirrors rejects a SHIP order containing such a line WHATEVER
+// the shipping tier and whichever backend generation is live, so the storefront
+// override must outrank both signals — otherwise the PDP would promise shipping
+// on a bareroot line that checkout then refuses with a 400.
+describe("isPickupOnly — per-product override (GOL-2588)", () => {
+  it("forces pickup-only for bareroot, the otherwise-always-shippable tier", () => {
+    expect(isPickupOnly("bareroot", SCHEMA2_FEED, true)).toBe(true);
+  });
+  it("forces pickup-only on the legacy backend too (no box feed)", () => {
+    expect(isPickupOnly("bareroot", null, true)).toBe(true);
+    expect(isPickupOnly("potted", null, true)).toBe(true);
+  });
+  it("leaves the potted rule untouched when the override is absent or false", () => {
+    expect(isPickupOnly("potted", SCHEMA2_FEED, false)).toBe(true); // potted rule still applies
+    expect(isPickupOnly("bareroot", SCHEMA2_FEED, false)).toBe(false);
+    expect(isPickupOnly("bareroot", SCHEMA2_FEED, null)).toBe(false);
+    expect(isPickupOnly("bareroot", SCHEMA2_FEED, undefined)).toBe(false);
+  });
+});
+
+/**
+ * GOL-2588 invariant guard for `compliance_exempt`.
+ *
+ * The exemption lets checkout skip the per-line GOL-2132 carve-out so the line
+ * ships anywhere **on the green list**. It is NOT a licence to ship outside it.
+ * The storefront's only per-state plant-health surface is this green-list gate,
+ * so an exempt product must resolve state eligibility identically to a
+ * non-exempt one. `shipsTo` taking no product argument is what enforces that
+ * structurally; this test pins the intent so a future "exempt widens the state
+ * select" change has to argue with a named invariant instead of slipping in.
+ */
+describe("compliance exemption never widens the green list (GOL-2588)", () => {
+  it("keeps the state gate purely state-level: OH in, TX and CA out", () => {
+    expect(shipsTo("OH")).toBe(true); // green, and where the P1 bundles were blocked
+    expect(shipsTo("TX")).toBe(false); // ratified on cost, still not green
+    expect(shipsTo("CA")).toBe(false); // plant-health closed
+  });
+  it("answers the same for every product, exempt or not (state-level only)", () => {
+    // The exemption lives on the product; eligibility is asked of the STATE. The
+    // helper takes no product, which is the structural guarantee — a future
+    // per-product widening would have to change this signature first.
+    for (const state of ["OH", "IN", "WI", "FL"]) {
+      expect(shipsTo(state)).toBe(true); // regulated AND green: same answer either way
+    }
+    for (const state of ["OR", "WA", "AZ", "NM", "CA"]) {
+      expect(shipsTo(state)).toBe(false); // regulated and NOT green: still closed
+    }
+  });
+});

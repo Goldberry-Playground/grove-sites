@@ -12,6 +12,19 @@ export type CartItem = {
   price: number;
   imageUrl: string;
   quantity: number;
+  /**
+   * This line is farm-pickup-only and can never be shipped (Odoo
+   * `grove_pickup_only`, GOL-2587 P1; resolved on the PDP through `isPickupOnly`
+   * so a potted Box-Engine-v2 line counts too). Carried on the line, like price
+   * and name, because the cart and the checkout form have no product payload to
+   * re-read: checkout locks fulfillment to pickup when ANY line has it (GOL-2588),
+   * which is exactly the order the backend gate would otherwise reject with a 400.
+   *
+   * Optional: a cart persisted before this field existed simply has no flag, which
+   * restores the pre-GOL-2588 behaviour for that line (the backend still rejects
+   * the ship order, so the failure mode is unchanged, never a wrong charge).
+   */
+  pickupOnly?: boolean;
 };
 
 /**
@@ -88,7 +101,12 @@ export function validateCartItems(parsed: unknown): CartItem[] {
       typeof (item as CartItem).price === "number" &&
       typeof (item as CartItem).imageUrl === "string" &&
       typeof (item as CartItem).quantity === "number" &&
-      (item as CartItem).quantity > 0,
+      (item as CartItem).quantity > 0 &&
+      // Optional flag: absent is fine (a cart from before GOL-2588); present but
+      // not a boolean means a tampered line, so drop it rather than coerce a
+      // truthy string into "this cart is pickup-only".
+      ((item as CartItem).pickupOnly === undefined ||
+        typeof (item as CartItem).pickupOnly === "boolean"),
   );
 }
 

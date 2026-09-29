@@ -18,6 +18,12 @@ type AddToCartButtonProps = {
    *  stepper. */
   quantity?: number;
   onQuantityChange?: (quantity: number) => void;
+  /**
+   * The line being added is farm-pickup-only (GOL-2588). Stamped onto the cart
+   * line so the checkout form can lock fulfillment to pickup without re-fetching
+   * the product. Defaults to shippable.
+   */
+  pickupOnly?: boolean;
 };
 
 /**
@@ -35,6 +41,7 @@ export function AddToCartButton({
   idleLabel,
   quantity,
   onQuantityChange,
+  pickupOnly,
 }: AddToCartButtonProps) {
   const { add, openDrawer } = useCart();
 
@@ -45,7 +52,7 @@ export function AddToCartButton({
       quantity={quantity}
       onQuantityChange={onQuantityChange}
       onAddToCart={(quantity) => {
-        add({ variantId, templateId, name, price, imageUrl }, quantity);
+        add({ variantId, templateId, name, price, imageUrl, pickupOnly }, quantity);
         trackAddToCart({ variantId, price, quantity });
         // Open the mini-cart to confirm the add — a clear visual of what landed
         // in the cart plus a one-click path to checkout.

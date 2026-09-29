@@ -96,6 +96,17 @@ export interface ProductViewProps {
    */
   preorderCapReached?: boolean;
   /**
+   * Farm-pickup-only override (Odoo `grove_pickup_only`, GOL-2587 P1 hotfix;
+   * rendered GOL-2588). `true` when this product must never ship, whatever its
+   * shipping tier: every Format reads "Farm pickup only", the state estimator is
+   * hidden (there is no rate to estimate), the buy button reserves for pickup,
+   * and the cart line carries the flag so checkout locks fulfillment to pickup.
+   * This is the SAME treatment potted stock gets under Box Engine v2 (GOL-1114),
+   * reached through the same `isPickupOnly` seam so the two can never drift.
+   * Optional/defaulted to shippable so older payloads are unaffected.
+   */
+  pickupOnly?: boolean;
+  /**
    * Live shipping-rate table from the backend feed (GOL-969), fetched in the
    * SSR product load. `null` when the feed is unreachable — the estimator then
    * falls back to its bundled snapshot via `resolveRateTable()`.
@@ -134,10 +145,22 @@ export function ProductView({
   fallbackPrice,
   saleOk,
   preorderCapReached,
+  pickupOnly,
   shippingRates,
   shippingFeed,
   shippingZoneMap,
 }: ProductViewProps) {
+  // Is a resolved variant farm-pickup-only? The product-level override
+  // (`pickupOnly`, GOL-2587 P1) wins over the tier, so a Bareroot variant on a
+  // pickup-only template still reads as pickup (GOL-2588). Declared first
+  // because the mount-time default pickers call through `buyStateOf` into it.
+  const productPickupOnly = (v: ViewVariant | undefined): boolean =>
+    isPickupOnly(
+      tierFor({ shippingTier: v?.shippingTier ?? null, format: v?.format ?? null }),
+      shippingFeed,
+      pickupOnly,
+    );
+
   // Availability authority, reused by the buy box, the opening-default pickers,
   // and the cart guard so all three agree on what "purchasable" means (GOL-1862):
   // a 0-stock Bareroot is reservable (`ctaDisabled === false`), a 0-stock
@@ -152,6 +175,7 @@ export function ProductView({
       format: v?.format ?? null,
       saleOk,
       capReached: preorderCapReached,
+      pickupOnly: productPickupOnly(v),
     });
   const isPurchasable = (v: ViewVariant | undefined) => buyStateOf(v).ctaDisabled === false;
   // Opening-default preference: real stock beats a $10-deposit reservation.
@@ -191,6 +215,7 @@ export function ProductView({
         format: f,
       }),
       shippingFeed,
+      pickupOnly,
     );
   const formatPurchasable = (f: string): boolean =>
     isPurchasable(pickVariant(variants, { cultivar, format: f }));
@@ -263,22 +288,22 @@ export function ProductView({
       const tier = tierFor({ shippingTier: v?.shippingTier ?? null, format: f });
       if (seen.has(tier)) continue;
       seen.add(tier);
-      const pickupOnly = isPickupOnly(tier, shippingFeed);
+      const tierPickupOnly = isPickupOnly(tier, shippingFeed, pickupOnly);
       const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
       // Single presentation authority for tier timing + badge (GOL-1313), shared
       // with the Format cards below so the two can never drift.
       const { label, fulfillment, badge } = tierFulfillment({
         tier,
         label: TIER_LABEL[tier],
-        pickupOnly,
+        pickupOnly: tierPickupOnly,
         pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
         hintFulfillment: hint.fulfillment,
         shipMode,
       });
-      out.push({ tier, label, fulfillment, pickupOnly, badge });
+      out.push({ tier, label, fulfillment, pickupOnly: tierPickupOnly, badge });
     }
     return out;
-  }, [formats, variants, cultivar, shippingFeed, shipMode]);
+  }, [formats, variants, cultivar, shippingFeed, shipMode, pickupOnly]);
 
   const selected = pickVariant(variants, { cultivar, format, rootstock });
   const price = selected?.price ?? fallbackPrice;
@@ -330,6 +355,17 @@ export function ProductView({
     setPinnedImage(null);
   }
 
+  // Selected-format pickup-only flag: potted under Box Engine v2, or ANY format
+  // on a pickup-only template (GOL-2587 P1 / GOL-2588). Either way the tree is
+  // collected at the farm, never shipped, so we surface that before the buyer
+  // hits checkout: no "ships now" promise the checkout would then block
+  // (GOL-1114). Resolved before `buy` because the CTA copy keys on it.
+  const selectedTier = tierFor({
+    shippingTier: selected?.shippingTier ?? null,
+    format,
+  });
+  const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed, pickupOnly);
+
   // One buy-state decision drives the stock line, the CTA, and the sticky bar,
   // so the inline box and the mobile bar can never contradict each other
   // (GOL-678). A sold-out Bareroot is reservable, not dead.
@@ -340,16 +376,8 @@ export function ProductView({
     format,
     saleOk,
     capReached: preorderCapReached,
+    pickupOnly: selectedPickupOnly,
   });
-
-  // Selected-format pickup-only flag (Box Engine v2): potted is picked up at the
-  // farm, never shipped, so we surface that before the buyer hits checkout — no
-  // "ships now" promise the checkout would then block (GOL-1114).
-  const selectedTier = tierFor({
-    shippingTier: selected?.shippingTier ?? null,
-    format,
-  });
-  const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed);
 
   // Variant-specific charge shape for the buy-box note (GOL-2233 ruling). The
   // deposit decision keys to the backend `_order_takes_deposit` rule — sold out
@@ -461,7 +489,7 @@ export function ProductView({
                     shippingTier: fVariant?.shippingTier ?? null,
                     format: f,
                   });
-                  const fPickupOnly = isPickupOnly(fTier, shippingFeed);
+                  const fPickupOnly = isPickupOnly(fTier, shippingFeed, pickupOnly);
                   const fEst =
                     shipState && !fPickupOnly
                       ? estimateTierShipping(shipState, fTier, {
@@ -583,7 +611,14 @@ export function ProductView({
             </p>
           )}
 
-          {estimatorTiers.length > 0 && (
+          {/* Shipping estimator. Hidden outright on a pickup-only product
+              (GOL-2588): there is no rate to estimate, no state that changes the
+              answer, and a state select would be a dead control that implies we
+              might ship. The "Farm pickup only" note below carries the whole
+              fulfillment story instead (progressive disclosure: don't ask for
+              input that cannot change the outcome). Potted-only products keep
+              the panel, because their bareroot siblings still price per state. */}
+          {estimatorTiers.length > 0 && !pickupOnly && (
             <ShippingEstimator
               state={shipState}
               onStateChange={setShipState}
@@ -670,7 +705,7 @@ export function ProductView({
           )}
 
           {selectedPickupOnly && (
-            // Icon + words (never colour alone): potted is farm pickup only.
+            // Icon + words (never colour alone): this format is farm pickup only.
             // Inline SVG pin (not a unicode glyph) so it renders on every font.
             <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
               <svg
@@ -682,8 +717,13 @@ export function ProductView({
               </svg>
               <span>
                 <strong className="font-semibold text-foreground">Farm pickup only.</strong>{" "}
-                Potted trees aren’t shipped. Pick yours up free at the farm, or choose a
-                bareroot format to ship to your door.
+                {/* A pickup-only PRODUCT has no shippable sibling format to offer, so
+                    its copy must not send the buyer looking for one (GOL-2588). The
+                    potted wording keeps the bareroot escape hatch, which is true
+                    there. Both name the free pickup, never colour-coded. */}
+                {pickupOnly
+                  ? "This one is collected at the farm, not shipped. Reserve it here and pick it up free during our open hours."
+                  : "Potted trees aren’t shipped. Pick yours up free at the farm, or choose a bareroot format to ship to your door."}
               </span>
             </p>
           )}
@@ -699,6 +739,7 @@ export function ProductView({
               idleLabel={buy.ctaLabel}
               quantity={quantity}
               onQuantityChange={setQuantity}
+              pickupOnly={selectedPickupOnly}
             />
           </div>
 
@@ -732,9 +773,14 @@ export function ProductView({
           <p className="mt-4 text-xs text-ink-soft">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
           </p>
+          {/* A pickup-only product must not advertise a 32-state ship promise it
+              cannot keep (GOL-2588); the policy link stays, since the warranty
+              terms still apply to a picked-up tree. */}
           <p className="mt-1 text-xs text-ink-soft">
-            Ships to {GREEN_STATE_COUNT} states, priced live at checkout. <PolicyLink /> for full
-            shipping and warranty terms.
+            {pickupOnly
+              ? "Farm pickup only, not shipped. "
+              : `Ships to ${GREEN_STATE_COUNT} states, priced live at checkout. `}
+            <PolicyLink /> for full shipping and warranty terms.
           </p>
         </div>
       </div>
@@ -748,6 +794,7 @@ export function ProductView({
         disabled={buy.ctaDisabled}
         idleLabel={buy.ctaLabel}
         quantity={quantity}
+        pickupOnly={selectedPickupOnly}
       />
     </>
   );

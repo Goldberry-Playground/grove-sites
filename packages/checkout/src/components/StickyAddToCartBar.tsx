@@ -20,6 +20,12 @@ type StickyAddToCartBarProps = {
    * silently adding 1 (GOL-1055). Defaults to 1.
    */
   quantity?: number;
+  /**
+   * The line being added is farm-pickup-only (GOL-2588). Stamped onto the cart
+   * line so the checkout form can lock fulfillment to pickup without re-fetching
+   * the product. Defaults to shippable.
+   */
+  pickupOnly?: boolean;
 };
 
 /**
@@ -37,6 +43,7 @@ export function StickyAddToCartBar({
   idleLabel,
   anchorSelector,
   quantity = 1,
+  pickupOnly,
 }: StickyAddToCartBarProps) {
   const { add, openDrawer, totalQuantity, hydrated } = useCart();
   // Never let a stray fractional/NaN quantity reach the cart from the bar.
@@ -54,7 +61,7 @@ export function StickyAddToCartBar({
       // agree (both show 0 → no badge).
       cartQuantity={hydrated ? totalQuantity : 0}
       onAdd={() => {
-        add({ variantId, templateId, name, price, imageUrl }, addQuantity);
+        add({ variantId, templateId, name, price, imageUrl, pickupOnly }, addQuantity);
         openDrawer(variantId);
       }}
     />

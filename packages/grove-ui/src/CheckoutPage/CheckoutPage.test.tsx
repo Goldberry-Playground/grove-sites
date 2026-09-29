@@ -130,3 +130,87 @@ describe("<CheckoutPage /> summary — shipping honesty (GOL-1823)", () => {
     expect(html).toContain("<dt>Subtotal</dt>");
   });
 });
+
+// GOL-2588: a cart holding a farm-pickup-only line cannot be shipped at all —
+// grove_headless rejects such a SHIP order with a plain 400 (GOL-2587 P1). The
+// form therefore locks fulfillment to pickup instead of collecting a whole address
+// and then refusing it. Two things must hold for that to be honest rather than a
+// trap: the ship option stays VISIBLE but `disabled` (so the buyer sees what was
+// removed, and keyboard/screen-reader users get the real state rather than a
+// colour cue), and the reason is stated in words.
+//
+// renderToStaticMarkup for the same reason as the block above: pure presentational
+// assertions, independent of the React-act harness. React emits boolean attributes
+// before `value`, so the ordered patterns below match that, not the JSX order.
+describe("<CheckoutPage /> kit — pickup-only cart locks fulfillment (GOL-2588)", () => {
+  const lockedProps = {
+    items,
+    subtotal: 10,
+    onPlaceOrder: () => {},
+    allowPickup: true,
+    forcePickup: true,
+    forcePickupNote: "Your cart has a tree we only release at the farm.",
+  } as const;
+
+  it("disables the ship radio and selects pickup", () => {
+    const html = renderToStaticMarkup(<CheckoutPage {...lockedProps} />);
+    // Ship is still rendered (so the buyer sees what was removed) but disabled —
+    // the state a keyboard or screen-reader user actually gets, not a colour cue.
+    expect(html).toMatch(/disabled=""[^>]*value="ship"/);
+    expect(html).toContain("grove-checkout__payment--locked");
+    // Pickup is the selected option.
+    expect(html).toMatch(/checked=""[^>]*value="pickup"/);
+  });
+
+  it("states the reason in words instead of the ship/pickup note", () => {
+    const html = renderToStaticMarkup(<CheckoutPage {...lockedProps} />);
+    expect(html).toContain("we only release at the farm");
+    expect(html).not.toContain("ship your order to the address above");
+  });
+
+  it("collapses the ship-to address and prices shipping free, like a chosen pickup", () => {
+    const html = renderToStaticMarkup(<CheckoutPage {...lockedProps} />);
+    expect(html).not.toContain("Shipping Address");
+    expect(html).toContain("<dd>Free (pickup)</dd>");
+    expect(html).not.toContain("before shipping &amp; tax");
+  });
+
+  it("falls back to the pickup note when no reason is supplied", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        items={items}
+        subtotal={10}
+        onPlaceOrder={() => {}}
+        allowPickup
+        forcePickup
+        pickupCopy={{
+          shipLabel: "Ship to me",
+          pickupLabel: "Farm pickup",
+          pickupNote: "Pick up at our nursery.",
+          shipNote: "We ship to your address.",
+        }}
+      />,
+    );
+    expect(html).toContain("Pick up at our nursery.");
+    expect(html).not.toContain("We ship to your address.");
+  });
+
+  it("is inert without allowPickup (a brand with no pickup point has nothing to lock to)", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} forcePickup />,
+    );
+    expect(html).not.toContain("grove-checkout__payment--locked");
+    expect(html).toContain("Shipping Address");
+    expect(html).not.toContain("<dd>Free (pickup)</dd>");
+  });
+
+  it("leaves an ordinary shippable cart on the ship default", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} allowPickup />,
+    );
+    expect(html).not.toContain("grove-checkout__payment--locked");
+    expect(html).not.toContain("disabled");
+    expect(html).toMatch(/checked=""[^>]*value="ship"/);
+    expect(html).toContain("Shipping Address");
+  });
+});

@@ -210,6 +210,27 @@ export interface CheckoutPageProps {
    * re-quote what is due today (pickup changes the charge rule).
    */
   onFulfillmentChange?: (fulfillment: GroveFulfillment) => void;
+  /**
+   * Lock fulfillment to pickup because the cart cannot be shipped at all — it
+   * holds at least one farm-pickup-only line (GOL-2588). The Fulfillment
+   * fieldset still renders both options so the buyer can SEE that shipping was
+   * removed and why, but "Ship to me" is disabled, pickup is selected, the
+   * ship-to address collapses, and the order always reports `"pickup"`.
+   *
+   * This mirrors a hard backend gate (grove_headless rejects such a SHIP order
+   * with a plain 400), so it is honesty, not a dark pattern: without it the
+   * buyer fills a whole address and is refused after submitting. Requires
+   * `allowPickup`; ignored otherwise, since a consumer with no pickup point has
+   * nothing to lock to.
+   */
+  forcePickup?: boolean;
+  /**
+   * Why fulfillment is locked, shown in place of the ship/pickup note. Required
+   * in spirit whenever `forcePickup` is set: a disabled control with no stated
+   * reason is the accessibility failure this prop exists to avoid. Falls back to
+   * `pickupCopy.pickupNote` when omitted.
+   */
+  forcePickupNote?: string;
 }
 
 /**
@@ -275,13 +296,22 @@ export function CheckoutPage({
   tierNudge = null,
   dueToday = null,
   onFulfillmentChange,
+  forcePickup = false,
+  forcePickupNote,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
 
-  const [fulfillment, setFulfillment] = useState<GroveFulfillment>("ship");
+  const [chosenFulfillment, setChosenFulfillment] = useState<GroveFulfillment>("ship");
+  // A pickup-only cart has exactly one lawful answer, so the lock wins over the
+  // radio state (GOL-2588). Derived rather than seeded into state so a cart that
+  // becomes pickup-only after mount (the buyer adds such a line in another tab,
+  // or the quote resolves late) can never leave a stale "ship" selected.
+  const lockedToPickup = allowPickup && forcePickup;
+  const fulfillment: GroveFulfillment = lockedToPickup ? "pickup" : chosenFulfillment;
   function chooseFulfillment(next: GroveFulfillment) {
-    setFulfillment(next);
+    if (lockedToPickup) return;
+    setChosenFulfillment(next);
     onFulfillmentChange?.(next);
   }
   // Pickup collapses the ship-to address; ship keeps it required.
@@ -524,12 +554,23 @@ export function CheckoutPage({
                   role="radiogroup"
                   aria-label="How to receive your order"
                 >
-                  <label className="grove-checkout__payment">
+                  {/* Shipping stays visible but disabled on a pickup-only cart, so
+                      the buyer can see WHAT was removed instead of wondering where
+                      the option went (recognition over recall). The dimming is
+                      reinforcement only: the note below states the reason in words,
+                      and `disabled` is what screen readers and keyboard users act
+                      on, so the meaning never rides on colour (GOL-2588). */}
+                  <label
+                    className={`grove-checkout__payment${
+                      lockedToPickup ? " grove-checkout__payment--locked" : ""
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="fulfillment"
                       value="ship"
                       checked={fulfillment === "ship"}
+                      disabled={lockedToPickup}
                       onChange={() => chooseFulfillment("ship")}
                     />
                     <span>{pickupCopy.shipLabel}</span>
@@ -546,7 +587,11 @@ export function CheckoutPage({
                   </label>
                 </div>
                 <p className="grove-checkout__field-note grove-checkout__field-note--block">
-                  {isPickup ? pickupCopy.pickupNote : pickupCopy.shipNote}
+                  {lockedToPickup
+                    ? (forcePickupNote ?? pickupCopy.pickupNote)
+                    : isPickup
+                      ? pickupCopy.pickupNote
+                      : pickupCopy.shipNote}
                 </p>
               </fieldset>
             )}

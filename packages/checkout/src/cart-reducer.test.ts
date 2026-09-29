@@ -175,3 +175,82 @@ describe("cartStorageKey — multi-tenant safety", () => {
     expect(cartStorageKey("goldberry")).not.toBe(cartStorageKey("nursery"));
   });
 });
+
+/**
+ * GOL-2588: the pickup-only flag rides the cart line, like price and name, so the
+ * checkout form can lock fulfillment without re-fetching the product. It is the
+ * one field that decides whether a whole order may ship, so the localStorage
+ * filter must not let a tampered value through, and an older cart that predates
+ * the field must still load.
+ */
+describe("validateCartItems — pickupOnly flag (GOL-2588)", () => {
+  const line = (extra: Record<string, unknown>) => ({
+    variantId: 1,
+    templateId: 1,
+    name: "Remembrance Grove",
+    price: 149,
+    imageUrl: "/x.jpg",
+    quantity: 1,
+    ...extra,
+  });
+
+  it("preserves pickupOnly: true", () => {
+    const result = validateCartItems([line({ pickupOnly: true })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].pickupOnly).toBe(true);
+  });
+
+  it("preserves pickupOnly: false", () => {
+    expect(validateCartItems([line({ pickupOnly: false })])[0].pickupOnly).toBe(false);
+  });
+
+  it("accepts a pre-GOL-2588 line with no flag at all", () => {
+    const result = validateCartItems([line({})]);
+    expect(result).toHaveLength(1);
+    expect(result[0].pickupOnly).toBeUndefined();
+  });
+
+  it("drops a line whose pickupOnly is a non-boolean (tampered storage)", () => {
+    // A truthy string must never be coerced into "this cart is pickup-only", and a
+    // "false" string must never unlock shipping the backend would refuse.
+    expect(validateCartItems([line({ pickupOnly: "true" })])).toEqual([]);
+    expect(validateCartItems([line({ pickupOnly: 1 })])).toEqual([]);
+    expect(validateCartItems([line({ pickupOnly: null })])).toEqual([]);
+  });
+});
+
+describe("addItem — carries the pickup-only flag onto the new line (GOL-2588)", () => {
+  it("stamps the flag from the PDP add", () => {
+    const items = addItem([], {
+      variantId: 9,
+      templateId: 9,
+      name: "Remembrance Grove",
+      price: 149,
+      imageUrl: "/x.jpg",
+      pickupOnly: true,
+    });
+    expect(items[0].pickupOnly).toBe(true);
+  });
+
+  it("keeps the existing line's flag when the same variant is added again", () => {
+    const first = addItem([], {
+      variantId: 9,
+      templateId: 9,
+      name: "Remembrance Grove",
+      price: 149,
+      imageUrl: "/x.jpg",
+      pickupOnly: true,
+    });
+    const second = addItem(first, {
+      variantId: 9,
+      templateId: 9,
+      name: "Remembrance Grove",
+      price: 149,
+      imageUrl: "/x.jpg",
+      pickupOnly: true,
+    });
+    expect(second).toHaveLength(1);
+    expect(second[0].quantity).toBe(2);
+    expect(second[0].pickupOnly).toBe(true);
+  });
+});

@@ -117,7 +117,26 @@ export function CheckoutPage({
   const [redirecting, setRedirecting] = useState(false);
   // Mirrors the form's ship/pickup radio so the "due today" quote follows the
   // buyer's choice (pickup changes the charge rule after the season cutover).
-  const [fulfillment, setFulfillment] = useState<GroveFulfillment>("ship");
+  const [chosenFulfillment, setChosenFulfillment] = useState<GroveFulfillment>("ship");
+  // Pickup availability + copy ride the brand seam: only brands with a physical
+  // pickup point (nursery) offer it, and each carries its own product-true copy
+  // so the shared kit never shows a live-tree/WV claim on woodwork or pantry
+  // goods (GOL-1314).
+  const pickup = BRAND_TRUST[brand].pickup;
+  // A farm-pickup-only line (GOL-2587 P1, rendered GOL-2588) makes the WHOLE
+  // order pickup: grove_headless rejects a SHIP order containing one with a plain
+  // 400, so offering shipping here would only collect a full address and then
+  // refuse it. The flag is stamped on the cart line at add time, so the form needs
+  // no product re-fetch. Gated on a pickup-capable brand (a null `pickup` has
+  // nothing to lock to) and on `hydrated`, since an un-hydrated cart is [] and
+  // `some()` would read "shippable" for a cart that is about to be pickup-only.
+  const lockedToPickup =
+    pickup !== null && hydrated && items.some((i) => i.pickupOnly === true);
+  // The effective choice: the lock wins, so every downstream consumer (the
+  // deposit quote, the promo preview, the order payload) sees the same answer the
+  // form shows. Derived, never seeded into state, so a line added in another tab
+  // can't leave a stale "ship" behind.
+  const fulfillment: GroveFulfillment = lockedToPickup ? "pickup" : chosenFulfillment;
   // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
   // from the storefront's `/api/cart/quote` when wired; null = charged in full.
   const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
@@ -126,11 +145,6 @@ export function CheckoutPage({
     fulfillment,
   );
   const dueToday = dueTodayFor(depositQuote);
-  // Pickup availability + copy ride the brand seam: only brands with a physical
-  // pickup point (nursery) offer it, and each carries its own product-true copy
-  // so the shared kit never shows a live-tree/WV claim on woodwork or pantry
-  // goods (GOL-1314).
-  const pickup = BRAND_TRUST[brand].pickup;
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
   // confirms a charged-in-full cart — a still-loading or failed quote leaves the
@@ -273,6 +287,8 @@ export function CheckoutPage({
         countries={SHIP_TO_COUNTRIES}
         allowPickup={pickup !== null}
         pickupCopy={pickup ?? undefined}
+        forcePickup={lockedToPickup}
+        forcePickupNote={BRAND_TRUST[brand].pickupOnlyNote ?? undefined}
         // FLATWOODS runs on the nursery storefront only (GOL-2088). Other brands
         // keep the leaner form until they have a live promotion.
         allowPromoCode={brand === "nursery"}
@@ -285,7 +301,7 @@ export function CheckoutPage({
         reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
         trustItems={BRAND_TRUST[brand].checkout}
         dueToday={dueToday}
-        onFulfillmentChange={setFulfillment}
+        onFulfillmentChange={setChosenFulfillment}
       />
     </WithGroveNext>
   );

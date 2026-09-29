@@ -55,6 +55,16 @@ export interface BuyStateInput {
    * and defaulted to uncapped so existing callers and mocks are unaffected.
    */
   capReached?: boolean;
+  /**
+   * Farm-pickup-only line (Odoo `grove_pickup_only`, GOL-2587 P1 → GOL-2588), OR
+   * a potted format under Box Engine v2 — whichever the caller resolved through
+   * `isPickupOnly`. When true the CTA says what the buyer is actually doing:
+   * reserving a tree to collect at the farm, not ordering a shipment. Only the
+   * purchasable modes relabel; a sold-out or coming-soon box keeps its own words,
+   * since there is nothing to reserve. Optional and defaulted to shippable so
+   * existing callers and mocks are unaffected.
+   */
+  pickupOnly?: boolean;
 }
 
 export interface BuyState {
@@ -70,6 +80,13 @@ export interface BuyState {
   /** Show the "$10 deposit applied to your total" preorder note. */
   showDepositNote: boolean;
 }
+
+/**
+ * CTA copy for a farm-pickup-only line (GOL-2588). States the fulfillment in
+ * words so the button itself, not just the note beside it, tells the buyer no
+ * shipment is being ordered. No em dash (Grove voice rule, GOL-589).
+ */
+export const PICKUP_CTA_LABEL = "Reserve for farm pickup";
 
 /**
  * Resolve the buy state for the currently selected variant. `undefined`/absent
@@ -106,7 +123,7 @@ export function buyStateFor(input: BuyStateInput): BuyState {
     return {
       mode: "in-stock",
       ctaDisabled: false,
-      ctaLabel: "Add to Cart",
+      ctaLabel: input.pickupOnly ? PICKUP_CTA_LABEL : "Add to Cart",
       stockLabel,
       stockTone: "in-stock",
       showDepositNote: false,
@@ -136,7 +153,7 @@ export function buyStateFor(input: BuyStateInput): BuyState {
     return {
       mode: "reservable",
       ctaDisabled: false,
-      ctaLabel: "Reserve",
+      ctaLabel: input.pickupOnly ? PICKUP_CTA_LABEL : "Reserve",
       // Qualify the "sold out" so it can't read as "unpurchasable" (GOL-678).
       // No em dash — Grove voice rule (GOL-589).
       stockLabel: `Sold out for immediate shipping. ${hint.fulfillment}.`,
