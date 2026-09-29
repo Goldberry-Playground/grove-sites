@@ -58,15 +58,15 @@ export type TipId = "5" | "10" | "25" | "custom";
 
 /**
  * Stripe Payment Links for Sponsor-a-Tree, one per amount; "custom" is a
- * "customer chooses price" link. Created in the Stripe dashboard — paste the
- * https://buy.stripe.com/... URLs here. The tip section stays hidden until
- * all four are set.
+ * "customer chooses price" link ($1 minimum, $15 suggested). All on the
+ * Goldberry Grove LLC account (product prod_VLpjPjEGtj7OB7, 2026-09-29).
+ * The tip section stays hidden unless all four are set.
  */
 export const TIP_PAYMENT_LINKS: Record<TipId, string> = {
-  "5": "",
-  "10": "",
-  "25": "",
-  custom: "",
+  "5": "https://buy.stripe.com/fZu7sMbP64kbb962Ln33W00",
+  "10": "https://buy.stripe.com/7sYaEYcTag2T6SQ5Xz33W01",
+  "25": "https://buy.stripe.com/14A9AU1ascQHgtqfy933W02",
+  custom: "https://buy.stripe.com/3cIaEY06o6sj1ywbhT33W03",
 };
 
 export type TipOption = { id: TipId; label: string; href: string };
