@@ -256,8 +256,11 @@ jobs:
       # OP_CI_SA_TOKEN service account (which 403'd every main build until the
       # SA was recreated) is an OPS problem, not a code regression, so it
       # warns-and-skips instead of failing. A GENUINE deploy failure below
-      # (app not found, rollout error) still hard-fails — that is GOL-397's
-      # whole point and is preserved.
+      # (rollout error, or one QA app missing while its siblings are up) still
+      # hard-fails — that is GOL-397's whole point and is preserved. The one
+      # case added since: an ENTIRELY absent QA tier is the release train's
+      # designed between-window state, not a failure — see GOL-2601 in the
+      # redeploy step below.
       #
       # Note the two distinct credential-failure modes, only one of which an
       # empty-token guard would catch:
@@ -322,11 +325,48 @@ jobs:
           # not (yet) codified in infra/do/ — those specs describe the git-source
           # PROD apps — so an ID pinned here would rot silently if an app were
           # ever recreated. See GOL-398 for closing that drift.
-          app_id=$(doctl apps list --format ID,Spec.Name --no-header \
-            | awk -v n="$QA_APP" '$2 == n { print $1 }')
+          #
+          # One list call, reused twice: the second use (QA-tier presence,
+          # below) must see the SAME snapshot, or a teardown racing this step
+          # could read as drift.
+          apps=$(doctl apps list --format ID,Spec.Name --no-header)
+
+          app_id=$(printf '%s\n' "$apps" | awk -v n="$QA_APP" '$2 == n { print $1 }')
 
           if [[ -z "$app_id" ]]; then
-            echo "::error::No DigitalOcean app named '${QA_APP}' — cannot redeploy. QA will serve a stale image until this is fixed."
+            # A missing QA app has two very different causes, and only one of
+            # them is a problem (GOL-2601):
+            #
+            #   (1) THE QA WINDOW IS CLOSED. Since the Grove Release Train
+            #       landed (GOL-2324), the whole QA tier — App Platform apps
+            #       included — is DESTROYED at each train's teardown and
+            #       re-provisioned at the next bring-up (GOL-2581). Between
+            #       trains there is simply no grove-*-qa app to deploy to, and
+            #       that is the designed steady state, not a regression. When
+            #       the next bring-up recreates the app it pulls :latest — the
+            #       very tag this run just pushed — so there is nothing to fix
+            #       and nothing to roll forward. Failing here only reds `main`
+            #       on every merge for days at a stretch and files an ownerless
+            #       CI-failure issue each time (the 2026-09-29 instance, run
+            #       36629928455: all 4 legs red, build + smoke + push all green).
+            #
+            #   (2) GENUINE DRIFT: this app is gone while its siblings are up —
+            #       someone deleted or renamed one app, or a teardown died
+            #       half-way. QA would then silently serve a stale image, which
+            #       is exactly what GOL-397 exists to catch, so it still fails.
+            #
+            # Presence of ANY grove-*-qa app separates the two without any extra
+            # state to keep in sync: no QA tier at all -> window closed -> skip;
+            # tier partly up -> drift -> fail. If GOL-2326's train automation
+            # ever publishes an explicit window flag, prefer reading that.
+            qa_tier=$(printf '%s\n' "$apps" | awk '$2 ~ /-qa$/ { print $2 }' | tr '\n' ' ')
+
+            if [[ -z "${qa_tier// /}" ]]; then
+              echo "::warning title=QA redeploy skipped::No grove-*-qa apps exist — the QA window is closed (release-train teardown). ${QA_APP}:latest is on GHCR and the next train bring-up will come up on it. Nothing to roll forward."
+              exit 0
+            fi
+
+            echo "::error::No DigitalOcean app named '${QA_APP}', yet other QA apps ARE up (${qa_tier}) — that is drift, not a teardown. QA will serve a stale image until this is fixed."
             exit 1
           fi
 
