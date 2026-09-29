@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { createGhostClient, type Post } from "@grove/ghost-client";
-import { JournalProductEmbed } from "../../../components/JournalProductEmbed";
-import { sanitizePostHtml } from "../../../lib/sanitize";
-import { marketplace } from "../../../data/marketplace";
+import { JournalProductEmbed } from "../../../../components/JournalProductEmbed";
+import { sanitizePostHtml } from "../../../../lib/sanitize";
+import { marketplace } from "../../../../data/marketplace";
 
 export const revalidate = 300;
 

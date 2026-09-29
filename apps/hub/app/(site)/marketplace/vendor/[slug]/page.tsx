@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { ProductCard } from "../../../../components/ProductCard";
-import { fetchVendorCatalog } from "../../../../lib/marketplace";
-import { findVendor } from "../../../../data/marketplace";
+import { ProductCard } from "../../../../../components/ProductCard";
+import { fetchVendorCatalog } from "../../../../../lib/marketplace";
+import { findVendor } from "../../../../../data/marketplace";
 
 export const revalidate = 600;
 
