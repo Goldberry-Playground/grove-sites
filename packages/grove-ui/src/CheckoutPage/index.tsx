@@ -213,9 +213,10 @@ export interface CheckoutPageProps {
   /**
    * Lock fulfillment to pickup because the cart cannot be shipped at all — it
    * holds at least one farm-pickup-only line (GOL-2588). The Fulfillment
-   * fieldset still renders both options so the buyer can SEE that shipping was
-   * removed and why, but "Ship to me" is disabled, pickup is selected, the
-   * ship-to address collapses, and the order always reports `"pickup"`.
+   * fieldset then offers pickup ALONE (a disabled "Ship to me" would be a dead
+   * control, and one fewer choice is one fewer decision — Hick's Law); the
+   * ship-to address collapses and the order always reports `"pickup"`. What
+   * replaces the missing option is `forcePickupNote`, which must say why.
    *
    * This mirrors a hard backend gate (grove_headless rejects such a SHIP order
    * with a plain 400), so it is honesty, not a dark pattern: without it the
@@ -226,9 +227,10 @@ export interface CheckoutPageProps {
   forcePickup?: boolean;
   /**
    * Why fulfillment is locked, shown in place of the ship/pickup note. Required
-   * in spirit whenever `forcePickup` is set: a disabled control with no stated
-   * reason is the accessibility failure this prop exists to avoid. Falls back to
-   * `pickupCopy.pickupNote` when omitted.
+   * in spirit whenever `forcePickup` is set: removing a control without stating
+   * why is the failure this prop exists to avoid, and it is the ONLY thing
+   * explaining where shipping went. Falls back to `pickupCopy.pickupNote` when
+   * omitted.
    */
   forcePickupNote?: string;
 }
@@ -554,33 +556,32 @@ export function CheckoutPage({
                   role="radiogroup"
                   aria-label="How to receive your order"
                 >
-                  {/* Shipping stays visible but disabled on a pickup-only cart, so
-                      the buyer can see WHAT was removed instead of wondering where
-                      the option went (recognition over recall). The dimming is
-                      reinforcement only: the note below states the reason in words,
-                      and `disabled` is what screen readers and keyboard users act
-                      on, so the meaning never rides on colour (GOL-2588). */}
-                  <label
-                    className={`grove-checkout__payment${
-                      lockedToPickup ? " grove-checkout__payment--locked" : ""
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="fulfillment"
-                      value="ship"
-                      checked={fulfillment === "ship"}
-                      disabled={lockedToPickup}
-                      onChange={() => chooseFulfillment("ship")}
-                    />
-                    <span>{pickupCopy.shipLabel}</span>
-                  </label>
+                  {/* A pickup-only cart simply cannot ship, so the ship option is
+                      not rendered at all rather than rendered dead (GOL-2588).
+                      `forcePickupNote` below carries the reason in words, which is
+                      what a screen reader, a grayscale screen and a colour-blind
+                      reader all get equally. */}
+                  {!lockedToPickup && (
+                    <label className="grove-checkout__payment">
+                      <input
+                        type="radio"
+                        name="fulfillment"
+                        value="ship"
+                        checked={fulfillment === "ship"}
+                        onChange={() => chooseFulfillment("ship")}
+                      />
+                      <span>{pickupCopy.shipLabel}</span>
+                    </label>
+                  )}
                   <label className="grove-checkout__payment">
                     <input
                       type="radio"
                       name="fulfillment"
                       value="pickup"
                       checked={fulfillment === "pickup"}
+                      // The only option on a locked cart: keep it selected and
+                      // inert rather than offering a toggle that goes nowhere.
+                      disabled={lockedToPickup}
                       onChange={() => chooseFulfillment("pickup")}
                     />
                     <span>{pickupCopy.pickupLabel}</span>
