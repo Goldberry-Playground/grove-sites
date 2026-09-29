@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ProductCard } from "../../components/ProductCard";
+import { ProductCard } from "../../../components/ProductCard";
 import {
   fetchFeaturedProducts,
   fetchVendorCatalog,
   searchProducts,
-} from "../../lib/marketplace";
-import { marketplace } from "../../data/marketplace";
+} from "../../../lib/marketplace";
+import { marketplace } from "../../../data/marketplace";
 
 export const revalidate = 3600;
 

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { BuyAtVendorForm } from "../../../../components/BuyAtVendorForm";
-import { fetchProductByVendorSlug } from "../../../../lib/marketplace";
-import { sanitizePostHtml } from "../../../../lib/sanitize";
+import { BuyAtVendorForm } from "../../../../../components/BuyAtVendorForm";
+import { fetchProductByVendorSlug } from "../../../../../lib/marketplace";
+import { sanitizePostHtml } from "../../../../../lib/sanitize";
 
 export const revalidate = 300;
 

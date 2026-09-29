@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { marketplace } from "../data/marketplace";
+import { marketplace } from "../../data/marketplace";
 
 export const revalidate = 600;
 
