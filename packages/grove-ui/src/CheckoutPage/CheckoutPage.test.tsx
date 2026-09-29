@@ -152,11 +152,27 @@ describe("<CheckoutPage /> kit — pickup-only cart locks fulfillment (GOL-2588)
     forcePickupNote: "Your cart has a tree we only release at the farm.",
   } as const;
 
-  it("offers pickup alone, selected and inert — no dead ship control", () => {
+  it("offers pickup alone and selected — no dead ship control", () => {
     const html = renderToStaticMarkup(<CheckoutPage {...lockedProps} />);
     expect(html).not.toContain('value="ship"');
     expect(html).toMatch(/checked=""[^>]*value="pickup"/);
-    expect(html).toMatch(/disabled=""[^>]*value="pickup"/);
+    // Not disabled: the one remaining option must stay focusable so the bound
+    // note is announced in forms mode.
+    expect(html).not.toContain("disabled");
+  });
+
+  it("binds the reason to the radiogroup so it is announced, not just readable", () => {
+    const html = renderToStaticMarkup(<CheckoutPage {...lockedProps} />);
+    const described = /aria-describedby="([^"]+)"/.exec(html);
+    expect(described, "locked group must describe itself").not.toBeNull();
+    expect(html).toContain(`id="${described![1]}"`);
+  });
+
+  it("does not describe the group when the buyer still has a real choice", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} allowPickup />,
+    );
+    expect(html).not.toContain("aria-describedby");
   });
 
   it("states the reason in words instead of the ship/pickup note", () => {

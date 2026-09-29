@@ -252,6 +252,10 @@ export interface GrovePickupCopy {
   shipNote: string;
 }
 
+/** Id of the ship/pickup note, so a locked fulfillment group can point its
+ *  `aria-describedby` at the sentence explaining why there is only one option. */
+const FULFILLMENT_NOTE_ID = "grove-checkout-fulfillment-note";
+
 const DEFAULT_SHIP_STATES_NOTE = (supportedCount: number): React.ReactNode =>
   `We currently ship to ${supportedCount} states. Don't see yours? It's not on our route yet.`;
 
@@ -555,6 +559,11 @@ export function CheckoutPage({
                   className="grove-checkout__payments"
                   role="radiogroup"
                   aria-label="How to receive your order"
+                  // On a locked cart the note IS the explanation for why there is
+                  // only one option, so bind it to the group: a screen-reader user
+                  // in forms mode hears it on focus instead of having to browse
+                  // past the group to find it (GOL-2588).
+                  aria-describedby={lockedToPickup ? FULFILLMENT_NOTE_ID : undefined}
                 >
                   {/* A pickup-only cart simply cannot ship, so the ship option is
                       not rendered at all rather than rendered dead (GOL-2588).
@@ -579,15 +588,20 @@ export function CheckoutPage({
                       name="fulfillment"
                       value="pickup"
                       checked={fulfillment === "pickup"}
-                      // The only option on a locked cart: keep it selected and
-                      // inert rather than offering a toggle that goes nowhere.
-                      disabled={lockedToPickup}
+                      // Deliberately NOT disabled on a locked cart: it is the only
+                      // option and already selected, so re-picking it is a no-op,
+                      // and leaving it focusable keeps the fieldset in the tab
+                      // order where the bound note above can be announced. A
+                      // disabled radio would silently skip both (GOL-2588).
                       onChange={() => chooseFulfillment("pickup")}
                     />
                     <span>{pickupCopy.pickupLabel}</span>
                   </label>
                 </div>
-                <p className="grove-checkout__field-note grove-checkout__field-note--block">
+                <p
+                  id={FULFILLMENT_NOTE_ID}
+                  className="grove-checkout__field-note grove-checkout__field-note--block"
+                >
                   {lockedToPickup
                     ? (forcePickupNote ?? pickupCopy.pickupNote)
                     : isPickup
