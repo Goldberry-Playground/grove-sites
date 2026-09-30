@@ -1,4 +1,5 @@
-import { getCatalogNav, findDepartment, ORCHARD_SLUG } from "../../lib/catalog-nav";
+import { getCatalogNav } from "../../lib/catalog-nav";
+import { findDepartment, ORCHARD_SLUG } from "../../lib/departments";
 import { DepartmentNav } from "../department-nav";
 import { ShopBrowse } from "./shop-browse";
 

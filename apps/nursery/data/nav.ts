@@ -30,13 +30,26 @@ export const ORCHARD_SLUG = "orchard";
 /** The Guilds collection's slug (`/shop/guilds`). */
 export const GUILDS_SLUG = "guilds";
 
+/**
+ * Category slugs that make up the Guilds collection on a backend that hasn't
+ * been restructured yet.
+ *
+ * Today Odoo category 6 is "Food Forest Packages" (slug `food-forest-packages`)
+ * and holds the five bundles. The Train #3 migration keeps that id but renames
+ * it to "Guilds" with `grove_slug = guilds`, at which point the nav's own slug
+ * matches and this list is redundant — harmlessly so, which is why it's a list
+ * and not a swap. It exists because the spec's Phase-1 fallback requires the
+ * Guilds page to ship from category 6 via today's API if the Odoo PR slips.
+ */
+export const LEGACY_GUILD_CATEGORY_SLUGS = ["food-forest-packages"];
+
 const ORCHARD: CatalogNavNode = {
   slug: ORCHARD_SLUG,
   name: "Orchard & food forest",
   kind: "department",
   status: "live",
   teaser:
-    "The trees, shrubs and vines a homestead food forest is built from — grown in Appalachian ground for Appalachian winters.",
+    "The trees, shrubs and vines a homestead food forest is built from, grown in Appalachian ground for Appalachian winters.",
   // Today's /shop facets, unchanged (GOL-2745 keeps orchard browsing as-is).
   facets: ["zone", "layer", "sun", "uses", "on_offer"],
   comingList: [],
@@ -59,7 +72,7 @@ const MYCOFORESTRY: CatalogNavNode = {
   kind: "department",
   status: "coming_soon",
   teaser:
-    "Host trees inoculated with truffle and porcini fungi — a nut or oak crop above ground and a mushroom crop below it, from one planting.",
+    "Host trees inoculated with truffle and porcini fungi. A nut or oak crop above ground and a mushroom crop below it, from one planting.",
   facets: ["zone", "host_tree", "fungus", "years_to_harvest"],
   comingList: [
     { name: "Burgundy truffle oak", detail: "inoculated English oak and hazel" },
@@ -79,7 +92,7 @@ const FOREST_FARMING: CatalogNavNode = {
   kind: "department",
   status: "coming_soon",
   teaser:
-    "Medicinal and edible crops grown under an existing canopy — the woodland floor working as hard as the trees above it.",
+    "Medicinal and edible crops grown under an existing canopy, so the woodland floor works as hard as the trees above it.",
   facets: ["zone", "shade_level", "years_to_harvest", "uses"],
   comingList: [
     { name: "Goldenseal", detail: "roots and rhizomes for shaded beds" },
@@ -100,7 +113,7 @@ const SEED_AND_SCION: CatalogNavNode = {
   kind: "department",
   status: "coming_soon",
   teaser:
-    "Dormant scion wood, seed and rootstock for grafters and propagators — the raw material, sold by the stick and by the pound.",
+    "Dormant scion wood, seed and rootstock for grafters and propagators. The raw material, sold by the stick and by the pound.",
   facets: ["form", "species", "ships"],
   comingList: [
     { name: "Scion wood", detail: "dormant, winter-cut, by the stick" },

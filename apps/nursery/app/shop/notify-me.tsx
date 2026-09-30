@@ -1,7 +1,7 @@
 "use client";
 
-import { CaptureForm } from "@grove/ui-kit";
-import { waitlistInterest } from "../../lib/catalog-nav";
+import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
+import { waitlistInterest } from "../../lib/departments";
 
 export interface NotifyMeProps {
   /** Department slug — becomes the `waitlist:<slug>` interest tag in Odoo. */
@@ -28,9 +28,16 @@ export interface NotifyMeProps {
  * Data minimization: email only. A waitlist needs an address to mail and
  * nothing else, so there is no name field and no pre-checked hub opt-in — the
  * cross-brand opt-in stays an explicit, separate decision elsewhere.
+ *
+ * Registered at the `restock` tier of the capture arbiter (GOL-2178), which
+ * suppresses the shared footer newsletter for the whole page. Without that, a
+ * teaser page — whose entire job is ONE ask — shipped two competing email
+ * forms, and the newsletter is the weaker one here: a visitor who cares about
+ * ginseng wants to hear about ginseng, not the season's mailing.
  */
 export function NotifyMe({ deptSlug, deptName, description }: NotifyMeProps) {
   return (
+    <CaptureSlot priority="restock">
     <CaptureForm
       brand="nursery"
       source="notify-me"
@@ -50,5 +57,6 @@ export function NotifyMe({ deptSlug, deptName, description }: NotifyMeProps) {
       invalidEmailMessage="Enter an email address like you@example.com"
       layout="stacked"
     />
+    </CaptureSlot>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { trackEvent } from "@grove/analytics";
 import type { CatalogNavNode } from "@grove/odoo-client";
 import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
-import { showsFacet } from "../../lib/catalog-nav";
+import { showsFacet } from "../../lib/departments";
 
 export interface FacetSidebarProps {
   /**

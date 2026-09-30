@@ -9,6 +9,8 @@ const CHIP_CAP = 6;
 
 export interface GuildCardProps {
   guild: Product;
+  /** One-line purpose, from the guild's own Odoo copy. Null renders no line. */
+  purpose?: string | null;
   /** Plant names in this guild, best-effort from the bundle's components. */
   plants: string[];
   /** Department names the guild draws from, for the "From:" line. */
@@ -24,7 +26,7 @@ export interface GuildCardProps {
  * hierarchy: name (largest), purpose, chips, "From:", then price + action
  * pinned to the foot so every card in a row shares an action line.
  */
-export function GuildCard({ guild, plants, departments }: GuildCardProps) {
+export function GuildCard({ guild, purpose = null, plants, departments }: GuildCardProps) {
   const shown = plants.slice(0, CHIP_CAP);
   const overflow = plants.length - shown.length;
   const priced = typeof guild.priceMin === "number" ? guild.priceMin : guild.price;
@@ -35,7 +37,7 @@ export function GuildCard({ guild, plants, departments }: GuildCardProps) {
   return (
     <article className="guild-card">
       <h3 className="guild-card__name">{guild.name}</h3>
-      {guild.categoryName && <p className="guild-card__purpose">{guild.categoryName}</p>}
+      {purpose && <p className="guild-card__purpose">{purpose}</p>}
 
       {shown.length > 0 && (
         <ul className="guild-card__chips" aria-label={`Plants in ${guild.name}`}>

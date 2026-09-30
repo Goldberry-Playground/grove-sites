@@ -54,6 +54,7 @@ describe("parseFacetParams", () => {
       layer: null,
       sun: null,
       q: null,
+      offer: false,
     });
     expect(parseFacetParams({ tag: "a,b" }).tags).toEqual(["a", "b"]);
   });
@@ -92,7 +93,31 @@ describe("parseFacetParams", () => {
       layer: null,
       sun: null,
       q: null,
+      offer: false,
     });
+  });
+
+  it("reads the on-offer facet only from an explicit ?offer=1", () => {
+    // Anything else is a stale or hand-typed value, and a filter that turns
+    // itself on from a truthy-looking string is a filter nobody can clear.
+    expect(parseFacetParams({ offer: "1" }).offer).toBe(true);
+    expect(parseFacetParams({ offer: "0" }).offer).toBe(false);
+    expect(parseFacetParams({ offer: "true" }).offer).toBe(false);
+    expect(parseFacetParams({}).offer).toBe(false);
+  });
+
+  it("round-trips the on-offer facet through shopHref", () => {
+    expect(shopHref(FACETS({ offer: true }))).toBe("/shop?offer=1");
+    expect(shopHref(FACETS({ offer: true }), { offer: false })).toBe("/shop");
+  });
+
+  it("hangs the query string off a department's own path", () => {
+    // A pill click inside a department must stay in that department rather
+    // than dropping the shopper back into the orchard.
+    expect(shopHref(FACETS({ cat: "truffle-trees" }), {}, "/shop/mycoforestry")).toBe(
+      "/shop/mycoforestry?cat=truffle-trees",
+    );
+    expect(shopHref(FACETS(), {}, "/shop/mycoforestry")).toBe("/shop/mycoforestry");
   });
 
   it("covers the documented zone range", () => {

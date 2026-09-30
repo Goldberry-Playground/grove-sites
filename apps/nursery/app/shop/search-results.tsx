@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { departmentHref } from "../../lib/catalog-nav";
+import { departmentHref } from "../../lib/departments";
 import type { SearchGroup } from "../../lib/shop-search";
 import { ProductGrid } from "./product-grid";
 
@@ -73,7 +73,7 @@ export function SearchResults({
                       href={departmentHref(group.slug)}
                       className="search-soon-card__link"
                     >
-                      {`Not ready yet — get told when ${item.name} is`}
+                      {`Tell me when ${item.name} is ready`}
                     </Link>
                   </div>
                 ))}
@@ -93,7 +93,7 @@ export function SearchResults({
       {groups.length === 0 && (
         <div className="shop-empty">
           <p>
-            Nothing matches <em>&ldquo;{query}&rdquo;</em> anywhere in the shop —{" "}
+            Nothing matches <em>&ldquo;{query}&rdquo;</em> anywhere in the shop.{" "}
             <Link href="/shop" className="shop-empty__link">
               clear the search
             </Link>

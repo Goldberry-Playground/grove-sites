@@ -12,7 +12,7 @@ import {
   shopHref,
 } from "../../lib/facets";
 import { plantCountLabel } from "../../lib/catalog-labels";
-import { departmentHref, ORCHARD_SLUG } from "../../lib/catalog-nav";
+import { departmentHref, ORCHARD_SLUG } from "../../lib/departments";
 import { dealBadgeLabel, anyOnOffer, filterOnOffer } from "../../lib/deals";
 import { groupSearchResults, countSearchHits } from "../../lib/shop-search";
 import { FacetSidebar } from "./facet-sidebar";
@@ -131,15 +131,23 @@ export async function ShopBrowse({ dept, nav, searchParams: sp }: ShopBrowseProp
 
   return (
     <>
-      {/* Pass the active facets so category pills MERGE the selection (keep
+      {/* Category pills are the DEPARTMENT's fine axis, so they stand down for a
+          cross-department search: they can only narrow the orchard, and leaving
+          them up printed "All Catalog · 0" next to "1 match" for a query that
+          hit a coming-soon family. A control that contradicts the result it sits
+          above is worse than no control.
+
+          Otherwise: pass the active facets so pills MERGE the selection (keep
           zone/tag/layer/sun/q) instead of resetting the query string (GOL-1111),
           and the department's own path so a pill stays in this department. */}
-      <CategoryBar
-        activeSlug={cat}
-        basePath={basePath}
-        products={typeContext}
-        facets={facets}
-      />
+      {!searching && (
+        <CategoryBar
+          activeSlug={cat}
+          basePath={basePath}
+          products={typeContext}
+          facets={facets}
+        />
+      )}
 
       <section className="section">
         <div className="section-header">
@@ -201,7 +209,7 @@ export async function ShopBrowse({ dept, nav, searchParams: sp }: ShopBrowseProp
                 <div className="shop-empty">
                   {offer ? (
                     <p>
-                      Nothing is on offer under these filters right now —{" "}
+                      Nothing is on offer under these filters right now.{" "}
                       <Link
                         href={shopHref(facets, { offer: false }, basePath)}
                         className="shop-empty__link"
@@ -219,7 +227,7 @@ export async function ShopBrowse({ dept, nav, searchParams: sp }: ShopBrowseProp
                     // active facet and carries no stock yet — say so plainly
                     // instead of "no match / clear filters".
                     <p>
-                      {activeCategory.label} stock is on the way — nothing ready to
+                      {activeCategory.label} stock is on the way. Nothing ready to
                       ship just yet.{" "}
                       <Link href={basePath} className="shop-empty__link">
                         Browse the full catalog
@@ -228,7 +236,7 @@ export async function ShopBrowse({ dept, nav, searchParams: sp }: ShopBrowseProp
                     </p>
                   ) : (
                     <p>
-                      No products match these filters —{" "}
+                      No products match these filters.{" "}
                       <Link href={basePath} className="shop-empty__link">
                         clear filters
                       </Link>

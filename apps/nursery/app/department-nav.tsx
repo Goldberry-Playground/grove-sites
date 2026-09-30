@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CatalogNav } from "@grove/odoo-client";
-import { visibleDepartments, departmentHref, GUILDS_SLUG } from "../lib/catalog-nav";
+import { visibleDepartments, departmentHref, GUILDS_SLUG } from "../lib/departments";
 
 export interface DepartmentNavProps {
   /** The tree, already fetched by the page (one fetch per request). */

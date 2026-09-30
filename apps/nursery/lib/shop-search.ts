@@ -4,7 +4,8 @@ import type {
   ComingSoonItem,
   Product,
 } from "@grove/odoo-client";
-import { GUILDS_SLUG, ORCHARD_SLUG } from "../data/nav";
+import { ORCHARD_SLUG, GUILDS_SLUG } from "../data/nav";
+import { isGuildProduct } from "./departments";
 
 /**
  * Cross-department search grouping (GOL-2745, spec § Storefront — Search).
@@ -53,11 +54,6 @@ function matches(haystack: string, needle: string): boolean {
   return normalizeText(haystack).includes(needle);
 }
 
-/** True when a product is filed under the Guilds collection. */
-function isGuild(product: Product, guildsSlug: string): boolean {
-  return (product.categories ?? []).some((c) => c.slug === guildsSlug);
-}
-
 /**
  * Group a searched product set by department, with Guilds as its own group and
  * a group per coming-soon department whose "What's coming" list matches.
@@ -84,7 +80,7 @@ export function groupSearchResults(
   const guildHits: Product[] = [];
   const byDepartment = new Map<string, Product[]>();
   for (const product of products) {
-    if (nav.guilds && isGuild(product, guildsSlug)) {
+    if (nav.guilds && isGuildProduct(product, guildsSlug)) {
       guildHits.push(product);
       continue;
     }

@@ -1,5 +1,5 @@
 import type { CatalogNavNode } from "@grove/odoo-client";
-import { facetListLabel } from "../../lib/catalog-nav";
+import { facetListLabel } from "../../lib/departments";
 import { NotifyMe } from "./notify-me";
 
 export interface DepartmentTeaserProps {
