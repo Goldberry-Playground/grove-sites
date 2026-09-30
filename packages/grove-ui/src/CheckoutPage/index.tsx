@@ -603,7 +603,7 @@ export function CheckoutPage({
                     className="grove-checkout__error grove-checkout__field--span2"
                   >
                     <span aria-hidden="true" className="grove-checkout__error-icon">
-                      ⚠
+                      <WarningIcon />
                     </span>
                     {error}
                   </p>
