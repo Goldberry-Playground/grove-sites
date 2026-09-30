@@ -200,6 +200,12 @@ REPO=Goldberry-Playground/odoocker-goldberrygrove scripts/ci/merge-queue-rescue.
 It only touches an entry that is `AWAITING_CHECKS`, enqueued by
 `github-actions`, past a 180 s grace window, **and** whose group commit really
 has zero runs — and only when the PR is still `OPEN`, `APPROVED` and mergeable.
+"Mergeable" here means `mergeStateStatus` in `CLEAN`, `HAS_HOOKS` or
+**`UNSTABLE`**. `UNSTABLE` has to be in that set (GOL-2826): a PR cut from a
+`main` whose *non-required* gate is red — a fresh CVE in `Dependency audit`, say
+— reports `UNSTABLE` for as long as that red lasts, which is exactly the window
+where the queue churns hardest and wedges are most likely. `DIRTY`, `BLOCKED`
+and `UNKNOWN` stay out: those entries should not merge as they stand.
 It then waits and re-checks that the new group actually has runs, because a
 re-enqueue that builds another dead group is not a rescue. The selector's fire
 and stay-quiet directions are both asserted by
@@ -221,3 +227,21 @@ for a queue that had been dead for two hours.
 This is a mitigation, not the fix. It has to be run by hand after each wedge.
 The fix is still provisioning the App identity above, which makes the wedge stop
 happening.
+
+**GOL-2826 worked example (2026-09-30, 20:08–20:23Z).** #918 was enqueued by
+`github-actions` at 20:08:10Z; its group commit `ce1af237` never got a single
+workflow run. Two App-enqueued entries behind it — #921 (the CVE fix that would
+turn the `Dependency audit` gate green again) and #923 — were both `MERGEABLE`
+with all 7 `merge_group` runs green, and were ~15 minutes from being ejected
+with it. The sweep reported **"no wedged entries"**: #918's `mergeStateStatus`
+was `UNSTABLE`, not `CLEAN`, because `main` itself was red on the non-required
+audit gate. So the tool was blind precisely in the window it was written for —
+one dead entry at the head of the queue holding the fix for the red gate that
+caused the blindness. With `UNSTABLE` accepted, the sweep rescued #918 in 5
+seconds (fresh group `ba36ff2f`, 7 runs within 45 s) and the queue reordered to
+#921 → #923 → #918, all App-enqueued.
+
+Cost of the blindness, for scale: while the queue sat dead, the CI-failure
+router minted **four** ownerless duplicate issues for the same one red job
+(grove-sites #925–#928, GOL-2826–GOL-2829) — one per speculative queue build —
+each one waking a DevOps triage run.
