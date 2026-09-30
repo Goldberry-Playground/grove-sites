@@ -31,7 +31,7 @@ export default function JournalError({
   }, [error]);
 
   return (
-    <main className="journal-post journal-post--state">
+    <main className="journal-post">
       <JournalState
         kind="error"
         title="We can’t reach the journal"

@@ -11,7 +11,7 @@ import { JournalState } from "../../../../components/JournalState";
  */
 export default function JournalPostNotFound() {
   return (
-    <main className="journal-post journal-post--state">
+    <main className="journal-post">
       <JournalState
         kind="missing"
         title="We couldn’t find that essay"

@@ -634,8 +634,13 @@ a { color: inherit; text-decoration: none; }
 }
 .journal-state__retry { min-height: 44px; }
 
+/* Border opacities are load-bearing, not decorative: the border STYLE is one
+   of the three non-colour cues, so the border itself has to clear the 3:1
+   non-text contrast floor (WCAG 1.4.11). moss@65% = 3.73:1 and ink@55% =
+   3.98:1 on the state background; moss@45% measured 2.32:1 and failed. Do not
+   soften these for looks. */
 .journal-empty {
-  border: 1px dashed color-mix(in srgb, var(--moss) 45%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--moss) 65%, transparent);
 }
 .journal-empty .journal-state__icon { color: var(--moss); }
 
@@ -648,9 +653,18 @@ a { color: inherit; text-decoration: none; }
 /* Neutral ink, not the alarm hue: a stale link is not a system failure and
    should not be dressed as one. */
 .journal-missing {
-  border: 1px dotted color-mix(in srgb, var(--ink) 50%, transparent);
+  border: 1px dotted color-mix(in srgb, var(--ink) 55%, transparent);
 }
 .journal-missing .journal-state__icon { color: var(--ink-soft); }
+
+/* On the index the block sits under the masthead rule and shares its edges —
+   alignment beats a floating card. On the standalone state pages there is no
+   neighbouring content to align to, so it caps at a card measure and centres
+   rather than stretching a two-line message across 1100px. */
+.journal-post > .journal-state {
+  max-width: 640px;
+  margin-inline: auto;
+}
 
 .journal-post {
   padding: clamp(3rem, 6vw, 5rem) var(--grid);
@@ -690,9 +704,6 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--font-mono);
   font-size: 0.9rem;
 }
-/* A lone state block stranded in the 1100px article field reads as a layout
-   bug; the state routes narrow to the measure of the prose instead. */
-.journal-post--state { max-width: 760px; }
 .journal-post__related h2 {
   font-family: var(--font-display);
   font-weight: 300;
@@ -1091,6 +1102,13 @@ a { color: inherit; text-decoration: none; }
   max-width: 1300px;
   margin: 0 auto;
 }
+/* This homepage section and the /journal ROUTE (line ~530) both claim the bare
+   `.journal` class, and this one wins on source order — so the route has been
+   silently rendering at 1300px instead of its declared 900px, running post
+   excerpts to a ~120-character measure. Re-asserting the route's measure under
+   its own modifier rather than renaming this section, which would touch the
+   homepage. Untangling the collision properly is GOL-2803's follow-up. */
+.journal--index { max-width: 900px; }
 .journal-head {
   display: grid;
   grid-template-columns: 1fr auto;

@@ -22,7 +22,7 @@ export default async function JournalIndexPage() {
   }
 
   return (
-    <main className="journal">
+    <main className="journal journal--index">
       <header className="journal__head">
         <span className="eyebrow">— The Journal · Village notes —</span>
         <h1>Why we&apos;re building a village.</h1>
