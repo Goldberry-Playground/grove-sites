@@ -54,6 +54,12 @@ describe("tipOptions", () => {
     expect(tipOptions({ ...allTips, "5": "not a url" })).toBeNull();
   });
 
+  it("ships with all four live Payment Links, so the tip jar renders", () => {
+    const tips = tipOptions();
+    expect(tips).not.toBeNull();
+    for (const t of tips ?? []) expect(t.href).toMatch(/^https:\/\/buy\.stripe\.com\//);
+  });
+
   it("returns the four amounts in order when configured", () => {
     expect(tipOptions(allTips)?.map((t) => t.label)).toEqual(["$5", "$10", "$25", "Other"]);
   });
