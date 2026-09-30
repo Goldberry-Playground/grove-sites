@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
@@ -60,6 +61,22 @@ export default async function RootLayout({
           <main>{children}</main>
           <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-ink-soft">
             <div className="mx-auto flex max-w-6xl flex-col items-center gap-6">
+              {/* Nursery logo, centered atop the footer like Goldberry's
+                  brand-footer__logo; the header keeps the text name. */}
+              <Image
+                src="/brand/nursery-logo-horizontal.png"
+                alt={tenantConfig.name}
+                width={900}
+                height={261}
+                // The source is 900px so DPR 3 has real detail to draw on, but
+                // without `sizes` next/image falls back to a 1x/2x density
+                // srcset off the `width` prop and hands a 1x screen the whole
+                // 900px file. Describing the clamp instead lets the optimizer
+                // pick per rung: ~384px at 1x, 640 at DPR 2, 900 at DPR 3.
+                // 26vw crosses the clamp floor at 846px and the cap at 1154px.
+                sizes="(max-width: 846px) 220px, (min-width: 1154px) 300px, 26vw"
+                className="h-auto w-[clamp(220px,26vw,300px)]"
+              />
               {/* One-CTA-per-page (GOL-2178): the shared footer newsletter is the
                   lowest-priority capture tier, so it renders ONLY when the page
                   registers nothing higher-priority (a restock/state capture).
