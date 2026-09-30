@@ -880,9 +880,15 @@ h1 em, h2 em, h3 em, h4 em {
 }
 /* Social row under the logo (shared @grove/ui SocialLinks, ringed like the
    /alliance logo tiles). Harvest Gold on Chestnut Reserve is ~4.8:1. */
-.brand-footer__social { color: var(--harvest-gold, #edd682); margin: 0.2rem 0 0.4rem; }
+.brand-footer__social { color: var(--harvest-gold, #edd682); --social-row-margin: 0.2rem 0 0.4rem; }
+/* SocialLinks sets `margin` (row) and `color` (link) as INLINE styles, and an
+   inline style beats a class rule — naming those properties here is silently
+   dropped (GOL-2813: the hover lost its colour and rendered a blank gold coin
+   at 1.00:1). Re-theme them through the custom properties the component
+   resolves them from instead. `background` is NOT set inline, so it stays an
+   ordinary declaration. */
 .brand-footer__social a { transition: background-color 0.15s, color 0.15s; }
-.brand-footer__social a:hover { background: var(--harvest-gold, #edd682); color: var(--chestnut-reserve); }
+.brand-footer__social a:hover { background: var(--harvest-gold, #edd682); --social-link-ink: var(--chestnut-reserve); }
 .brand-footer__social a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 .brand-footer__logo {
   /* B&W logomark — wreath + wordmark per brand guide. Bumped from 101px
