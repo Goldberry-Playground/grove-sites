@@ -1352,7 +1352,7 @@ body:has(.hub-links)::before { display: none; }
 .hub-links__farm--hub { background: #5c3a1f; } /* hub primary "warm bark" */
 .hub-links__farm--hub .hub-links__farm-logo { object-fit: contain; padding: 6px; }
 .hub-links__farm--nursery { background: #a5490f; } /* nursery deep marigold */
-.hub-links__farm--goldberry { background: #5a2a4b; border: 2px solid #edd682; } /* Goldberry plum + Harvest Gold */
+.hub-links__farm--goldberry { background: #5a2a4b; } /* Goldberry plum */
 /* Just the tree (no lettering or badge disc), fitted inside the shared circle. */
 .hub-links__farm--goldberry .hub-links__farm-logo { object-fit: contain; padding: 4px; }
 .hub-links__farm--sweetpotomac { background: #2f5d3a; } /* forest green */
