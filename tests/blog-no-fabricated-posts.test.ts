@@ -22,13 +22,17 @@ const APPS = path.join(REPO, "apps");
 
 const FIXTURE_WORDS = ["mock", "fixture", "seed", "sample", "demo", "placeholder"];
 
-function blogPages(): { app: string; src: string }[] {
+function routes(rel: string): { app: string; src: string }[] {
   return readdirSync(APPS, { withFileTypes: true })
     .filter((d) => d.isDirectory())
-    .map((d) => ({ app: d.name, file: path.join(APPS, d.name, "app/blog/page.tsx") }))
+    .map((d) => ({ app: d.name, file: path.join(APPS, d.name, rel) }))
     .filter((e) => existsSync(e.file))
     .map((e) => ({ app: e.app, src: readFileSync(e.file, "utf8") }));
 }
+
+const blogPages = () => routes("app/blog/page.tsx");
+const blogPostPages = () => routes("app/blog/[slug]/page.tsx");
+const blogNotFounds = () => routes("app/blog/[slug]/not-found.tsx");
 
 /** Module specifiers this file imports from, e.g. `../../data/mock-posts`. */
 function importSpecifiers(src: string): string[] {
@@ -68,5 +72,59 @@ describe("no storefront /blog fabricates posts (GOL-2756)", () => {
 
   it("the deleted goldberry mock-posts fixture has not come back", () => {
     expect(existsSync(path.join(APPS, "goldberry/data/mock-posts.ts"))).toBe(false);
+  });
+});
+
+/**
+ * Standing rule for GOL-2788: a journal index may not link into a void.
+ *
+ * Discovery-based for the same reason as above — a fourth storefront growing a
+ * /blog gets this the day it lands, not the day someone remembers the ticket.
+ */
+describe("every storefront /blog has a detail route behind it (GOL-2788)", () => {
+  const lists = blogPages();
+  const details = blogPostPages();
+  const notFounds = blogNotFounds();
+
+  it("finds the routes it is meant to be guarding", () => {
+    expect(lists.map((p) => p.app).sort()).toEqual(["ggg", "goldberry", "nursery"]);
+  });
+
+  it.each(lists)("$app/blog links each card at /blog/[slug]", ({ src }) => {
+    expect(src).toContain("href={`/blog/${post.slug}`}");
+  });
+
+  it("every /blog has a /blog/[slug] page to land on", () => {
+    expect(details.map((p) => p.app).sort()).toEqual(lists.map((p) => p.app).sort());
+  });
+
+  it("every /blog/[slug] has its own branded 404", () => {
+    // Without a route-scoped not-found.tsx, `notFound()` falls through to
+    // Next's default black-on-white page — off-brand, and a dead end.
+    expect(notFounds.map((p) => p.app).sort()).toEqual(details.map((p) => p.app).sort());
+  });
+
+  it.each(details)("$app/blog/[slug] imports no post fixture", ({ src }) => {
+    const offenders = importSpecifiers(src).filter((spec) => {
+      const s = spec.toLowerCase();
+      return s.includes("post") && FIXTURE_WORDS.some((w) => s.includes(w));
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it.each(details)(
+    "$app/blog/[slug] separates 'no such post' from 'Ghost is down'",
+    ({ src }) => {
+      // Catching everything and calling notFound() reports an outage as a
+      // permanent 404 — wrong for the reader and wrong for search engines.
+      expect(src).toContain("isGhostNotFound");
+      expect(src).toContain("notFound()");
+      expect(src).toContain("journal-error");
+    },
+  );
+
+  it.each(details)("$app/blog/[slug] sanitizes CMS HTML before injecting it", ({ src }) => {
+    expect(src).toContain("dangerouslySetInnerHTML");
+    expect(src).toContain("sanitizeGuideHtml");
   });
 });
