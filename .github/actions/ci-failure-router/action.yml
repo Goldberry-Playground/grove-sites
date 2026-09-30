@@ -26,7 +26,12 @@
 #                   SHA, because a run parked at `action_required` (an approval
 #                   gate, typically because the head was moved under the ambient
 #                   GITHUB_TOKEN) publishes no check-run and no status either —
-#                   byte-identical to a dropped trigger unless you look. This sweep is deliberately driven by `schedule` /
+#                   byte-identical to a dropped trigger unless you look. GOL-2850:
+#                   it also reads the PR timeline, because a base retargeted
+#                   AFTER the head commit (`automatic_base_change_succeeded`,
+#                   e.g. a stacked PR whose parent merged) leaves the same empty
+#                   head — the branch-filtered workflows were correctly skipped
+#                   at push time and no event ever re-fires them. This sweep is deliberately driven by `schedule` /
 #                   `workflow_dispatch`, NOT `pull_request`, so it cannot be
 #                   dropped by the same event class it detects. It reads the
 #                   declared required contexts from `.github/required-checks.json`
@@ -732,6 +737,44 @@ runs:
                 core.info(`PR #${pr.number}: cannot list workflow runs for ${sha.slice(0, 7)} (${e.status}); reporting without approval-gate detection.`);
               }
 
+              // Cause (c): the PR's BASE was retargeted after this head was
+              // pushed (GOL-2850). A `pull_request` workflow filtered by
+              // `branches: [main]` is matched against the base AT EVENT TIME,
+              // so a stacked PR (base = a topic branch) legitimately gets no
+              // CI while it is stacked. When the parent merges, GitHub
+              // retargets the child onto the protected branch
+              // (`automatic_base_change_succeeded`) — but a base change fires
+              // neither `opened`, `synchronize` nor `reopened`, so the
+              // branch-filtered workflows never get a second chance and the
+              // contexts stay absent on an unchanged head forever.
+              // NOT a dropped trigger: nothing was lost, the event was
+              // correctly filtered. The PR wedges identically, but saying
+              // "dropped trigger" sends triage hunting a phantom GitHub fault
+              // instead of recognising the stacked-PR class.
+              let retargetedAt = null;
+              if (!gated.length) {
+                try {
+                  const events = await github.paginate(
+                    github.rest.issues.listEventsForTimeline,
+                    { owner, repo, issue_number: pr.number, per_page: 100 },
+                  );
+                  const headMs = new Date(commitDate).getTime();
+                  const after = (events || [])
+                    .filter(
+                      (e) =>
+                        e.event === "automatic_base_change_succeeded" ||
+                        e.event === "base_ref_changed",
+                    )
+                    .map((e) => e.created_at)
+                    .filter((t) => t && new Date(t).getTime() > headMs)
+                    .sort();
+                  if (after.length) retargetedAt = after[after.length - 1];
+                } catch (e) {
+                  // Timeline unreadable — fall back to the dropped-trigger
+                  // wording rather than dropping the issue.
+                  core.info(`PR #${pr.number}: cannot read timeline (${e.status}); reporting without retarget detection.`);
+                }
+              }
               const diagnosis = gated.length
                 ? [
                     `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but publish no check-run and no commit status, because **${gated.length} workflow run(s) on this head are parked at \`action_required\`** — held for a maintainer's "Approve and run". This is an **approval gate, not a dropped trigger**.`,
@@ -741,12 +784,22 @@ runs:
                       ? `**Triggering actor:** ${gatedActors.map((a) => `\`${a}\``).join(", ")}${gatedActors.includes("github-actions[bot]") ? " — the ambient `GITHUB_TOKEN`. GitHub will not auto-run workflows for events it triggers, so **every** head move made under that identity re-gates this PR. Fix the automation that moved the head to push/merge as the GitHub App instead (see GOL-2504, GOL-2114, GOL-2524)." : ""}`
                       : "",
                   ].filter(Boolean).join("\n")
+                : retargetedAt
+                ? [
+                    `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but have **no check-run and no commit status of any state** on the head SHA, and no workflow run on this head is awaiting approval — because this PR's **base was retargeted at ${retargetedAt}, AFTER its head commit (${commitDate})**.`,
+                    "",
+                    `A \`pull_request\` workflow filtered by \`branches: [${baseBranch}]\` is matched against the base **at event time**. When this head was pushed the base was a different branch (the usual cause: a stacked PR whose parent has since merged), so those workflows were correctly skipped. A base change fires neither \`opened\`, \`synchronize\` nor \`reopened\`, so they never get a second chance on this head.`,
+                    "",
+                    "This is a **filtered trigger that will never re-fire, not a dropped one** — GitHub lost nothing. The PR wedges identically, and the fix is the same.",
+                  ].join("\n")
                 : `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but have **no check-run and no commit status of any state** on the head SHA, and no workflow run on this head is awaiting approval. That is a dropped trigger, not a slow run — the PR will hang at "Expected — waiting for status" until it is cleared.`;
 
               const remediation = [
                 gated.length
                   ? "**Remediation** — close and reopen the PR so the whole `pull_request` event re-fires under a non-`GITHUB_TOKEN` identity (plain PR permissions; no `actions: write` needed):"
-                  : "**Remediation** — the reliable way to regenerate a dropped `pull_request` event is to close and reopen the PR:",
+                  : retargetedAt
+                    ? "**Remediation** — close and reopen the PR. `reopened` is a `pull_request` event matched against the PR's *current* base, so the branch-filtered workflows run this time:"
+                    : "**Remediation** — the reliable way to regenerate a dropped `pull_request` event is to close and reopen the PR:",
                 "```bash",
                 `gh pr close ${pr.number} --repo ${owner}/${repo} && gh pr reopen ${pr.number} --repo ${owner}/${repo}`,
                 "```",
@@ -805,7 +858,7 @@ runs:
                 ].join("\n");
                 const { data: issue } = await github.rest.issues.create({
                   owner, repo,
-                  title: `${gated.length ? "Approval-gated" : "Missing"} required check on PR #${pr.number}: ${missing.join(", ")}`,
+                  title: `${gated.length ? "Approval-gated" : retargetedAt ? "Retarget-skipped" : "Missing"} required check on PR #${pr.number}: ${missing.join(", ")}`,
                   body, labels: ["ci-failure"],
                 });
                 core.info(`Minted missing-checks issue #${issue.number} for PR #${pr.number}.`);
