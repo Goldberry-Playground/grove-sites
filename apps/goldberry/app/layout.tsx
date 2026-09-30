@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { assetPath, siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
+import { assetPath, siblingSitesForHost, GroveProviders, FooterContact, SocialLinks, type SocialLink } from "@grove/ui";
 import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { Providers } from "./providers";
@@ -13,6 +13,15 @@ export const metadata: Metadata = {
   title: tenantConfig.name,
   description: tenantConfig.description,
 };
+
+// Goldberry Grove's own accounts (Josh, 2026-09-30) — the same set its card on
+// the hub /alliance page links to. Clean profile URLs, no tracking params.
+const GOLDBERRY_SOCIALS: SocialLink[] = [
+  { kind: "facebook", href: "https://www.facebook.com/goldberrygrove/" },
+  { kind: "instagram", href: "https://www.instagram.com/goldberrygrove/" },
+  { kind: "threads", href: "https://www.threads.com/@goldberrygrove" },
+  { kind: "youtube", href: "https://www.youtube.com/@GoldberryGrove" },
+];
 
 export default async function RootLayout({
   children,
@@ -129,6 +138,7 @@ export default async function RootLayout({
                 alt="Goldberry Grove"
                 className="brand-footer__logo"
               />
+              <SocialLinks links={GOLDBERRY_SOCIALS} owner="Goldberry Grove" ringed className="brand-footer__social" />
               <FooterContact
                 phone={tenantConfig.contact.phone}
                 email={tenantConfig.contact.email}

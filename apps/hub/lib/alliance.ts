@@ -7,7 +7,7 @@
  * Pure data + helpers so the page stays a thin render and every URL rule is
  * unit-tested (lib/__tests__/alliance.test.ts).
  */
-import type { Site } from "@grove/ui";
+import type { Site, SocialLink as MemberSocial } from "@grove/ui";
 
 export const ALLIANCE_CANONICAL = "https://gatheringatthegrove.com/alliance";
 
@@ -31,18 +31,6 @@ export type MemberKey = "hub" | "nursery" | "goldberry" | "sweetpotomac" | "coal
  *  NOT listed as a member: it renders first with no section heading. Members
  *  sort A→Z within their group, so a new farm or producer lands in place. */
 export type MemberGroup = "alliance" | "farm" | "value-added";
-
-export type SocialKind = "facebook" | "instagram" | "threads" | "youtube" | "etsy";
-
-export type MemberSocial = { kind: SocialKind; href: string };
-
-export const SOCIAL_LABELS: Record<SocialKind, string> = {
-  facebook: "Facebook",
-  instagram: "Instagram",
-  threads: "Threads",
-  youtube: "YouTube",
-  etsy: "Etsy shop",
-};
 
 export type AllianceMember = {
   key: MemberKey;

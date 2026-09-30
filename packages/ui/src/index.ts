@@ -7,3 +7,5 @@ export { assetPath } from "./asset-path";
 export type { TenantSlug } from "./asset-path";
 export { FooterContact, formatPhone } from "./footer-contact";
 export type { FooterContactProps } from "./footer-contact";
+export { SocialIcon, SocialLinks, SOCIAL_LABELS } from "./social-links";
+export type { SocialKind, SocialLink, SocialLinksProps } from "./social-links";

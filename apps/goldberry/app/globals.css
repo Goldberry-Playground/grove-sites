@@ -878,6 +878,12 @@ h1 em, h2 em, h3 em, h4 em {
   /* Tighter gap between logo and copyright line. */
   gap: 0.6rem;
 }
+/* Social row under the logo (shared @grove/ui SocialLinks, ringed like the
+   /alliance logo tiles). Harvest Gold on Chestnut Reserve is ~4.8:1. */
+.brand-footer__social { color: var(--harvest-gold, #edd682); margin: 0.2rem 0 0.4rem; }
+.brand-footer__social a { transition: background-color 0.15s, color 0.15s; }
+.brand-footer__social a:hover { background: var(--harvest-gold, #edd682); color: var(--chestnut-reserve); }
+.brand-footer__social a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 .brand-footer__logo {
   /* B&W logomark — wreath + wordmark per brand guide. Bumped from 101px
      to ~180px (~80% larger) so the mark dominates the band visually
