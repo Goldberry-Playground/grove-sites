@@ -158,3 +158,66 @@ Run this with an App installation token or a PAT — **not** `GITHUB_TOKEN`, and
 not from inside a workflow using the default token, or you simply build another
 dead group. Confirm `enqueuer.login` is not `github-actions`, then check that the
 new group commit has a non-zero run count within ~60 s.
+
+## Agent-side rescue (no human needed) — GOL-2790
+
+The rescue above says "run this with an App installation token or a PAT" without
+saying where an agent gets one, which is why GOL-2790 was first escalated to a
+human as a broker permission gap. It is not a permission gap. **The
+`gh-token-broker` App token already carries what the rescue needs on all three
+repos**, verified against the live API on 2026-09-30:
+
+| call | result | `x-accepted-github-permissions` |
+| --- | --- | --- |
+| `enqueuePullRequest` (GraphQL) | **200**, `enqueuer: agenticos-developer` | — |
+| `POST /issues/{n}/comments` | **201** | `issues=write; pull_requests=write` |
+| `POST /pulls/{n}/reviews` | **422** (payload rejected, auth passed) | `pull_requests=write` |
+| `PUT /pulls/{n}/merge` | 405 `Changes must be made through the merge queue` | `contents=write` |
+
+The one thing that genuinely does not work is `PUT /pulls/{n}/merge`: with a
+merge queue on `main` a ruleset rejects it outright, so **the enqueue must go
+through the GraphQL `enqueuePullRequest` mutation**, not the REST merge endpoint.
+A 403 on that mutation means a stale or wrong-repo token, not a missing scope —
+broker tokens live one hour.
+
+Mint the token and run the sweep:
+
+```bash
+TOKEN=$(curl -fsS -H "Authorization: Bearer $(cat "$GH_BROKER_API_KEY_FILE")" \
+  "$GH_TOKEN_BROKER_URL/token?owner=Goldberry-Playground&repo=grove-sites" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+```
+
+`scripts/ci/merge-queue-rescue.sh` does the whole sweep — mint, detect, rescue,
+verify — and is **dry-run by default**:
+
+```bash
+scripts/ci/merge-queue-rescue.sh            # report what is wedged
+scripts/ci/merge-queue-rescue.sh --apply    # rescue it
+REPO=Goldberry-Playground/odoocker-goldberrygrove scripts/ci/merge-queue-rescue.sh --apply
+```
+
+It only touches an entry that is `AWAITING_CHECKS`, enqueued by
+`github-actions`, past a 180 s grace window, **and** whose group commit really
+has zero runs — and only when the PR is still `OPEN`, `APPROVED` and mergeable.
+It then waits and re-checks that the new group actually has runs, because a
+re-enqueue that builds another dead group is not a rescue. The selector's fire
+and stay-quiet directions are both asserted by
+`scripts/ci/merge-queue-rescue.test.mjs`, extracted from the script itself.
+
+Never run it from a GitHub Actions job on the default `GITHUB_TOKEN` — that is
+the wedging identity, so it would just build another dead group.
+
+**GOL-2790 worked example (2026-09-30).** #893 was ejected unmerged at 15:52:23Z.
+Three more agent PRs — #897, #894, #899 — were then sitting in the same queue,
+all enqueued by `github-actions`, all `AWAITING_CHECKS`, all with **0** runs on
+their group commits: one wedge silently stalls the whole queue behind it, so a
+rescue should always sweep the queue rather than a single PR. All four were
+dequeued and re-enqueued under the App at 17:40Z; every new group commit had
+**7 `merge_group` runs within 60 s** — the same 7 the human-enqueued #871/#880/#884
+got that morning — and all four merged by 17:44:19Z. Elapsed: under four minutes
+for a queue that had been dead for two hours.
+
+This is a mitigation, not the fix. It has to be run by hand after each wedge.
+The fix is still provisioning the App identity above, which makes the wedge stop
+happening.
