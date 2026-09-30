@@ -226,3 +226,26 @@ describe("<CheckoutPage /> kit — pickup-only cart locks fulfillment (GOL-2588)
     expect(html).toContain("Shipping Address");
   });
 });
+
+describe("<CheckoutPage /> contact — phone is required (2026-09-30)", () => {
+  it("marks the phone field required, like name and email", () => {
+    render(<CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} />);
+    const phone = screen.getByLabelText(/phone/i) as HTMLInputElement;
+    expect(phone.type).toBe("tel");
+    expect(phone.required).toBe(true);
+  });
+
+  it("refuses a whitespace-only phone without placing the order", async () => {
+    let placed = false;
+    const { container } = render(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => { placed = true; }} />,
+    );
+    const form = container.querySelector("form") as HTMLFormElement;
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByLabelText(/phone/i), { target: { value: "   " } });
+    fireEvent.submit(form);
+    expect(placed).toBe(false);
+    expect(await screen.findByText(/add a phone number/i)).toBeTruthy();
+  });
+});
+

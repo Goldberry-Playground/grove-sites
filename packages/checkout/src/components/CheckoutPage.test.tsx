@@ -43,6 +43,7 @@ async function fillFormAndSubmit() {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText(/Full name/), "Martin Westlund");
   await user.type(screen.getByLabelText(/Email/), "buyer@example.com");
+  await user.type(screen.getByLabelText(/Phone/), "3045551212");
   await user.type(screen.getByLabelText(/Street/), "1 Discord Avenue");
   await user.type(screen.getByLabelText(/City/), "Bluefield");
   await user.type(screen.getByLabelText(/ZIP/), "24701");
@@ -284,6 +285,7 @@ describe("<CheckoutPage /> — fulfillment: ship vs farm pickup (GOL-1075)", () 
 
     await user.type(screen.getByLabelText(/Full name/), "Martin Westlund");
     await user.type(screen.getByLabelText(/Email/), "buyer@example.com");
+    await user.type(screen.getByLabelText(/Phone/), "3045551212");
     fireEvent.click(
       document.querySelector<HTMLButtonElement>('button[type="submit"]')!,
     );

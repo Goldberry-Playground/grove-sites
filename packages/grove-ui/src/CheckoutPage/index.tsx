@@ -436,6 +436,11 @@ export function CheckoutPage({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // `required` stops an empty field; this also stops a whitespace-only one.
+    if (!contact.phone.trim()) {
+      setError("Please add a phone number so we can reach you about your order.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -540,9 +545,13 @@ export function CheckoutPage({
                   onChange={(v) => setContact({ ...contact, email: v })}
                   autoComplete="email"
                 />
+                {/* Required on every checkout (Josh, 2026-09-30): the number lands on
+                    the Odoo partner, which shipping labels and pickup coordination
+                    read — Stripe's page never writes one back. */}
                 <Field
                   label="Phone"
                   type="tel"
+                  required
                   value={contact.phone}
                   onChange={(v) => setContact({ ...contact, phone: v })}
                   autoComplete="tel"
