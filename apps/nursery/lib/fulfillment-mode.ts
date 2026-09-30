@@ -34,7 +34,16 @@ import type {
  * The calendar drives ship-window TIMING (which season a tree ships in, and the
  * peat & bagged leafed fallback). The CHARGE shape (deposit vs charged-in-full)
  * is a SEPARATE axis, decided by the GOL-2233 `_order_takes_deposit` rule below,
- * not by these windows. Ship-window timeline (doc §2):
+ * not by these windows.
+ *
+ * Because the two axes are independent, "charged in full" does NOT imply "ships
+ * today": an in-stock, pre-cutover bareroot placed in the gap between the
+ * preorder switch and the zone's ship window is charged in full NOW and ships in
+ * that window (grove-sites#814 / GOL-2757 — the copy used to fuse the two and
+ * claim "Ships now" on a September date while the same feed said zone 5 ships
+ * Nov 2 - Nov 19). {@link FulfillmentResolution.shipSeason} carries the timing
+ * half: non-null means "ships in that upcoming dormant wave", whatever the
+ * charge. Ship-window timeline (doc §2):
  *   Jan 1  → May 5   spring bareroot ships in the zone's spring window
  *   May 6  → Aug 14  peat & bagged (leafed)         (5–10 business days)
  *   Sep 15 → Oct 30  fall bareroot ships in the zone's fall window
@@ -88,9 +97,12 @@ export interface FulfillmentResolution {
   /** Why the deposit is taken (`"sold-out"` / `"off-season"`), or `null` when the
    *  order ships now and is charged in full. */
   depositReason: DepositReason;
-  /** Which season a preorder ships in, else `null`. Drives the "ships this
-   *  <season>" copy. */
-  preorderSeason: "fall" | "spring" | null;
+  /** The upcoming dormant wave this order actually SHIPS in, or `null` when it
+   *  ships today on the normal SLA (an open bareroot window, or peat & bagged).
+   *  Purely the TIMING axis: it is set both for a deposit/reserve order AND for
+   *  an order charged in full today that still waits for its zone's window
+   *  (grove-sites#814). Drives every "ships this <season>" phrase. */
+  shipSeason: "fall" | "spring" | null;
   /** Normal processing SLA (business days) for peat & bagged and the
    *  shipped-past-your-zone fallback, from `calendar.fulfillment_days`. */
   fulfillmentDays: [number, number];
@@ -118,6 +130,29 @@ function ord(md: MonthDay): number {
  *  shift which mode a shopper sees near a midnight boundary. */
 export function monthDayOf(date: Date): MonthDay {
   return [date.getUTCMonth() + 1, date.getUTCDate()];
+}
+
+/**
+ * Does an order placed on `date` take the flat $10 deposit on the SEASON CUTOVER
+ * alone, with variant stock unknown? (grove-sites#815 / GOL-2757.)
+ *
+ * The GOL-2233 deposit rule is `soldOut || afterCutover`, and {@link
+ * DEPOSIT_CUTOVER} is a local constant — so the cutover half needs NO rate feed.
+ * Only the per-zone ship WINDOWS do. A surface that states the deposit rule must
+ * therefore keep stating it when the feed is unreachable: the homepage Field
+ * Notes card used to fall back to `heroResolution?.depositNow` (falsy on a
+ * degraded feed) and so promised "charged in full ... after Oct 15" in November,
+ * while checkout would in fact take a deposit. That is GOL-1313 finding 3's
+ * harmful surprise direction (promised charged-in-full, met with a deposit), so
+ * the date-only answer is the honest fallback, never "no deposit".
+ *
+ * Conservative by construction: with stock unknown this can only UNDER-claim a
+ * deposit (a sold-out variant before the cutover still reads charged-in-full on
+ * a feedless surface), and the PDP — which does know the variant's stock — is the
+ * surface that resolves that half.
+ */
+export function depositByDate(date: Date, cutover: MonthDay = DEPOSIT_CUTOVER): boolean {
+  return ord(monthDayOf(date)) > ord(cutover);
 }
 
 /** Inclusive `[start, end]` membership within a single calendar year (no wrap —
@@ -152,7 +187,7 @@ type ResolvedSeason = "fall" | "spring" | null;
 interface ZoneResolution {
   mode: ShippableMode;
   depositNow: boolean;
-  preorderSeason: "fall" | "spring" | null;
+  shipSeason: "fall" | "spring" | null;
   /** The window this resolution matched (for deadline lookup); `null` for peat. */
   season: ResolvedSeason;
 }
@@ -182,25 +217,25 @@ function resolveZone(
 
   // 1. In a bareroot ship window → ships now (wins over any preorder).
   if (inWindow(d, spring)) {
-    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, season: "spring" };
+    return { mode: "bareroot-in-window", depositNow: false, shipSeason: null, season: "spring" };
   }
   if (inWindow(d, fall)) {
-    return { mode: "bareroot-in-window", depositNow: false, preorderSeason: null, season: "fall" };
+    return { mode: "bareroot-in-window", depositNow: false, shipSeason: null, season: "fall" };
   }
 
   // 2. Fall preorder: from the fall switch up to (not into) the fall window.
   if (preorderOpen?.fall && d >= ord(preorderOpen.fall) && d < ord(fall[0])) {
-    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "fall", season: "fall" };
+    return { mode: "bareroot-preorder", depositNow: true, shipSeason: "fall", season: "fall" };
   }
 
   // 3. Spring preorder: from the spring switch through year-end, then into Jan up
   //    to (not into) the spring window (wraps the year boundary).
   if (preorderOpen?.spring && (d >= ord(preorderOpen.spring) || d < ord(spring[0]))) {
-    return { mode: "bareroot-preorder", depositNow: true, preorderSeason: "spring", season: "spring" };
+    return { mode: "bareroot-preorder", depositNow: true, shipSeason: "spring", season: "spring" };
   }
 
   // 4. Everything else (leafed window + post-window gap) → peat & bagged.
-  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, season: null };
+  return { mode: "peat-and-bagged", depositNow: false, shipSeason: null, season: null };
 }
 
 /**
@@ -225,7 +260,7 @@ function aggregateZones(list: ZoneResolution[]): ZoneResolution {
   if (preorder) return preorder;
   const inWin = list.find((r) => r.mode === "bareroot-in-window");
   if (inWin) return { ...inWin, season: null }; // deadline is per-zone; unknown here
-  return { mode: "peat-and-bagged", depositNow: false, preorderSeason: null, season: null };
+  return { mode: "peat-and-bagged", depositNow: false, shipSeason: null, season: null };
 }
 
 /** Deposit-decision inputs (GOL-2233). Optional so the existing zone-only call
@@ -296,29 +331,34 @@ export function resolveShippableMode(
   const depositNow = depositReason !== null;
 
   let mode: ShippableMode;
-  let preorderSeason: "fall" | "spring" | null;
+  let shipSeason: "fall" | "spring" | null;
   if (depositNow) {
     mode = "bareroot-preorder";
     // Ship the reserved order in the next dormant wave: the calendar's current
     // season when known, else the next wave (spring once the fall window has
     // closed at the cutover, otherwise the coming fall).
-    preorderSeason = timing.preorderSeason ?? timing.season ?? (afterCutover ? "spring" : "fall");
+    shipSeason = timing.shipSeason ?? timing.season ?? (afterCutover ? "spring" : "fall");
   } else if (timing.mode === "peat-and-bagged") {
     // In-stock, on/before the cutover, but in the leafed window → peat & bagged,
     // charged in full on the normal SLA (never a deposit).
     mode = "peat-and-bagged";
-    preorderSeason = null;
+    shipSeason = null;
   } else {
-    // In-stock bareroot, on or before the cutover → ships now, charged in full.
+    // In-stock bareroot, on or before the cutover → charged in FULL today. The
+    // TIMING is still the calendar's: only an OPEN ship window ships today; in
+    // the preorder gap (past the season's switch, before the zone's window) the
+    // order is charged now and ships in that wave. Carrying the wave here is the
+    // grove-sites#814 fix — collapsing it to `null` made the copy claim "Ships
+    // now" on a date no zone ships on.
     mode = "bareroot-in-window";
-    preorderSeason = null;
+    shipSeason = timing.mode === "bareroot-in-window" ? null : timing.shipSeason ?? timing.season;
   }
 
   return {
     mode,
     depositNow,
     depositReason,
-    preorderSeason,
+    shipSeason,
     fulfillmentDays,
     orderDeadline,
     approximate,
@@ -336,8 +376,11 @@ function deadlineFor(zone: ShippingCalendarZone, season: ResolvedSeason): MonthD
 
 // ── Customer-facing copy (GOL-1173 ratified; no em dashes, brand rule) ────────
 
-/** Short badge for a bareroot format, or `null` when it just ships in season
- *  (an in-window bareroot needs no badge — "Ships now" carries it). */
+/** Short badge for a bareroot format, or `null` when the timing line already
+ *  carries the state. An in-window bareroot needs no badge ("Ships now" carries
+ *  it), and neither does a charged-in-full order waiting on its zone window —
+ *  its timing line names the wave, and a second badge there would either repeat
+ *  it or (worse, if it read "Reserve") imply a deposit that is not taken. */
 export function barerootBadge(res: FulfillmentResolution): string | null {
   switch (res.mode) {
     case "bareroot-preorder":
@@ -354,9 +397,13 @@ export function barerootBadge(res: FulfillmentResolution): string | null {
 export function barerootTimingShort(res: FulfillmentResolution): string {
   switch (res.mode) {
     case "bareroot-preorder":
-      return `$10 to reserve · ships this ${res.preorderSeason}`;
+      return `$10 to reserve · ships this ${res.shipSeason}`;
     case "bareroot-in-window":
-      return "Ships now · charged in full";
+      // Charge and timing are separate clauses, never fused (grove-sites#814):
+      // only an OPEN ship window may say "Ships now".
+      return res.shipSeason
+        ? `Charged in full today · ships this ${res.shipSeason}`
+        : "Ships now · charged in full";
     case "peat-and-bagged":
       return `Ships in ${res.fulfillmentDays[0]}–${res.fulfillmentDays[1]} business days`;
   }
@@ -369,7 +416,10 @@ export function barerootTimingShort(res: FulfillmentResolution): string {
  * sold-out variant or any order after the cutover takes ONE flat $10 deposit for
  * the whole order, with the balance charged at ship time. The two lead sentences
  * split on {@link FulfillmentResolution.depositReason} so the shopper knows WHY
- * a deposit applies. Plain factual copy, no persuasive claims, no em dashes.
+ * a deposit applies. The in-window branch splits again on
+ * {@link FulfillmentResolution.shipSeason}: charged in full AND shipping today
+ * (window open) vs charged in full today but shipping in the zone's upcoming
+ * wave (grove-sites#814). Plain factual copy, no persuasive claims, no em dashes.
  */
 export function barerootNote(res: FulfillmentResolution): string {
   switch (res.mode) {
@@ -378,10 +428,12 @@ export function barerootNote(res: FulfillmentResolution): string {
         res.depositReason === "sold-out"
           ? "This size is sold out for now."
           : "Bareroot planting season is closed for now.";
-      return `${lead} Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship this ${res.preorderSeason}, timed to your area.`;
+      return `${lead} Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship this ${res.shipSeason}, timed to your area.`;
     }
     case "bareroot-in-window":
-      return "Ships now and charged in full today. We dig your trees fresh and ship them dormant, timed to your area.";
+      return res.shipSeason
+        ? `Charged in full today, nothing else to pay. We dig your trees fresh and ship them dormant this ${res.shipSeason}, timed to your area.`
+        : "Ships now and charged in full today. We dig your trees fresh and ship them dormant, timed to your area.";
     case "peat-and-bagged":
       return `Shipping now as peat and bagged: leafed-out trees wrapped in damp peat, up to four per box, on our normal ${res.fulfillmentDays[0]} to ${res.fulfillmentDays[1]} business day timeline.`;
   }
