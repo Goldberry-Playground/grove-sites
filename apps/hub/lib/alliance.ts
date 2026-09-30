@@ -131,7 +131,7 @@ const MEMBERS: MemberSpec[] = [
     group: "value-added",
     siteName: "GGG Woodworking",
     title: "George George George Woodworking",
-    blurb: "Handcrafted hardwood furniture & custom millwork",
+    blurb: "Handcrafted hardwood products & custom millwork",
     socials: [],
     logo: "/brand/alliance/ggg-badge.png", // Canva design DAHWpBUxMKM
     monogram: "GGG",
