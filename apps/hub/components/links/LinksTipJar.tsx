@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { trackEvent } from "@grove/analytics";
 
-import type { TipId, TipOption } from "../../lib/links";
+import type { TipId, TipOption } from "../../lib/alliance";
 
 /** Sponsor-a-Tree: pick an amount, then hand off to that amount's Stripe Payment Link. */
 export function LinksTipJar({ options, source }: { options: TipOption[]; source: string }) {

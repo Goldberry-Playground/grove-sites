@@ -1,13 +1,22 @@
 /**
- * /links — the self-hosted link-in-bio page (replaces hopp.bio/goldberry).
+ * /alliance — the Gather at the Grove alliance directory, which doubles as the
+ * self-hosted link-in-bio (replaces hopp.bio/goldberry). /links permanently
+ * redirects here (next.config.ts) so the bio URLs keep working and their
+ * ?utm_source= carries through.
  *
  * Pure data + helpers so the page stays a thin render and every URL rule is
- * unit-tested (lib/__tests__/links.test.ts).
+ * unit-tested (lib/__tests__/alliance.test.ts).
  */
 import type { Site } from "@grove/ui";
 
+export const ALLIANCE_CANONICAL = "https://gatheringatthegrove.com/alliance";
+
+export const ALLIANCE_INTRO =
+  "Gather at the Grove is a regenerative alliance of Appalachian agroforestry farms and value-added producers. We share land, knowledge, and resources to strengthen our community.";
+
 export type SocialLink = { key: string; label: string; href: string };
 
+// Hidden on the page for now (Josh, 2026-09-29); kept so they can come back.
 export const SOCIAL_LINKS: SocialLink[] = [
   { key: "youtube", label: "YouTube", href: "https://www.youtube.com/@GoldberryGrove" },
   { key: "instagram", label: "Instagram", href: "https://www.instagram.com/goldberrygrove/" },
@@ -16,42 +25,92 @@ export const SOCIAL_LINKS: SocialLink[] = [
   { key: "email", label: "Email", href: "mailto:sales@goldberrygrove.farm" },
 ];
 
-export type FarmLink = {
-  key: "hub" | "nursery" | "goldberry";
+export type MemberKey = "hub" | "nursery" | "goldberry" | "sweetpotomac" | "coalridge";
+
+export type AllianceMember = {
+  key: MemberKey;
   title: string;
   blurb: string;
   href: string;
+  /** Public path of the member's logo; null renders a monogram tile. */
+  logo: string | null;
+  monogram: string;
 };
 
-// Keyed by the sibling-site name so the href comes from siblingSitesForHost()
-// and QA links to QA, prod to prod. GGG Woodworking is deliberately absent —
-// the bio page is the farm's.
-const FARMS: Array<Omit<FarmLink, "href"> & { siteName: string }> = [
+type MemberSpec = Omit<AllianceMember, "href"> &
+  // Grove sites resolve per environment via siblingSitesForHost (QA links stay
+  // on QA); members outside the Grove stack have a fixed URL.
+  ({ siteName: string } | { url: string });
+
+const MEMBERS: MemberSpec[] = [
   {
     key: "hub",
     siteName: "Gather at the Grove",
     title: "Gather at the Grove",
-    blurb: "Our village, journal & rewilding project",
+    blurb: "Agroforestry village, learning hub & marketplace for all",
+    logo: "/brand/gather/gather-logomark-reversed.svg",
+    monogram: "GG",
   },
   {
     key: "nursery",
     siteName: "At The Grove Nursery",
     title: "At The Grove Nursery",
-    blurb: "Native & nut trees, plus new Food Forest packages",
+    blurb: "Mountain-strong woody perennials, grown for Appalachia",
+    logo: "/brand/alliance/nursery-mark.png",
+    monogram: "ATG",
   },
   {
     key: "goldberry",
     siteName: "Goldberry Grove Farm",
     title: "Goldberry Grove",
-    blurb: "U-pick orchard — come walk the rows",
+    blurb: "Agroforestry food forest & chestnut orchard, open for U-pick",
+    logo: "/brand/alliance/goldberry-badge.png",
+    monogram: "GB",
+  },
+  {
+    key: "sweetpotomac",
+    url: "https://sweetpotomacfarm.com/",
+    title: "Sweet Potomac Farm & Studio",
+    blurb: "Seneca Rocks farm & art studio, saving native seed",
+    logo: null, // no logo published anywhere yet
+    monogram: "SP",
+  },
+  {
+    key: "coalridge",
+    url: "https://www.facebook.com/coalridgehomestead/",
+    title: "Coal Ridge Homestead",
+    blurb: "Reclaimed mine land homestead — berries & baked goods",
+    logo: "/brand/alliance/coal-ridge-homestead.jpg",
+    monogram: "CR",
   },
 ];
 
-export function farmLinks(sites: Site[]): FarmLink[] {
-  return FARMS.flatMap(({ siteName, ...farm }) => {
-    const site = sites.find((s) => s.name === siteName);
-    return site ? [{ ...farm, href: site.href }] : [];
+export function allianceMembers(sites: Site[]): AllianceMember[] {
+  return MEMBERS.flatMap((spec) => {
+    const href = "url" in spec ? spec.url : sites.find((s) => s.name === spec.siteName)?.href;
+    if (!href) return [];
+    const { key, title, blurb, logo, monogram } = spec;
+    return [{ key, title, blurb, logo, monogram, href }];
   });
+}
+
+/**
+ * schema.org Organization for the alliance, listing each business as a
+ * member. Always uses PROD member URLs (the canonical page is prod) — pass
+ * members resolved from the prod host.
+ */
+export function allianceJsonLd(members: AllianceMember[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Gather at the Grove",
+    url: "https://gatheringatthegrove.com",
+    description: ALLIANCE_INTRO,
+    areaServed: "Appalachia",
+    member: members
+      .filter((m) => m.key !== "hub")
+      .map((m) => ({ "@type": "Organization", name: m.title, url: m.href, description: m.blurb })),
+  };
 }
 
 export type TipId = "5" | "10" | "25" | "custom";
