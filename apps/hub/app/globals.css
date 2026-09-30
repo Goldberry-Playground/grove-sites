@@ -1351,7 +1351,8 @@ body:has(.hub-links)::before { display: none; }
 .hub-links__farm--nursery { background: #a5490f; } /* nursery deep marigold */
 .hub-links__farm--nursery .hub-links__farm-logo { border: 2px solid #ffffff; }
 .hub-links__farm--goldberry { background: #5a2a4b; border: 2px solid #edd682; } /* Goldberry plum + Harvest Gold */
-.hub-links__farm--goldberry .hub-links__farm-logo { border: 3px solid #edd682; }
+/* Just the tree (no ring, lettering or disc), a little larger than the other tiles. */
+.hub-links__farm--goldberry .hub-links__farm-logo { width: 64px; height: 64px; margin: -4px; border-radius: 0; object-fit: contain; }
 .hub-links__farm--sweetpotomac { background: #2f5d3a; } /* forest green */
 .hub-links__farm--coalridge { background: #2b2f33; } /* slate black */
 .hub-links__farm--coalridge .hub-links__farm-logo { background: #222222; border: 1.5px solid #5a6068; }

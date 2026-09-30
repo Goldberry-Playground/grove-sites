@@ -96,7 +96,7 @@ const MEMBERS: MemberSpec[] = [
       { kind: "threads", href: "https://www.threads.com/@goldberrygrove" },
       { kind: "youtube", href: "https://www.youtube.com/@GoldberryGrove" },
     ],
-    logo: "/brand/alliance/goldberry-badge.png",
+    logo: "/brand/alliance/goldberry-tree.png", // tree from the site's B&W badge, in ivory
     monogram: "GB",
   },
   {
