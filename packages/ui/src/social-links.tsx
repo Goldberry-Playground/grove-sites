@@ -2,6 +2,17 @@
 // member cards and the Goldberry footer. Same approach as FooterContact:
 // inline styles and `currentColor`, so each site sets the colour from its
 // own footer/card CSS without a per-app copy of the icons.
+//
+// Caveat that convention leaves out (GOL-2813): an inline style beats a
+// class rule, so a consumer rule naming a property we set inline is silently
+// discarded — `.brand-footer__social a:hover { color: ... }` landed its
+// background but dropped its colour, leaving a blank gold coin at 1.00:1.
+// Every inline value a site may legitimately want to re-theme therefore
+// resolves through a custom property with the old hard-coded value as its
+// fallback, so a consumer rule setting that property re-resolves *through*
+// the inline style instead of losing to it. Properties that are structural
+// (the 44px target, the circle, the flex row) stay hard-coded on purpose.
+// The escape hatches, and nothing else, are SOCIAL_THEME_VARS below.
 import type { CSSProperties, ReactNode } from "react";
 
 export type SocialKind = "facebook" | "instagram" | "threads" | "youtube" | "etsy";
@@ -71,12 +82,24 @@ export interface SocialLinksProps {
   className?: string;
 }
 
+/**
+ * Inline values a consuming stylesheet may override, by setting the custom
+ * property on the element (or an ancestor) rather than the property itself.
+ * Each falls back to the component's own default when nobody sets it.
+ */
+export const SOCIAL_THEME_VARS = {
+  /** `margin` on the `ul` row. Default `0`. */
+  rowMargin: "--social-row-margin",
+  /** `color` of each link — the glyph ink, via `currentColor`. Default `inherit`. */
+  linkInk: "--social-link-ink",
+} as const;
+
 const listStyle: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   justifyContent: "center",
   gap: "0.5rem",
-  margin: 0,
+  margin: `var(${SOCIAL_THEME_VARS.rowMargin}, 0)`,
   padding: 0,
   listStyle: "none",
 };
@@ -91,7 +114,7 @@ export function SocialLinks({ links, owner, ringed = false, className }: SocialL
     alignItems: "center",
     justifyContent: "center",
     borderRadius: "50%",
-    color: "inherit",
+    color: `var(${SOCIAL_THEME_VARS.linkInk}, inherit)`,
     boxSizing: "border-box",
     border: ringed ? "1.5px solid currentColor" : undefined,
   };
