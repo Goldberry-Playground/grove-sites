@@ -66,8 +66,8 @@ export default async function RootLayout({
               <Image
                 src="/brand/nursery-logo-horizontal.png"
                 alt={tenantConfig.name}
-                width={552}
-                height={160}
+                width={900}
+                height={261}
                 className="h-auto w-[clamp(220px,26vw,300px)]"
               />
               {/* One-CTA-per-page (GOL-2178): the shared footer newsletter is the
