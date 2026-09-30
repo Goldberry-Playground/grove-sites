@@ -111,6 +111,7 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
     // Street/City/ZIP) does not apply.
     await form.getByLabel("Full name").fill("E2E Pickup Buyer");
     await form.getByLabel("Email").fill(uniqueBuyerEmail());
+    await form.getByLabel("Phone").fill("3045551212");
     const { status, errorBody } = await submitAndCaptureSession(page);
     expect(
       status,

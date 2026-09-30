@@ -256,6 +256,10 @@ export interface GrovePickupCopy {
  *  `aria-describedby` at the sentence explaining why there is only one option. */
 const FULFILLMENT_NOTE_ID = "grove-checkout-fulfillment-note";
 
+/** Id of the submit-blocking error, so a field the message names can point its
+ *  `aria-describedby` at it (GOL-2789). */
+const FORM_ERROR_ID = "grove-checkout-form-error";
+
 const DEFAULT_SHIP_STATES_NOTE = (supportedCount: number): React.ReactNode =>
   `We currently ship to ${supportedCount} states. Don't see yours? It's not on our route yet.`;
 
@@ -353,6 +357,13 @@ export function CheckoutPage({
   const previewSeq = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The whitespace-only phone guard's error renders in the summary rail, a
+  // screenful (desktop) to a whole page (mobile) below the field it names. The
+  // ref + flag let the guard send focus back to the input and mark it invalid,
+  // so the alert and the field agree instead of leaving the buyer to hunt for
+  // it (GOL-2789). Empty-phone needs neither: native validation focuses it.
+  const phoneRef = useRef<HTMLInputElement | null>(null);
+  const [phoneInvalid, setPhoneInvalid] = useState(false);
 
   async function runPreview(code: string, silent: boolean) {
     if (!onApplyPromo) return;
@@ -436,6 +447,16 @@ export function CheckoutPage({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // `required` stops an empty field; this also stops a whitespace-only one.
+    if (!contact.phone.trim()) {
+      setError("Please add a phone number so we can reach you about your order.");
+      setPhoneInvalid(true);
+      // Plain `focus()` scrolls the input into view without animating, so there
+      // is no motion to gate on `prefers-reduced-motion`.
+      phoneRef.current?.focus();
+      return;
+    }
+    setPhoneInvalid(false);
     setSubmitting(true);
     setError(null);
     try {
@@ -540,13 +561,46 @@ export function CheckoutPage({
                   onChange={(v) => setContact({ ...contact, email: v })}
                   autoComplete="email"
                 />
+                {/* Required on every checkout (Josh, 2026-09-30): the number lands on
+                    the Odoo partner, which shipping labels and pickup coordination
+                    read — Stripe's page never writes one back. */}
                 <Field
                   label="Phone"
                   type="tel"
+                  required
                   value={contact.phone}
-                  onChange={(v) => setContact({ ...contact, phone: v })}
+                  onChange={(v) => {
+                    setContact({ ...contact, phone: v });
+                    // Forgiveness: drop the invalid mark (and its message) the
+                    // moment the value would pass, rather than nagging until
+                    // the next submit. Another space keeps it — still invalid.
+                    if (phoneInvalid && v.trim()) {
+                      setPhoneInvalid(false);
+                      setError(null);
+                    }
+                  }}
                   autoComplete="tel"
+                  inputRef={phoneRef}
+                  aria-invalid={phoneInvalid || undefined}
+                  aria-describedby={phoneInvalid ? FORM_ERROR_ID : undefined}
                 />
+                {/* Same element, same copy, same single `role="alert"` — just
+                    rendered where the field is. Focusing the input scrolls the
+                    summary rail's copy off screen on mobile (the two sit ~1700px
+                    apart), which would trade "message without field" for "field
+                    without message". Reuses `__error` + `--span2`: no new CSS. */}
+                {phoneInvalid && error && (
+                  <p
+                    id={FORM_ERROR_ID}
+                    role="alert"
+                    className="grove-checkout__error grove-checkout__field--span2"
+                  >
+                    <span aria-hidden="true" className="grove-checkout__error-icon">
+                      ⚠
+                    </span>
+                    {error}
+                  </p>
+                )}
               </div>
             </fieldset>
 
@@ -867,7 +921,11 @@ export function CheckoutPage({
               </div>
             )}
 
-            {error && (
+            {/* Everything else that can block a submit — a declined card, a
+                network failure — belongs beside the CTA that triggered it. The
+                phone guard is the one error with a field to point at, so it
+                renders up in the Contact fieldset instead. */}
+            {error && !phoneInvalid && (
               <p role="alert" className="grove-checkout__error">
                 <span aria-hidden="true" className="grove-checkout__error-icon">
                   ⚠
@@ -904,12 +962,16 @@ function Field({
   value,
   onChange,
   span2 = false,
+  inputRef,
   ...rest
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   span2?: boolean;
+  /** Handle on the `<input>` itself — the label wrapper is not focusable, so a
+   *  caller that needs to send focus to the field asks for this (GOL-2789). */
+  inputRef?: React.Ref<HTMLInputElement>;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   return (
     <label className={`grove-checkout__field${span2 ? " grove-checkout__field--span2" : ""}`}>
@@ -924,6 +986,7 @@ function Field({
       </span>
       <input
         {...rest}
+        ref={inputRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="grove-checkout__input"

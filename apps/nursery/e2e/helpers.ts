@@ -244,6 +244,8 @@ export async function fillCheckoutForm(
   // hijacks the hosted page with an OTP challenge (GOL-1157). Callers can still
   // pin an explicit email.
   await form.getByLabel("Email").fill(input.email ?? uniqueBuyerEmail());
+  // Phone is required on every checkout (2026-09-30).
+  await form.getByLabel("Phone").fill("3045551212");
   await form.getByLabel("Street").fill(input.street ?? "123 Orchard Ln");
   await form.getByLabel("City").fill(input.city ?? "Summersville");
   if (input.state) {
