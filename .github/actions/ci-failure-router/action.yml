@@ -8,7 +8,12 @@
 # its repo-specific list of watched workflows.
 #
 # Modes (selected by the caller job's `if:` on the event):
-#   route         — a watched workflow_run FAILED: sticky PR comment / mint issue
+#   route         — a watched workflow_run FAILED: sticky PR comment / mint issue.
+#                   GOL-2807: an ownerless failure on a merge-queue branch whose
+#                   failing-job set matches the issue already open for its base
+#                   branch is recorded there instead of minting a duplicate —
+#                   the queue names a fresh branch per merge, so a branch-tip-red
+#                   gate used to mint one issue per merge.
 #   close-success — a watched workflow_run SUCCEEDED: close the matching issue,
 #                   but ONLY if the green run is at-or-ahead of the recorded
 #                   failing commit (GOL-1317: never close on a stale/older green)
@@ -127,6 +132,28 @@ runs:
           // ── Markers ────────────────────────────────────────────────────
           // Human dedup marker (matched to mint/update/close) — unchanged.
           const failMarker = (wf, br) => `<!-- d3-ci-failure:${wf}:${br} -->`;
+          // The merge queue runs CI on a throwaway branch whose name carries
+          // the PR number and the base sha — a NEW name per merge, so the
+          // (workflow, branch) dedup marker above can never match twice.
+          // Returns the base branch it was queued onto, or null.
+          const QUEUE_BRANCH_RE = /^gh-readonly-queue\/(.+)\/pr-\d+-[0-9a-f]{7,40}$/;
+          const queueBaseOf = (br) => {
+            const m = QUEUE_BRANCH_RE.exec(br ?? "");
+            return m ? m[1] : null;
+          };
+          // Failing-job names read back out of an issue body, in the exact
+          // shape `jobLines` below writes them.
+          const parseFailedJobs = (body) =>
+            [...(body ?? "").matchAll(/^- \[`(.+?)`\]\(/gm)].map((m) => m[1]);
+          // Set equality over job names. Empty on either side → NOT equal:
+          // a run-level failure with no job detail must never dedupe onto a
+          // job-level one (or vice versa).
+          const sameJobSet = (a, b) => {
+            const A = [...new Set(a)].sort();
+            const B = [...new Set(b)].sort();
+            if (!A.length || !B.length) return false;
+            return A.length === B.length && A.every((x, i) => x === B[i]);
+          };
           // Machine-readable record of the *latest* failing run, so close-on-
           // success can verify recency (GOL-1317). Kept current on every repeat
           // failure so a stale/older green run can never satisfy the compare.
@@ -275,6 +302,49 @@ runs:
                 );
                 return;
               }
+
+              // ── Merge-queue duplicate suppression (GOL-2807) ───────────
+              // A gate that is red on the branch tip is red for every commit
+              // built from it, so the merge queue re-discovers it on each
+              // throwaway queue branch — one fresh ownerless issue (and one
+              // DevOps triage heartbeat) per merge, on top of the issue
+              // already open for the base branch. GOL-2806 (`main`) and
+              // GOL-2807 (`gh-readonly-queue/main/pr-900-…`) were four
+              // minutes apart: the same two CVEs, the same one-line fix.
+              //
+              // When a queue-branch failure has the SAME failing-job set as
+              // the open issue for its base branch, it IS that failure seen
+              // again through the queue → record it there and mint nothing.
+              // A DIFFERENT job set means the queue build broke something the
+              // base branch didn't (e.g. a semantic conflict between two
+              // queued PRs) and still earns its own issue.
+              const queueBase = queueBaseOf(HEAD_BRANCH);
+              if (queueBase && failedJobs.length > 0) {
+                const baseMarker = failMarker(WF_NAME, queueBase);
+                const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+                  owner, repo, state: "open", labels: "ci-failure", per_page: 100,
+                });
+                const baseIssue = openIssues.find((i) => (i.body ?? "").includes(baseMarker));
+                if (baseIssue && sameJobSet(parseFailedJobs(baseIssue.body), failedJobs.map((j) => j.name))) {
+                  // Comment only — do NOT refresh the data marker. The queue
+                  // sha is not an ancestor of the base branch, so recording it
+                  // would make close-on-success compare `diverged` and leave
+                  // the issue open forever once the gate went green (GOL-1317).
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: baseIssue.number,
+                    body: [
+                      `Failed again through the merge queue, with the same failing job(s) as this issue — no duplicate issue was minted (GOL-2807).`,
+                      "",
+                      summary,
+                    ].join("\n"),
+                  });
+                  core.notice(
+                    `Suppressed duplicate ownerless ci-failure issue for queue branch \`${HEAD_BRANCH}\`: same failing job(s) as open issue #${baseIssue.number} for \`${queueBase}\` (GOL-2807).`,
+                  );
+                  return;
+                }
+              }
+
               await mintOrUpdateIssue(`Ownerless failure — no open PR for \`${HEAD_BRANCH}\`.`);
               return;
             }
