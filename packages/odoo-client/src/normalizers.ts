@@ -34,7 +34,17 @@ import type {
   PromoPreview,
   PromotionTier,
   ZoneLookupResult,
+  ApiCatalogNavNode,
+  ApiCatalogNavResponse,
+  CatalogNav,
+  CatalogNavNode,
+  CatalogNavCategory,
+  CatalogNodeKind,
+  CatalogFacet,
+  DepartmentStatus,
+  ComingSoonItem,
 } from "./types";
+import { CATALOG_FACETS } from "./types";
 
 /** Odoo Selection/Char fields serialize "" when unset — collapse to null so
  * the UI can `??`-fall-back uniformly instead of testing for empty strings. */
@@ -145,6 +155,15 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // shippable, and subject to the per-product carve-out.
     pickupOnly: raw.pickup_only ?? false,
     complianceExempt: raw.compliance_exempt ?? false,
+    // Department tree fields (GOL-2745). All three are left UNDEFINED when the
+    // backend omits them so the UI can tell "no department / no offers yet"
+    // apart from a real `false` — the deal badge and the conditional "On offer"
+    // facet both branch on that distinction.
+    department: raw.department
+      ? { id: raw.department.id ?? 0, slug: raw.department.slug, name: raw.department.name }
+      : null,
+    onOffer: raw.on_offer,
+    qualifiesForVolume: raw.qualifies_for_volume,
     featured: raw.grove_featured,
     variants: [],
   };
@@ -419,4 +438,115 @@ export function normalizeOrderDetail(raw: ApiOrderDetail): OrderDetail {
     amountTotal: raw.amount_total,
     currency: raw.currency.name,
   };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Catalog navigation (GOL-2745).
+
+   Odoo stores the two list-ish fields as free text — `grove_facets` is a Char
+   comma-list and `grove_coming_list` is a Text field with one `Name | detail`
+   per line — so parsing them is this layer's job, not the component's. Both
+   also accept an already-structured array, so a later grove_headless build can
+   serialize them properly without a lockstep storefront release.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const FACET_ALLOWLIST: ReadonlySet<string> = new Set(CATALOG_FACETS);
+
+/** Parse `grove_facets` into allowlisted facet keys, preserving Odoo's order
+ *  and dropping duplicates. An unknown key is dropped rather than rendered —
+ *  a typo in Odoo must never paint a filter control the storefront can't run. */
+function normalizeFacets(raw: ApiCatalogNavNode["facets"]): CatalogFacet[] {
+  const parts = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(",")
+      : [];
+  const out: CatalogFacet[] = [];
+  for (const part of parts) {
+    const key = String(part).trim().toLowerCase();
+    if (FACET_ALLOWLIST.has(key) && !out.includes(key as CatalogFacet)) {
+      out.push(key as CatalogFacet);
+    }
+  }
+  return out;
+}
+
+/** Parse one `Name | detail` line. A line with no pipe is all name, which is
+ *  the common case for a short list ("Ramps"). */
+function parseComingLine(line: string): ComingSoonItem | null {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return null;
+  const pipe = trimmed.indexOf("|");
+  if (pipe === -1) return { name: trimmed, detail: "" };
+  return {
+    name: trimmed.slice(0, pipe).trim(),
+    detail: trimmed.slice(pipe + 1).trim(),
+  };
+}
+
+/** Parse `grove_coming_list` (newline-delimited text, or a structured array). */
+function normalizeComingList(raw: ApiCatalogNavNode["coming_list"]): ComingSoonItem[] {
+  if (typeof raw === "string") {
+    return raw.split(/\r?\n/).map(parseComingLine).filter((i): i is ComingSoonItem => i !== null);
+  }
+  if (Array.isArray(raw)) {
+    const out: ComingSoonItem[] = [];
+    for (const entry of raw) {
+      if (typeof entry === "string") {
+        const parsed = parseComingLine(entry);
+        if (parsed) out.push(parsed);
+      } else if (entry && typeof entry === "object") {
+        const name = String(entry.name ?? "").trim();
+        if (name) out.push({ name, detail: String(entry.detail ?? "").trim() });
+      }
+    }
+    return out;
+  }
+  return [];
+}
+
+const NODE_KINDS: ReadonlySet<string> = new Set(["department", "category", "collection"]);
+const DEPT_STATUSES: ReadonlySet<string> = new Set(["live", "coming_soon", "hidden"]);
+
+function normalizeNavNode(
+  raw: ApiCatalogNavNode,
+  fallbackKind: CatalogNodeKind,
+): CatalogNavNode {
+  const kind = typeof raw.kind === "string" && NODE_KINDS.has(raw.kind)
+    ? (raw.kind as CatalogNodeKind)
+    : fallbackKind;
+  // An unrecognized status fails CLOSED to `hidden` (GOL-2745): a department
+  // whose lifecycle the storefront can't read must not be advertised on the tab
+  // row, because it may not be ready to be seen at all.
+  const status = typeof raw.status === "string" && DEPT_STATUSES.has(raw.status)
+    ? (raw.status as DepartmentStatus)
+    : "hidden";
+  const categories: CatalogNavCategory[] = (raw.children ?? []).map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    count: typeof c.count === "number" ? c.count : 0,
+  }));
+  return {
+    slug: raw.slug,
+    name: raw.name,
+    kind,
+    status,
+    teaser: emptyToNull(typeof raw.teaser === "string" ? raw.teaser.trim() : null),
+    facets: normalizeFacets(raw.facets),
+    comingList: normalizeComingList(raw.coming_list),
+    categories,
+    count:
+      typeof raw.count === "number"
+        ? raw.count
+        : categories.reduce((sum, c) => sum + c.count, 0),
+  };
+}
+
+/** Normalize `GET /catalog/nav`. Guilds is the first `collection` the backend
+ *  returns; anything else in `collections` is ignored until a second one has a
+ *  page to land on. */
+export function normalizeCatalogNav(raw: ApiCatalogNavResponse): CatalogNav {
+  const departments = (raw.departments ?? []).map((d) => normalizeNavNode(d, "department"));
+  const collections = (raw.collections ?? []).map((c) => normalizeNavNode(c, "collection"));
+  return { departments, guilds: collections[0] ?? null };
 }
