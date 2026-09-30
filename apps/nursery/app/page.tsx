@@ -11,6 +11,7 @@ import {
   barerootTimingShort,
   zoneShipNote,
   formatMonthDay,
+  depositByDate,
   DEPOSIT_CUTOVER,
 } from "../lib/fulfillment-mode";
 
@@ -62,6 +63,13 @@ export default async function HomePage() {
   const zoneNotes = shippingCalendar
     ? FIELD_NOTE_ZONES.map((zone) => ({ zone, ...zoneShipNote(now, shippingCalendar, zone) }))
     : null;
+  // The deposit RULE needs no feed (grove-sites#815): GOL-2233 is
+  // `soldOut || afterCutover` and the cutover is a local constant, so only the
+  // per-zone WINDOWS below are feed-gated. Falling back to `?.depositNow` (falsy
+  // when the feed is down) told a November shopper deposits start "after Oct 15"
+  // as though still ahead, while checkout would already take one. Stock is
+  // unknown here, so the date-only answer is the honest degraded value.
+  const depositNow = heroResolution?.depositNow ?? depositByDate(now);
 
   return (
     <>
@@ -220,9 +228,9 @@ export default async function HomePage() {
           <div className="field-notes-eyebrow">Field Notes — This Week</div>
           <h3>If you reserve, here&apos;s when your zone ships.</h3>
           <p>
-            {heroResolution?.depositNow
+            {depositNow
               ? "Reserve your whole order with a flat $10 deposit and we charge the balance when your trees ship, timed to your zone's window."
-              : `In-stock bareroot ships now and is charged in full. After ${formatMonthDay(DEPOSIT_CUTOVER)}, or once a size sells out, reserve with a flat $10 deposit per order and we charge the balance when your zone's window opens.`}
+              : `In-stock bareroot is charged in full today and ships in your zone's window. After ${formatMonthDay(DEPOSIT_CUTOVER)}, or once a size sells out, reserve with a flat $10 deposit per order and we charge the balance when your zone's window opens.`}
           </p>
           {heroResolution && (
             <p>
