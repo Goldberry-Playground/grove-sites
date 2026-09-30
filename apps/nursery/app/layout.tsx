@@ -42,15 +42,8 @@ export default async function RootLayout({
         <Providers>
           <header className="border-b border-primary/10 px-6 py-4">
             <nav className="mx-auto flex max-w-6xl items-center justify-between">
-              <Link href="/" className="flex items-center" aria-label={`${tenantConfig.name} — home`}>
-                <Image
-                  src="/brand/nursery-logo-horizontal.png"
-                  alt={tenantConfig.name}
-                  width={552}
-                  height={160}
-                  priority
-                  className="h-12 w-auto sm:h-14"
-                />
+              <Link href="/" className="text-xl font-bold font-display text-primary">
+                {tenantConfig.name}
               </Link>
               <ul className="flex gap-6 text-sm font-medium">
                 <li>
@@ -68,6 +61,15 @@ export default async function RootLayout({
           <main>{children}</main>
           <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-ink-soft">
             <div className="mx-auto flex max-w-6xl flex-col items-center gap-6">
+              {/* Nursery logo, centered atop the footer like Goldberry's
+                  brand-footer__logo; the header keeps the text name. */}
+              <Image
+                src="/brand/nursery-logo-horizontal.png"
+                alt={tenantConfig.name}
+                width={552}
+                height={160}
+                className="h-auto w-[clamp(220px,26vw,300px)]"
+              />
               {/* One-CTA-per-page (GOL-2178): the shared footer newsletter is the
                   lowest-priority capture tier, so it renders ONLY when the page
                   registers nothing higher-priority (a restock/state capture).
