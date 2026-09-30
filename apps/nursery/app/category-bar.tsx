@@ -33,6 +33,13 @@ async function fetchProductsForCounts(): Promise<Product[]> {
 interface CategoryBarProps {
   activeSlug?: string | null;
   /**
+   * Path the pills hang their query string off (GOL-2745). Defaults to `/shop`
+   * — the Orchard department — so every existing caller is unchanged. A
+   * department page passes its own `/shop/<dept>` so a pill click stays in that
+   * department instead of dropping the shopper back into the orchard.
+   */
+  basePath?: string;
+  /**
    * Product set the pill counts are derived from. When provided (e.g. /shop with
    * active zone/layer/sun/tag facets), the counts reflect those filters so the
    * bar stays honest against the grid. When omitted (the homepage, which has no
@@ -57,10 +64,12 @@ const NO_FACETS: FacetParams = {
   layer: null,
   sun: null,
   q: null,
+  offer: false,
 };
 
 export async function CategoryBar({
   activeSlug,
+  basePath = "/shop",
   products: provided,
   facets,
 }: CategoryBarProps) {
@@ -71,7 +80,7 @@ export async function CategoryBar({
     slug: "all",
     label: "All Catalog",
     // "All" clears the category but keeps the rest of the selection.
-    href: shopHref(current, { cat: null }),
+    href: shopHref(current, { cat: null }, basePath),
     count: products.length,
   };
 
@@ -87,7 +96,7 @@ export async function CategoryBar({
       slug: category.slug,
       label: category.label,
       // Merge this category onto the active facets (keep zone/tag/layer/sun/q).
-      href: shopHref(current, { cat: category.slug }),
+      href: shopHref(current, { cat: category.slug }, basePath),
       count: count > 0 ? count : undefined,
     };
   });
@@ -96,8 +105,8 @@ export async function CategoryBar({
   // no category is selected. Match on the merged hrefs so highlight tracks the
   // real (facet-preserving) links.
   const activeHref = activeSlug
-    ? shopHref(current, { cat: activeSlug })
-    : shopHref(current, { cat: null });
+    ? shopHref(current, { cat: activeSlug }, basePath)
+    : shopHref(current, { cat: null }, basePath);
 
   return (
     <CategoryBarView

@@ -41,6 +41,7 @@ const FACETS = (over: Partial<FacetParams> = {}): FacetParams => ({
   layer: null,
   sun: null,
   q: null,
+  offer: false,
   ...over,
 });
 

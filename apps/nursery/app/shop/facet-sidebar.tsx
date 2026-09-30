@@ -3,14 +3,33 @@
 import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { trackEvent } from "@grove/analytics";
+import type { CatalogNavNode } from "@grove/odoo-client";
 import { ZONE_OPTIONS, LAYER_OPTIONS, SUN_OPTIONS, type FacetOption } from "../../lib/facets";
+import { showsFacet } from "../../lib/catalog-nav";
 
 export interface FacetSidebarProps {
+  /**
+   * The department being browsed (GOL-2745). Its `grove_facets` decide which
+   * controls render: orchard facets like layer and sun must not land on seed
+   * and scion, which they don't describe. Null (or a department that declares
+   * none) falls back to today's orchard set, so a backend without the field
+   * never silently strips the shop's filters.
+   */
+  dept?: CatalogNavNode | null;
   activeCat: string | null;
   activeZone: number | null;
   activeTags: string[];
   activeLayer: string | null;
   activeSun: string | null;
+  /** "On offer" (`?offer=1`) selection. */
+  activeOffer?: boolean;
+  /**
+   * Whether to render the "On offer" control at all. The caller passes true
+   * only when at least one product in view is on offer (or the filter is
+   * already active, so it can be cleared) — spec decision 5's guard against a
+   * filter that always returns nothing between promotions.
+   */
+  offerAvailable?: boolean;
 }
 
 /** Sentence-case a facet value for its option label ("understory" → "Understory"). */
@@ -26,11 +45,14 @@ function titleCase(value: string): string {
  * custom event — the spec's zero-infra analytics for "which facets get used".
  */
 export function FacetSidebar({
+  dept = null,
   activeCat,
   activeZone,
   activeTags,
   activeLayer,
   activeSun,
+  activeOffer = false,
+  offerAvailable = false,
 }: FacetSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -57,6 +79,13 @@ export function FacetSidebar({
     });
   }
 
+  function toggleOffer(next: boolean) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next) params.set("offer", "1");
+    else params.delete("offer");
+    commit(params, "on_offer", next ? "1" : "(cleared)");
+  }
+
   function setSingle(key: string, value: string | null, facet: string) {
     const next = new URLSearchParams(searchParams.toString());
     if (value === null) next.delete(key);
@@ -69,7 +98,8 @@ export function FacetSidebar({
     (activeZone !== null ? 1 : 0) +
     activeTags.length +
     (activeLayer !== null ? 1 : 0) +
-    (activeSun !== null ? 1 : 0);
+    (activeSun !== null ? 1 : 0) +
+    (activeOffer ? 1 : 0);
   const hasFilters = activeCount > 0;
 
   return (
@@ -126,7 +156,11 @@ export function FacetSidebar({
       </div>
 
       <div id="facet-panel" className={`${open ? "block" : "hidden"} md:block`}>
-      {/* Zone (server-side filter via catalog API `zone`) */}
+      {/* Each group renders only when this department declares the facet
+          (GOL-2745). Mycoforestry has no use for a food-forest layer, and seed
+          and scion has no use for sun — a control that describes nothing is
+          worse than no control, because a shopper spends a tap finding out. */}
+      {showsFacet(dept, "zone") && (
       <FacetGroup label="Hardiness zone">
         <select
           value={activeZone ?? ""}
@@ -142,8 +176,10 @@ export function FacetSidebar({
           ))}
         </select>
       </FacetGroup>
+      )}
 
       {/* Layer (server-side filter via catalog API `layer`) */}
+      {showsFacet(dept, "layer") && (
       <FacetGroup label="Food-forest layer">
         <select
           value={activeLayer ?? ""}
@@ -159,8 +195,10 @@ export function FacetSidebar({
           ))}
         </select>
       </FacetGroup>
+      )}
 
       {/* Sun (server-side filter via catalog API `sun`) */}
+      {showsFacet(dept, "sun") && (
       <FacetGroup label="Sun">
         <select
           value={activeSun ?? ""}
@@ -176,6 +214,25 @@ export function FacetSidebar({
           ))}
         </select>
       </FacetGroup>
+      )}
+
+      {/* On offer (GOL-2745, spec decision 5). Rendered ONLY when something in
+          view is actually on offer — or when it's already active so it can be
+          cleared. Between promotions the control simply isn't there, instead of
+          sitting as a filter that always returns nothing. */}
+      {offerAvailable && showsFacet(dept, "on_offer") && (
+        <FacetGroup label="Offers">
+          <label className="flex items-center gap-2 text-sm cursor-pointer min-h-11">
+            <input
+              type="checkbox"
+              checked={activeOffer}
+              onChange={(e) => toggleOffer(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            <span>On offer</span>
+          </label>
+        </FacetGroup>
+      )}
 
       </div>
     </aside>

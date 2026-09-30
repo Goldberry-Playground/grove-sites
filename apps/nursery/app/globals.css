@@ -1276,3 +1276,442 @@ h1 em, h2 em, h3 em {
    @grove/ui-kit/styles.css above) and is mapped to --grove-* roles. The
    shared version also adds a :focus-visible ring (the GOL-109 focus token),
    an a11y improvement over this former local copy. — GOL-113 */
+
+/* ─────────────────────────────────────────────
+   Shop departments · Guilds · grouped search — GOL-2745
+   Spec: docs/superpowers/specs/2026-09-30-nursery-shop-departments-design.md
+
+   HIERARCHY (the thing to preserve when editing): three bands stack above the
+   grid, coarse → fine, and each is a DIFFERENT shape so a stranger can tell
+   them apart in two seconds:
+     1. .dept-nav   — departments. Parchment ground, display type, underline
+                      marker. "Which family of stock am I in?"
+     2. .cat-bar    — categories (@grove/ui-kit). Dark forest band, uppercase
+                      mono. "Which kind of tree?"
+     3. .facet-*    — facets. Sidebar / mobile disclosure. "Narrow it."
+   Two rows of identically-shaped pills would flatten that into noise.
+
+   Colour never carries state alone anywhere below: coming-soon is the WORD
+   "Soon" in a bordered badge, the active tab is an underline RULE plus weight,
+   and the deal badge is a bordered marigold chip with its own text. All of it
+   survives greyscale, deuteranopia, protanopia and tritanopia.
+   ───────────────────────────────────────────── */
+
+.dept-nav {
+  background: var(--parchment);
+  border-bottom: 1px solid color-mix(in srgb, var(--forest) 14%, transparent);
+}
+.dept-nav__inner {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 0 clamp(1rem, 3vw, 2rem);
+  /* The row scrolls sideways on a phone rather than wrapping (spec
+     § Responsive): the tab set stays one line, so the department axis never
+     turns into a two-row block that pushes the grid down a screen. */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.dept-nav__tabs {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(1rem, 2.2vw, 2rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+}
+.dept-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* 44px minimum tap target (GOL-2440) — the padding, not the text, carries it. */
+  min-height: 44px;
+  padding: 0.6rem 0;
+  white-space: nowrap;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-soft);
+  /* Reserve the active rule on every tab so switching department never shifts
+     the row's baseline by 2px. */
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.dept-tab:hover {
+  color: var(--forest);
+  border-bottom-color: color-mix(in srgb, var(--forest) 35%, transparent);
+}
+/* A real, high-contrast focus ring — NOT the `outline: none` + tint pattern
+   some older chrome here uses, which measured ~1.1:1 against the card fill
+   (GOL-2710). Forest on parchment clears 3:1 with room to spare. */
+.dept-tab:focus-visible,
+.dept-nav__guilds:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+/* Active department: weight + colour + a 2px rule. Three signals, so the
+   marker never depends on the colour being seen. */
+.dept-tab[data-active] {
+  color: var(--forest-deep);
+  font-weight: 600;
+  border-bottom-color: var(--forest);
+}
+.dept-tab__soon {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid color-mix(in srgb, var(--ink-soft) 40%, transparent);
+  border-radius: 999px;
+  padding: 2px 6px;
+  line-height: 1.3;
+}
+.dept-tab[data-active] .dept-tab__soon {
+  color: var(--forest-deep);
+  border-color: color-mix(in srgb, var(--forest) 45%, transparent);
+}
+
+/* Guilds — a right-aligned LINK, not a peer tab (spec decision 4): a guild can
+   hold products from several departments. The leading rule + the ring mark give
+   it a different shape so it never reads as "the fifth department". */
+.dept-nav__guilds {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.6rem 0 0.6rem clamp(1rem, 2.2vw, 2rem);
+  margin-left: auto;
+  border-left: 1px solid color-mix(in srgb, var(--forest) 14%, transparent);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--moss);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.dept-nav__guilds:hover { color: var(--forest); }
+.dept-nav__guilds[data-active] {
+  color: var(--forest-deep);
+  font-weight: 600;
+  border-bottom-color: var(--forest);
+}
+.dept-nav__guilds-mark { width: 16px; height: 16px; flex: none; }
+
+/* ─── Coming-soon department teaser ─── */
+
+.dept-teaser { margin-top: 0.4rem; }
+.dept-teaser__blurb {
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--forest);
+  max-width: 58ch;
+  margin-bottom: 2rem;
+}
+/* Two columns from 768px (spec § Responsive); stacked below, "what's coming"
+   first so the phone reader sees the substance before the ask. */
+.dept-teaser__cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+@media (min-width: 768px) {
+  .dept-teaser__cols { grid-template-columns: 1.15fr 1fr; gap: 3rem; }
+}
+.dept-coming__title,
+.dept-notify__title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 1rem;
+}
+.dept-coming__list { list-style: none; margin: 0; padding: 0; }
+.dept-coming__item {
+  padding: 0.8rem 0 0.8rem 1.4rem;
+  border-top: 1px solid var(--parchment-deep);
+  position: relative;
+}
+.dept-coming__item:last-child { border-bottom: 1px solid var(--parchment-deep); }
+/* A drawn leaf-ish mark rather than a bullet glyph — Newsreader tofus most
+   dingbats (GOL-2734), and this inherits currentColor. */
+.dept-coming__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 1.25rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px 0 999px 0;
+  background: var(--leaf-deep);
+}
+.dept-coming__name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--ink);
+  display: block;
+}
+.dept-coming__detail {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  display: block;
+  margin-top: 1px;
+}
+.dept-notify {
+  background: var(--parchment-soft);
+  border: 1px solid var(--parchment-deep);
+  padding: clamp(1.2rem, 2.5vw, 1.8rem);
+}
+/* The "Filters when live: …" note. Deliberately a sentence, not a row of
+   disabled controls: a greyed-out filter invites a tap that does nothing. */
+.dept-teaser__filters {
+  margin-top: 1.4rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--parchment-deep);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.dept-teaser__filters strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ─── Guilds ─── */
+
+.guild-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  .guild-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.guild-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--parchment-soft);
+  border: 1px solid var(--parchment-deep);
+  padding: clamp(1.3rem, 2.5vw, 1.8rem);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.guild-card:hover,
+.guild-card:focus-within {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -8px rgba(31, 63, 43, 0.22);
+  border-color: var(--leaf);
+}
+.guild-card__name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 0.35rem;
+}
+.guild-card__purpose {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-bottom: 1.1rem;
+}
+/* Plant chips — "what's actually in this guild", the question a shopper asks
+   first. Grouped by proximity + common region so they read as one set. */
+.guild-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.1rem;
+}
+.guild-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--forest-deep);
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--forest) 18%, transparent);
+  border-radius: 999px;
+  padding: 4px 9px;
+  line-height: 1.4;
+}
+.guild-chip--more {
+  background: transparent;
+  color: var(--ink-soft);
+  border-style: dashed;
+}
+.guild-card__from {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin-bottom: 1.2rem;
+}
+.guild-card__from strong { font-weight: 600; color: var(--moss); }
+/* Price + CTA pinned to the card foot so every card's action sits on one line
+   across the row, whatever the purpose copy's length. */
+.guild-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: auto;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--parchment-deep);
+}
+.guild-card__price {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: var(--forest-deep);
+}
+.guild-card__price--tbd {
+  font-size: 1rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.guild-card__cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.55rem 1.2rem;
+  background: var(--forest);
+  color: var(--parchment);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.guild-card__cta:hover { background: var(--forest-deep); }
+.guild-card__cta:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+}
+
+/* ─── Grouped cross-department search ─── */
+
+.search-groups { display: flex; flex-direction: column; gap: 2.5rem; }
+.search-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--parchment-deep);
+}
+.search-group__name {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.search-group__count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.search-group__soon {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid color-mix(in srgb, var(--ink-soft) 40%, transparent);
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+/* A coming-soon hit has no product record to link to — it links to the
+   department's notify-me instead, and says so. */
+.search-soon-card {
+  background: var(--parchment-soft);
+  border: 1px solid var(--parchment-deep);
+  padding: 1.2rem 1.4rem;
+}
+.search-soon-card__name {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.search-soon-card__detail {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.search-soon-card__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 0.4rem;
+  color: var(--orange-deep);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.search-soon-card__link:hover { color: var(--forest); }
+.search-soon-card__link:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+}
+
+/* ─── Deal badge ─── */
+
+/* Top-RIGHT so it never collides with the "Featured" badge at top-left, and
+   bordered so it reads as a distinct chip rather than a second Featured. The
+   text ("5+ save") carries the meaning; the marigold only draws the eye. */
+.var-badge--deal {
+  left: auto;
+  right: 10px;
+  background: var(--orange);
+  color: var(--forest-deep);
+  border: 1px solid var(--forest-deep);
+}
+
+/* ─── Shop grid density ─── */
+
+/* 2-up on phones (spec § Responsive). Scoped to a modifier so the homepage's
+   editorial `.var-grid` (with its is-anchor span) keeps its 1-up phone layout —
+   a dashboard-dense browse grid and a lede-card grid want different answers. */
+@media (max-width: 767px) {
+  .var-grid--dense {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+  .var-grid--dense .var-info { padding: 0.8rem; }
+  .var-grid--dense .var-name { font-size: 1rem; }
+  .var-grid--dense .var-foot { flex-wrap: wrap; gap: 0.25rem; }
+  .var-grid--dense .var-notify { padding: 0 0.8rem; }
+}
+
+/* Respect a reduced-motion preference across everything added here — the card
+   lift and the tab transitions are decoration, not feedback. */
+@media (prefers-reduced-motion: reduce) {
+  .dept-tab,
+  .dept-nav__guilds,
+  .guild-card,
+  .guild-card__cta {
+    transition: none;
+  }
+  .guild-card:hover,
+  .guild-card:focus-within {
+    transform: none;
+  }
+}
