@@ -24,10 +24,10 @@ import {
 } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
-  estimateBoxFloor,
   estimateTierShipping,
   GREEN_STATE_COUNT,
   hasBoxFeed,
+  estimateTierFloor,
   isPickupOnly,
   PICKUP_ONLY_FULFILLMENT,
   resolveRateTable,
@@ -267,17 +267,25 @@ export function ProductView({
   );
 
   // Stateless "from $X" floor for the Format cards before a shopper picks a state
-  // (GOL-1822). Under Box Engine v2 bareroot ships PER PACKED BOX, so the legacy
-  // per-tree `ShippingHint.fromShipping` (e.g. bareroot $12) both reads as a
-  // per-tree charge the engine won't honour and under-quotes the real per-box
-  // floor. `estimateBoxFloor` is the cheapest single-tree box rate over every
+  // (GOL-1822). Under Box Engine v2 shipping is priced PER PACKED BOX, so the
+  // legacy per-tree `ShippingHint.fromShipping` (e.g. bareroot $12) both reads as
+  // a per-tree charge the engine won't honour and under-quotes the real per-box
+  // floor. `estimateTierFloor` is the cheapest single-unit box rate over every
   // zone — a genuine per-box number that can never dip below the state-specific
   // estimate. Null on the legacy backend (no box feed), where the per-tier hint
   // still matches how that backend charges, so the cards fall back to it.
-  const boxFloor = useMemo(
-    () => (hasBoxFeed(shippingFeed) ? estimateBoxFloor(shippingFeed) : null),
-    [shippingFeed],
-  );
+  //
+  // Keyed BY TIER because potted re-joined the shippable set (GOL-2199, wired up
+  // in GOL-2757 / #813) and its cartons are dearer than the bareroot ones: one
+  // shared floor would quote the bareroot number on a potted card and under-
+  // quote the shopper.
+  const floorFor = useMemo(() => {
+    const cache = new Map<ShippingTier, number | null>();
+    return (tier: ShippingTier): number | null => {
+      if (!cache.has(tier)) cache.set(tier, estimateTierFloor(tier, shippingFeed));
+      return cache.get(tier) ?? null;
+    };
+  }, [shippingFeed]);
 
   // Distinct shipping tiers this product offers, for the state estimator.
   const estimatorTiers = useMemo<EstimatorTier[]>(() => {
@@ -502,9 +510,9 @@ export function ProductView({
                   // branch is the existing shippable copy. Before a state is
                   // picked, prefer the Box Engine v2 per-box floor over the
                   // legacy per-tree hint so the card can't advertise a per-tree
-                  // "$12" the engine won't honour (GOL-1822); `boxFloor` is null
+                  // "$12" the engine won't honour (GOL-1822); `floorFor` is null
                   // on the legacy backend, where the per-tier hint still holds.
-                  const fFromFloor = boxFloor ?? fHint.fromShipping;
+                  const fFromFloor = floorFor(fTier) ?? fHint.fromShipping;
                   const shipText = fPickupOnly
                     ? "farm pickup only"
                     : fEst != null
@@ -513,7 +521,9 @@ export function ProductView({
                         ? `not shipping to ${shipState} yet`
                         : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
-                  // (GOL-1313): bareroot follows today's mode, potted stays pickup.
+                  // (GOL-1313): bareroot follows today's mode; potted takes its
+                  // static hint, or the pickup line while the feed prices no
+                  // potted box (GOL-2199 / #813).
                   const {
                     label: fLabel,
                     fulfillment: fFulfillment,

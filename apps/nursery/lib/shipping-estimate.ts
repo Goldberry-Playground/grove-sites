@@ -3,6 +3,8 @@ import type {
   ShippingRateFeed,
   ShippingZoneMap,
   ShippingBoxId,
+  PottedBoxId,
+  ShippingRatedBoxId,
   PackingMode,
 } from "@grove/odoo-client";
 
@@ -223,13 +225,17 @@ export function resolveRateTable(fetched?: RateTable | null): RateTable {
   return fetched && Object.keys(fetched).length > 0 ? fetched : ZONE_RATE_TABLE;
 }
 
-// ── Box Engine v2 (schema-2) estimator leg — GOL-1114 ────────────────────────
-// Box Engine v2 (grove-odoo-modules #60) reprices bareroot shipping PER PACKED
-// BOX, not per tree, and drops potted from shipping entirely (potted is farm
-// pickup only — see `shipping_zones.py` SHIPPABLE_TIERS = {"bareroot"}). When
-// the backend serves the schema-2 `rateFeed()`, the legacy tier-keyed
-// `rates()` returns null, so the product page prices bareroot off the box feed
-// below and no longer has (or needs) a potted ship rate.
+// ── Box Engine v2 (schema-2) estimator leg — GOL-1114, GOL-2199 ──────────────
+// Box Engine v2 (grove-odoo-modules #60) reprices shipping PER PACKED BOX, not
+// per tree. When the backend serves the schema-2 `rateFeed()`, the legacy
+// tier-keyed `rates()` returns null, so the product page prices off the box feed
+// below.
+//
+// GOL-2199 (CEO directive, potted go-live 2026-09-08) put potted back on its own
+// shipping engine: `shipping_zones.py` now has
+// SHIPPABLE_TIERS = {"bareroot", "potted"}, and potted packs by UNIT COUNT into
+// POTTED_BOXES (`p24x10x4` 1-5, `p24x10x6` 6-10) rather than by the bareroot
+// length/mode ladder. Both engines price off the same per-zone rate rows.
 
 /** Tree length class (min box length in inches its height requires) for the
  *  product-card estimate. Mirrors backend `shipping_boxes.DEFAULT_LENGTH` — the
@@ -256,8 +262,8 @@ const DEFAULT_MODE: PackingMode = "leafed";
  * card's honest floor, exactly like the tier-keyed `estimateShipping` it
  * supersedes.
  *
- * Potted is never priced here: potted has no shippable box by design (it is
- * farm pickup only). Callers render potted as a pickup-only card instead.
+ * Bareroot only. Potted is priced by {@link estimatePottedShipping}, which packs
+ * by unit count against POTTED_BOXES instead of this length/mode ladder.
  */
 export function estimateBoxShipping(
   state: string | null | undefined,
@@ -321,11 +327,11 @@ export function estimateBoxFloor(
 /**
  * Per-tier shipping estimate for the product page, in whole dollars or `null`.
  * The single seam both the Format cards and the estimator panel price through,
- * so they can never disagree. Bareroot prices off the schema-2 box feed when
- * one is present (Box Engine v2), else off the legacy tier-keyed snapshot;
- * potted always uses the tier-keyed path — until the potted=farm-pickup-only
- * flip is ratified (GOL-1114 gate), potted keeps its existing behaviour and is
- * never routed through the box feed (which has no potted rate by design).
+ * so they can never disagree. Bareroot prices off the schema-2 box feed when one
+ * is present (Box Engine v2), else off the legacy tier-keyed snapshot. Potted
+ * does the same once the feed carries potted rate rows (GOL-2199 go-live, wired
+ * up in GOL-2757 / grove-sites#813) and otherwise stays on the legacy tier-keyed
+ * path, which is how the pre-v2 backend actually charges it.
  *
  * The box-feed path resolves the state's zone from `feed.zone_by_state`, which is
  * intrinsically live; the tier-keyed path resolves it from `opts.zoneMap` (from
@@ -339,6 +345,13 @@ export function estimateTierShipping(
 ): number | null {
   if (tier === "bareroot" && hasBoxFeed(opts.feed)) {
     return estimateBoxShipping(state, opts.feed);
+  }
+  // Potted prices off the box feed too once the feed carries potted rates
+  // (GOL-2199 go-live). It must NOT fall through to the legacy tier-keyed
+  // snapshot below: that table is PER TREE, while the potted engine charges per
+  // packed box, so the legacy number materially over-quotes a single unit.
+  if (tier === "potted" && hasPottedRates(opts.feed)) {
+    return estimatePottedShipping(state, opts.feed as ShippingRateFeed);
   }
   return estimateShipping(
     state,
@@ -358,20 +371,134 @@ export function hasBoxFeed(
   return !!feed && !!feed.packing?.boxes && Object.keys(feed.zones ?? {}).length > 0;
 }
 
+// ── Potted shipping (GOL-2199 go-live) ───────────────────────────────────────
+
+/** The potted box catalog ids, mirroring grove_headless `shipping_boxes.py`
+ *  POTTED_BOXES. Kept as a local mirror for the same reason {@link
+ *  ZONE_RATE_TABLE} is: the feed publishes potted RATE rows in `zones` but
+ *  `rate_feed()` builds `packing.boxes` from `BOXES` only, so the potted specs
+ *  never reach the client. Ids are stable (they name the carton dimensions). */
+export const POTTED_BOX_IDS: readonly PottedBoxId[] = ["p24x10x4", "p24x10x6"];
+
+/**
+ * Does this feed actually price potted shipping? True when at least one zone
+ * carries a rated potted box row.
+ *
+ * This is the client mirror of the backend's OWN fail-safe, and it is what makes
+ * the storefront and checkout agree without either side hardcoding a go-live
+ * date: `pack_potted` returns `None` when no potted box has a zone rate,
+ * `compute_order_shipping` propagates that `None`, and checkout then refuses the
+ * potted ship line. So "the feed has a rated potted row" is exactly the
+ * condition under which checkout will ship potted — which is why the pickup-only
+ * gate keys off THIS and not off a tier constant or a schema generation.
+ */
+export function hasPottedRates(feed: ShippingRateFeed | null | undefined): boolean {
+  if (!hasBoxFeed(feed)) return false;
+  return Object.values(feed.zones ?? {}).some(
+    (rates) =>
+      !!rates &&
+      POTTED_BOX_IDS.some((boxId) => typeof rates[boxId]?.base === "number"),
+  );
+}
+
+/**
+ * Cheapest potted shipping for ONE unit to `state`, in whole dollars, or `null`
+ * when unshippable (state outside the green list, or no rated potted box).
+ *
+ * Client mirror of grove_headless `single_potted_rate()`. Potted packs by unit
+ * count with no length gate and no season mode, and every catalog box holds at
+ * least one unit, so for a single unit the min-cost pack is simply the cheapest
+ * RATED potted box — no capacity or length filtering is needed (unlike the
+ * bareroot {@link estimateBoxShipping}, which must gate on both). Multi-unit
+ * consolidation is priced by the backend at checkout; this is the card's floor.
+ */
+export function estimatePottedShipping(
+  state: string | null | undefined,
+  feed: ShippingRateFeed,
+): number | null {
+  const zone = feed.zone_by_state[normalizeState(state)];
+  if (!zone) return null;
+  const rates = feed.zones[zone];
+  if (!rates) return null;
+  return cheapestPotted(rates);
+}
+
+/**
+ * The stateless "from $X" potted floor — the cheapest rated potted box over
+ * every zone, or `null` when the feed prices no potted box. The potted twin of
+ * {@link estimateBoxFloor}, and the reason the Format cards need a TIER-aware
+ * floor: the bareroot floor is materially cheaper than the potted one (a small
+ * bareroot carton undercuts the smallest potted carton), so showing the bareroot
+ * number on a potted card would under-quote the shopper.
+ */
+export function estimatePottedFloor(feed: ShippingRateFeed): number | null {
+  let cheapest: number | null = null;
+  for (const rates of Object.values(feed.zones)) {
+    if (!rates) continue;
+    const c = cheapestPotted(rates);
+    if (c != null && (cheapest == null || c < cheapest)) cheapest = c;
+  }
+  return cheapest;
+}
+
+/** Cheapest rated potted box within one zone's rate row, or `null`. */
+function cheapestPotted(
+  rates: Partial<Record<ShippingRatedBoxId, { base: number }>>,
+): number | null {
+  let cheapest: number | null = null;
+  for (const boxId of POTTED_BOX_IDS) {
+    const rate = rates[boxId]?.base;
+    if (typeof rate !== "number") continue;
+    if (cheapest == null || rate < cheapest) cheapest = rate;
+  }
+  return cheapest == null ? null : Math.round(cheapest);
+}
+
+/**
+ * The stateless "from $X" floor for a tier, or `null` when the feed prices none.
+ * The single seam the Format cards read so a potted card can never advertise the
+ * bareroot floor (GOL-2757 / grove-sites#813).
+ */
+export function estimateTierFloor(
+  tier: ShippingTier,
+  feed: ShippingRateFeed | null | undefined,
+  opts: { lengthClass?: number; mode?: PackingMode } = {},
+): number | null {
+  if (!hasBoxFeed(feed)) return null;
+  return tier === "potted" ? estimatePottedFloor(feed) : estimateBoxFloor(feed, opts);
+}
+
 /** Customer-facing timing line for a farm-pickup-only format. Paired with the
  *  pickup glyph in the UI so meaning never rides on colour alone. */
 export const PICKUP_ONLY_FULFILLMENT = "Farm pickup only";
 
 /**
  * True when this tier renders as farm-pickup-only rather than a shippable format
- * (GOL-1114, ratified 2026-08-03). Potted has no shippable box under Box Engine
- * v2 — `shipping_zones.py` `SHIPPABLE_TIERS = {"bareroot"}` — and checkout blocks
- * a potted ship line as pickup-only. We flip the storefront to match *exactly
- * when the box feed is live* (`hasBoxFeed`): on the legacy backend (no feed)
- * potted still ships and checkout still allows it, so gating on the feed keeps
- * the product page and checkout consistent in BOTH backend generations — never
- * "ships now" on the page but blocked at checkout, and never "pickup only" on the
- * page but charged shipping at checkout. Bareroot is always shippable.
+ * (GOL-1114, ratified 2026-08-03; potted re-opened by GOL-2199, storefront caught
+ * up in GOL-2757 / grove-sites#813).
+ *
+ * The invariant this gate exists to hold has never changed: the page and
+ * checkout must agree — never "ships" on the page but blocked at checkout, and
+ * never "pickup only" on the page but charged shipping at checkout. What changed
+ * is which signal tracks checkout.
+ *
+ * It used to be `hasBoxFeed`, because under the original Box Engine v2 the
+ * backend had `SHIPPABLE_TIERS = {"bareroot"}` and a schema-2 feed implied a
+ * potted ship-block. GOL-2199 (CEO directive, 2026-09-08) put potted back on its
+ * own engine — `SHIPPABLE_TIERS = {"bareroot", "potted"}` — so a live box feed no
+ * longer implies pickup-only, and the storefront was left asserting a policy the
+ * backend had dropped: it told shoppers potted cannot ship while the backend had
+ * priced potted boxes and would ship them.
+ *
+ * The signal that DOES track checkout is {@link hasPottedRates} — a rated potted
+ * row in the feed. That is precisely the backend's own fail-safe condition
+ * (`pack_potted` → `None` → checkout refuses the line), so the gate now
+ * self-synchronizes across every backend generation with no go-live date baked
+ * in: legacy feed → pickup-only as before; schema-2 without potted rates →
+ * pickup-only, matching the block checkout would apply; schema-2 with potted
+ * rates → quote a real rate, matching what checkout will charge.
+ *
+ * Bareroot is always shippable.
  *
  * `productPickupOnly` is the per-template override (Odoo `grove_pickup_only`,
  * GOL-2587 P1 → `Product.pickupOnly`, rendered GOL-2588). It OUTRANKS both the
@@ -387,5 +514,5 @@ export function isPickupOnly(
   productPickupOnly?: boolean | null,
 ): boolean {
   if (productPickupOnly) return true;
-  return tier === "potted" && hasBoxFeed(feed);
+  return tier === "potted" && hasBoxFeed(feed) && !hasPottedRates(feed);
 }
