@@ -27,9 +27,14 @@ import type {
  * ratified GOL-1302 copy (Josh, 2026-08-12), which supersedes the earlier 25%
  * GOL-1173 wording.
  *
- * Potted is out of scope: potted is farm-pickup-only always (no shippable box by
- * design — see `isPickupOnly` in `shipping-estimate.ts`). Only ask this resolver
- * about a bareroot-capable product.
+ * Potted is out of scope, but NOT because it cannot ship: GOL-2199 (2026-09-08)
+ * put potted back on its own shipping engine, and the storefront caught up in
+ * GOL-2757 / grove-sites#813 — see `isPickupOnly` in `shipping-estimate.ts`,
+ * which now gates on whether the feed actually prices a potted box rather than
+ * asserting potted is pickup-only. It is out of scope here because potted packs
+ * and ships by UNIT COUNT on the normal fulfilment SLA and never enters the
+ * dormant-window / deposit state machine this resolver models. Only ask this
+ * resolver about a bareroot-capable product.
  *
  * The calendar drives ship-window TIMING (which season a tree ships in, and the
  * peat & bagged leafed fallback). The CHARGE shape (deposit vs charged-in-full)

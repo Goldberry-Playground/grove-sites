@@ -49,9 +49,10 @@ export default async function ProductDetailPage({
   //   • rates()    — legacy tier-keyed table (schema 1); null once the backend
   //                  is on Box Engine v2. Drives the potted/bareroot snapshot.
   //   • rateFeed() — schema-2 Box Engine v2 feed (box-keyed zones + packing
-  //                  catalog); null on the legacy backend. Drives bareroot's
-  //                  per-box estimate and carries the pickup-only truth for
-  //                  potted (no potted box by design). GOL-1114.
+  //                  catalog); null on the legacy backend. Drives the per-box
+  //                  estimate for BOTH tiers, and carries the pickup-only truth:
+  //                  potted reads as pickup-only only while the feed prices no
+  //                  potted box (GOL-1114, re-opened by GOL-2199 / #813).
   // Exactly one is non-null on a configured backend; both null → the client's
   // bundled snapshot. Best-effort and drift-safe — neither call ever blocks.
   //

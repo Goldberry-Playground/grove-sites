@@ -335,6 +335,22 @@ export interface ShippingZoneMap {
  * against the known catalog — the backend rate-checker only ever emits these. */
 export type ShippingBoxId = "small" | "large";
 
+/** Box-catalog id from grove_headless `models/shipping_boxes.py` POTTED_BOXES —
+ * the potted / peat-and-bagged engine (GOL-2031, go-live GOL-2199 2026-09-08).
+ * `p24x10x4` holds 1-5 units, `p24x10x6` holds 6-10; both are 24" long and pack
+ * by UNIT COUNT with no season mode, which is why they are a separate union
+ * from {@link ShippingBoxId} rather than more members of it.
+ *
+ * These ids appear as RATE rows in the feed's `zones` map, but NOT in
+ * `packing.boxes`: `rate_feed()` serializes its box catalog from `BOXES` only,
+ * so the potted specs (length/capacity) are backend-internal. A client can
+ * therefore price potted from the feed but cannot mirror the potted packer from
+ * it — see `hasPottedRates` in the nursery app's `shipping-estimate.ts`. */
+export type PottedBoxId = "p24x10x4" | "p24x10x6";
+
+/** Any box id that can carry a per-box rate row in the feed's `zones` map. */
+export type ShippingRatedBoxId = ShippingBoxId | PottedBoxId;
+
 /** Packing mode from `shipping_boxes.py` MODES. Trees are dormant or leafed-out
  * at the nursery by season, which drives per-box capacity. */
 export type PackingMode = "dormant" | "leafed";
@@ -350,7 +366,7 @@ export interface ShippingBoxRate {
  * the legacy tier-keyed {@link ShippingRateTable}. */
 export type ShippingBoxRateTable = Record<
   string,
-  Partial<Record<ShippingBoxId, ShippingBoxRate>>
+  Partial<Record<ShippingRatedBoxId, ShippingBoxRate>>
 >;
 
 /** One box in the catalog, as surfaced by the feed's `packing.boxes` — a subset
