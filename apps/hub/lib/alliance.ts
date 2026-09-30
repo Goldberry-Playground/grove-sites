@@ -133,7 +133,7 @@ const MEMBERS: MemberSpec[] = [
     title: "George George George Woodworking",
     blurb: "Handcrafted hardwood furniture & custom millwork",
     socials: [],
-    logo: null, // no logo file yet
+    logo: "/brand/alliance/ggg-badge.png", // Canva design DAHWpBUxMKM
     monogram: "GGG",
   },
 ];
