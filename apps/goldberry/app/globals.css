@@ -2303,3 +2303,182 @@ h1 em, h2 em, h3 em, h4 em {
 .grove-guide ol { list-style: decimal; }
 .grove-guide li { margin: 0.15rem 0; }
 .grove-guide li::marker { color: var(--color-primary, currentColor); }
+
+/* ─────────────────────────────────────────────
+   Journal (/blog) — GOL-2756
+
+   This page was copy-pasted from the ggg wireframe and still carried ggg's
+   vocabulary: `.catalog` / `.cat-card` / `--bone` / `--amber` / `--walnut-light`
+   are defined in apps/ggg, NOT here, so every rule silently no-op'd and the
+   journal rendered as unstyled HTML. These `.journal-*` rules are goldberry's
+   own, built from the brand-guide tokens above.
+
+   Production must never render fabricated posts, so the two "no content"
+   outcomes are first-class surfaces rather than a bare <p>. They share one
+   icon+text layout and are told apart by ICON SHAPE, heading text and BORDER
+   STYLE (solid vs dashed) — meaning survives grayscale and colour-vision
+   deficiencies (WCAG 1.4.1). Colour is a secondary cue only: Forest Command
+   Deep for the friendly "coming soon" (6.8:1 on the tinted empty bg), retained
+   Plum for "something broke" (9.2:1). Deliberately not the red/green pair.
+   ───────────────────────────────────────────── */
+.journal {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 5vw, 4rem) clamp(1rem, 4vw, 2.5rem);
+}
+
+.journal-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 1.5rem;
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+  border-bottom: 3px double var(--chestnut-reserve);
+}
+/* Dialed back from the global H1 scale (≈68px): this is a section index, not
+   the home hero, and the count needs to sit beside it without wrapping. */
+.journal-head h1 {
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  line-height: 1.05;
+  color: var(--chestnut-reserve-deep);
+  margin: 0;
+}
+.journal-head h1 span { color: var(--forest-command-deep); }
+.journal-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chestnut-reserve);
+  margin: 0;
+}
+
+.journal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: clamp(1.25rem, 3vw, 2rem);
+}
+.journal-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--ivory-mist-soft);
+  border: 1px solid var(--ivory-mist-deep);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.journal-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -12px rgba(61, 40, 16, 0.25);
+}
+.journal-card__img {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--ivory-mist-deep);
+}
+.journal-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: clamp(1.1rem, 2.5vw, 1.5rem);
+}
+.journal-card__date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--forest-command-deep);
+  margin: 0 0 0.5rem;
+}
+.journal-card__title {
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--chestnut-reserve-deep);
+  margin: 0 0 0.6rem;
+}
+.journal-card__excerpt {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--ink) 80%, var(--ivory-mist));
+  margin: 0 0 1rem;
+  flex: 1;
+}
+.journal-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--ivory-mist-deep);
+}
+.journal-card__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 80%, var(--ivory-mist));
+}
+
+.journal-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.25rem, 4vw, 2rem);
+  border-radius: 12px;
+  margin: 0 0 2rem;
+}
+.journal-state__icon {
+  width: clamp(40px, 6vw, 52px);
+  height: clamp(40px, 6vw, 52px);
+  margin-bottom: 0.3rem;
+}
+.journal-state__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-weight: 600;
+  color: var(--chestnut-reserve-deep);
+  margin: 0;
+}
+.journal-state__body {
+  color: color-mix(in srgb, var(--ink) 82%, var(--ivory-mist));
+  max-width: 48ch;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin: 0;
+}
+.journal-state__link {
+  color: var(--chestnut-reserve);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+.journal-state__link:hover { color: var(--forest-command-deep); }
+
+.journal-empty {
+  border: 1px dashed rgba(97, 115, 51, 0.45);
+  background: color-mix(in srgb, var(--forest-command) 5%, var(--ivory-mist-soft));
+}
+.journal-empty .journal-state__icon { color: var(--forest-command-deep); }
+
+.journal-error {
+  border: 1px solid var(--plum);
+  background: color-mix(in srgb, var(--plum) 6%, var(--ivory-mist-soft));
+}
+.journal-error .journal-state__icon { color: var(--plum); }
+.journal-error .journal-state__title { color: var(--plum-deep); }
+
+.journal-capture {
+  max-width: 36rem;
+  margin: clamp(2.5rem, 5vw, 3.5rem) auto 0;
+  padding: 0 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journal-card { transition: none; }
+  .journal-card:hover { transform: none; }
+}
