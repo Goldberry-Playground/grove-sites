@@ -1186,6 +1186,9 @@ a { color: inherit; text-decoration: none; }
    Goldberry Ivory Mist and every subtitle one pale Harvest Gold, chosen so
    both clear 4.5:1 on all five cards (design canvas 2026-09-29).
    ───────────────────────────────────────────── */
+/* Flat parchment like the design canvas: the hub's paper-grain overlay
+   (body::before) is switched off on this page only. */
+body:has(.hub-links)::before { display: none; }
 .hub-links {
   max-width: 440px;
   margin: 0 auto;
