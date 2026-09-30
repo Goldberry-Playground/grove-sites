@@ -179,9 +179,9 @@ export default async function ProductDetailPage({
         zoneMax={product.facts?.zoneMax ?? null}
       />
 
-      <SpecBlock facts={product.facts} />
-
       <GrowingGuide html={guideHtml} />
+
+      <SpecBlock facts={product.facts} />
 
       <CompanionsStrip companions={companions} odooBase={odooBase} />
     </div>
