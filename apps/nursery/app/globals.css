@@ -1313,6 +1313,11 @@ h1 em, h2 em, h3 em {
   color: var(--grove-color-ink-soft);
   text-decoration: none;
 }
+.journal-post__back-arrow {
+  width: 1.1em;
+  height: 1.1em;
+  flex: none;
+}
 .journal-post__back a:hover {
   color: var(--forest);
   text-decoration: underline;
@@ -1374,6 +1379,9 @@ h1 em, h2 em, h3 em {
   color: var(--ink);
   background: var(--parch-soft);
   border-radius: 999px;
+  /* The chip fill is one step off the page, which on its own reads as a smudge
+     rather than an object. The border is what makes it a chip. */
+  border: 1px solid var(--parch-deep);
   padding: 0.35rem 0.75rem;
 }
 
@@ -1408,7 +1416,17 @@ h1 em, h2 em, h3 em {
   background: rgba(249, 243, 226, 0.6);
 }
 .journal-missing .journal-state__icon { color: var(--grove-color-ink-soft); }
-.journal-missing .journal-state__link { margin-top: 0.4rem; }
+/* On the 404 this link is the page's one action, standing on its own rather
+   than sitting inline in a sentence — so it gets a real 44px target. Scoped to
+   .journal-missing: the list route's states use the same class INLINE inside a
+   paragraph, where a 44px box would wreck the line box (and where WCAG 2.5.8
+   exempts it anyway). */
+.journal-missing .journal-state__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 0.4rem;
+}
 
 /* Article-scale prose. `.rich-text` is tuned for an in-page block (prose-sm,
    its own 68ch measure); a journal entry IS the page, so step the size up and

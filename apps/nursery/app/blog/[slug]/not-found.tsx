@@ -36,7 +36,7 @@ export default function BlogPostNotFound() {
         <p className="journal-state__title">We couldn&rsquo;t find that entry</p>
         <p className="journal-state__body">
           The link may be out of date, or the note may have been taken down.
-          Everything we&rsquo;ve published is still in {tenantConfig.copy.blogHeading}.
+          Everything else we&rsquo;ve published is still there.
         </p>
         <Link href="/blog" className="journal-state__link">
           Back to {tenantConfig.copy.blogHeading}

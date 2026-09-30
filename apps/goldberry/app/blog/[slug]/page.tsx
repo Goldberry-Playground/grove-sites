@@ -59,7 +59,7 @@ export default async function BlogPostPage({
             yours — the note is still there, and so are the trees. Try again in
             a moment.{" "}
             <Link href="/blog" className="journal-state__link">
-              Back to {tenantConfig.copy.blogHeading}
+              Back to the journal
             </Link>
             .
           </p>
@@ -143,7 +143,7 @@ export default async function BlogPostPage({
           <p className="journal-state__body">
             The entry is published but has no text yet. Check back shortly.{" "}
             <Link href="/blog" className="journal-state__link">
-              Back to {tenantConfig.copy.blogHeading}
+              Back to the journal
             </Link>
             .
           </p>
@@ -162,7 +162,7 @@ export default async function BlogPostPage({
 
       <footer className="journal-post__foot">
         <Link href="/blog" className="journal-post__more">
-          More from {tenantConfig.copy.blogHeading}
+          More from the journal
         </Link>
       </footer>
     </article>
@@ -173,7 +173,22 @@ function JournalBack() {
   return (
     <nav aria-label="Breadcrumb" className="journal-post__back">
       <Link href="/blog">
-        <span aria-hidden="true">&larr;</span> {tenantConfig.copy.blogHeading}
+        {/* SVG rather than a "←" character: the mono face this row is set in
+            has no arrow glyph on every platform, and a tofu box in the
+            breadcrumb is not a rounding error a reader forgives. */}
+        <svg
+          className="journal-post__back-arrow"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M15 18 9 12l6-6" />
+        </svg>
+        {tenantConfig.copy.blogHeading}
       </Link>
     </nav>
   );
