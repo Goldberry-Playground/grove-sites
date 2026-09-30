@@ -72,7 +72,7 @@ const MEMBERS: MemberSpec[] = [
     group: "farm",
     siteName: "Goldberry Grove Farm",
     title: "Goldberry Grove",
-    blurb: "Agroforestry food forest & chestnut orchard, open for U-pick",
+    blurb: "Agroforestry U-pick orchard and forest farm",
     logo: "/brand/alliance/goldberry-badge.png",
     monogram: "GB",
   },
