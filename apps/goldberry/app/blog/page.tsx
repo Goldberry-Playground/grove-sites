@@ -127,7 +127,17 @@ export default async function BlogPage() {
                   })}
                   {post.reading_time > 0 && ` · ${post.reading_time} min read`}
                 </p>
-                <h2 className="journal-card__title">{post.title}</h2>
+                {/* GOL-2788: the card used to be a dead end — excerpt and
+                    nothing more. The link wraps only the TITLE (so a screen
+                    reader announces "Bare-root season opens in November", not
+                    the whole card read aloud as one link name) and the
+                    ::after overlay in globals.css makes the rest of the card
+                    a click target. */}
+                <h2 className="journal-card__title">
+                  <Link href={`/blog/${post.slug}`} className="journal-card__link">
+                    {post.title}
+                  </Link>
+                </h2>
                 {post.excerpt && (
                   <p className="journal-card__excerpt">{post.excerpt}</p>
                 )}

@@ -1,11 +1,17 @@
 import type { GhostConfig, Post, Page, Author, GhostClient } from "./types";
+import { GhostError } from "./errors";
 import { buildUrl } from "./url";
 
 async function ghostFetch<T>(url: string, resource: string): Promise<T> {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Ghost API error: ${response.status} ${response.statusText}`);
+    // GOL-2788: carries the status so callers can separate "no such post"
+    // (render a 404) from "Ghost is down" (render the error state).
+    throw new GhostError(
+      `Ghost API error: ${response.status} ${response.statusText}`,
+      response.status,
+    );
   }
 
   const data = (await response.json()) as Record<string, T>;
@@ -32,9 +38,13 @@ export function createGhostClient(config: GhostConfig): GhostClient {
         const url = buildUrl(config, `posts/slug/${slug}`, {
           include: "tags,authors",
         });
-        const posts = await ghostFetch<Post[]>(url, "posts");
+        // `?? []` guards a 200 whose body has no `posts` key: `ghostFetch`
+        // returns `data[resource]`, so that used to throw a TypeError on
+        // `.length` — an outage-shaped failure for what is just an empty
+        // result. Degrade to the not-found path instead (GOL-2756/GOL-2788).
+        const posts = (await ghostFetch<Post[]>(url, "posts")) ?? [];
         if (!posts.length) {
-          throw new Error(`Post with slug "${slug}" not found`);
+          throw new GhostError(`Post with slug "${slug}" not found`, 404);
         }
         return posts[0];
       },
@@ -43,9 +53,9 @@ export function createGhostClient(config: GhostConfig): GhostClient {
     pages: {
       async get(slug) {
         const url = buildUrl(config, `pages/slug/${slug}`);
-        const pages = await ghostFetch<Page[]>(url, "pages");
+        const pages = (await ghostFetch<Page[]>(url, "pages")) ?? [];
         if (!pages.length) {
-          throw new Error(`Page with slug "${slug}" not found`);
+          throw new GhostError(`Page with slug "${slug}" not found`, 404);
         }
         return pages[0];
       },
