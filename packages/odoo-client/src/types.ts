@@ -95,6 +95,30 @@ export interface ApiProductListItem {
    * to `website_published` (see normalizeProductListItem).
    */
   in_stock?: boolean;
+  /**
+   * Farm-pickup-only override (Odoo `grove_pickup_only`, GOL-2587 P1). `true`
+   * when this template must never ship, regardless of its shipping tier — the
+   * checkout gate rejects any SHIP order containing the line with a plain 400.
+   * The storefront reuses the existing potted pickup-only treatment for it
+   * (GOL-2588) so the page can never promise shipping the backend will refuse.
+   * Emitted on both the list and detail endpoints. Optional so mocks and a
+   * grove_headless build that predates the field stay shippable.
+   */
+  pickup_only?: boolean;
+  /**
+   * Compliance carve-out escape hatch (Odoo `grove_compliance_exempt`, GOL-2587
+   * P1). `true` when an admin has cleared this template's components by hand: the
+   * checkout gate then SKIPS the per-line GOL-2132 carve-out evaluation and the
+   * line ships anywhere **on the green list**.
+   *
+   * It does NOT widen the green list — a state outside `green_states` is still
+   * unshippable for an exempt product — so the storefront's per-state gate stays
+   * green-list-only (GOL-2588). What the flag removes is the per-product
+   * regulated-state block that fail-safed an unparseable "Bundle: …" botanical
+   * into all 9 regulated states. Emitted on both list and detail. Optional so
+   * mocks and pre-field payloads default to "not exempt".
+   */
+  compliance_exempt?: boolean;
 }
 
 /** Paginated product list response. */
@@ -531,6 +555,29 @@ export interface Product {
    * the frontend only reads this flag (`buyStateFor`'s `capReached`).
    */
   preorderCapReached?: boolean;
+  /**
+   * Farm-pickup-only override (Odoo `grove_pickup_only`, GOL-2587 P1). `true`
+   * when this product must never ship, whatever its shipping tier — checkout
+   * rejects a SHIP order containing the line with a plain 400. The storefront
+   * reuses the potted pickup-only treatment for it (GOL-2588): every Format
+   * reads "Farm pickup only", the shipping estimator is hidden, the buy button
+   * reserves for pickup, and the checkout form locks fulfillment to pickup. The
+   * normalizer defaults it to false so mocks and pre-field payloads stay
+   * shippable.
+   */
+  pickupOnly?: boolean;
+  /**
+   * Compliance carve-out exemption (Odoo `grove_compliance_exempt`, GOL-2587 P1).
+   * `true` when checkout skips the per-line GOL-2132 carve-out for this product
+   * and the line ships anywhere **on the green list**.
+   *
+   * Read this as "no per-PRODUCT regulated-state block", never as "ships
+   * everywhere": the per-STATE green-list gate (`shipsTo`) is unchanged for an
+   * exempt product, so the storefront must not widen its state select or suppress
+   * the state-level "we can't ship living trees there yet" notice on the strength
+   * of this flag (GOL-2588). Defaults to false in the normalizer.
+   */
+  complianceExempt?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**

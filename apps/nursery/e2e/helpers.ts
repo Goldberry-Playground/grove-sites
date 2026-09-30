@@ -85,9 +85,40 @@ export async function collectProductHrefs(page: Page): Promise<string[]> {
   return [...new Set(hrefs)];
 }
 
-/** The two enabled inline buy CTAs the shop grid can render (see `buyStateFor`):
- *  "Add to Cart" for an in-stock item, "Reserve" for a bareroot preorder. */
-export type BuyLabel = "Add to Cart" | "Reserve";
+/** The enabled inline buy CTAs a PDP can render (see `buyStateFor`):
+ *  "Add to Cart" for an in-stock item, "Reserve" for a bareroot preorder, and
+ *  "Reserve for farm pickup" for a farm-pickup-only line (GOL-2588 — the label is
+ *  the buy box's own signal that the order cannot ship, so a spec that needs a
+ *  SHIPPABLE product must not match it). */
+export type BuyLabel = "Add to Cart" | "Reserve" | "Reserve for farm pickup";
+
+/** Every buy CTA, in the order a spec that just needs *a* product in the cart
+ *  should prefer them. */
+export const ANY_BUY_LABEL: BuyLabel[] = [
+  "Add to Cart",
+  "Reserve",
+  "Reserve for farm pickup",
+];
+
+/**
+ * Like {@link findProductByCta} but returns `null` instead of throwing when the
+ * QA catalog holds no matching product. Use it for specs that are conditional on
+ * seeded data (a named bundle, a pickup-only fixture) and should `test.skip`
+ * rather than fail — an absent fixture is a data gap, not a storefront
+ * regression. Any other error still propagates.
+ */
+export async function findProductByCtaOrNull(
+  page: Page,
+  label: BuyLabel | BuyLabel[],
+  opts: Parameters<typeof findProductByCta>[2] = {},
+): Promise<FoundProduct | null> {
+  try {
+    return await findProductByCta(page, label, opts);
+  } catch (error) {
+    if (error instanceof Error && /No product with an enabled/.test(error.message)) return null;
+    throw error;
+  }
+}
 
 export interface FoundProduct {
   href: string;

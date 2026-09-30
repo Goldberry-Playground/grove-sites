@@ -24,6 +24,13 @@ interface BrandTrust {
    * ship-vs-pickup fieldset wording.
    */
   pickup: GrovePickupCopy | null;
+  /**
+   * Why the checkout locks fulfillment to pickup when the cart holds a
+   * farm-pickup-only line (GOL-2588). Rides the same brand seam as `pickup` and
+   * for the same reason: it names a physical location, so it must never appear on
+   * a storefront that has none. `null` wherever `pickup` is null.
+   */
+  pickupOnlyNote: string | null;
 }
 
 /**
@@ -65,6 +72,10 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
       shipNote:
         "We ship live trees to your address during the planting window for your growing zone.",
     },
+    // Names the line so the buyer knows WHICH tree removed the shipping option,
+    // and says what to do if they wanted it shipped. No em dash (GOL-589).
+    pickupOnlyNote:
+      "Your cart has a tree we only release at the farm, so this order is farm pickup. Pick it up at our West Virginia nursery with no shipping charge; West Virginia sales tax applies, and we'll email you when it's ready. Remove that line if you'd rather ship the rest.",
   },
   ggg: {
     cart: [
@@ -80,6 +91,7 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     ],
     // No physical pickup point — GGG ships handmade woodwork only.
     pickup: null,
+    pickupOnlyNote: null,
   },
   goldberry: {
     cart: [
@@ -95,5 +107,6 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     ],
     // No physical pickup point — goldberry ships pantry goods only.
     pickup: null,
+    pickupOnlyNote: null,
   },
 };

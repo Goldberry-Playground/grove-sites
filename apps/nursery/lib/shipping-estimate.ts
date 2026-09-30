@@ -372,10 +372,20 @@ export const PICKUP_ONLY_FULFILLMENT = "Farm pickup only";
  * the product page and checkout consistent in BOTH backend generations — never
  * "ships now" on the page but blocked at checkout, and never "pickup only" on the
  * page but charged shipping at checkout. Bareroot is always shippable.
+ *
+ * `productPickupOnly` is the per-template override (Odoo `grove_pickup_only`,
+ * GOL-2587 P1 → `Product.pickupOnly`, rendered GOL-2588). It OUTRANKS both the
+ * tier and the feed generation, because the backend gate it mirrors does too:
+ * checkout rejects a SHIP order containing such a line with a plain 400 whatever
+ * the shipping tier, so a Bareroot line on a pickup-only template must read
+ * "Farm pickup only" on the page even though bareroot is otherwise always
+ * shippable. Unset/false leaves the potted rule exactly as it was.
  */
 export function isPickupOnly(
   tier: ShippingTier,
   feed: ShippingRateFeed | null | undefined,
+  productPickupOnly?: boolean | null,
 ): boolean {
+  if (productPickupOnly) return true;
   return tier === "potted" && hasBoxFeed(feed);
 }

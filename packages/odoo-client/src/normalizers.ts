@@ -139,6 +139,12 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // identical to a stock sell-out. Default false so mocks and pre-field
     // payloads stay uncapped.
     preorderCapReached: raw.preorder_cap_reached ?? false,
+    // Fulfillment flags from the GOL-2587 P1 hotfix, served on BOTH list and
+    // detail by `_fulfillment_flags`. Both default false so mocks and a
+    // grove_headless build that predates the fields behave exactly as before:
+    // shippable, and subject to the per-product carve-out.
+    pickupOnly: raw.pickup_only ?? false,
+    complianceExempt: raw.compliance_exempt ?? false,
     featured: raw.grove_featured,
     variants: [],
   };
@@ -190,6 +196,12 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // Preorder cap crossed (GOL-2171): buy box flips to sold-out + restock even
     // for a preorder format. Default false so older payloads stay uncapped.
     preorderCapReached: raw.preorder_cap_reached ?? false,
+    // Fulfillment flags from the GOL-2587 P1 hotfix, served on BOTH list and
+    // detail by `_fulfillment_flags`. Both default false so mocks and a
+    // grove_headless build that predates the fields behave exactly as before:
+    // shippable, and subject to the per-product carve-out.
+    pickupOnly: raw.pickup_only ?? false,
+    complianceExempt: raw.compliance_exempt ?? false,
     featured: raw.grove_featured,
     variants: (raw.variants ?? [])
       .map(normalizeVariant)

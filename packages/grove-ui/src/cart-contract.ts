@@ -31,6 +31,13 @@ export interface GroveCartLineItem {
   imageUrl?: string;
   /** Quantity of this variant in the cart. */
   quantity: number;
+  /**
+   * Farm-pickup-only line: it can never be shipped (GOL-2587 P1 / GOL-2588). The
+   * kit reads it to lock the checkout Fulfillment choice to pickup; it is never a
+   * colour-only signal. Optional, so a consumer that has no pickup point (or a
+   * cart persisted before the field existed) is unaffected.
+   */
+  pickupOnly?: boolean;
 }
 
 /**
