@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "../Button";
+import { ArrowRight, TrustIcon, WarningIcon } from "../icons";
 import { TierNudge } from "../TierNudge";
 import {
   type GroveCartLineItem,
@@ -289,7 +290,7 @@ export function CheckoutPage({
   onPlaceOrder,
   paymentMethods = DEFAULT_PAYMENT_METHODS,
   hidePaymentMethods = false,
-  submitLabel = "Place Order →",
+  submitLabel = "Place Order",
   submitPendingLabel = "Placing Order…",
   paymentNote,
   reassure,
@@ -520,7 +521,13 @@ export function CheckoutPage({
             disabled={submitting}
             className="grove-checkout__banner-cta"
           >
-            {submitting ? submitPendingLabel : submitLabel}
+            {submitting ? (
+                submitPendingLabel
+              ) : (
+                <>
+                  {submitLabel} <ArrowRight />
+                </>
+              )}
           </button>
         </div>
       </div>
@@ -530,7 +537,7 @@ export function CheckoutPage({
           <div className="grove-checkout__trust-inner">
             {trustItems.map((t, i) => (
               <span key={i} className="grove-checkout__trust-item">
-                <span aria-hidden="true">{t.icon}</span> {t.text}
+                <TrustIcon name={t.icon} /> {t.text}
               </span>
             ))}
           </div>
@@ -907,7 +914,7 @@ export function CheckoutPage({
                     className="grove-checkout__error grove-checkout__promo-error"
                   >
                     <span aria-hidden="true" className="grove-checkout__error-icon">
-                      ⚠
+                      <WarningIcon />
                     </span>
                     {promoError}
                   </p>
@@ -928,14 +935,20 @@ export function CheckoutPage({
             {error && !phoneInvalid && (
               <p role="alert" className="grove-checkout__error">
                 <span aria-hidden="true" className="grove-checkout__error-icon">
-                  ⚠
+                  <WarningIcon />
                 </span>
                 {error}
               </p>
             )}
 
             <button type="submit" disabled={submitting} className="grove-checkout__submit">
-              {submitting ? submitPendingLabel : submitLabel}
+              {submitting ? (
+                submitPendingLabel
+              ) : (
+                <>
+                  {submitLabel} <ArrowRight />
+                </>
+              )}
             </button>
 
             <p className="grove-checkout__reassure">

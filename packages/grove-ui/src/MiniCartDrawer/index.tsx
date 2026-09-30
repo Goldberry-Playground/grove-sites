@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import type { GroveCartLineItem } from "../cart-contract";
 import { useGroveImage, useGroveLink } from "../link-context";
+import { ArrowRight } from "../icons";
 
 export interface MiniCartDrawerProps {
   /** Whether the drawer is mounted/visible. App passes false during SSR. */
@@ -178,7 +179,7 @@ export function MiniCartDrawer({
                 onClick={onClose}
                 className="grove-minicart__checkout"
               >
-                Checkout →
+                Checkout <ArrowRight />
               </Link>
             </div>
             <Link

@@ -353,7 +353,7 @@ h1 em, h2 em, h3 em {
 /* Decorative glyph keeps the orange brand accent. Icons need only 3:1; the
    orange ◐ clears 3.68:1 on the darkest scrim band. Pinned explicitly because
    the parent .pano-eyebrow now inherits parchment. — GOL-685 */
-.pano-eyebrow::before { content: '◐'; font-size: 14px; color: var(--orange); }
+.pano-eyebrow::before { content: '•'; font-size: 14px; color: var(--orange); }
 .pano-hero h1 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -815,7 +815,7 @@ h1 em, h2 em, h3 em {
   align-items: center;
   gap: 0.5rem;
 }
-.field-notes-eyebrow::before { content: '✦'; }
+.field-notes-eyebrow::before { content: '•'; }
 .field-notes h3 {
   font-family: var(--font-display);
   font-style: italic;

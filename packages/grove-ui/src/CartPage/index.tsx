@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "../Button";
+import { ArrowLeft, ArrowRight, TrustIcon } from "../icons";
 import {
   type GroveCartLineItem,
   type GroveDueToday,
@@ -140,7 +141,7 @@ export function CartPage({
             </div>
           </div>
           <Link href={checkoutHref} className="grove-cart__banner-cta">
-            Checkout Now →
+            Checkout Now <ArrowRight />
           </Link>
         </div>
       </div>
@@ -152,7 +153,7 @@ export function CartPage({
           <div className="grove-cart__trust-inner">
             {trustItems.map((t, i) => (
               <span key={i} className="grove-cart__trust-item">
-                <span aria-hidden="true">{t.icon}</span> {t.text}
+                <TrustIcon name={t.icon} /> {t.text}
               </span>
             ))}
           </div>
@@ -163,7 +164,7 @@ export function CartPage({
         <div className="grove-cart__head">
           <h1 className="grove-cart__title">Your Cart</h1>
           <Link href={shopHref} className="grove-cart__keep-link">
-            ← Keep shopping
+            <ArrowLeft /> Keep shopping
           </Link>
         </div>
 
@@ -238,7 +239,7 @@ export function CartPage({
             )}
 
             <Link href={checkoutHref} className="grove-cart__summary-cta">
-              Proceed to Checkout →
+              Proceed to Checkout <ArrowRight />
             </Link>
 
             {!dueToday && (

@@ -55,7 +55,7 @@
   border-color: var(--grove-color-gold);
 }
 .sibling-strip .here::before {
-  content: '◐  ';
+  content: '•  ';
   letter-spacing: 0;
 }
 

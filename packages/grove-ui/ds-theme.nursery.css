@@ -1995,7 +1995,7 @@
   margin-bottom: 1.2rem;
 }
 .about-eyebrow::before {
-  content: "◐";
+  content: "•";
   margin-right: 0.6rem;
   color: var(--grove-color-gold);
 }
@@ -2157,7 +2157,7 @@
   border-color: var(--grove-color-gold);
 }
 .sibling-strip .here::before {
-  content: '◐  ';
+  content: '•  ';
   letter-spacing: 0;
 }
 

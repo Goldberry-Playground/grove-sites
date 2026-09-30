@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, CheckIcon, InfoIcon } from "@grove/ui-kit";
 import {
   GREEN_STATE_COUNT,
   US_STATE_NAMES,
@@ -149,7 +149,7 @@ export function ShippingEstimator({
         {state !== "" && eligible && (
           <div>
             <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-              <span aria-hidden="true" className="text-secondary">✓</span>
+              <CheckIcon className="text-secondary" />
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -209,7 +209,7 @@ export function ShippingEstimator({
         {state !== "" && !eligible && (
           <div className="rounded border border-accent/30 bg-accent/5 p-3">
             <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-              <span aria-hidden="true" className="text-accent">ⓘ</span>
+              <InfoIcon className="text-accent" />
               We can’t ship living trees to {stateName} yet
             </p>
             <p className="mt-1.5 text-xs text-foreground/70">

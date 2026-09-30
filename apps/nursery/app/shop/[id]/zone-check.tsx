@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { CheckIcon } from "@grove/ui-kit";
 
 /**
  * "Will this grow for me?" zone-check widget (design spec §"buy box" / ZIP-zone).
@@ -91,7 +92,10 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
         </p>
       )}
       {fits === true && (
-        <p className="mt-2 text-sm text-green-700">✓ Yes — this plant is hardy in your zone.</p>
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-green-700">
+          <CheckIcon />
+          Yes — this plant is hardy in your zone.
+        </p>
       )}
       {fits === false && (
         <p className="mt-2 text-sm text-amber-700">

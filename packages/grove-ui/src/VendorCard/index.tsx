@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { ArrowRight } from "../icons";
 
 import { useGroveLink } from "../link-context";
 
@@ -18,7 +19,10 @@ export interface VendorCardProps {
    * NOT a token, so each vendor stays visually distinct.
    */
   accentColor?: string;
-  /** CTA label. Defaults to the canonical "Visit the shop →". */
+  /**
+   * CTA label. Defaults to the canonical "Visit the shop". The trailing
+   * direction mark is drawn by the card, not typed into the string (GOL-2797).
+   */
   cta?: string;
 }
 
@@ -31,7 +35,7 @@ export function VendorCard({
   tagline,
   href,
   accentColor,
-  cta = "Visit the shop →",
+  cta = "Visit the shop",
 }: VendorCardProps) {
   const Link = useGroveLink();
 
@@ -44,7 +48,9 @@ export function VendorCard({
       <Link href={href} className="vendor-card">
         <h3 className="vendor-card__name">{name}</h3>
         <p className="vendor-card__tagline">{tagline}</p>
-        <span className="vendor-card__cta">{cta}</span>
+        <span className="vendor-card__cta">
+          {cta} <ArrowRight />
+        </span>
       </Link>
     </div>
   );

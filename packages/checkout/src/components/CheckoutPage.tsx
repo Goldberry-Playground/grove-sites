@@ -296,7 +296,7 @@ export function CheckoutPage({
         tierNudge={nudge?.message ?? null}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
-        submitLabel="Continue to payment →"
+        submitLabel="Continue to payment"
         submitPendingLabel="Starting secure checkout…"
         reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
         trustItems={BRAND_TRUST[brand].checkout}
