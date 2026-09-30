@@ -25,10 +25,15 @@ export const SOCIAL_LINKS: SocialLink[] = [
   { key: "email", label: "Email", href: "mailto:sales@goldberrygrove.farm" },
 ];
 
-export type MemberKey = "hub" | "nursery" | "goldberry" | "sweetpotomac" | "coalridge";
+export type MemberKey = "hub" | "nursery" | "goldberry" | "sweetpotomac" | "coalridge" | "ggg";
+
+/** "alliance" is the umbrella itself (always first); members sort A→Z within
+ *  their group, so a new farm or producer lands in place automatically. */
+export type MemberGroup = "alliance" | "farm" | "value-added";
 
 export type AllianceMember = {
   key: MemberKey;
+  group: MemberGroup;
   title: string;
   blurb: string;
   href: string;
@@ -45,6 +50,7 @@ type MemberSpec = Omit<AllianceMember, "href"> &
 const MEMBERS: MemberSpec[] = [
   {
     key: "hub",
+    group: "alliance",
     siteName: "Gather at the Grove",
     title: "Gather at the Grove",
     blurb: "Agroforestry village, learning hub & marketplace for all",
@@ -53,6 +59,7 @@ const MEMBERS: MemberSpec[] = [
   },
   {
     key: "nursery",
+    group: "value-added",
     siteName: "At The Grove Nursery",
     title: "At The Grove Nursery",
     blurb: "Mountain-strong woody perennials, grown for Appalachia",
@@ -61,6 +68,7 @@ const MEMBERS: MemberSpec[] = [
   },
   {
     key: "goldberry",
+    group: "farm",
     siteName: "Goldberry Grove Farm",
     title: "Goldberry Grove",
     blurb: "Agroforestry food forest & chestnut orchard, open for U-pick",
@@ -69,6 +77,7 @@ const MEMBERS: MemberSpec[] = [
   },
   {
     key: "sweetpotomac",
+    group: "farm",
     url: "https://sweetpotomacfarm.com/",
     title: "Sweet Potomac Farm & Studio",
     blurb: "Seneca Rocks farm & art studio, saving native seed",
@@ -77,11 +86,21 @@ const MEMBERS: MemberSpec[] = [
   },
   {
     key: "coalridge",
+    group: "farm",
     url: "https://www.facebook.com/coalridgehomestead/",
     title: "Coal Ridge Homestead",
     blurb: "Reclaimed mine land homestead — berries & baked goods",
     logo: "/brand/alliance/coal-ridge-homestead.jpg",
     monogram: "CR",
+  },
+  {
+    key: "ggg",
+    group: "value-added",
+    siteName: "GGG Woodworking",
+    title: "George George George Woodworking",
+    blurb: "Handcrafted hardwood furniture & custom millwork",
+    logo: null, // no logo file yet
+    monogram: "GGG",
   },
 ];
 
@@ -89,9 +108,32 @@ export function allianceMembers(sites: Site[]): AllianceMember[] {
   return MEMBERS.flatMap((spec) => {
     const href = "url" in spec ? spec.url : sites.find((s) => s.name === spec.siteName)?.href;
     if (!href) return [];
-    const { key, title, blurb, logo, monogram } = spec;
-    return [{ key, title, blurb, logo, monogram, href }];
+    const { key, group, title, blurb, logo, monogram } = spec;
+    return [{ key, group, title, blurb, logo, monogram, href }];
   });
+}
+
+export type AllianceSection = { key: MemberGroup; heading: string; members: AllianceMember[] };
+
+const SECTION_HEADINGS: Record<MemberGroup, string> = {
+  alliance: "The Alliance",
+  farm: "Farms",
+  "value-added": "Value-Added Products",
+};
+
+/** Page order: the alliance, then Farms A→Z, then Value-Added Products A→Z.
+ *  Empty groups are omitted. */
+export function allianceSections(members: AllianceMember[]): AllianceSection[] {
+  const order: MemberGroup[] = ["alliance", "farm", "value-added"];
+  return order
+    .map((key) => ({
+      key,
+      heading: SECTION_HEADINGS[key],
+      members: members
+        .filter((m) => m.group === key)
+        .sort((a, b) => a.title.localeCompare(b.title, "en", { sensitivity: "base" })),
+    }))
+    .filter((section) => section.members.length > 0);
 }
 
 /**

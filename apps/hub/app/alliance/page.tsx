@@ -10,6 +10,7 @@ import {
   ALLIANCE_INTRO,
   allianceJsonLd,
   allianceMembers,
+  allianceSections,
   normalizeSource,
   tipOptions,
   withUtm,
@@ -39,7 +40,7 @@ export default async function AlliancePage({
 }) {
   const host = (await headers()).get("host");
   const source = normalizeSource((await searchParams).utm_source);
-  const members = allianceMembers(siblingSitesForHost(host));
+  const sections = allianceSections(allianceMembers(siblingSitesForHost(host)));
   const jsonLd = allianceJsonLd(allianceMembers(siblingSitesForHost(null)));
   const tips = tipOptions();
 
@@ -72,11 +73,12 @@ export default async function AlliancePage({
         <p>{ALLIANCE_INTRO}</p>
       </header>
 
-      <section className="hub-links__farms" aria-labelledby="hub-links-farms-title">
-        <h2 id="hub-links-farms-title" className="hub-links__eyebrow">
-          The Alliance Members
+      {sections.map((section) => (
+      <section key={section.key} className="hub-links__farms" aria-labelledby={`hub-links-${section.key}`}>
+        <h2 id={`hub-links-${section.key}`} className="hub-links__eyebrow">
+          {section.heading}
         </h2>
-        {members.map((m) => (
+        {section.members.map((m) => (
           <TrackedLink
             key={m.key}
             className={`hub-links__farm hub-links__farm--${m.key}`}
@@ -102,6 +104,7 @@ export default async function AlliancePage({
           </TrackedLink>
         ))}
       </section>
+      ))}
 
       {tips && <LinksTipJar options={tips} source={source} />}
 

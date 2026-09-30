@@ -7,6 +7,7 @@ import {
   SOCIAL_LINKS,
   allianceJsonLd,
   allianceMembers,
+  allianceSections,
   normalizeSource,
   tipOptions,
   withUtm,
@@ -23,28 +24,29 @@ const allTips: Record<TipId, string> = {
 const prodMembers = () => allianceMembers(siblingSitesForHost("gatheringatthegrove.com"));
 
 describe("allianceMembers", () => {
-  it("lists the five members in order, Grove sites on prod", () => {
-    const members = prodMembers();
-    expect(members.map((m) => m.key)).toEqual(["hub", "nursery", "goldberry", "sweetpotomac", "coalridge"]);
-    expect(members.map((m) => m.href)).toEqual([
-      "https://gatheringatthegrove.com",
-      "https://atthegrovenursery.com",
-      "https://goldberrygrove.farm",
-      "https://sweetpotomacfarm.com/",
-      "https://www.facebook.com/coalridgehomestead/",
-    ]);
+  it("resolves every member's URL, Grove sites on prod", () => {
+    const hrefs = Object.fromEntries(prodMembers().map((m) => [m.key, m.href]));
+    expect(hrefs).toEqual({
+      hub: "https://gatheringatthegrove.com",
+      nursery: "https://atthegrovenursery.com",
+      goldberry: "https://goldberrygrove.farm",
+      sweetpotomac: "https://sweetpotomacfarm.com/",
+      coalridge: "https://www.facebook.com/coalridgehomestead/",
+      ggg: "https://woodworkingeorge.com",
+    });
   });
 
   it("keeps QA visitors on QA for the Grove sites; outside members keep their real URL", () => {
     const members = allianceMembers(siblingSitesForHost("hub.qa.gatheringatthegrove.com"));
-    const grove = members.filter((m) => ["hub", "nursery", "goldberry"].includes(m.key));
-    expect(grove).toHaveLength(3);
+    const grove = members.filter((m) => ["hub", "nursery", "goldberry", "ggg"].includes(m.key));
+    expect(grove).toHaveLength(4);
     for (const m of grove) expect(new URL(m.href).hostname).toMatch(/\.qa\.gatheringatthegrove\.com$/);
     expect(members.find((m) => m.key === "coalridge")?.href).toBe("https://www.facebook.com/coalridgehomestead/");
   });
 
   it("drops a Grove member whose sibling site is missing instead of rendering a dead card", () => {
     const members = allianceMembers([{ name: "Gather at the Grove", href: "https://x.test" }]);
+    // nursery, goldberry and ggg need their sibling site; outside members don't
     expect(members.map((m) => m.key)).toEqual(["hub", "sweetpotomac", "coalridge"]);
   });
 
@@ -56,8 +58,32 @@ describe("allianceMembers", () => {
   });
 });
 
+describe("allianceSections", () => {
+  it("puts the alliance first, then Farms A→Z, then Value-Added Products A→Z", () => {
+    const sections = allianceSections(prodMembers());
+    expect(sections.map((s) => [s.heading, s.members.map((m) => m.title)])).toEqual([
+      ["The Alliance", ["Gather at the Grove"]],
+      ["Farms", ["Coal Ridge Homestead", "Goldberry Grove", "Sweet Potomac Farm & Studio"]],
+      ["Value-Added Products", ["At The Grove Nursery", "George George George Woodworking"]],
+    ]);
+  });
+
+  it("slots a future member into its group alphabetically and skips empty groups", () => {
+    const newcomer = { ...prodMembers()[0], key: "hub" as const, group: "farm" as const, title: "Birch Hollow Farm" };
+    const farms = allianceSections([...prodMembers(), newcomer]).find((s) => s.key === "farm")!;
+    expect(farms.members.map((m) => m.title)).toEqual([
+      "Birch Hollow Farm",
+      "Coal Ridge Homestead",
+      "Goldberry Grove",
+      "Sweet Potomac Farm & Studio",
+    ]);
+    const onlyFarms = allianceSections(prodMembers().filter((m) => m.group === "farm"));
+    expect(onlyFarms.map((s) => s.key)).toEqual(["farm"]);
+  });
+});
+
 describe("allianceJsonLd", () => {
-  it("is a schema.org Organization listing the four other businesses as members", () => {
+  it("is a schema.org Organization listing the other businesses as members", () => {
     const ld = allianceJsonLd(prodMembers());
     expect(ld["@type"]).toBe("Organization");
     expect(ld.name).toBe("Gather at the Grove");
@@ -66,6 +92,7 @@ describe("allianceJsonLd", () => {
       "Goldberry Grove",
       "Sweet Potomac Farm & Studio",
       "Coal Ridge Homestead",
+      "George George George Woodworking",
     ]);
   });
 });
