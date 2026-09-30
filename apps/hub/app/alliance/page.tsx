@@ -97,7 +97,6 @@ export default async function AlliancePage({
       </div>
 
       <header className="hub-links__intro">
-        <span className="hub-links__eyebrow">New River Gorge · West Virginia</span>
         <h1>At the Grove</h1>
         <p>{ALLIANCE_INTRO}</p>
       </header>
