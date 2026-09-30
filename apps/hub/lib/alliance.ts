@@ -32,9 +32,24 @@ export type MemberKey = "hub" | "nursery" | "goldberry" | "sweetpotomac" | "coal
  *  sort A→Z within their group, so a new farm or producer lands in place. */
 export type MemberGroup = "alliance" | "farm" | "value-added";
 
+export type SocialKind = "facebook" | "instagram" | "threads" | "youtube" | "etsy";
+
+export type MemberSocial = { kind: SocialKind; href: string };
+
+export const SOCIAL_LABELS: Record<SocialKind, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  threads: "Threads",
+  youtube: "YouTube",
+  etsy: "Etsy shop",
+};
+
 export type AllianceMember = {
   key: MemberKey;
   group: MemberGroup;
+  /** The member's own accounts, shown as small icons on its card (farms only
+   *  for now). Clean URLs — no tracking params. Omit a kind they don't have. */
+  socials: MemberSocial[];
   title: string;
   blurb: string;
   href: string;
@@ -55,6 +70,7 @@ const MEMBERS: MemberSpec[] = [
     siteName: "Gather at the Grove",
     title: "Gather at the Grove",
     blurb: "Agroforestry village, learning hub & marketplace for all",
+    socials: [],
     logo: "/brand/gather/gather-logomark-reversed.svg",
     monogram: "GG",
   },
@@ -64,6 +80,7 @@ const MEMBERS: MemberSpec[] = [
     siteName: "At The Grove Nursery",
     title: "At The Grove Nursery",
     blurb: "Mountain-strong woody perennials, grown for Appalachia",
+    socials: [],
     logo: "/brand/alliance/nursery-mark.png",
     monogram: "ATG",
   },
@@ -73,6 +90,12 @@ const MEMBERS: MemberSpec[] = [
     siteName: "Goldberry Grove Farm",
     title: "Goldberry Grove",
     blurb: "Agroforestry U-pick orchard and forest farm",
+    socials: [
+      { kind: "facebook", href: "https://www.facebook.com/goldberrygrove/" },
+      { kind: "instagram", href: "https://www.instagram.com/goldberrygrove/" },
+      { kind: "threads", href: "https://www.threads.com/@goldberrygrove" },
+      { kind: "youtube", href: "https://www.youtube.com/@GoldberryGrove" },
+    ],
     logo: "/brand/alliance/goldberry-badge.png",
     monogram: "GB",
   },
@@ -82,6 +105,10 @@ const MEMBERS: MemberSpec[] = [
     url: "https://sweetpotomacfarm.com/",
     title: "Sweet Potomac Farm & Studio",
     blurb: "Seneca Rocks farm & art studio, saving native seed",
+    socials: [
+      { kind: "instagram", href: "https://www.instagram.com/sweetpotomacfarm/" },
+      { kind: "etsy", href: "https://www.etsy.com/shop/SweetPotomacFarm" },
+    ],
     logo: null, // no logo published anywhere yet
     monogram: "SP",
   },
@@ -91,6 +118,11 @@ const MEMBERS: MemberSpec[] = [
     url: "https://www.facebook.com/coalridgehomestead/",
     title: "Coal Ridge Homestead",
     blurb: "Reclaimed mine land homestead — berries & baked goods",
+    socials: [
+      { kind: "facebook", href: "https://www.facebook.com/coalridgehomestead/" },
+      { kind: "instagram", href: "https://www.instagram.com/coalridgehomestead/" },
+      { kind: "threads", href: "https://www.threads.com/@coalridgehomestead" },
+    ],
     logo: "/brand/alliance/coal-ridge-homestead.jpg",
     monogram: "CR",
   },
@@ -100,6 +132,7 @@ const MEMBERS: MemberSpec[] = [
     siteName: "GGG Woodworking",
     title: "George George George Woodworking",
     blurb: "Handcrafted hardwood furniture & custom millwork",
+    socials: [],
     logo: null, // no logo file yet
     monogram: "GGG",
   },
@@ -109,8 +142,8 @@ export function allianceMembers(sites: Site[]): AllianceMember[] {
   return MEMBERS.flatMap((spec) => {
     const href = "url" in spec ? spec.url : sites.find((s) => s.name === spec.siteName)?.href;
     if (!href) return [];
-    const { key, group, title, blurb, logo, monogram } = spec;
-    return [{ key, group, title, blurb, logo, monogram, href }];
+    const { key, group, title, blurb, socials, logo, monogram } = spec;
+    return [{ key, group, title, blurb, socials, logo, monogram, href }];
   });
 }
 
@@ -153,7 +186,13 @@ export function allianceJsonLd(members: AllianceMember[]) {
     areaServed: "Appalachia",
     member: members
       .filter((m) => m.key !== "hub")
-      .map((m) => ({ "@type": "Organization", name: m.title, url: m.href, description: m.blurb })),
+      .map((m) => ({
+        "@type": "Organization",
+        name: m.title,
+        url: m.href,
+        description: m.blurb,
+        ...(m.socials.length ? { sameAs: m.socials.map((s) => s.href) } : {}),
+      })),
   };
 }
 

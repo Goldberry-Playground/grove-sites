@@ -58,6 +58,39 @@ describe("allianceMembers", () => {
   });
 });
 
+describe("member socials", () => {
+  const byKey = () => Object.fromEntries(prodMembers().map((m) => [m.key, m.socials.map((s) => s.kind)]));
+
+  it("gives each farm exactly the accounts it has, and nobody else any", () => {
+    expect(byKey()).toEqual({
+      hub: [],
+      nursery: [],
+      goldberry: ["facebook", "instagram", "threads", "youtube"],
+      sweetpotomac: ["instagram", "etsy"],
+      coalridge: ["facebook", "instagram", "threads"],
+      ggg: [],
+    });
+  });
+
+  it("uses clean https profile URLs (no tracking params)", () => {
+    for (const m of prodMembers())
+      for (const s of m.socials) {
+        const url = new URL(s.href);
+        expect(url.protocol).toBe("https:");
+        expect(url.search).toBe("");
+      }
+  });
+
+  it("lists them as sameAs in the JSON-LD", () => {
+    const coal = allianceJsonLd(prodMembers()).member.find((m) => m.name === "Coal Ridge Homestead");
+    expect(coal?.sameAs).toEqual([
+      "https://www.facebook.com/coalridgehomestead/",
+      "https://www.instagram.com/coalridgehomestead/",
+      "https://www.threads.com/@coalridgehomestead",
+    ]);
+  });
+});
+
 describe("allianceSections", () => {
   it("puts Gather at the Grove first with no heading (not a member), then Farms A→Z, then Value-Added Products A→Z", () => {
     const sections = allianceSections(prodMembers());
