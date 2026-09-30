@@ -74,10 +74,17 @@ export default async function AlliancePage({
       </header>
 
       {sections.map((section) => (
-      <section key={section.key} className="hub-links__farms" aria-labelledby={`hub-links-${section.key}`}>
-        <h2 id={`hub-links-${section.key}`} className="hub-links__eyebrow">
-          {section.heading}
-        </h2>
+      <section
+        key={section.key}
+        className="hub-links__farms"
+        aria-labelledby={section.heading ? `hub-links-${section.key}` : undefined}
+        aria-label={section.heading ? undefined : "Gather at the Grove"}
+      >
+        {section.heading && (
+          <h2 id={`hub-links-${section.key}`} className="hub-links__eyebrow">
+            {section.heading}
+          </h2>
+        )}
         {section.members.map((m) => (
           <TrackedLink
             key={m.key}

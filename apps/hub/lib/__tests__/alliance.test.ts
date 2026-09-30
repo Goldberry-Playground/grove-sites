@@ -59,10 +59,10 @@ describe("allianceMembers", () => {
 });
 
 describe("allianceSections", () => {
-  it("puts the alliance first, then Farms A→Z, then Value-Added Products A→Z", () => {
+  it("puts Gather at the Grove first with no heading (not a member), then Farms A→Z, then Value-Added Products A→Z", () => {
     const sections = allianceSections(prodMembers());
     expect(sections.map((s) => [s.heading, s.members.map((m) => m.title)])).toEqual([
-      ["The Alliance", ["Gather at the Grove"]],
+      [null, ["Gather at the Grove"]],
       ["Farms", ["Coal Ridge Homestead", "Goldberry Grove", "Sweet Potomac Farm & Studio"]],
       ["Value-Added Products", ["At The Grove Nursery", "George George George Woodworking"]],
     ]);

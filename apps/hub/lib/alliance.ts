@@ -27,8 +27,9 @@ export const SOCIAL_LINKS: SocialLink[] = [
 
 export type MemberKey = "hub" | "nursery" | "goldberry" | "sweetpotomac" | "coalridge" | "ggg";
 
-/** "alliance" is the umbrella itself (always first); members sort A→Z within
- *  their group, so a new farm or producer lands in place automatically. */
+/** "alliance" is Gather at the Grove itself — owned by the farms, so it is
+ *  NOT listed as a member: it renders first with no section heading. Members
+ *  sort A→Z within their group, so a new farm or producer lands in place. */
 export type MemberGroup = "alliance" | "farm" | "value-added";
 
 export type AllianceMember = {
@@ -113,15 +114,16 @@ export function allianceMembers(sites: Site[]): AllianceMember[] {
   });
 }
 
-export type AllianceSection = { key: MemberGroup; heading: string; members: AllianceMember[] };
+export type AllianceSection = { key: MemberGroup; heading: string | null; members: AllianceMember[] };
 
-const SECTION_HEADINGS: Record<MemberGroup, string> = {
-  alliance: "The Alliance",
+const SECTION_HEADINGS: Record<MemberGroup, string | null> = {
+  alliance: null, // the umbrella card sits above the member sections, unlabelled
   farm: "Farms",
   "value-added": "Value-Added Products",
 };
 
-/** Page order: the alliance, then Farms A→Z, then Value-Added Products A→Z.
+/** Page order: Gather at the Grove (no heading), then Farms A→Z, then
+ *  Value-Added Products A→Z.
  *  Empty groups are omitted. */
 export function allianceSections(members: AllianceMember[]): AllianceSection[] {
   const order: MemberGroup[] = ["alliance", "farm", "value-added"];
