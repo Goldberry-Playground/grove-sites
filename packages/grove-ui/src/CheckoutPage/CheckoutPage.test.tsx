@@ -247,5 +247,94 @@ describe("<CheckoutPage /> contact — phone is required (2026-09-30)", () => {
     expect(placed).toBe(false);
     expect(await screen.findByText(/add a phone number/i)).toBeTruthy();
   });
+
+  // GOL-2789: the alert renders in the summary rail, ~300px (desktop) to
+  // ~3000px (mobile) below the field it names. Without these two the buyer is
+  // told what is wrong and then left to hunt for it.
+  it("focuses the phone input and marks it invalid when the guard fires", async () => {
+    const { container } = render(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} />,
+    );
+    const form = container.querySelector("form") as HTMLFormElement;
+    const phone = screen.getByLabelText(/phone/i) as HTMLInputElement;
+    const { fireEvent } = await import("@testing-library/react");
+
+    fireEvent.change(phone, { target: { value: "   " } });
+    fireEvent.submit(form);
+
+    expect(document.activeElement).toBe(phone);
+    expect(phone.getAttribute("aria-invalid")).toBe("true");
+    // The field points at the alert it belongs to, so a screen reader reads the
+    // reason on focus instead of only where the message happens to render.
+    const alert = await screen.findByText(/add a phone number/i);
+    expect(phone.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(alert.getAttribute("role")).toBe("alert");
+  });
+
+  // Focusing the input scrolls the summary rail off screen (the two sit ~1700px
+  // apart at 390px wide), so a message left down there would trade "message
+  // without field" for "field without message". Exactly one alert, at the field.
+  it("renders the phone message at the field, not in the summary rail", async () => {
+    const { container } = render(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} />,
+    );
+    const form = container.querySelector("form") as HTMLFormElement;
+    const phone = screen.getByLabelText(/phone/i) as HTMLInputElement;
+    const { fireEvent } = await import("@testing-library/react");
+
+    fireEvent.change(phone, { target: { value: "   " } });
+    fireEvent.submit(form);
+
+    expect(screen.getAllByText(/add a phone number/i)).toHaveLength(1);
+    const alert = await screen.findByText(/add a phone number/i);
+    expect(phone.closest("fieldset")?.contains(alert)).toBe(true);
+  });
+
+  // A declined card or a network failure has no field to point at, so it keeps
+  // its place beside the CTA that triggered it.
+  it("leaves a place-order failure in the summary rail", async () => {
+    const { container } = render(
+      <CheckoutPage
+        items={items}
+        subtotal={10}
+        onPlaceOrder={() => {
+          throw new Error("Your card was declined.");
+        }}
+      />,
+    );
+    const form = container.querySelector("form") as HTMLFormElement;
+    const phone = screen.getByLabelText(/phone/i) as HTMLInputElement;
+    const { fireEvent } = await import("@testing-library/react");
+
+    fireEvent.change(phone, { target: { value: "304-555-0142" } });
+    fireEvent.submit(form);
+
+    const alert = await screen.findByText(/card was declined/i);
+    expect(phone.closest("fieldset")?.contains(alert)).toBe(false);
+    expect(phone.getAttribute("aria-invalid")).toBe(null);
+    expect(phone.getAttribute("aria-describedby")).toBe(null);
+  });
+
+  it("drops the invalid mark and the message as soon as a real number is typed", async () => {
+    const { container } = render(
+      <CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} />,
+    );
+    const form = container.querySelector("form") as HTMLFormElement;
+    const phone = screen.getByLabelText(/phone/i) as HTMLInputElement;
+    const { fireEvent } = await import("@testing-library/react");
+
+    fireEvent.change(phone, { target: { value: "   " } });
+    fireEvent.submit(form);
+    expect(phone.getAttribute("aria-invalid")).toBe("true");
+
+    // Another space is still invalid — no false all-clear.
+    fireEvent.change(phone, { target: { value: "    " } });
+    expect(phone.getAttribute("aria-invalid")).toBe("true");
+
+    fireEvent.change(phone, { target: { value: "304-555-0142" } });
+    expect(phone.getAttribute("aria-invalid")).toBe(null);
+    expect(phone.getAttribute("aria-describedby")).toBe(null);
+    expect(screen.queryByText(/add a phone number/i)).toBe(null);
+  });
 });
 
