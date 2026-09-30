@@ -85,7 +85,15 @@ for e in (q["entries"]["nodes"] if q else []):
     if e["state"] != "AWAITING_CHECKS" or not oid: continue
     if (e["enqueuer"] or {}).get("login") != dead: continue
     if pr["state"] != "OPEN" or pr["reviewDecision"] != "APPROVED": continue
-    if pr["mergeStateStatus"] not in ("CLEAN", "HAS_HOOKS"): continue
+    # UNSTABLE belongs here (GOL-2826): a PR cut from a main whose *non-required*
+    # gate is red -- a fresh CVE in `Dependency audit`, say -- reports UNSTABLE,
+    # not CLEAN, for as long as that red lasts. That is precisely the window in
+    # which the queue churns hardest and wedges are most likely, so refusing to
+    # rescue UNSTABLE made the tool blind exactly when it was needed. It bypasses
+    # nothing: the required checks still gate the merge, and GitHub already
+    # accepted the entry. DIRTY (conflicts), BLOCKED and UNKNOWN stay out --
+    # those entries should not merge as they stand.
+    if pr["mergeStateStatus"] not in ("CLEAN", "HAS_HOOKS", "UNSTABLE"): continue
     age = (now - datetime.datetime.fromisoformat(e["enqueuedAt"].replace("Z", "+00:00"))).total_seconds()
     if age < grace: continue
     print("%s\t%s\t%s\t%d" % (pr["number"], pr["id"], oid, age))

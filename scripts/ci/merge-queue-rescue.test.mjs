@@ -97,6 +97,16 @@ check(
   "893",
 );
 
+// A PR cut from a main with a red *non-required* gate reports UNSTABLE for as
+// long as that red lasts (GOL-2826: #918 sat wedged at the head of the queue
+// through the brace-expansion/undici CVE window, and the selector skipped it).
+// That is the busiest queue window there is, so UNSTABLE must fire too.
+check(
+  "fires on an UNSTABLE entry (non-required gate red on main)",
+  run([entry({ pullRequest: { number: 918, mergeStateStatus: "UNSTABLE" } })]).split("\t").slice(0, 1).join(""),
+  "918",
+);
+
 // ── Stays quiet on every adjacent shape ────────────────────────────────────
 // Each of these would, if matched, dequeue a PR that is not wedged.
 check("quiet inside the grace window", run([entry({ enqueuedAt: ago(30) })]), "");
@@ -106,6 +116,8 @@ check("quiet before a group commit exists", run([entry({ headCommit: null })]), 
 check("quiet when review is not APPROVED", run([entry({ pullRequest: { reviewDecision: "REVIEW_REQUIRED" } })]), "");
 check("quiet when review is CHANGES_REQUESTED", run([entry({ pullRequest: { reviewDecision: "CHANGES_REQUESTED" } })]), "");
 check("quiet when the PR is not mergeable", run([entry({ pullRequest: { mergeStateStatus: "BLOCKED" } })]), "");
+check("quiet on a conflicted PR", run([entry({ pullRequest: { mergeStateStatus: "DIRTY" } })]), "");
+check("quiet when mergeability is not computed yet", run([entry({ pullRequest: { mergeStateStatus: "UNKNOWN" } })]), "");
 check("quiet when the PR is already closed", run([entry({ pullRequest: { state: "MERGED" } })]), "");
 check("quiet on an empty queue", run([]), "");
 
