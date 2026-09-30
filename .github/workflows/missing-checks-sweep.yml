@@ -36,6 +36,7 @@ permissions:
   pull-requests: read # list open PRs
   checks: read # check-runs on the head SHA
   statuses: read # commit statuses on the head SHA (e.g. Lighthouse CI)
+  actions: read # workflow runs on the head SHA — tells an approval gate (`action_required`) apart from a dropped trigger (GOL-2732)
   issues: write # mint/close the deduped ci-failure issue
 
 concurrency:
