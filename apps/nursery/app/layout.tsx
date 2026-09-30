@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
@@ -41,8 +42,15 @@ export default async function RootLayout({
         <Providers>
           <header className="border-b border-primary/10 px-6 py-4">
             <nav className="mx-auto flex max-w-6xl items-center justify-between">
-              <Link href="/" className="text-xl font-bold font-display text-primary">
-                {tenantConfig.name}
+              <Link href="/" className="flex items-center" aria-label={`${tenantConfig.name} — home`}>
+                <Image
+                  src="/brand/nursery-logo-horizontal.png"
+                  alt={tenantConfig.name}
+                  width={552}
+                  height={160}
+                  priority
+                  className="h-12 w-auto sm:h-14"
+                />
               </Link>
               <ul className="flex gap-6 text-sm font-medium">
                 <li>
