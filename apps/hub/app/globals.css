@@ -1325,11 +1325,14 @@ body:has(.hub-links)::before { display: none; }
   color: #f2e3a0;
 }
 .hub-links__farm-social a:hover { background: rgba(255, 247, 230, 0.14); color: #fff7e6; }
+/* Every member logo: the same 56px circle with one Harvest Gold ring —
+   a single accent that clears 3:1 on all six card colours. */
 .hub-links__farm-logo {
   width: 56px;
   height: 56px;
   flex-shrink: 0;
   border-radius: 50%;
+  border: 2px solid #edd682;
   object-fit: cover;
   box-sizing: border-box;
 }
@@ -1347,17 +1350,15 @@ body:has(.hub-links)::before { display: none; }
 .hub-links__farm-text strong { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600; line-height: 1.15; }
 .hub-links__farm-text span { font-size: 15px; line-height: 1.35; color: #f2e3a0; /* pale Harvest Gold */ }
 .hub-links__farm--hub { background: #5c3a1f; } /* hub primary "warm bark" */
-.hub-links__farm--hub .hub-links__farm-logo { object-fit: contain; padding: 6px; border: 1.5px solid #efe3c2; }
+.hub-links__farm--hub .hub-links__farm-logo { object-fit: contain; padding: 6px; }
 .hub-links__farm--nursery { background: #a5490f; } /* nursery deep marigold */
-.hub-links__farm--nursery .hub-links__farm-logo { border: 2px solid #ffffff; }
 .hub-links__farm--goldberry { background: #5a2a4b; border: 2px solid #edd682; } /* Goldberry plum + Harvest Gold */
-/* Just the tree (no ring, lettering or disc), a little larger than the other tiles. */
-.hub-links__farm--goldberry .hub-links__farm-logo { width: 64px; height: 64px; margin: -4px; border-radius: 0; object-fit: contain; }
+/* Just the tree (no lettering or badge disc), fitted inside the shared circle. */
+.hub-links__farm--goldberry .hub-links__farm-logo { object-fit: contain; padding: 4px; }
 .hub-links__farm--sweetpotomac { background: #2f5d3a; } /* forest green */
 .hub-links__farm--coalridge { background: #2b2f33; } /* slate black */
-.hub-links__farm--coalridge .hub-links__farm-logo { background: #222222; border: 1.5px solid #5a6068; }
+.hub-links__farm--coalridge .hub-links__farm-logo { background: #222222; }
 .hub-links__farm--ggg { background: #7a2e1a; } /* GGG cherry (walnut would be a 2nd brown) */
-.hub-links__farm--ggg .hub-links__farm-logo { border: 2px solid #efe6d3; }
 .hub-links__tip {
   margin: 30px 20px 0;
   padding: 24px 22px;
