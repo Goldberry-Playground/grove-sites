@@ -109,9 +109,12 @@ export default async function AlliancePage({
         aria-label={section.heading ? undefined : "Gather at the Grove"}
       >
         {section.heading && (
-          <h2 id={`hub-links-${section.key}`} className="hub-links__eyebrow">
-            {section.heading}
-          </h2>
+          <div className="hub-links__section-head">
+            <h2 id={`hub-links-${section.key}`}>{section.heading}</h2>
+            <span>
+              {section.members.length} {section.members.length === 1 ? "member" : "members"}
+            </span>
+          </div>
         )}
         {section.members.map((m) => (
           <div key={m.key} className={`hub-links__farm hub-links__farm--${m.key}`}>
