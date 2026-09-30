@@ -68,6 +68,13 @@ export default async function RootLayout({
                 alt={tenantConfig.name}
                 width={900}
                 height={261}
+                // The source is 900px so DPR 3 has real detail to draw on, but
+                // without `sizes` next/image falls back to a 1x/2x density
+                // srcset off the `width` prop and hands a 1x screen the whole
+                // 900px file. Describing the clamp instead lets the optimizer
+                // pick per rung: ~384px at 1x, 640 at DPR 2, 900 at DPR 3.
+                // 26vw crosses the clamp floor at 846px and the cap at 1154px.
+                sizes="(max-width: 846px) 220px, (min-width: 1154px) 300px, 26vw"
                 className="h-auto w-[clamp(220px,26vw,300px)]"
               />
               {/* One-CTA-per-page (GOL-2178): the shared footer newsletter is the
