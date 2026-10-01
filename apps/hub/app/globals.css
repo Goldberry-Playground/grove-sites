@@ -1459,8 +1459,8 @@ body:has(.hub-links)::before { display: none; }
 .hub-links__farm--hub .hub-links__farm-logo { object-fit: contain; padding: 6px; }
 .hub-links__farm--nursery { background: #a5490f; } /* nursery deep marigold */
 .hub-links__farm--goldberry { background: #5a2a4b; } /* Goldberry plum */
-/* Just the tree (no lettering or badge disc), fitted inside the shared circle. */
-.hub-links__farm--goldberry .hub-links__farm-logo { object-fit: contain; padding: 4px; }
+/* The wordless wreath logo on its own white disc, fitted inside the shared circle. */
+.hub-links__farm--goldberry .hub-links__farm-logo { object-fit: contain; padding: 3px; background: #ffffff; }
 .hub-links__farm--sweetpotomac { background: #2f5d3a; } /* forest green */
 .hub-links__farm--coalridge { background: #2b2f33; } /* slate black */
 .hub-links__farm--coalridge .hub-links__farm-logo { background: #222222; }
