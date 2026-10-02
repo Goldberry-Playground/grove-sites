@@ -1,8 +1,11 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
+import { buildPdpMetadata, notFoundMetadata } from "../../../lib/pdp-metadata";
 import { getMockProductById, mockProducts } from "../../../data/mock-products";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { inferCompanions, toCompanionInput } from "../../../lib/companions";
@@ -16,6 +19,59 @@ import { ZoneCheck } from "./zone-check";
 
 export const dynamic = "force-dynamic";
 
+function odooBaseUrl(): string {
+  return process.env.ODOO_URL ?? "http://localhost:8069";
+}
+
+/**
+ * Product detail — Odoo first, mock fallback (same seam the shop uses).
+ *
+ * `cache()`-wrapped because `generateMetadata` and the page component both
+ * need the product and Next runs them in the same request. Without it this
+ * route would make two full detail round-trips to the single Odoo droplet per
+ * page view: `dynamic = "force-dynamic"` sets `fetchCache: "force-no-store"`,
+ * so the client's own `next.revalidate` cannot dedupe them. React's per-request
+ * memoization does, and it also guarantees the title and the <h1> describe the
+ * same product even if the catalog changes mid-render.
+ */
+const loadProduct = cache(async (productId: number): Promise<Product | null> => {
+  try {
+    return await odoo.products.get(productId);
+  } catch {
+    return getMockProductById(productId);
+  }
+});
+
+/**
+ * Per-product title, description, canonical and share card (GOL-2878 Phase 1).
+ *
+ * Until this landed, all 21 published PDPs served `<title>At The Grove
+ * Nursery</title>` and one shared description, and the site emitted no `og:`
+ * tags at all — so every catalog link posted to email or social rendered as a
+ * bare URL with no preview (GOL-2875 §1b/§1c).
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const productId = Number(id);
+  if (Number.isNaN(productId)) return notFoundMetadata();
+
+  const product = await loadProduct(productId);
+  if (!product) return notFoundMetadata();
+
+  return buildPdpMetadata({
+    product,
+    // Phase 1: the id form is the only form, so it is its own canonical. Phase 2
+    // introduces `/shop/<slug>` as canonical and 301s this path to it
+    // (GOL-2875 R1/R8) — swap this one argument then.
+    canonicalPath: `/shop/${product.id}`,
+    odooBase: odooBaseUrl(),
+  });
+}
+
 export default async function ProductDetailPage({
   params,
 }: {
@@ -25,15 +81,9 @@ export default async function ProductDetailPage({
   const productId = Number(id);
   if (Number.isNaN(productId)) notFound();
 
-  const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
+  const odooBase = odooBaseUrl();
 
-  // Product detail — Odoo first, mock fallback (same seam the shop uses).
-  let product: Product | null = null;
-  try {
-    product = await odoo.products.get(productId);
-  } catch {
-    product = getMockProductById(productId);
-  }
+  const product = await loadProduct(productId);
   if (!product) notFound();
 
   // Catalog for companion inference — best-effort, never blocks the page.

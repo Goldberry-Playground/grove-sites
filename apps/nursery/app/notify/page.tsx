@@ -23,8 +23,11 @@ import { CategoryBar } from "../category-bar";
 // CaptureForm here intentionally omits `eyebrow`/`heading` (they'd duplicate
 // the header) and the lede avoids repeating the form's `description` sentence.
 
+// Title is the LEFT side only — `app/layout.tsx` appends " | At The Grove
+// Nursery" via `title.template` (GOL-2878). Repeating the brand here renders it
+// twice.
 export const metadata: Metadata = {
-  title: "News from the nursery — At The Grove Nursery",
+  title: "News from the nursery",
   description:
     "Sign up for news from At the Grove Nursery: new tree stock, growing tips for Appalachian ground, and a note when something's ready to plant.",
 };
