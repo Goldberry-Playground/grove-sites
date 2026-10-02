@@ -33,13 +33,16 @@ In CI use `.github/workflows/e2e-nursery.yml` (manual `workflow_dispatch` with a
    preview droplet (`preview-up.yml`). Owner: Terra.
 2. **Stripe TEST keys on the QA droplet** — the Stripe-session specs (#1, #2, #5)
    drive `/api/checkout/session`, which **503s without test keys**. Tracked by
-   **GOL-899** (currently blocked). Until it lands, those specs are expected-red
-   and should be run with `--grep-invert @stripe` for a partial signal.
+   **GOL-899, which LANDED**: QA carries test keys and sessions mint as `cs_test_`,
+   so these specs **run by default**. `--grep-invert @stripe` (or
+   `e2e-nursery.yml`'s `skip_stripe=true`) is now only for a target that genuinely
+   lacks test keys — a bare preview droplet, say. See :71 below, which already said
+   this.
 
 ## The 6 specs (scope — Ada authors)
 
-Tag Stripe-dependent specs with `@stripe` so they can be excluded while GOL-899
-is blocked.
+Tag Stripe-dependent specs with `@stripe` so they can be excluded on a target
+without Stripe TEST keys. (GOL-899 landed, so QA is not such a target.)
 
 1. **Happy path** `@stripe` — all-in-stock cart → review shows itemized
    goods + shipping + tax → Stripe test card `4242 4242 4242 4242` succeeds →
@@ -115,10 +118,10 @@ to `div.var-card > a.var-card__link`; `collectProductHrefs` was updated to match
 Any build before #719 (e.g. prod on `e3ae053`) fails specs 3/4 at that helper —
 that is the expected signal, not a checkout regression.
 
-## Automation (follow-up, gated on GOL-899)
+## Automation (follow-up — GOL-899 landed; this wiring has not)
 
-Today the CI job is manual (`workflow_dispatch`) so it never blocks unrelated
-PRs while Stripe is unavailable — the suite is intentionally **not** a required
-check. Once GOL-899 lands, wire `e2e-nursery.yml` to `workflow_run` after a
+Today the CI job is manual (`workflow_dispatch`) because it needs a live deployed
+target — the suite is intentionally **not** a required check. The remaining
+follow-up is to wire `e2e-nursery.yml` to `workflow_run` after a
 successful `preview-up` and read the `nursery` URL from the uploaded
 `preview-urls` artifact (already emitted by `preview-up.yml`).
