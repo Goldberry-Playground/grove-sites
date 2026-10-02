@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { assetPath } from "@grove/ui";
@@ -14,6 +15,16 @@ import {
   depositByDate,
   DEPOSIT_CUTOVER,
 } from "../lib/fulfillment-mode";
+
+// GOL-2878 Phase 1. Title and description stay inherited from the root layout
+// — a brand-only homepage title is correct, and a keyword-tuned one is CMO's
+// call, not engineering's. What was actually missing is the self-canonical:
+// without it the homepage had no canonical at all, so any tracking-param copy
+// of it (`/?utm_source=…`, the `/?` the mail client appends) was a separate
+// indexable URL.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // USDA zones offered by the qsearch band above (line ~93) — the Field Notes
 // card mirrors that same zone set so the two never disagree.

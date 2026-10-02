@@ -27,8 +27,12 @@ import {
 // .section-tag, .section-lede, .with-sidebar, .field-notes) — no bespoke CSS.
 export const dynamic = "force-dynamic";
 
+// Title is the LEFT side only — `app/layout.tsx` appends " | At The Grove
+// Nursery" via `title.template` (GOL-2878). Repeating the brand here renders it
+// twice.
 export const metadata: Metadata = {
-  title: "Shipping & Warranty — At The Grove Nursery",
+  title: "Shipping & Warranty",
+  alternates: { canonical: "/shipping-warranty" },
   description: `How and where At The Grove Nursery ships live trees: ${GREEN_STATE_COUNT} U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.`,
 };
 
