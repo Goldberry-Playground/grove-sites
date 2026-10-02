@@ -2,6 +2,27 @@
 export * from "./link-context";
 export { Button, type ButtonProps } from "./Button";
 
+// Decorative inline-SVG glyphs (GOL-2797). The non-ASCII characters these
+// replace are outside the unicode-range Google Fonts serves for our brand
+// faces, so they could never render in a face we control.
+export {
+  ArrowRight,
+  ArrowLeft,
+  WarningIcon,
+  CheckIcon,
+  InfoIcon,
+  DotIcon,
+  ClockIcon,
+  SparkIcon,
+  CaretDown,
+  HalfCircleIcon,
+  UndoIcon,
+  DiamondIcon,
+  TrustIcon,
+  type GroveTrustIconName,
+  type GroveGlyphProps,
+} from "./icons";
+
 // Cohesion + nav
 export { SiblingStrip, type SiblingStripProps, type SiblingSite } from "./SiblingStrip";
 export { NavLink, type NavLinkProps } from "./NavLink";

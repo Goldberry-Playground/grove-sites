@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { Button } from "@grove/ui";
+import { CheckIcon, ClockIcon, DotIcon } from "@grove/ui-kit";
 import type { OdooClient, OrderDetail } from "@grove/odoo-client";
 import { PurchaseTracker } from "./PurchaseTracker";
 import { CheckoutSuccessEffects } from "./CheckoutSuccessEffects";
@@ -65,7 +66,7 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
             aria-hidden="true"
             className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-2xl text-primary"
           >
-            ✓
+            <CheckIcon />
           </div>
           <h1 className="text-3xl font-display font-bold text-primary mb-3">
             Payment received
@@ -95,7 +96,7 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
             <dl className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-foreground/80">
-                  <span aria-hidden="true">●</span> Paid today (deposit)
+                  <DotIcon /> Paid today (deposit)
                 </dt>
                 <dd className="font-semibold tabular-nums">
                   {formatPrice(handoff.amountDueToday, currency)}
@@ -103,7 +104,7 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
               </div>
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-foreground/70">
-                  <span aria-hidden="true">◷</span> Due when your plants ship
+                  <ClockIcon /> Due when your plants ship
                 </dt>
                 <dd className="tabular-nums">{formatPrice(dueLater, currency)}</dd>
               </div>

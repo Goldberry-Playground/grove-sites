@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@grove/ui";
+import { UndoIcon } from "@grove/ui-kit";
 
 /**
  * Stripe "cancel / back" landing (`/checkout/cancel`). Reassures the buyer that
@@ -17,7 +18,7 @@ export function CheckoutCancelPage() {
         aria-hidden="true"
         className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-secondary/20 text-2xl text-primary"
       >
-        ↩
+        <UndoIcon />
       </div>
       <h1 className="text-3xl font-display font-bold text-primary mb-3">
         Payment canceled

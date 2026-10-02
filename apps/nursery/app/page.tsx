@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { assetPath } from "@grove/ui";
+import { ArrowRight } from "@grove/ui-kit";
 import { CategoryBar } from "./category-bar";
 import { NURSERY_CATEGORIES } from "../data/categories";
 import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
@@ -199,7 +200,9 @@ export default async function HomePage() {
             <option value="bush">Bush</option>
           </select>
         </div>
-        <button type="submit">Browse →</button>
+        <button type="submit">
+          Browse <ArrowRight />
+        </button>
       </form>
 
       <FeaturedLeadSellers products={products} total={total} />

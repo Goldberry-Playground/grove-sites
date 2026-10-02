@@ -54,15 +54,15 @@ interface BrandTrust {
 export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
   nursery: {
     cart: [
-      { icon: "✦", text: "Ships from our farm" },
-      { icon: "◐", text: "Made by us, on our land" },
-      { icon: "✓", text: "Arrive-alive guarantee" },
-      { icon: "♦", text: "No payment until we confirm" },
+      { icon: "spark", text: "Ships from our farm" },
+      { icon: "half", text: "Made by us, on our land" },
+      { icon: "check", text: "Arrive-alive guarantee" },
+      { icon: "diamond", text: "No payment until we confirm" },
     ],
     checkout: [
-      { icon: "✦", text: "Card entered on Stripe — never stored by us" },
-      { icon: "◐", text: "Flat $10 deposit per order on reservations, balance when it ships" },
-      { icon: "✓", text: "Arrive-alive guarantee" },
+      { icon: "spark", text: "Card entered on Stripe — never stored by us" },
+      { icon: "half", text: "Flat $10 deposit per order on reservations, balance when it ships" },
+      { icon: "check", text: "Arrive-alive guarantee" },
     ],
     pickup: {
       shipLabel: "Ship to me — delivered to your address",
@@ -79,15 +79,15 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
   },
   ggg: {
     cart: [
-      { icon: "✦", text: "Ships from our workshop" },
-      { icon: "◐", text: "Made by hand, on our land" },
-      { icon: "✓", text: "Solid wood, built to last" },
-      { icon: "♦", text: "No payment until we confirm" },
+      { icon: "spark", text: "Ships from our workshop" },
+      { icon: "half", text: "Made by hand, on our land" },
+      { icon: "check", text: "Solid wood, built to last" },
+      { icon: "diamond", text: "No payment until we confirm" },
     ],
     checkout: [
-      { icon: "✦", text: "Card entered on Stripe — never stored by us" },
-      { icon: "◐", text: "Review your full total before you pay" },
-      { icon: "✓", text: "Solid wood, built to last" },
+      { icon: "spark", text: "Card entered on Stripe — never stored by us" },
+      { icon: "half", text: "Review your full total before you pay" },
+      { icon: "check", text: "Solid wood, built to last" },
     ],
     // No physical pickup point — GGG ships handmade woodwork only.
     pickup: null,
@@ -95,15 +95,15 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
   },
   goldberry: {
     cart: [
-      { icon: "✦", text: "Ships from our farm" },
-      { icon: "◐", text: "Grown and made on our land" },
-      { icon: "✓", text: "Packed fresh, sealed for the trip" },
-      { icon: "♦", text: "No payment until we confirm" },
+      { icon: "spark", text: "Ships from our farm" },
+      { icon: "half", text: "Grown and made on our land" },
+      { icon: "check", text: "Packed fresh, sealed for the trip" },
+      { icon: "diamond", text: "No payment until we confirm" },
     ],
     checkout: [
-      { icon: "✦", text: "Card entered on Stripe — never stored by us" },
-      { icon: "◐", text: "Review your full total before you pay" },
-      { icon: "✓", text: "Packed fresh, sealed for the trip" },
+      { icon: "spark", text: "Card entered on Stripe — never stored by us" },
+      { icon: "half", text: "Review your full total before you pay" },
+      { icon: "check", text: "Packed fresh, sealed for the trip" },
     ],
     // No physical pickup point — goldberry ships pantry goods only.
     pickup: null,
