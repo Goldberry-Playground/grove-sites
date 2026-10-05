@@ -24,6 +24,13 @@ import type { ShippingRateFeed } from "@grove/odoo-client";
  * consult-built mix (templates 134/135, deliberately no declared botanical) is
  * reported `unconfirmed`, never `clear`. Over-promising is the harm we are
  * fixing; a cautious "ask us" is always the safe direction.
+ *
+ * ── Gate order ──────────────────────────────────────────────────────────────
+ * Mirrors the checkout controller exactly: `grove_compliance_exempt` →
+ * phantom (Kit) BoM → `evaluate_line`. Both skips reach us as flags on the
+ * product payload — `complianceExempt` and `shipsAllGreenStates` (GOL-2988) —
+ * and both short-circuit `evaluateCompliance` to `clear`. Neither widens the
+ * green list; they only remove the per-PRODUCT block.
  */
 
 /** One carve-out rule: a taxon may not ship to `states` ("block"), or may ship
@@ -196,6 +203,14 @@ export interface ComplianceInput {
   /** Odoo `grove_compliance_exempt` — Josh has cleared this item by hand, so
    *  checkout skips the gate entirely and so must the notice (GOL-2587). */
   complianceExempt?: boolean;
+  /**
+   * `ships_all_green_states` (GOL-2988) — this product is a phantom/Kit-BoM
+   * bundle, so checkout explodes it per destination and substitutes whatever
+   * that state restricts (GOL-2237) before the carve-out gate ever sees a
+   * taxon. Same shape and same effect as `complianceExempt`: the gate skips,
+   * so the notice must too (GOL-3015).
+   */
+  shipsAllGreenStates?: boolean;
   /** Canonical 2-letter destination code; "" before the shopper picks one. */
   state: string;
   compliance: ComplianceMap;
@@ -212,6 +227,7 @@ export interface ComplianceInput {
 export function evaluateCompliance({
   botanicalName,
   complianceExempt,
+  shipsAllGreenStates,
   state,
   compliance,
   substitutes = SNAPSHOT_SUBSTITUTES,
@@ -220,6 +236,17 @@ export function evaluateCompliance({
   // The exemption is the operator's explicit override: checkout skips the gate,
   // so the storefront must too or we'd warn about an order that sails through.
   if (complianceExempt) return CLEAR;
+  // Substitution bundle (GOL-2988/GOL-3015): the gate's SECOND skip, and the
+  // one that bites hardest if we miss it. A bundle whose declared botanical
+  // leads with the most restrictive taxon in its palette (template 132 is
+  // Castanea-led by design, GOL-2961/GOL-2972) parses as blocked here — yet
+  // checkout substitutes that component away per destination and ships the
+  // order. Suppressing the notice is therefore the FAITHFUL read, not a
+  // loosening: without it the PDP would say "Not cleared for Florida" about an
+  // order we will happily fulfil, which is GOL-2973's advertise-vs-reject
+  // defect pointing the other way — turning away revenue instead of taking an
+  // order we must refuse.
+  if (shipsAllGreenStates) return CLEAR;
 
   const taxon = parseTaxon(botanicalName);
   if (!taxon) {

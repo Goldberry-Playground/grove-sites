@@ -448,7 +448,7 @@ describe("normalizeProductDetail — preorderCapReached (GOL-2171)", () => {
  * pre-hotfix behaviour (shippable, not exempt) so a grove_headless build that
  * predates the fields, and every mock, behaves exactly as it did before.
  */
-describe("fulfillment flags — pickupOnly / complianceExempt (GOL-2587 P1)", () => {
+describe("fulfillment flags — pickupOnly / complianceExempt / shipsAllGreenStates", () => {
   it("maps pickup_only + compliance_exempt on the LIST payload", () => {
     const result = normalizeProductListItem({
       ...honeycrispListItem,
@@ -467,6 +467,27 @@ describe("fulfillment flags — pickupOnly / complianceExempt (GOL-2587 P1)", ()
     });
     expect(result.pickupOnly).toBe(true);
     expect(result.complianceExempt).toBe(true);
+  });
+
+  it("maps ships_all_green_states on BOTH payloads (GOL-2988)", () => {
+    // The third fulfillment flag: a phantom/Kit-BoM substitution bundle whose
+    // components are swapped per destination, so checkout skips the per-taxon
+    // carve-out gate. Camel-cased at the boundary like its two siblings, and
+    // read by the PDP estimator's compliance short-circuit (GOL-3015).
+    const list = normalizeProductListItem({
+      ...honeycrispListItem,
+      ships_all_green_states: true,
+    });
+    expect(list.shipsAllGreenStates).toBe(true);
+    const detail = normalizeProductDetail({ ...honeycrispDetail, ships_all_green_states: true });
+    expect(detail.shipsAllGreenStates).toBe(true);
+  });
+
+  it("defaults ships_all_green_states to false on a pre-19.0.1.63.0 payload", () => {
+    // Prod holds zero mrp.bom (GOL-2949), so false is also the catalog-wide
+    // truth today — the storefront change is inert until GOL-2589 seeds them.
+    expect(normalizeProductListItem(honeycrispListItem).shipsAllGreenStates).toBe(false);
+    expect(normalizeProductDetail(honeycrispDetail).shipsAllGreenStates).toBe(false);
   });
 
   it("maps the flags independently (pickup-only but not exempt)", () => {

@@ -119,6 +119,25 @@ export interface ApiProductListItem {
    * mocks and pre-field payloads default to "not exempt".
    */
   compliance_exempt?: boolean;
+  /**
+   * Substitution-bundle override (GOL-2988, grove_headless
+   * `_ships_all_green_states`). `true` when this template is a bundle built on a
+   * **phantom (Kit) BoM**: checkout explodes it into per-destination components
+   * and substitutes anything the destination restricts (GOL-2237), so the gate
+   * skips the per-taxon carve-out for the line entirely and it ships anywhere
+   * **on the green list**.
+   *
+   * Derived from the SAME `_bom_find(..., bom_type="phantom")` lookup the
+   * checkout carve-out gate performs, so advertise and fulfil cannot drift. Like
+   * `compliance_exempt` it does NOT widen the green list, and for the same
+   * reason the storefront treats the two identically: both mean "no per-product
+   * regulated-state block", never "ships everywhere".
+   *
+   * Emitted on both list and detail. Optional so mocks and a grove_headless
+   * build predating 19.0.1.63.0 default to "not a substitution bundle" — which
+   * is also the catalog-wide truth while prod holds zero `mrp.bom` (GOL-2949).
+   */
+  ships_all_green_states?: boolean;
 }
 
 /** Paginated product list response. */
@@ -644,6 +663,24 @@ export interface Product {
    * of this flag (GOL-2588). Defaults to false in the normalizer.
    */
   complianceExempt?: boolean;
+  /**
+   * Substitution bundle (Odoo phantom/Kit BoM, GOL-2988). `true` when checkout
+   * skips the per-line GOL-2132 carve-out for this product because it explodes
+   * the bundle per destination and swaps out whatever that state restricts
+   * (GOL-2237) — so the line ships anywhere **on the green list**.
+   *
+   * Read it exactly as {@link Product.complianceExempt}: "no per-PRODUCT
+   * regulated-state block", NOT "ships everywhere". The per-STATE green-list
+   * gate (`shipsTo`) is unchanged, so the storefront must not widen its state
+   * select or drop the "we can't ship living trees there yet" notice on the
+   * strength of this flag. What it DOES suppress is the GOL-2973 carve-out
+   * notice: without it, the moment the real phantom BoMs are seeded (GOL-2589)
+   * a `Castanea`-led bundle (template 132) would ship fine at checkout while the
+   * PDP told the shopper it was "Not cleared for Florida" — the advertise-vs-
+   * reject mismatch pointing the other way, turning away a fulfillable order
+   * (GOL-3015). Defaults to false in the normalizer.
+   */
+  shipsAllGreenStates?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**
