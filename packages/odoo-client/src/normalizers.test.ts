@@ -505,6 +505,20 @@ describe("fulfillment flags — pickupOnly / complianceExempt / shipsAllGreenSta
     expect(detail.complianceExempt).toBe(false);
   });
 
+  it("maps consult_built on BOTH payloads and defaults it to false (GOL-3019)", () => {
+    // The third flag `_fulfillment_flags` emits. It must default false: a build
+    // that predates it would otherwise flip every undeclared product onto the
+    // consult-built disclosure, which promises a consult we never agreed to.
+    expect(
+      normalizeProductListItem({ ...honeycrispListItem, consult_built: true }).consultBuilt,
+    ).toBe(true);
+    expect(
+      normalizeProductDetail({ ...honeycrispDetail, consult_built: true }).consultBuilt,
+    ).toBe(true);
+    expect(normalizeProductListItem(honeycrispListItem).consultBuilt).toBe(false);
+    expect(normalizeProductDetail(honeycrispDetail).consultBuilt).toBe(false);
+  });
+
   it("never coerces a truthy non-boolean into true (plain bools on the wire)", () => {
     // The serializer emits `bool(...)`, so anything else is a contract break we
     // should not paper over with a truthy cast.

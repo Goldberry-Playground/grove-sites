@@ -177,13 +177,25 @@ export function resolveSubstitutes(feed?: ShippingRateFeed | null): Record<strin
  *  - `clear`       — ship it, quote a rate (today's only happy branch).
  *  - `restricted`  — the declared taxon is carved out of this state. We know
  *                    the reason and can name a swap, so the copy is specific.
- *  - `unconfirmed` — no parseable declared botanical and the state is
- *                    regulated: the backend fail-safe will refuse this at
- *                    checkout, so the PDP must not quote a rate. This is the
- *                    consult-built-mix case (templates 134/135, GOL-2962).
+ *  - `consult-constrained` — a consult-built SKU (Odoo `grove_consult_built`,
+ *                    templates 134/135) into a regulated state. The backend no
+ *                    longer refuses the deposit here: GOL-3019 defers the real
+ *                    compliance decision to mix time and records the excluded
+ *                    taxa on the order. So the honest storefront answer is not
+ *                    "we can't", it is "we can, with these species off the
+ *                    list" — said BEFORE the customer pays (GOL-3028).
+ *  - `unconfirmed` — no parseable declared botanical, NOT consult-built, and the
+ *                    state is regulated: the backend fail-safe still refuses
+ *                    this at checkout, so the PDP must not quote a rate. The
+ *                    pre-GOL-3019 behaviour for any other undeclared product.
  */
 export type ComplianceVerdict =
   | { kind: "clear" }
+  | {
+      kind: "consult-constrained";
+      /** Carve-out taxa this destination excludes, as the gate names them. */
+      excludedTaxa: string[];
+    }
   | {
       kind: "restricted";
       /** Lowercased taxon key that matched, e.g. "castanea". */
@@ -211,6 +223,15 @@ export interface ComplianceInput {
    * so the notice must too (GOL-3015).
    */
   shipsAllGreenStates?: boolean;
+  /**
+   * Odoo `grove_consult_built` (API `consult_built`, grove-odoo-modules PR #315).
+   * `true` on a SKU whose contents are agreed in a consult AFTER the deposit, so
+   * there is nothing true to declare at checkout time (templates 134/135). The
+   * notice keys on THIS, never on the empty botanical: an empty botanical also
+   * covers products that simply have not been declared yet, and those still get
+   * the cautious `unconfirmed` fail-safe.
+   */
+  consultBuilt?: boolean;
   /** Canonical 2-letter destination code; "" before the shopper picks one. */
   state: string;
   compliance: ComplianceMap;
@@ -228,6 +249,7 @@ export function evaluateCompliance({
   botanicalName,
   complianceExempt,
   shipsAllGreenStates,
+  consultBuilt,
   state,
   compliance,
   substitutes = SNAPSHOT_SUBSTITUTES,
@@ -247,6 +269,17 @@ export function evaluateCompliance({
   // defect pointing the other way — turning away revenue instead of taking an
   // order we must refuse.
   if (shipsAllGreenStates) return CLEAR;
+
+  // Consult-built deferral (GOL-3019 step 2b-iii), mirrored exactly: the backend
+  // takes this branch only when the template is consult-built AND declares no
+  // botanical, and only a REGULATED destination carries a constraint worth
+  // naming. A consult-built SKU that somehow declares a botanical falls through
+  // to normal evaluation, like the gate does.
+  if (consultBuilt && !(botanicalName ?? "").trim()) {
+    const excludedTaxa = excludedTaxaForState(state, compliance);
+    if (excludedTaxa.length > 0) return { kind: "consult-constrained", excludedTaxa };
+    return CLEAR;
+  }
 
   const taxon = parseTaxon(botanicalName);
   if (!taxon) {
@@ -270,4 +303,131 @@ export function evaluateCompliance({
 /** True when a verdict means "do not quote a rate for this item/state pair". */
 export function blocksRate(verdict: ComplianceVerdict): boolean {
   return verdict.kind !== "clear";
+}
+
+/**
+ * The 14 single-species SKUs a consult-built mix (templates 134/135) draws
+ * from — the "palette" whose CEILING is what we may honestly declare for a
+ * class-C SKU (GOL-2972). Snapshotted from the live published catalog
+ * (`/grove/api/v1/products?limit=200` + each `facts.botanical_name`,
+ * 2026-10-05): 20 SKUs = these 14 singles + 6 bundles. Bundles are excluded
+ * because a mix is built from plants, not from other bundles.
+ *
+ * Why a snapshot and not the feed: the rate feed carries the carve-out RULES
+ * (`compliance.carve_outs`) but not the catalog, so "how many of what we grow
+ * clears your state" cannot be derived from it. Only the membership of this list
+ * is baked — every exclusion decision runs the same `evaluateCompliance` the
+ * checkout gate mirrors, so a rule change in the feed re-counts automatically
+ * and the notice can never contradict the gate. `plant-compliance.test.ts` pins
+ * the three live answers (FL 11/14, IN/OH/WI 13/14, elsewhere 14/14), so a
+ * catalog change that moves them fails CI rather than shipping a wrong promise.
+ */
+export interface PaletteSpecies {
+  /** Odoo `product.template` id, so a drift check can re-read the catalog. */
+  templateId: number;
+  /** Customer-facing name, exactly as the shop card reads it. */
+  label: string;
+  /** Declared `grove_botanical_name` — what the carve-out gate keys on. */
+  botanical: string;
+}
+
+export const CONSULT_PALETTE: PaletteSpecies[] = [
+  { templateId: 93, label: "American Chestnut", botanical: "Castanea dentata" },
+  { templateId: 5, label: "American Plum", botanical: "Prunus americana" },
+  { templateId: 3, label: "Apple", botanical: "Malus domestica" },
+  { templateId: 87, label: "Black Walnut", botanical: "Juglans nigra" },
+  { templateId: 8, label: "Chestnut - Hybrid", botanical: "Castanea spp. (hybrid)" },
+  { templateId: 9, label: "Dogwood", botanical: "Cornus florida" },
+  { templateId: 10, label: "Fig", botanical: "Ficus carica" },
+  { templateId: 11, label: "Jujube", botanical: "Ziziphus jujuba" },
+  {
+    templateId: 13,
+    label: "Mulberry",
+    botanical: "Morus alba 'Maple Leaf' (hybrid white mulberry)",
+  },
+  { templateId: 91, label: "PawPaw", botanical: "Asimina triloba" },
+  { templateId: 14, label: "Peach", botanical: "Prunus persica" },
+  { templateId: 15, label: "Pear", botanical: "Pyrus spp." },
+  { templateId: 17, label: "Plum", botanical: "Prunus spp." },
+  { templateId: 19, label: "Service Berry", botanical: "Amelanchier laevis" },
+];
+
+/**
+ * Carve-out taxa that may not ship to `state` — the mirror of
+ * `plant_compliance.excluded_taxa_for_state` (grove-odoo-modules PR #315), which
+ * is what the backend records on the order when it defers a consult-built mix's
+ * compliance to mix time (GOL-3019 AC4). Sorted keys, e.g. `["castanea",
+ * "cornus"]` for FL and `["morus alba"]` for IN/OH/WI; empty for an unregulated
+ * destination. Reads the live feed map, so the notice and the deferral record
+ * name the same constraint.
+ */
+export function excludedTaxaForState(state: string, map: ComplianceMap): string[] {
+  if (!state) return [];
+  return Object.entries(map.carveOuts)
+    .filter(([, rule]) =>
+      rule.kind === "block" ? rule.states.includes(state) : !rule.states.includes(state),
+    )
+    .map(([taxon]) => taxon)
+    .sort();
+}
+
+/**
+ * What a consult-built mix can and cannot include for one destination — the
+ * honest constraint list the PDP and checkout show before the customer pays
+ * (GOL-3019 §4 / GOL-3028).
+ *
+ * `excluded` is the species WE GROW that this state restricts, named the way a
+ * customer reads them ("American Chestnut", not "castanea"). `clearedCount` /
+ * `paletteCount` give the reassuring shape of the constraint: three of fourteen
+ * off the list is a narrowing, not a refusal, and a 100-tree food forest is
+ * still genuinely deliverable.
+ */
+export interface ConsultMixOutlook {
+  /** Species from `CONSULT_PALETTE` this state restricts, in catalog order. */
+  excluded: PaletteSpecies[];
+  /** Plain-language taxon names behind the exclusions, deduped + in order. */
+  excludedTaxonLabels: string[];
+  /** How many palette species clear this destination. */
+  clearedCount: number;
+  /** Palette size (14 today) — the denominator of "N of M clear". */
+  paletteCount: number;
+}
+
+/**
+ * Evaluate the whole palette against one destination. Pure + synchronous, so the
+ * notice answers inside the Doherty threshold on a state change.
+ *
+ * Every species goes through `evaluateCompliance` — the same mirror of the
+ * checkout gate the single-product notice uses — so the count can never claim a
+ * species clears a state the gate would refuse it into.
+ */
+export function consultMixOutlook(
+  state: string,
+  compliance: ComplianceMap,
+  palette: PaletteSpecies[] = CONSULT_PALETTE,
+): ConsultMixOutlook {
+  const excluded = state
+    ? palette.filter(
+        (species) =>
+          evaluateCompliance({
+            botanicalName: species.botanical,
+            state,
+            compliance,
+          }).kind !== "clear",
+      )
+    : [];
+  const labels: string[] = [];
+  for (const species of excluded) {
+    const taxon = parseTaxon(species.botanical);
+    const found = taxon ? ruleFor(taxon, compliance) : null;
+    const key = found?.key ?? taxon?.genus ?? "";
+    const label = TAXON_COMMON_NAMES[key] ?? key;
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  return {
+    excluded,
+    excludedTaxonLabels: labels,
+    clearedCount: palette.length - excluded.length,
+    paletteCount: palette.length,
+  };
 }

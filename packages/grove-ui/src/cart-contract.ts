@@ -38,6 +38,14 @@ export interface GroveCartLineItem {
    * cart persisted before the field existed) is unaffected.
    */
   pickupOnly?: boolean;
+  /**
+   * Consult-built mix line (GOL-3019 / GOL-3028): its plant list is agreed with
+   * the customer after the deposit. The kit itself renders nothing for it — the
+   * consumer supplies the destination-specific notice through
+   * `shipStateNotice`, because only the brand knows its own plant palette and
+   * carve-out map. Optional, so every other consumer is unaffected.
+   */
+  consultBuilt?: boolean;
 }
 
 /**

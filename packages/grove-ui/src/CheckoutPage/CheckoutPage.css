@@ -71,6 +71,16 @@
   }
 }
 
+/*
+ * Destination notice slot (GOL-3028). The live region stays mounted so the first
+ * notice is announced, but an empty region must not leave a stray grid gap under
+ * the address, so it collapses when the consumer returns nothing. `:empty` is
+ * exact here: React renders no child nodes at all for `null`.
+ */
+.grove-checkout__state-notice:empty {
+  display: none;
+}
+
 /* Fields */
 .grove-checkout__field {
   display: block;

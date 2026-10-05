@@ -24,6 +24,12 @@ type AddToCartButtonProps = {
    * the product. Defaults to shippable.
    */
   pickupOnly?: boolean;
+  /**
+   * The line being added is a consult-built mix (GOL-3019). Stamped onto the cart
+   * line so the checkout form can disclose the per-state species constraint
+   * before the deposit is charged, without re-fetching the product (GOL-3028).
+   */
+  consultBuilt?: boolean;
 };
 
 /**
@@ -42,6 +48,7 @@ export function AddToCartButton({
   quantity,
   onQuantityChange,
   pickupOnly,
+  consultBuilt,
 }: AddToCartButtonProps) {
   const { add, openDrawer } = useCart();
 
@@ -52,7 +59,10 @@ export function AddToCartButton({
       quantity={quantity}
       onQuantityChange={onQuantityChange}
       onAddToCart={(quantity) => {
-        add({ variantId, templateId, name, price, imageUrl, pickupOnly }, quantity);
+        add(
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt },
+          quantity,
+        );
         trackAddToCart({ variantId, price, quantity });
         // Open the mini-cart to confirm the add — a clear visual of what landed
         // in the cart plus a one-click path to checkout.

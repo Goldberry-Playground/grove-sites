@@ -5,13 +5,19 @@ import userEvent from "@testing-library/user-event";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 
 /**
- * The estimator's three eligibility states (GOL-2973).
+ * The estimator's four eligibility states (GOL-2973, extended by GOL-3028).
  *
  * The regression this guards is specific and was live on prod: a GREEN state
  * the per-product plant-health carve-out gate (GOL-2132) refuses at checkout
  * still rendered "✓ We ship to Florida … from $20". A rate for a pair we will
  * refuse is the actual harm, so every assertion here is "no dollar figure" plus
  * "the item-specific reason is named".
+ *
+ * GOL-3028 adds the fourth: a consult-built mix (`consultBuilt`) whose deposit
+ * the backend now ACCEPTS into FL/IN/OH/WI (GOL-3019). That branch must read as
+ * a narrowing with real numbers, not a refusal, and it must stay keyed on the
+ * flag — an empty botanical alone still gets the cautious fail-safe, because it
+ * also covers products nobody has declared yet.
  */
 
 const TIERS: EstimatorTier[] = [
@@ -56,13 +62,73 @@ describe("ShippingEstimator — eligibility branches", () => {
     expect(panel.textContent).not.toMatch(/exact rate is confirmed at checkout/);
   });
 
-  it("green + no declared botanical: the consult branch, and quotes NOTHING", () => {
-    // Templates 134/135 — consult-built mixes declare no botanical by design.
+  it("green + no declared botanical and NOT consult-built: the cautious fail-safe", () => {
+    // Any product whose botanical nobody has declared yet. Checkout still
+    // hard-refuses this (the GOL-2132 fail-safe), so the panel must not quote.
     const panel = at("FL", { botanicalName: null });
-    expect(panel.textContent).toMatch(/can’t confirm this mix for Florida/);
-    expect(panel.textContent).toMatch(/confirm your list in the consult/);
+    expect(panel.textContent).toMatch(/can’t confirm this one for Florida/);
+    expect(panel.textContent).toMatch(/haven’t confirmed where this one falls/);
     expect(panel.textContent).not.toMatch(DOLLARS);
     expect(panel.textContent).not.toMatch(/exact rate is confirmed at checkout/);
+    // It must NOT borrow the consult-built disclosure: nothing here is built in
+    // a consult, and promising one would be a different lie.
+    expect(panel.textContent).not.toMatch(/of the 14 species/);
+  });
+
+  it("green + consult-built into FL: discloses the constraint with real numbers", () => {
+    // Template 134 (Centennial Food Forest, $400) shipping to Florida. Florida
+    // restricts chestnut and dogwood, so 11 of the 14 species we grow clear.
+    const panel = at("FL", { botanicalName: null, consultBuilt: true });
+    expect(panel.textContent).toMatch(/Your Florida mix: 11 of the 14 species we grow/);
+    expect(panel.textContent).toMatch(/restricts chestnut and dogwood/);
+    // Every excluded species is named — a count alone is not a disclosure.
+    expect(panel.textContent).toMatch(/American Chestnut/);
+    expect(panel.textContent).toMatch(/Chestnut - Hybrid/);
+    expect(panel.textContent).toMatch(/Dogwood/);
+    // Still no rate: the mix is not built, so the box count that prices it is
+    // genuinely unknown. And no refusal language — the deposit goes through.
+    expect(panel.textContent).not.toMatch(DOLLARS);
+    expect(panel.textContent).not.toMatch(/Not cleared for/);
+    expect(panel.textContent).not.toMatch(/can’t confirm/);
+  });
+
+  it("green + consult-built into IN: one exclusion, and only WHITE mulberry", () => {
+    const panel = at("IN", { botanicalName: null, consultBuilt: true });
+    expect(panel.textContent).toMatch(/Your Indiana mix: 13 of the 14 species we grow/);
+    expect(panel.textContent).toMatch(/restricts white mulberry/);
+    expect(panel.textContent).toMatch(/Mulberry/);
+    // Morus rubra is clean, so the notice must not imply every mulberry is out.
+    expect(panel.textContent).not.toMatch(/American Chestnut/);
+    expect(panel.textContent).not.toMatch(DOLLARS);
+  });
+
+  it("green + consult-built into an UNREGULATED state: nothing is constrained", () => {
+    // WV restricts nothing, so there is no constraint to disclose and the mix
+    // quotes like any other product. Silence is the honest answer here.
+    const panel = at("WV", { botanicalName: null, consultBuilt: true });
+    expect(panel.textContent).toMatch(/We ship to West Virginia/);
+    expect(panel.textContent).toMatch(DOLLARS);
+    expect(panel.textContent).not.toMatch(/species we grow/);
+  });
+
+  it("consult-built does NOT override a declared botanical, exactly like the gate", () => {
+    // The backend takes its deferral branch only when the botanical is empty.
+    // A consult-built template that somehow declares one falls through to the
+    // ordinary per-taxon evaluation, so the storefront must too.
+    const panel = at("FL", { botanicalName: "Castanea spp.", consultBuilt: true });
+    expect(panel.textContent).toMatch(/Not cleared for Florida/);
+    expect(panel.textContent).not.toMatch(/species we grow/);
+  });
+
+  it("consult-built is suppressed by the compliance exemption, like every notice", () => {
+    const panel = at("FL", {
+      botanicalName: null,
+      consultBuilt: true,
+      complianceExempt: true,
+    });
+    expect(panel.textContent).toMatch(/We ship to Florida/);
+    expect(panel.textContent).toMatch(DOLLARS);
+    expect(panel.textContent).not.toMatch(/species we grow/);
   });
 
   it("not green: unchanged 'not there yet', which is about geography not the item", () => {
@@ -133,14 +199,17 @@ describe("ShippingEstimator — eligibility branches", () => {
   });
 
   it("colour is never the only signal: each state has a distinct opening phrase", () => {
-    const openings = ["WV", "FL", "TX"].map((s) => {
+    // Four branches, four openings that differ in WORDS — so the panel reads
+    // correctly in grayscale and under deuteranopia / protanopia / tritanopia.
+    const cases: Array<[string, Partial<React.ComponentProps<typeof ShippingEstimator>>]> = [
+      ["WV", { botanicalName: "Castanea spp." }],
+      ["FL", { botanicalName: "Castanea spp." }],
+      ["FL", { botanicalName: null, consultBuilt: true }],
+      ["TX", { botanicalName: "Castanea spp." }],
+    ];
+    const openings = cases.map(([s, props]) => {
       const { container, unmount } = render(
-        <ShippingEstimator
-          state={s}
-          onStateChange={() => {}}
-          tiers={TIERS}
-          botanicalName="Castanea spp."
-        />,
+        <ShippingEstimator state={s} onStateChange={() => {}} tiers={TIERS} {...props} />,
       );
       const text = container.textContent ?? "";
       unmount();
@@ -148,7 +217,8 @@ describe("ShippingEstimator — eligibility branches", () => {
     });
     expect(openings[0]).toMatch(/We ship to/);
     expect(openings[1]).toMatch(/Not cleared for/);
-    expect(openings[2]).toMatch(/can’t ship living trees/);
+    expect(openings[2]).toMatch(/Your Florida mix:/);
+    expect(openings[3]).toMatch(/can’t ship living trees/);
   });
 
   it("selecting a state calls back so the parent (and the Format cards) follow", async () => {

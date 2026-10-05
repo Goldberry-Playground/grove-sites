@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ShippingRateFeed } from "@grove/odoo-client";
 import {
+  CONSULT_PALETTE,
   SNAPSHOT_COMPLIANCE,
   SNAPSHOT_SUBSTITUTES,
+  consultMixOutlook,
   evaluateCompliance,
+  excludedTaxaForState,
   isTaxonBlocked,
   parseTaxon,
   resolveCompliance,
@@ -255,5 +258,140 @@ describe("feed resolution", () => {
       } as unknown as ShippingRateFeed),
     ).toBe(SNAPSHOT_COMPLIANCE);
     expect(resolveSubstitutes(null)).toBe(SNAPSHOT_SUBSTITUTES);
+  });
+});
+
+describe("consult-built deferral (GOL-3019 / GOL-3028)", () => {
+  it("keys on the flag, not on the empty botanical", () => {
+    // Same empty botanical, same regulated state, two different truths: a
+    // consult-built mix is constrained (deposit accepted, list settled later);
+    // an undeclared ordinary product is still refused outright.
+    expect(
+      evaluateCompliance({
+        botanicalName: "",
+        consultBuilt: true,
+        state: "FL",
+        compliance: SNAPSHOT_COMPLIANCE,
+      }),
+    ).toEqual({ kind: "consult-constrained", excludedTaxa: ["castanea", "cornus"] });
+    expect(
+      evaluateCompliance({
+        botanicalName: "",
+        state: "FL",
+        compliance: SNAPSHOT_COMPLIANCE,
+      }),
+    ).toEqual({ kind: "unconfirmed" });
+  });
+
+  it("an unregulated destination constrains nothing, so the mix is clear", () => {
+    expect(
+      evaluateCompliance({
+        botanicalName: "",
+        consultBuilt: true,
+        state: "WV",
+        compliance: SNAPSHOT_COMPLIANCE,
+      }),
+    ).toEqual({ kind: "clear" });
+  });
+
+  it("a declared botanical wins, exactly like the backend branch order", () => {
+    // grove_headless takes its deferral branch only on `not botanical.strip()`.
+    expect(
+      evaluateCompliance({
+        botanicalName: "Castanea dentata",
+        consultBuilt: true,
+        state: "FL",
+        compliance: SNAPSHOT_COMPLIANCE,
+      }).kind,
+    ).toBe("restricted");
+  });
+
+  it("the exemption still wins over everything", () => {
+    expect(
+      evaluateCompliance({
+        botanicalName: "",
+        consultBuilt: true,
+        complianceExempt: true,
+        state: "FL",
+        compliance: SNAPSHOT_COMPLIANCE,
+      }).kind,
+    ).toBe("clear");
+  });
+});
+
+describe("excludedTaxaForState — mirror of plant_compliance.excluded_taxa_for_state", () => {
+  it("matches the backend's four reachable answers", () => {
+    expect(excludedTaxaForState("FL", SNAPSHOT_COMPLIANCE)).toEqual(["castanea", "cornus"]);
+    for (const state of ["IN", "OH", "WI"]) {
+      expect(excludedTaxaForState(state, SNAPSHOT_COMPLIANCE)).toEqual(["morus alba"]);
+    }
+  });
+
+  it("is empty for an unregulated state and for no state at all", () => {
+    expect(excludedTaxaForState("WV", SNAPSHOT_COMPLIANCE)).toEqual([]);
+    expect(excludedTaxaForState("", SNAPSHOT_COMPLIANCE)).toEqual([]);
+  });
+
+  it("honours an allow-list rule by inverting it, like the Python does", () => {
+    const allowOnly = {
+      carveOuts: { quercus: { kind: "allow" as const, states: ["WV"] } },
+      regulatedStates: ["WV"],
+    };
+    expect(excludedTaxaForState("WV", allowOnly)).toEqual([]);
+    expect(excludedTaxaForState("FL", allowOnly)).toEqual(["quercus"]);
+  });
+});
+
+describe("consultMixOutlook — the numbers the customer is shown", () => {
+  it("pins the three live answers for the published palette", () => {
+    // These are the only numbers the notice ever quotes today, and they are a
+    // delivery promise. A catalog change that moves them must fail here rather
+    // than ship a wrong count (GOL-3028; derived 2026-10-05 from the live
+    // /grove/api/v1/products catalog, 14 single-species SKUs + 6 bundles).
+    expect(CONSULT_PALETTE).toHaveLength(14);
+
+    const fl = consultMixOutlook("FL", SNAPSHOT_COMPLIANCE);
+    expect(fl.clearedCount).toBe(11);
+    expect(fl.paletteCount).toBe(14);
+    expect(fl.excluded.map((s) => s.label)).toEqual([
+      "American Chestnut",
+      "Chestnut - Hybrid",
+      "Dogwood",
+    ]);
+    expect(fl.excludedTaxonLabels).toEqual(["chestnut", "dogwood"]);
+
+    for (const state of ["IN", "OH", "WI"]) {
+      const out = consultMixOutlook(state, SNAPSHOT_COMPLIANCE);
+      expect(out.clearedCount).toBe(13);
+      expect(out.excluded.map((s) => s.label)).toEqual(["Mulberry"]);
+      expect(out.excludedTaxonLabels).toEqual(["white mulberry"]);
+    }
+
+    // Every other green destination restricts nothing we grow.
+    const wv = consultMixOutlook("WV", SNAPSHOT_COMPLIANCE);
+    expect(wv.clearedCount).toBe(14);
+    expect(wv.excluded).toEqual([]);
+  });
+
+  it("every palette botanical parses — an unparseable one would silently clear", () => {
+    for (const species of CONSULT_PALETTE) {
+      expect(parseTaxon(species.botanical), species.label).not.toBeNull();
+    }
+  });
+
+  it("re-counts off the LIVE feed, so a rule change moves the number", () => {
+    // The palette membership is a snapshot; the verdict per species is not. A
+    // feed that newly restricts apples must drop the cleared count by one.
+    const feedMap = {
+      carveOuts: { malus: { kind: "block" as const, states: ["FL"] } },
+      regulatedStates: ["FL"],
+    };
+    const out = consultMixOutlook("FL", feedMap);
+    expect(out.clearedCount).toBe(13);
+    expect(out.excluded.map((s) => s.label)).toEqual(["Apple"]);
+  });
+
+  it("names no species before a state is picked", () => {
+    expect(consultMixOutlook("", SNAPSHOT_COMPLIANCE).excluded).toEqual([]);
   });
 });

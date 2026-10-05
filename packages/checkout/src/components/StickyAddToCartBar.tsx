@@ -26,6 +26,12 @@ type StickyAddToCartBarProps = {
    * the product. Defaults to shippable.
    */
   pickupOnly?: boolean;
+  /**
+   * The line being added is a consult-built mix (GOL-3019). Stamped onto the cart
+   * line so the checkout form can disclose the per-state species constraint
+   * before the deposit is charged, without re-fetching the product (GOL-3028).
+   */
+  consultBuilt?: boolean;
 };
 
 /**
@@ -44,6 +50,7 @@ export function StickyAddToCartBar({
   anchorSelector,
   quantity = 1,
   pickupOnly,
+  consultBuilt,
 }: StickyAddToCartBarProps) {
   const { add, openDrawer, totalQuantity, hydrated } = useCart();
   // Never let a stray fractional/NaN quantity reach the cart from the bar.
@@ -61,7 +68,10 @@ export function StickyAddToCartBar({
       // agree (both show 0 → no badge).
       cartQuantity={hydrated ? totalQuantity : 0}
       onAdd={() => {
-        add({ variantId, templateId, name, price, imageUrl, pickupOnly }, addQuantity);
+        add(
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt },
+          addQuantity,
+        );
         openDrawer(variantId);
       }}
     />

@@ -224,6 +224,10 @@ export default async function ProductDetailPage({
         botanicalName={product.facts?.botanicalName ?? null}
         complianceExempt={product.complianceExempt}
         shipsAllGreenStates={product.shipsAllGreenStates}
+        // Consult-built mix (GOL-3019 / GOL-3028): the deposit now goes through
+        // for FL/IN/OH/WI, so the estimator discloses the per-state constraint
+        // instead of the old blanket "we can't confirm this mix".
+        consultBuilt={product.consultBuilt}
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
         shippingZoneMap={shippingZoneMap}

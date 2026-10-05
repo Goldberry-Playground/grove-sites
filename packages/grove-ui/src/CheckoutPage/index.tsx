@@ -154,6 +154,20 @@ export interface CheckoutPageProps {
    * phrasing through the brand layer (GOL-1314).
    */
   shipStatesNote?: (supportedCount: number) => React.ReactNode;
+  /**
+   * Destination-specific notice rendered under the ship-to address whenever the
+   * buyer has picked a state. Receives the chosen 2-letter code; return `null` to
+   * render nothing (the usual answer). Mirrors `shipStatesNote` deliberately: the
+   * kit owns placement and the live-region announcement, the consumer owns the
+   * claim, because only a brand knows its own plant-health carve-outs. Keeping
+   * the copy out of the kit is the same rule `trustItems` follows — a surface
+   * that dropped the prop must not silently inherit another brand's promise
+   * (GOL-1314).
+   *
+   * Used by the nursery to disclose that a consult-built mix is CONSTRAINED for
+   * the chosen state before the deposit is charged (GOL-3019 §4 / GOL-3028).
+   */
+  shipStateNotice?: (state: string) => React.ReactNode;
   /** Supported ship-to countries. Rendered as a `<select>` (default: US only). */
   countries?: GroveShipToOption[];
   /**
@@ -298,6 +312,7 @@ export function CheckoutPage({
   cartHref = "/cart",
   shipStates,
   shipStatesNote = DEFAULT_SHIP_STATES_NOTE,
+  shipStateNotice,
   countries = DEFAULT_COUNTRIES,
   allowPickup = false,
   pickupCopy = DEFAULT_PICKUP_COPY,
@@ -730,6 +745,20 @@ export function CheckoutPage({
                   <p className="grove-checkout__field-note grove-checkout__field--span2">
                     {shipStatesNote(shipStates.length)}
                   </p>
+                )}
+                {/* Destination-specific disclosure (GOL-3028). aria-live so a
+                    screen-reader user hears it when they change the State select
+                    rather than only on a later tab-through, and it sits directly
+                    under the field that caused it (proximity / common region).
+                    The region is always mounted so the announcement fires on the
+                    first notice too, not just on a change between notices. */}
+                {shipStateNotice && (
+                  <div
+                    aria-live="polite"
+                    className="grove-checkout__field--span2 grove-checkout__state-notice"
+                  >
+                    {shipping.state ? shipStateNotice(shipping.state) : null}
+                  </div>
                 )}
               </div>
             </fieldset>

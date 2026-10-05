@@ -155,6 +155,14 @@ export interface ProductViewProps {
    * `complianceExempt` — it suppresses the GOL-2973 notice (GOL-3015).
    */
   shipsAllGreenStates?: boolean;
+  /**
+   * Odoo `grove_consult_built` (GOL-3019). `true` on a mix whose plant list is
+   * agreed in a consult after the deposit (templates 134/135). Checkout takes the
+   * deposit for a regulated destination and decides compliance at mix time, so
+   * the estimator owes the shopper the per-state constraint up front instead of a
+   * blanket "we can't confirm this" (GOL-3028).
+   */
+  consultBuilt?: boolean;
 }
 
 /**
@@ -181,6 +189,7 @@ export function ProductView({
   botanicalName,
   complianceExempt,
   shipsAllGreenStates,
+  consultBuilt,
 }: ProductViewProps) {
   // Is a resolved variant farm-pickup-only? The product-level override
   // (`pickupOnly`, GOL-2587 P1) wins over the tier, so a Bareroot variant on a
@@ -300,6 +309,7 @@ export function ProductView({
         botanicalName,
         complianceExempt,
         shipsAllGreenStates,
+        consultBuilt,
         state: shipState,
         compliance: complianceMap,
         substitutes: complianceSubstitutes,
@@ -308,12 +318,18 @@ export function ProductView({
       botanicalName,
       complianceExempt,
       shipsAllGreenStates,
+      consultBuilt,
       shipState,
       complianceMap,
       complianceSubstitutes,
     ],
   );
   const shipStateCleared = complianceVerdict.kind === "clear";
+  // A consult-built mix into a regulated state is NOT "not cleared" — checkout
+  // takes the deposit and settles the plant list in the consult (GOL-3019). The
+  // Format cards must word that as a narrowing, not a refusal (GOL-3028).
+  const shipStateConsultConstrained =
+    complianceVerdict.kind === "consult-constrained";
 
   // Which of the three shippable modes bareroot is in TODAY (GOL-1114). Resolved
   // from the schema-2 feed's per-USDA-zone calendar (GOL-1172/1177) against the
@@ -583,6 +599,12 @@ export function ProductView({
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
                       : shipState && !shipsTo(shipState, zoneMap)
                         ? `not shipping to ${shipState} yet`
+                        : shipState && shipStateConsultConstrained
+                          ? // Green state, consult-built mix, destination
+                            // restricts part of the palette. We DO ship here and
+                            // the deposit goes through, so the words say
+                            // "narrowed", not "refused" (GOL-3028).
+                            `mix limited for ${shipState}, see below`
                         : shipState && !shipStateCleared
                           ? // Green state, item not cleared into it. Different
                             // words from the not-green line above so the two
@@ -708,6 +730,7 @@ export function ProductView({
               botanicalName={botanicalName}
               complianceExempt={complianceExempt}
               shipsAllGreenStates={shipsAllGreenStates}
+              consultBuilt={consultBuilt}
             />
           )}
 
@@ -822,6 +845,7 @@ export function ProductView({
               quantity={quantity}
               onQuantityChange={setQuantity}
               pickupOnly={selectedPickupOnly}
+              consultBuilt={consultBuilt}
             />
           </div>
 
@@ -877,6 +901,7 @@ export function ProductView({
         idleLabel={buy.ctaLabel}
         quantity={quantity}
         pickupOnly={selectedPickupOnly}
+        consultBuilt={consultBuilt}
       />
     </>
   );
