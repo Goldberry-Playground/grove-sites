@@ -117,6 +117,7 @@ const run = (id, { status = "completed", conclusion = "failure", name = "CI", cr
  * @param openIssue   an already-open ci-failure issue body, or null
  * @param user        PR author
  * @param closeThrows status code the close/reopen should throw, or null
+ * @param runsThrow   status code `listWorkflowRunsForRepo` should throw, or null
  * @param env         extra env overrides (self-heal / budget / gap)
  */
 async function runSweep({
@@ -126,6 +127,7 @@ async function runSweep({
   openIssue = null,
   user = BOT_USER,
   closeThrows = null,
+  runsThrow = null,
   env = {},
 } = {}) {
   const calls = {
@@ -176,7 +178,14 @@ async function runSweep({
         }),
       },
       actions: {
-        listWorkflowRunsForRepo: async () => ({ data: { workflow_runs: runs } }),
+        listWorkflowRunsForRepo: async () => {
+          if (runsThrow) {
+            const e = new Error("Resource not accessible by integration");
+            e.status = runsThrow;
+            throw e;
+          }
+          return { data: { workflow_runs: runs } };
+        },
         listJobsForWorkflowRun: async ({ run_id }) => {
           calls.jobReads.push(run_id);
           return { data: { jobs: jobsByRun[run_id] || [] } };
@@ -512,6 +521,45 @@ console.log("missing-checks control-plane-drop classifier + self-heal (GOL-3031)
     noPrMutation(calls); // alert-only: an absence is not provably runner-less
     assert(issue.title.startsWith(`Missing required check on PR #${PR}:`), `title was: ${issue.title}`);
     assert(issue.body.includes("That is a dropped trigger"), "lost the GOL-1958 wording");
+  });
+}
+
+// ── Case 12: a run list that reads back EMPTY is not evidence of anything ──
+// Observed live, 2026-10-05 20:43:25Z. GOL-2988's v5 watcher polled PR #310's
+// CI run every 60s for 42 minutes, then got ONE read in which the runs API
+// returned nothing for the head SHA. It concluded "no CI run on SHA at all"
+// and spent a re-fire — killing the queued run it had been waiting for and
+// sending #310 back to the end of an hour-deep queue.
+//
+// The sweep must be immune, and for a structural reason worth pinning: a
+// re-fire requires a POSITIVELY observed drop (terminal `cancelled`/`stale`
+// with an empty `runner_name`). An empty run list proves no drop, so the
+// `not-a-drop` guard — first in the chain — stops it. The required contexts
+// are all present-and-queued here, so there is nothing to report either.
+{
+  const calls = await runSweep({ runs: [], checkRuns: REQUIRED });
+  check("empty run-list read → nothing classified, nothing re-fired", () => {
+    noPrMutation(calls);
+    noIssue(calls);
+  });
+}
+
+// ── Case 13: `actions: read` missing → detect, report, never re-fire ──────
+// grove-odoo-modules and odoocker ran their sweeps without `actions: read`
+// until GOL-3038, so `listWorkflowRunsForRepo` 403s there. Detection must
+// fail OPEN (an absent required context still wedges the PR and still gets an
+// issue) while the self-heal fails CLOSED: with no runs visible, "every
+// non-success job is a drop" is unprovable, so the PR is never touched.
+{
+  const calls = await runSweep({ runsThrow: 403, checkRuns: [LINT] });
+  const issue = onlyIssue(calls);
+  check("runs API 403 → absent-context detection survives, self-heal does not fire", () => {
+    noPrMutation(calls);
+    assert(issue.title.startsWith(`Missing required check on PR #${PR}:`), `title was: ${issue.title}`);
+    assert(
+      calls.infos.some((m) => m.includes("cannot list workflow runs")),
+      "did not log the degraded read",
+    );
   });
 }
 
