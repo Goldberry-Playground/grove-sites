@@ -1,0 +1,4 @@
+# CVE-2026-93687 — braces 3.0.3 DoS via stack overflow
+# No fixed version available as of 2026-10-05; braces is a transitive dev dep only.
+# Remove once a patched braces is released and the lockfile is updated.
+CVE-2026-93687
