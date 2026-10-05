@@ -448,6 +448,48 @@ export type ShippableMode = "bareroot-preorder" | "bareroot-in-window" | "peat-a
  * served from the same module globals, so it can never disagree with the charge
  * within a running instance. `zone_by_state` is the authoritative 21-state green
  * list the frontend eligibility gate must stay in lockstep with. */
+/** One plant-health carve-out rule from the feed's `compliance.carve_outs`
+ * (grove_headless `plant_compliance.CARVE_OUTS`, GOL-2132). `"block"` = the
+ * taxon may NOT ship to any of `states`; `"allow"` = it may ship ONLY to those.
+ * Keys of the containing map are lowercased taxon tokens at genus *or*
+ * genus+species resolution (`"castanea"`, `"morus alba"`) — look up the
+ * species key first, exactly as the backend does. */
+export interface ShippingCarveOutRule {
+  kind: "block" | "allow";
+  states: string[];
+}
+
+/** The `compliance` block of the schema-2 feed (`plant_compliance.carve_out_feed`).
+ * Serialized beside `green_states` so the storefront renders its per-item
+ * carve-out notice from the same map checkout hard-rejects an order with and the
+ * two can never drift (GOL-2973). `regulated_states` is every state any rule
+ * touches — and the ONLY states where an empty/unparseable botanical name
+ * fail-safes to "can't confirm". Optional: absent on a backend predating the
+ * block, where a client falls back to its baked snapshot. */
+export interface ShippingComplianceFeed {
+  schema: number;
+  carve_outs: Record<string, ShippingCarveOutRule>;
+  regulated_states: string[];
+}
+
+/** One substitute we ship in place of a restricted genus
+ * (`bundle_substitution.SUBSTITUTES`, GOL-2237). `native` false means a state
+ * receiving it can no longer be sold an "all natives" claim. */
+export interface ShippingTaxonSubstitute {
+  botanical: string;
+  label: string;
+  native: boolean;
+}
+
+/** The `bundle_substitution` block of the schema-2 feed
+ * (`bundle_substitution.substitution_feed`): WHAT to swap a blocked genus to,
+ * keyed by genus. Pairs with {@link ShippingComplianceFeed}, which says WHICH
+ * taxa are blocked where. Optional for the same reason. */
+export interface ShippingSubstitutionFeed {
+  schema: number;
+  substitutes: Record<string, ShippingTaxonSubstitute>;
+}
+
 export interface ShippingRateFeed {
   /** Feed schema version. 2 for Box Engine v2. */
   schema: number;
@@ -458,6 +500,14 @@ export interface ShippingRateFeed {
   /** Per-USDA-zone twice-yearly ship calendar (GOL-1172). Replaces the old
    * single global `dormant_window`. */
   calendar: ShippingCalendar;
+  /** Per-product plant-health carve-out map (GOL-2132), the second gate that
+   * sits on top of `green_states`: a green destination can still refuse a
+   * specific taxon. Optional — absent on a backend predating
+   * `plant_compliance.carve_out_feed()`. */
+  compliance?: ShippingComplianceFeed | null;
+  /** What we offer in place of a blocked genus (GOL-2237). Optional for the
+   * same reason as `compliance`. */
+  bundle_substitution?: ShippingSubstitutionFeed | null;
 }
 
 /** Cart line from /grove/api/v1/cart. */

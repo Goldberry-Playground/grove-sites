@@ -49,6 +49,11 @@ import {
   writeFulfillmentPref,
 } from "../../../lib/fulfillment-pref";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
+import {
+  evaluateCompliance,
+  resolveCompliance,
+  resolveSubstitutes,
+} from "../../../lib/plant-compliance";
 import { PolicyLink } from "./policy-link";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
@@ -126,6 +131,23 @@ export interface ProductViewProps {
    * `null` when the feed is unreachable → the estimator keeps its snapshot.
    */
   shippingZoneMap?: ShippingZoneMap | null;
+  /**
+   * Declared botanical name (Odoo `grove_botanical_name`, surfaced as
+   * `facts.botanical_name`) — the taxon the per-product plant-health carve-out
+   * gate is keyed on (GOL-2132). Threaded through so the estimator and the
+   * Format cards can tell "green state" from "green state this item is cleared
+   * into" (GOL-2973). Null/"" on a consult-built mix with no declared botanical.
+   */
+  botanicalName?: string | null;
+  /**
+   * Odoo `grove_compliance_exempt` (GOL-2587). `true` → checkout skips the
+   * carve-out gate for this product, so the storefront must show no carve-out
+   * notice either. (GOL-2588 deliberately did not thread this: back then the
+   * storefront's only per-state notice was the green-list gate, which the
+   * exemption does not widen. GOL-2973 adds a notice the exemption DOES
+   * suppress, so it has to reach the client now.)
+   */
+  complianceExempt?: boolean;
 }
 
 /**
@@ -149,6 +171,8 @@ export function ProductView({
   shippingRates,
   shippingFeed,
   shippingZoneMap,
+  botanicalName,
+  complianceExempt,
 }: ProductViewProps) {
   // Is a resolved variant farm-pickup-only? The product-level override
   // (`pickupOnly`, GOL-2587 P1) wins over the tier, so a Bareroot variant on a
@@ -253,6 +277,27 @@ export function ProductView({
   // zone* a state is in — and gate eligibility — off the live backend, so a
   // backend re-zoning (e.g. TN → zone_7) reprices the PDP without a rebuild.
   const zoneMap = useMemo(() => resolveZoneMap(shippingZoneMap), [shippingZoneMap]);
+
+  // Per-item plant-health carve-out verdict for the chosen state (GOL-2132 /
+  // GOL-2973), resolved ONCE here and shared with the estimator panel so the
+  // Format cards and the panel can never disagree about whether this item
+  // clears the destination. Feed-first (the same `compliance` block checkout
+  // refuses on), snapshot fallback. "clear" is the only state that may quote a
+  // rate; the other two are green destinations this item can't travel to.
+  const complianceMap = useMemo(() => resolveCompliance(shippingFeed), [shippingFeed]);
+  const complianceSubstitutes = useMemo(() => resolveSubstitutes(shippingFeed), [shippingFeed]);
+  const complianceVerdict = useMemo(
+    () =>
+      evaluateCompliance({
+        botanicalName,
+        complianceExempt,
+        state: shipState,
+        compliance: complianceMap,
+        substitutes: complianceSubstitutes,
+      }),
+    [botanicalName, complianceExempt, shipState, complianceMap, complianceSubstitutes],
+  );
+  const shipStateCleared = complianceVerdict.kind === "clear";
 
   // Which of the three shippable modes bareroot is in TODAY (GOL-1114). Resolved
   // from the schema-2 feed's per-USDA-zone calendar (GOL-1172/1177) against the
@@ -498,8 +543,11 @@ export function ProductView({
                     format: f,
                   });
                   const fPickupOnly = isPickupOnly(fTier, shippingFeed, pickupOnly);
+                  // A carve-out blocks the ITEM, not the format, so it kills the
+                  // quote for every format (GOL-2973) — the card must not echo a
+                  // "ship $20 to FL" the estimator panel just said we can't do.
                   const fEst =
-                    shipState && !fPickupOnly
+                    shipState && !fPickupOnly && shipStateCleared
                       ? estimateTierShipping(shipState, fTier, {
                           feed: shippingFeed,
                           rates: rateTable,
@@ -519,7 +567,12 @@ export function ProductView({
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
                       : shipState && !shipsTo(shipState, zoneMap)
                         ? `not shipping to ${shipState} yet`
-                        : `ships from ~$${fFromFloor}`;
+                        : shipState && !shipStateCleared
+                          ? // Green state, item not cleared into it. Different
+                            // words from the not-green line above so the two
+                            // reasons stay distinguishable at a glance.
+                            `not cleared for ${shipState} — see below`
+                          : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
                   // (GOL-1313): bareroot follows today's mode; potted takes its
                   // static hint, or the pickup line while the feed prices no
@@ -636,6 +689,8 @@ export function ProductView({
               rates={rateTable}
               feed={shippingFeed}
               zoneMap={zoneMap}
+              botanicalName={botanicalName}
+              complianceExempt={complianceExempt}
             />
           )}
 
