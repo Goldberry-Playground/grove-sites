@@ -140,6 +140,66 @@ describe("evaluateCompliance", () => {
     ).toBe("clear");
   });
 
+  it("stays silent for a substitution bundle, exactly like checkout (GOL-3015)", () => {
+    // Template 132 is deliberately Castanea-led: a bundle declares the CEILING
+    // of its palette (GOL-2961/GOL-2972), so the taxon gate WOULD block it into
+    // Florida. Checkout doesn't: the phantom Kit BoM explodes the bundle and
+    // swaps the chestnut out per destination (GOL-2237), so the line ships. The
+    // PDP must not say "Not cleared for Florida" about an order we will fulfil.
+    const blocked = evaluateCompliance({ ...base, state: "FL", botanicalName: "Castanea spp." });
+    expect(blocked.kind).toBe("restricted");
+    expect(
+      evaluateCompliance({
+        ...base,
+        state: "FL",
+        botanicalName: "Castanea spp.",
+        shipsAllGreenStates: true,
+      }).kind,
+    ).toBe("clear");
+    // Also lifts the undeclared-botanical fail-safe into a regulated state: a
+    // substituted bundle is resolved per destination, so there is nothing left
+    // to fail safe about.
+    expect(
+      evaluateCompliance({ ...base, state: "FL", botanicalName: "", shipsAllGreenStates: true })
+        .kind,
+    ).toBe("clear");
+  });
+
+  it("the substitution flag clears every regulated state, and only green ones (GOL-3015)", () => {
+    // Green ∩ regulated is FL/IN/OH/WI (GOL-2971). All four go quiet for a
+    // substituted bundle. The flag does NOT widen the green list — that gate
+    // runs before this module is ever consulted (`shipsTo` in the estimator),
+    // which is why there is no non-green case to assert here.
+    for (const state of ["FL", "IN", "OH", "WI"]) {
+      expect(
+        evaluateCompliance({
+          ...base,
+          state,
+          botanicalName: "Morus alba",
+          shipsAllGreenStates: true,
+        }).kind,
+      ).toBe("clear");
+    }
+    // Sanity: without the flag, Morus alba is blocked out of IN/OH/WI.
+    expect(
+      evaluateCompliance({ ...base, state: "IN", botanicalName: "Morus alba" }).kind,
+    ).toBe("restricted");
+  });
+
+  it("absent / false substitution flag changes nothing (no GOL-2973 regression)", () => {
+    // The field is absent on a grove_headless build predating 19.0.1.63.0 and
+    // false catalog-wide while prod holds zero mrp.bom (GOL-2949), so "inert
+    // until the BoMs are seeded" has to be a pinned behaviour, not a hope.
+    for (const extra of [{}, { shipsAllGreenStates: false }, { shipsAllGreenStates: undefined }]) {
+      expect(
+        evaluateCompliance({ ...base, state: "FL", botanicalName: "Castanea spp.", ...extra }).kind,
+      ).toBe("restricted");
+      expect(
+        evaluateCompliance({ ...base, state: "FL", botanicalName: null, ...extra }).kind,
+      ).toBe("unconfirmed");
+    }
+  });
+
   it("falls back to the botanical name when a taxon has no plain-language label", () => {
     const v = evaluateCompliance({
       ...base,

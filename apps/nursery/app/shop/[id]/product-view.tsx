@@ -148,6 +148,13 @@ export interface ProductViewProps {
    * suppress, so it has to reach the client now.)
    */
   complianceExempt?: boolean;
+  /**
+   * `ships_all_green_states` (GOL-2988): this product is a phantom/Kit-BoM
+   * substitution bundle, so checkout substitutes restricted components per
+   * destination and skips the carve-out gate. Threaded for the same reason as
+   * `complianceExempt` — it suppresses the GOL-2973 notice (GOL-3015).
+   */
+  shipsAllGreenStates?: boolean;
 }
 
 /**
@@ -173,6 +180,7 @@ export function ProductView({
   shippingZoneMap,
   botanicalName,
   complianceExempt,
+  shipsAllGreenStates,
 }: ProductViewProps) {
   // Is a resolved variant farm-pickup-only? The product-level override
   // (`pickupOnly`, GOL-2587 P1) wins over the tier, so a Bareroot variant on a
@@ -291,11 +299,19 @@ export function ProductView({
       evaluateCompliance({
         botanicalName,
         complianceExempt,
+        shipsAllGreenStates,
         state: shipState,
         compliance: complianceMap,
         substitutes: complianceSubstitutes,
       }),
-    [botanicalName, complianceExempt, shipState, complianceMap, complianceSubstitutes],
+    [
+      botanicalName,
+      complianceExempt,
+      shipsAllGreenStates,
+      shipState,
+      complianceMap,
+      complianceSubstitutes,
+    ],
   );
   const shipStateCleared = complianceVerdict.kind === "clear";
 
@@ -691,6 +707,7 @@ export function ProductView({
               zoneMap={zoneMap}
               botanicalName={botanicalName}
               complianceExempt={complianceExempt}
+              shipsAllGreenStates={shipsAllGreenStates}
             />
           )}
 

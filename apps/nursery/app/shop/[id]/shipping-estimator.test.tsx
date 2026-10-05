@@ -78,6 +78,39 @@ describe("ShippingEstimator — eligibility branches", () => {
     expect(panel.textContent).toMatch(DOLLARS);
   });
 
+  it("substitution bundles quote normally, exactly like checkout (GOL-3015)", () => {
+    // Template 132: Castanea-led bundle on a phantom Kit BoM. Checkout swaps
+    // the chestnut for a hickory per destination and ships it, so the notice
+    // that would read "Not cleared for Florida" must go quiet — otherwise the
+    // PDP turns away an order we can actually fulfil.
+    const panel = at("FL", { botanicalName: "Castanea spp.", shipsAllGreenStates: true });
+    expect(panel.textContent).toMatch(/We ship to Florida/);
+    expect(panel.textContent).toMatch(DOLLARS);
+    expect(panel.textContent).not.toMatch(/Not cleared/);
+  });
+
+  it("a consult mix with the substitution flag loses the can't-confirm notice (GOL-3015)", () => {
+    const panel = at("FL", { botanicalName: null, shipsAllGreenStates: true });
+    expect(panel.textContent).toMatch(/We ship to Florida/);
+    expect(panel.textContent).not.toMatch(/can’t confirm this mix/);
+  });
+
+  it("without the substitution flag the GOL-2973 notice is unchanged", () => {
+    // The flag is false catalog-wide until the phantom BoMs are seeded
+    // (GOL-2589), so the carve-out notice has to survive its arrival untouched.
+    const panel = at("FL", { botanicalName: "Castanea spp.", shipsAllGreenStates: false });
+    expect(panel.textContent).toMatch(/Not cleared for Florida/);
+    expect(panel.textContent).not.toMatch(DOLLARS);
+  });
+
+  it("the substitution flag never widens the green list (GOL-3015)", () => {
+    // Texas is not green. `ships_all_green_states` means "all GREEN states",
+    // and the geographic gate runs first, so the copy must not budge.
+    const panel = at("TX", { botanicalName: "Castanea spp.", shipsAllGreenStates: true });
+    expect(panel.textContent).toMatch(/can’t ship living trees to Texas yet/);
+    expect(panel.textContent).not.toMatch(DOLLARS);
+  });
+
   it("an unregulated green state is untouched by the fail-safe", () => {
     // GA carries no carve-out rule, so an undeclared botanical still ships.
     const panel = at("GA", { botanicalName: "" });

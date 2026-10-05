@@ -71,6 +71,15 @@ export interface ShippingEstimatorProps {
    * warning about an order that sails through is its own kind of lie.
    */
   complianceExempt?: boolean;
+  /**
+   * `ships_all_green_states` (GOL-2988): this is a phantom/Kit-BoM substitution
+   * bundle, so checkout swaps out whatever the destination restricts and skips
+   * the carve-out gate. Suppresses the notice for the same reason
+   * `complianceExempt` does, and matters more: a bundle declares the CEILING of
+   * its palette (GOL-2972), so its botanical reads as restricted here while the
+   * order ships fine (GOL-3015).
+   */
+  shipsAllGreenStates?: boolean;
 }
 
 /**
@@ -111,6 +120,7 @@ export function ShippingEstimator({
   zoneMap = SNAPSHOT_ZONE_MAP,
   botanicalName,
   complianceExempt,
+  shipsAllGreenStates,
 }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
@@ -148,11 +158,12 @@ export function ShippingEstimator({
       evaluateCompliance({
         botanicalName,
         complianceExempt,
+        shipsAllGreenStates,
         state,
         compliance,
         substitutes,
       }),
-    [botanicalName, complianceExempt, state, compliance, substitutes],
+    [botanicalName, complianceExempt, shipsAllGreenStates, state, compliance, substitutes],
   );
   const cleared = verdict.kind === "clear";
   // Live green-state count when the feed reached us, else the baked snapshot

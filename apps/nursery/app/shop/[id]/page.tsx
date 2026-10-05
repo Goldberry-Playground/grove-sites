@@ -223,6 +223,7 @@ export default async function ProductDetailPage({
         // only notice was the green list, which the exemption does not widen).
         botanicalName={product.facts?.botanicalName ?? null}
         complianceExempt={product.complianceExempt}
+        shipsAllGreenStates={product.shipsAllGreenStates}
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
         shippingZoneMap={shippingZoneMap}
