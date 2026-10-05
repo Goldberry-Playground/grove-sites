@@ -1,17 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ShippingCalendar } from "@grove/odoo-client";
 import { CategoryBar } from "../category-bar";
+import { odoo } from "../../lib/clients";
 import {
   shipScope,
   US_STATE_NAMES,
   ZONE_BY_STATE,
 } from "../../lib/shipping-estimate";
+import { formatWindow, shipWindowEnvelope } from "../../lib/fulfillment-mode";
 
 // At The Grove Nursery — Shipping & Warranty policy page (GOL-967).
 //
 // Copy is BOARD-APPROVED and rendered verbatim from the `shipping-warranty-
 // policy` document on GOL-944 (rev "FINAL", Josh 2026-07-30). Do not alter the
 // terms, the state list, or any pricing language here.
+//
+// Ship WINDOW derived on GOL-2948 (CMO ratification, 2026-10-05). The
+// at-a-glance box and the shipping-season prose hardcoded "Feb - May", the one
+// figure on this page that was hand-written rather than read from the engine.
+// It was wrong in both directions against the live calendar feed: February
+// ships nothing in any zone, while the entire fall wave (November into early
+// December) and the first week of June were denied outright — on a page a
+// shopper reads while the storefront and the social queue are actively selling
+// fall planting. Both now render `shipWindowEnvelope()` over the feed's
+// `calendar` block, so a calendar edit is a data change here too. No terms,
+// prices or list entries altered.
 //
 // Wording of the ship-scope figure corrected on GOL-2941 (CMO ratification,
 // 2026-10-05): the derived count is a *destination* count and includes D.C., a
@@ -55,7 +69,21 @@ const SHIP_STATE_NAMES = Object.keys(ZONE_BY_STATE)
   .sort((a, b) => a.localeCompare(b));
 const SHIP_STATES = `${SHIP_STATE_NAMES.slice(0, -1).join(", ")}, and ${SHIP_STATE_NAMES.at(-1)}.`;
 
-export default function ShippingWarrantyPage() {
+export default async function ShippingWarrantyPage() {
+  // Live per-USDA-zone ship calendar (GOL-1172/1177), the same feed + helpers
+  // the homepage Field Notes and the PDP buy box read, so the policy page can
+  // never state a season the buy box contradicts. Best-effort, exactly as on
+  // the homepage: a missing or degraded feed falls back to the baked
+  // backend-mirror snapshot inside `shipWindowEnvelope`, never to a literal.
+  let shippingCalendar: ShippingCalendar | null = null;
+  try {
+    shippingCalendar = (await odoo.shipping.rateFeed())?.calendar ?? null;
+  } catch {
+    shippingCalendar = null;
+  }
+  const windows = shipWindowEnvelope(shippingCalendar);
+  const fulfillmentDays = shippingCalendar?.fulfillment_days ?? [5, 10];
+
   return (
     <>
       <CategoryBar />
@@ -127,15 +155,30 @@ export default function ShippingWarrantyPage() {
             the goal is to get trees in the ground while there is still good
             moisture in the soil, so roots establish months before bud break.
           </p>
+          <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
+            We ship dormant trees in two waves a year:{" "}
+            <strong>{formatWindow(windows.fall)}</strong> in the fall and{" "}
+            <strong>{formatWindow(windows.spring)}</strong> in the spring. Those
+            are the outside edges of the season — the exact weeks stagger by
+            USDA hardiness zone and depend on the weather and how quickly the
+            ground thaws in your region, so warmer zones ship earlier in spring
+            and later in fall. Your window is confirmed at checkout.
+          </p>
+          <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
+            An order placed outside those waves, while the trees are leafed out,
+            ships as peat and bagged — a leafed tree with its roots wrapped in
+            damp peat — on our normal {fulfillmentDays[0]} to{" "}
+            {fulfillmentDays[1]} business day timeline. Once the next dormant
+            wave opens, orders are reserved instead and ship dormant in your
+            zone&apos;s window. Either way there is no month we cannot get a
+            tree to you; what changes is the form it arrives in and when.
+          </p>
           <p style={{ maxWidth: "60ch", marginBottom: "1.5rem" }}>
-            We ship in late winter through spring, roughly{" "}
-            <strong>February through May</strong>, depending on the weather and
-            how quickly the ground thaws in your region. If your ground is still
-            frozen or your soil is too wet when your trees arrive, &ldquo;heel&rdquo;
-            the trees in — cover the roots with moist soil or sand in a shady
-            spot — until your ground thaws and drains. Let us know when you order
-            if your ground is frozen solid and we will hold your order for a
-            later ship date.
+            If your ground is still frozen or your soil is too wet when your
+            trees arrive, &ldquo;heel&rdquo; the trees in — cover the roots with
+            moist soil or sand in a shady spot — until your ground thaws and
+            drains. Let us know when you order if your ground is frozen solid
+            and we will hold your order for a later ship date.
           </p>
 
           <h2
@@ -251,8 +294,18 @@ export default function ShippingWarrantyPage() {
               <strong>{SHIP_SCOPE.shortPhrase}</strong>
             </li>
             <li>
-              <span>Ship window</span>
-              <strong>Feb – May</strong>
+              <span>Fall shipping</span>
+              <strong>{formatWindow(windows.fall)}</strong>
+            </li>
+            <li>
+              <span>Spring shipping</span>
+              <strong>{formatWindow(windows.spring)}</strong>
+              <small>
+                Staggered by USDA zone, weather permitting. Leafed-out months
+                ship as peat and bagged in{" "}
+                {`${fulfillmentDays[0]}–${fulfillmentDays[1]}`} business
+                days.
+              </small>
             </li>
             <li>
               <span>Shipping cost</span>

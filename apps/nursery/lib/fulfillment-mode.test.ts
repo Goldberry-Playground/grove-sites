@@ -12,6 +12,10 @@ import {
   DEPOSIT_CUTOVER,
   depositByDate,
   zoneShipNote,
+  shipWindowEnvelope,
+  formatWindow,
+  monthsCovered,
+  DEFAULT_WINDOWS,
   type ShippableMode,
 } from "./fulfillment-mode";
 
@@ -503,5 +507,141 @@ describe("zoneShipNote — homepage Field Notes row", () => {
 
   it("unknown zone: no invented dates", () => {
     expect(zoneShipNote(on(9, 23), Z, 9)).toEqual({ label: "Confirmed at checkout", note: null });
+  });
+});
+
+// ── Ship-window envelope for zone-agnostic copy (GOL-2948) ───────────────────
+//
+// VERBATIM mirror of the `calendar` block of the live prod feed
+// (GET https://odoo.gatheringatthegrove.com/grove/api/v1/shipping/rates, read
+// 2026-10-05), transcribed from the response rather than hand-typed. The whole
+// point of GOL-2948 is that the policy page's ship window was hand-written and
+// matched no zone in this data, so the fixture has to be the real thing.
+const PROD_CAL: ShippingCalendar = {
+  preorder_open: { fall: [10, 16], spring: [11, 1] },
+  leafed_window: [[5, 1], [10, 15]],
+  fulfillment_days: [5, 10],
+  approximate: true,
+  weather_hold_note: null,
+  zones: {
+    "2": {
+      fall: [[11, 2], [11, 13]],
+      spring: [[4, 19], [6, 6]],
+      fall_order_deadline: [11, 12],
+      spring_order_deadline: [5, 31],
+    },
+    "3": {
+      fall: [[11, 2], [11, 13]],
+      spring: [[4, 19], [6, 6]],
+      fall_order_deadline: [11, 12],
+      spring_order_deadline: [5, 31],
+    },
+    "4": {
+      fall: [[11, 2], [11, 19]],
+      spring: [[4, 19], [6, 6]],
+      fall_order_deadline: [11, 16],
+      spring_order_deadline: [5, 31],
+    },
+    "5": {
+      fall: [[11, 2], [11, 19]],
+      spring: [[4, 12], [6, 6]],
+      fall_order_deadline: [11, 16],
+      spring_order_deadline: [5, 31],
+    },
+    "6": {
+      fall: [[11, 9], [11, 26]],
+      spring: [[4, 5], [6, 6]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [5, 31],
+    },
+    "7": {
+      fall: [[11, 9], [11, 26]],
+      spring: [[3, 16], [5, 24]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [5, 17],
+    },
+    "8": {
+      fall: [[11, 9], [12, 12]],
+      spring: [[3, 1], [4, 30]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [4, 16],
+    },
+    "9": {
+      fall: [[11, 9], [12, 12]],
+      spring: [[3, 1], [4, 30]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [4, 16],
+    },
+    "10": {
+      fall: [[11, 9], [12, 12]],
+      spring: [[3, 1], [4, 30]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [4, 16],
+    },
+  },
+};
+
+describe("shipWindowEnvelope", () => {
+  it("unions every served zone, not just the temperate middle", () => {
+    const env = shipWindowEnvelope(PROD_CAL);
+    expect(env.source).toBe("feed");
+    // Earliest fall start is zones 2-5 (Nov 2); latest fall end is zones 8-10
+    // (Dec 12). Earliest spring start is zones 8-10 (Mar 1); latest spring end
+    // is zones 2-6 (Jun 6). Dropping the warm zones would hide real ship dates
+    // from the green states in them (FL, LA, coastal GA/AL/MS/SC).
+    expect(formatWindow(env.fall)).toBe("Nov 2 – Dec 12");
+    expect(formatWindow(env.spring)).toBe("Mar 1 – Jun 6");
+  });
+
+  it("names no month the engine ships nothing in", () => {
+    const env = shipWindowEnvelope(PROD_CAL);
+    const shown = [...monthsCovered(env.fall), ...monthsCovered(env.spring)];
+    const shippable = new Set(
+      Object.values(PROD_CAL.zones).flatMap((z) => [
+        ...monthsCovered(z.fall),
+        ...monthsCovered(z.spring),
+      ]),
+    );
+    for (const month of shown) expect(shippable.has(month)).toBe(true);
+    // The specific regression: the old literal said "Feb - May". February is
+    // not in any zone's window, and November/December/June were all missing.
+    expect(shown).not.toContain(2);
+    expect(shown).toEqual(expect.arrayContaining([11, 12, 3, 6]));
+  });
+
+  it("is derived, not baked: a narrower calendar narrows the copy", () => {
+    const onlyWarm: ShippingCalendar = {
+      ...PROD_CAL,
+      zones: { "7": PROD_CAL.zones["7"] },
+    };
+    const env = shipWindowEnvelope(onlyWarm);
+    expect(formatWindow(env.fall)).toBe("Nov 9 – Nov 26");
+    expect(formatWindow(env.spring)).toBe("Mar 16 – May 24");
+  });
+
+  it("degrades to the baked backend mirror, never to a literal", () => {
+    for (const degraded of [null, undefined, { ...PROD_CAL, zones: {} }]) {
+      const env = shipWindowEnvelope(degraded as ShippingCalendar | null);
+      expect(env.source).toBe("snapshot");
+      expect(env.fall).toEqual(DEFAULT_WINDOWS.fall);
+      expect(env.spring).toEqual(DEFAULT_WINDOWS.spring);
+    }
+  });
+
+  it("the baked snapshot agrees with the live feed's envelope", () => {
+    // Keeps the degraded policy page and the live one telling the same story.
+    // If the backend re-schedules a wave, this fails and the mirror gets bumped
+    // (same contract as the DEFAULT_WINDOWS note above).
+    const live = shipWindowEnvelope(PROD_CAL);
+    expect(live.fall).toEqual(DEFAULT_WINDOWS.fall);
+    expect(live.spring).toEqual(DEFAULT_WINDOWS.spring);
+  });
+
+  it("skips a malformed zone instead of throwing", () => {
+    const partial = {
+      ...PROD_CAL,
+      zones: { "5": PROD_CAL.zones["5"], "6": {} as never },
+    };
+    expect(formatWindow(shipWindowEnvelope(partial).fall)).toBe("Nov 2 – Nov 19");
   });
 });
