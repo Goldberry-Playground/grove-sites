@@ -127,9 +127,9 @@ export function ConsultCarveOutNotice({
         </span>
       </p>
       <p className="mt-1.5 text-xs text-foreground/70">
-        We ship to {stateName}, and {stateName} restricts {reasons} for plant-health
-        reasons. So we build your list from everything else we grow, which is still
-        plenty for a full food forest.
+        We ship to {stateName}, which restricts {reasons} for plant-health reasons.
+        So we build your list from everything else we grow. That’s still a full
+        food forest.
       </p>
       <p className="mt-2 text-xs font-medium text-foreground">
         Not for {stateName}:

@@ -384,8 +384,8 @@ export function ShippingEstimator({
             ) : (
               <p className="mt-1.5 text-xs text-foreground/70">
                 {stateName} restricts certain plants for plant-health reasons, and we
-                haven’t confirmed where this one falls. We won’t promise a ship we
-                can’t honour, so ask us below and we’ll check it and come back to you.
+                haven’t confirmed where this one falls. We won’t promise a delivery we
+                can’t make, so ask us below and we’ll check it and come back to you.
                 You can also pick it up free at the farm.
               </p>
             )}
