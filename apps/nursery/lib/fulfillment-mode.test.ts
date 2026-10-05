@@ -15,6 +15,7 @@ import {
   shipWindowEnvelope,
   formatWindow,
   monthsCovered,
+  servedZoneSpan,
   DEFAULT_WINDOWS,
   type ShippableMode,
 } from "./fulfillment-mode";
@@ -518,6 +519,11 @@ describe("zoneShipNote — homepage Field Notes row", () => {
 // point of GOL-2948 is that the policy page's ship window was hand-written and
 // matched no zone in this data, so the fixture has to be the real thing.
 const PROD_CAL: ShippingCalendar = {
+  // GOL-2957: `[min, max]` USDA hardiness span the green list covers, derived
+  // backend-side from the green-filtered PHZM matrix. Pinned to [3, 10] by
+  // grove_headless's own `test_served_usda_range_is_derived_green_list_span`,
+  // so this mirrors the serializer contract rather than a hand-picked band.
+  served_usda_range: [3, 10],
   preorder_open: { fall: [10, 16], spring: [11, 1] },
   leafed_window: [[5, 1], [10, 15]],
   fulfillment_days: [5, 10],
@@ -643,5 +649,69 @@ describe("shipWindowEnvelope", () => {
       zones: { "5": PROD_CAL.zones["5"], "6": {} as never },
     };
     expect(formatWindow(shipWindowEnvelope(partial).fall)).toBe("Nov 2 – Nov 19");
+  });
+});
+
+describe("servedZoneSpan — GOL-2967 served USDA hardiness span", () => {
+  it("reads the derived span off the feed", () => {
+    // The page prints these two numbers and nothing else, so a green-list
+    // change (which reshapes the backend matrix) reshapes the copy.
+    expect(servedZoneSpan(PROD_CAL)).toEqual([3, 10]);
+  });
+
+  it("is derived, not a band baked into the frontend", () => {
+    // Proves AC2 the only way a unit test can: feed a DIFFERENT span and the
+    // output follows it. If anyone re-hardcodes "5-7" (or 3-10) here, this
+    // fails. Narrower AND wider, so a clamp would not sneak through either.
+    expect(servedZoneSpan({ ...PROD_CAL, served_usda_range: [5, 7] })).toEqual([
+      5, 7,
+    ]);
+    expect(servedZoneSpan({ ...PROD_CAL, served_usda_range: [2, 11] })).toEqual([
+      2, 11,
+    ]);
+    expect(servedZoneSpan({ ...PROD_CAL, served_usda_range: [6, 6] })).toEqual([
+      6, 6,
+    ]);
+  });
+
+  it("returns null for a degraded or pre-GOL-2957 feed", () => {
+    // Prod runs a grove_headless without the key until GOL-3014 deploys, and
+    // the page is force-dynamic — so this is the LIVE branch today, not an
+    // edge case. The policy page drops the parenthetical; it must never fall
+    // back to a literal band the way the ship window falls back to a snapshot.
+    const { served_usda_range: _omitted, ...withoutKey } = PROD_CAL;
+    expect(servedZoneSpan(withoutKey as ShippingCalendar)).toBeNull();
+    expect(servedZoneSpan(null)).toBeNull();
+    expect(servedZoneSpan(undefined)).toBeNull();
+    expect(
+      servedZoneSpan({ ...PROD_CAL, served_usda_range: null }),
+    ).toBeNull();
+  });
+
+  it("refuses a malformed span instead of rendering half a range", () => {
+    // The feed is untrusted JSON at runtime. Each of these would otherwise
+    // print something like "USDA Zones –" or "USDA Zones 3–undefined" on a
+    // board-approved policy page.
+    for (const bad of [
+      [null, null],
+      [3],
+      [],
+      [3, 10, 11],
+      ["3", "10"],
+      [3, null],
+      [3.5, 10],
+      [NaN, 10],
+      [10, 3],
+      3,
+      "3-10",
+      {},
+    ]) {
+      expect(
+        servedZoneSpan({
+          ...PROD_CAL,
+          served_usda_range: bad as never,
+        }),
+      ).toBeNull();
+    }
   });
 });

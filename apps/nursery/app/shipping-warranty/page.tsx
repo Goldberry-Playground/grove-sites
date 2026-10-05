@@ -8,7 +8,11 @@ import {
   US_STATE_NAMES,
   ZONE_BY_STATE,
 } from "../../lib/shipping-estimate";
-import { formatWindow, shipWindowEnvelope } from "../../lib/fulfillment-mode";
+import {
+  formatWindow,
+  servedZoneSpan,
+  shipWindowEnvelope,
+} from "../../lib/fulfillment-mode";
 
 // At The Grove Nursery — Shipping & Warranty policy page (GOL-967).
 //
@@ -97,9 +101,11 @@ export default async function ShippingWarrantyPage() {
   // GOL-2957: the served USDA hardiness span, derived from the same feed. The
   // backend computes `[min, max]` across the green-filtered PHZM matrix, so
   // adding or removing a green state reshapes it with no copy edit here. A
-  // degraded feed (null/absent) drops the parenthetical rather than asserting a
-  // possibly-stale band — the sentence still reads correctly without it.
-  const servedZones = shippingCalendar?.served_usda_range ?? null;
+  // degraded feed (absent/null/malformed) drops the parenthetical rather than
+  // asserting a possibly-stale band — the sentence still reads correctly
+  // without it, and `servedZoneSpan` validates the shape so a half-migrated
+  // feed can never render "USDA Zones –" (GOL-2967).
+  const servedZones = servedZoneSpan(shippingCalendar);
 
   return (
     <>

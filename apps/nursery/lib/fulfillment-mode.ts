@@ -606,3 +606,31 @@ export function monthsCovered(window: [MonthDay, MonthDay]): number[] {
   for (let m = window[0][0]; m <= window[1][0]; m += 1) months.push(m);
   return months;
 }
+
+/** The served USDA hardiness span `[min, max]` off the feed's `calendar`
+ *  block, or `null` when there isn't an honest one to state (GOL-2967).
+ *
+ *  The backend derives `served_usda_range` from the green-filtered PHZM matrix
+ *  (grove-odoo-modules GOL-2957), so adding or removing a green state reshapes
+ *  the span with no copy edit on `/shipping-warranty`. This is the DESTINATION
+ *  hardiness span — not the `zone_1..zone_5` carrier distance bands, and not
+ *  the wider set of `calendar.zones` the calendar is merely configured for.
+ *
+ *  The rate feed is untrusted JSON at runtime (the page is `force-dynamic`), so
+ *  the shape is validated rather than cast: a degraded feed omits the key, but
+ *  an older or half-migrated one could send `[null, null]`, a one-element list,
+ *  or strings. Every one of those must return `null` so the policy page drops
+ *  its parenthetical instead of printing "USDA Zones –" at a shopper. Unlike
+ *  {@link shipWindowEnvelope} there is deliberately NO snapshot fallback: a
+ *  zone band is a claim about who we serve, and a stale claim here is the
+ *  GOL-2957 defect (a Florida shopper told "5-7" concludes we skip them). */
+export function servedZoneSpan(
+  calendar?: ShippingCalendar | null,
+): [number, number] | null {
+  const span: unknown = calendar?.served_usda_range;
+  if (!Array.isArray(span) || span.length !== 2) return null;
+  const [min, max] = span;
+  if (!Number.isInteger(min) || !Number.isInteger(max)) return null;
+  if ((min as number) > (max as number)) return null;
+  return [min as number, max as number];
+}
