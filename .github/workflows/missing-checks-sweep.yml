@@ -33,7 +33,11 @@ on:
 
 permissions:
   contents: read # read required-checks.json + head commit date
-  pull-requests: read # list open PRs
+  pull-requests: write # list open PRs, and close+reopen one to re-fire CI on an
+    # unchanged head SHA when GitHub's control plane dropped a required job
+    # without ever assigning it a runner (GOL-3031). The App token has no
+    # `actions: write`, so close/reopen is the only re-trigger lever for an
+    # unchanged SHA. Bounded + bot-PR-only + never --delete-branch (GOL-1658).
   checks: read # check-runs on the head SHA
   statuses: read # commit statuses on the head SHA (e.g. Lighthouse CI)
   actions: read # workflow runs on the head SHA — tells an approval gate (`action_required`) apart from a dropped trigger (GOL-2732)
