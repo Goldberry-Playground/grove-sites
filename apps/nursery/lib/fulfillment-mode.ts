@@ -606,3 +606,39 @@ export function monthsCovered(window: [MonthDay, MonthDay]): number[] {
   for (let m = window[0][0]; m <= window[1][0]; m += 1) months.push(m);
   return months;
 }
+
+/**
+ * The served USDA hardiness-zone span as a customer-facing clause, derived from
+ * `calendar.served_usda_range` (GOL-2957). The backend computes `[min, max]`
+ * across the green-filtered PHZM matrix (grove-odoo-modules
+ * `shipping_calendar.served_usda_range`), so adding or removing a green state
+ * reshapes the matrix and reshapes this with no copy edit here — the same
+ * "never type a zone literal" rule as {@link shipWindowEnvelope}.
+ *
+ * The regression this closes: the policy page hardcoded "roughly USDA Zones
+ * 5-7", a three-zone band for a green list that actually spans zones 3-10
+ * (northern MN/ME through Florida and the Gulf). The understatement ran in the
+ * harmful direction at the warm end — a Florida shopper read "5-7" and
+ * reasonably concluded we don't serve them, while checkout ships there.
+ *
+ * Returns `null` when the feed is degraded (range absent/null) or malformed
+ * (not a two-int ascending pair), so the caller drops the clause rather than
+ * asserting a bogus or stale band. A single-zone span (min === max) reads
+ * "USDA Zone 6", not "Zones 6-6".
+ */
+export function servedZoneSpan(
+  calendar?: ShippingCalendar | null,
+): string | null {
+  const range = calendar?.served_usda_range;
+  if (
+    !Array.isArray(range) ||
+    range.length !== 2 ||
+    !Number.isInteger(range[0]) ||
+    !Number.isInteger(range[1]) ||
+    range[0] > range[1]
+  ) {
+    return null;
+  }
+  const [min, max] = range;
+  return min === max ? `USDA Zone ${min}` : `USDA Zones ${min}–${max}`;
+}

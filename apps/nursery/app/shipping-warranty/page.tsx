@@ -8,7 +8,11 @@ import {
   US_STATE_NAMES,
   ZONE_BY_STATE,
 } from "../../lib/shipping-estimate";
-import { formatWindow, shipWindowEnvelope } from "../../lib/fulfillment-mode";
+import {
+  formatWindow,
+  servedZoneSpan,
+  shipWindowEnvelope,
+} from "../../lib/fulfillment-mode";
 
 // At The Grove Nursery — Shipping & Warranty policy page (GOL-967).
 //
@@ -94,12 +98,13 @@ export default async function ShippingWarrantyPage() {
   }
   const windows = shipWindowEnvelope(shippingCalendar);
   const fulfillmentDays = shippingCalendar?.fulfillment_days ?? [5, 10];
-  // GOL-2957: the served USDA hardiness span, derived from the same feed. The
-  // backend computes `[min, max]` across the green-filtered PHZM matrix, so
-  // adding or removing a green state reshapes it with no copy edit here. A
-  // degraded feed (null/absent) drops the parenthetical rather than asserting a
-  // possibly-stale band — the sentence still reads correctly without it.
-  const servedZones = shippingCalendar?.served_usda_range ?? null;
+  // GOL-2957: the served USDA hardiness span as a ready-to-render clause,
+  // derived from the same feed. The backend computes `[min, max]` across the
+  // green-filtered PHZM matrix, so adding or removing a green state reshapes it
+  // with no copy edit here. `servedZoneSpan` returns null on a degraded or
+  // malformed feed, so the parenthetical is dropped rather than asserting a
+  // bogus/stale band — the sentence still reads correctly without it.
+  const servedSpan = servedZoneSpan(shippingCalendar);
 
   return (
     <>
@@ -169,9 +174,7 @@ export default async function ShippingWarrantyPage() {
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
             <strong>Snow or frost will not hurt a dormant tree.</strong> For our
             shipping region
-            {servedZones
-              ? ` (USDA Zones ${servedZones[0]}–${servedZones[1]} across the states we serve)`
-              : ""}
+            {servedSpan ? ` (${servedSpan} across the states we serve)` : ""}
             , the goal is to get trees in the ground while there is still good
             moisture in the soil, so roots establish months before bud break.
           </p>

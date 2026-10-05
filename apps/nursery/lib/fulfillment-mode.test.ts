@@ -15,6 +15,7 @@ import {
   shipWindowEnvelope,
   formatWindow,
   monthsCovered,
+  servedZoneSpan,
   DEFAULT_WINDOWS,
   type ShippableMode,
 } from "./fulfillment-mode";
@@ -523,6 +524,8 @@ const PROD_CAL: ShippingCalendar = {
   fulfillment_days: [5, 10],
   approximate: true,
   weather_hold_note: null,
+  // GOL-2957: backend-derived [min, max] span of the green-filtered PHZM matrix.
+  served_usda_range: [3, 10],
   zones: {
     "2": {
       fall: [[11, 2], [11, 13]],
@@ -643,5 +646,48 @@ describe("shipWindowEnvelope", () => {
       zones: { "5": PROD_CAL.zones["5"], "6": {} as never },
     };
     expect(formatWindow(shipWindowEnvelope(partial).fall)).toBe("Nov 2 – Nov 19");
+  });
+});
+
+describe("servedZoneSpan — GOL-2957 derived USDA-zone clause", () => {
+  it("renders the derived [min, max] span, not the retired 5-7 literal", () => {
+    // PROD_CAL carries the backend-derived span of the green list (zones 3-10:
+    // northern MN/ME through Florida and the Gulf). The old hardcoded "5-7"
+    // under-served the warm end; a Florida shopper read it and bounced.
+    expect(servedZoneSpan(PROD_CAL)).toBe("USDA Zones 3–10");
+  });
+
+  it("is derived, not baked: a different span changes the copy", () => {
+    const narrower: ShippingCalendar = { ...PROD_CAL, served_usda_range: [5, 7] };
+    expect(servedZoneSpan(narrower)).toBe("USDA Zones 5–7");
+  });
+
+  it("reads 'Zone' (singular) for a single-zone span", () => {
+    const one: ShippingCalendar = { ...PROD_CAL, served_usda_range: [6, 6] };
+    expect(servedZoneSpan(one)).toBe("USDA Zone 6");
+  });
+
+  it("returns null on a degraded feed so the caller drops the clause", () => {
+    for (const degraded of [
+      null,
+      undefined,
+      { ...PROD_CAL, served_usda_range: null },
+      { ...PROD_CAL, served_usda_range: undefined },
+    ]) {
+      expect(servedZoneSpan(degraded as ShippingCalendar | null)).toBeNull();
+    }
+  });
+
+  it("returns null on a malformed range instead of printing garbage", () => {
+    for (const bad of [
+      [3],
+      [3, 10, 11],
+      [10, 3],
+      ["3", "10"],
+      [3.5, 10],
+    ]) {
+      const cal = { ...PROD_CAL, served_usda_range: bad } as never;
+      expect(servedZoneSpan(cal as ShippingCalendar)).toBeNull();
+    }
   });
 });
