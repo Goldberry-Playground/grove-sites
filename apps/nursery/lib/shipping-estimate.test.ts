@@ -19,6 +19,10 @@ import {
   resolveZoneMap,
   SNAPSHOT_ZONE_MAP,
   ZONE_RATE_TABLE,
+  GREEN_STATE_COUNT,
+  NON_STATE_GREEN_DESTINATIONS,
+  US_STATE_NAMES,
+  shipScope,
 } from "./shipping-estimate";
 import zoneMapFixture from "./__fixtures__/shipping-zone-map.fixture.json";
 
@@ -517,5 +521,87 @@ describe("compliance exemption never widens the green list (GOL-2588)", () => {
     for (const state of ["OR", "WA", "AZ", "NM", "CA"]) {
       expect(shipsTo(state)).toBe(false); // regulated and NOT green: still closed
     }
+  });
+});
+
+// GOL-2941: the live green list is a *destination* list keyed by USPS code, and
+// DC is a federal district. Copy used to interpolate the raw count next to the
+// word "states", which published the claim that D.C. is a state. `shipScope()`
+// keeps the never-drift property (GOL-2128) — the figure is still derived from
+// the engine mirror — while naming non-state destinations outright.
+describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
+  it("subtracts non-state destinations from the state count and names them", () => {
+    const scope = shipScope();
+    const nonStateCodes = Object.keys(ZONE_BY_STATE).filter(
+      (code) => code in NON_STATE_GREEN_DESTINATIONS,
+    );
+    expect(nonStateCodes).toContain("DC");
+    expect(scope.stateCount).toBe(GREEN_STATE_COUNT - nonStateCodes.length);
+    expect(scope.phrase).toBe(`${scope.stateCount} states and Washington, D.C.`);
+    expect(scope.phraseUS).toBe(
+      `${scope.stateCount} U.S. states and Washington, D.C.`,
+    );
+    expect(scope.shortPhrase).toBe(`${scope.stateCount} states + D.C.`);
+  });
+
+  it("never captions D.C. as a state", () => {
+    const scope = shipScope();
+    // The published figure + the spelled-out list must agree on the total.
+    expect(scope.stateCount + scope.nonStateNames.length).toBe(
+      GREEN_STATE_COUNT,
+    );
+    expect(scope.phrase).not.toMatch(
+      new RegExp(`${GREEN_STATE_COUNT} (U\\.S\\. )?states`),
+    );
+  });
+
+  it("tracks a live green list rather than the baked snapshot", () => {
+    // A live feed that drops a state must move the figure without a release.
+    const live = Object.keys(ZONE_BY_STATE).filter((c) => c !== "WV");
+    expect(shipScope(live).stateCount).toBe(shipScope().stateCount - 1);
+    expect(shipScope(live).phrase).toContain("Washington, D.C.");
+  });
+
+  it("a second non-state destination cannot silently re-break the noun", () => {
+    const withTerritory = [...Object.keys(ZONE_BY_STATE), "PR"];
+    // Unregistered code counts as a state until it is declared non-state …
+    expect(shipScope(withTerritory).stateCount).toBe(
+      shipScope().stateCount + 1,
+    );
+    // … and the guard below is what forces that declaration.
+    NON_STATE_GREEN_DESTINATIONS.PR = "Puerto Rico";
+    try {
+      const scope = shipScope(withTerritory);
+      expect(scope.stateCount).toBe(shipScope().stateCount);
+      expect(scope.phrase).toBe(
+        `${scope.stateCount} states and Washington, D.C. and Puerto Rico`,
+      );
+    } finally {
+      delete NON_STATE_GREEN_DESTINATIONS.PR;
+    }
+  });
+
+  it("drops the tail entirely when every green destination is a state", () => {
+    const statesOnly = Object.keys(ZONE_BY_STATE).filter(
+      (code) => !(code in NON_STATE_GREEN_DESTINATIONS),
+    );
+    const scope = shipScope(statesOnly);
+    expect(scope.phrase).toBe(`${scope.stateCount} states`);
+    expect(scope.shortPhrase).toBe(`${scope.stateCount} states`);
+    expect(scope.nonStateNames).toEqual([]);
+  });
+
+  it("every non-state green code is declared, so the noun can never go stale", () => {
+    // The guard: if the green list gains a non-state destination (territory,
+    // district) and nobody declares it, this fails instead of publishing it as
+    // a state. Known non-states carry a non-state US_STATE_NAMES label.
+    const undeclared = Object.keys(ZONE_BY_STATE).filter(
+      (code) =>
+        !(code in NON_STATE_GREEN_DESTINATIONS) &&
+        /District|Puerto Rico|Virgin Islands|Guam|Samoa|Mariana/i.test(
+          US_STATE_NAMES[code] ?? "",
+        ),
+    );
+    expect(undeclared).toEqual([]);
   });
 });

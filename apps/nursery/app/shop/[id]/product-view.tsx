@@ -25,7 +25,7 @@ import {
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateTierShipping,
-  GREEN_STATE_COUNT,
+  shipScope,
   hasBoxFeed,
   estimateTierFloor,
   isPickupOnly,
@@ -783,13 +783,15 @@ export function ProductView({
           <p className="mt-4 text-xs text-ink-soft">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
           </p>
-          {/* A pickup-only product must not advertise a 32-state ship promise it
-              cannot keep (GOL-2588); the policy link stays, since the warranty
-              terms still apply to a picked-up tree. */}
+          {/* A pickup-only product must not advertise a whole-footprint ship
+              promise it cannot keep (GOL-2588); the policy link stays, since the
+              warranty terms still apply to a picked-up tree. The footprint
+              wording is derived — D.C. is in the green list and is not a state
+              (GOL-2941). */}
           <p className="mt-1 text-xs text-ink-soft">
             {pickupOnly
               ? "Farm pickup only, not shipped. "
-              : `Ships to ${GREEN_STATE_COUNT} states, priced live at checkout. `}
+              : `Ships to ${shipScope().phrase}, priced live at checkout. `}
             <PolicyLink /> for full shipping and warranty terms.
           </p>
         </div>

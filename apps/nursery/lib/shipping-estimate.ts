@@ -95,12 +95,94 @@ export const ZONE_BY_STATE: Record<string, string> = {
   // (GOL-2132) — see the GOL-2243 far-states follow-up.
 };
 
-/** Count of states we currently ship living trees to — the single source for
- *  every *static* "ships to N states" copy (marketing pages, footers) so it can
+/** Count of *destinations* we currently ship living trees to — the single source
+ *  for every *static* "ships to N …" copy (marketing pages, footers) so it can
  *  never drift from the baked green list. Derives from `ZONE_BY_STATE`. Interactive
  *  surfaces that receive a live feed should prefer `resolveZoneMap(...).greenStates`
- *  so the count reflects the live backend, not this snapshot (GOL-2292). */
+ *  so the count reflects the live backend, not this snapshot (GOL-2292).
+ *
+ *  ⚠️ This is a destination count, NOT a state count — the green list is keyed by
+ *  USPS code and `DC` is a federal district, not a state. Copy that needs a noun
+ *  must call {@link shipScope}, never interpolate this with the word "states"
+ *  (GOL-2941). Still correct for anything counting *selectable destinations*,
+ *  e.g. the checkout state-select option count. */
 export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
+
+/** Green destinations that are **not** U.S. states, code → the name customer copy
+ *  uses. D.C. is a federal district; a future territory (PR, VI, GU) would be
+ *  neither. Anything listed here is subtracted from the state count and named
+ *  explicitly, so a green-list expansion can never silently restore the
+ *  "D.C. is a state" error this map exists to fix (GOL-2941). */
+export const NON_STATE_GREEN_DESTINATIONS: Record<string, string> = {
+  DC: "Washington, D.C.",
+  // If the green list ever gains a territory, add it here *and* to
+  // NON_STATE_SHORT_NAMES — the drift test in shipping-estimate.test.ts fails
+  // on any non-state USPS code in ZONE_BY_STATE that is missing from this map.
+};
+
+/** Compact forms of {@link NON_STATE_GREEN_DESTINATIONS} for tight UI (the
+ *  at-a-glance row). Falls back to the long name when a code has no short form. */
+const NON_STATE_SHORT_NAMES: Record<string, string> = {
+  DC: "D.C.",
+};
+
+/** The phrasings every "where we ship" surface renders, all derived from a green
+ *  list rather than written by hand (GOL-2941). */
+export interface ShipScope {
+  /** Green destinations that really are U.S. states. */
+  stateCount: number;
+  /** Full names of the green destinations that are not states, green-list order. */
+  nonStateNames: string[];
+  /** `"31 states and Washington, D.C."` — the default prose form. */
+  phrase: string;
+  /** `"31 U.S. states and Washington, D.C."` — where the copy qualifies "U.S.". */
+  phraseUS: string;
+  /** `"31 states + D.C."` — the at-a-glance / badge form. */
+  shortPhrase: string;
+}
+
+/** Oxford-comma join: `a` / `a and b` / `a, b, and c`. */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+}
+
+/**
+ * Derive the "where we ship" wording from a green list — the only sanctioned way
+ * to put a ship-scope figure in customer copy (GOL-2941).
+ *
+ * The number keeps tracking the engine mirror exactly as before (GOL-2128): it is
+ * the green list minus the entries {@link NON_STATE_GREEN_DESTINATIONS} marks as
+ * non-states, which are then named outright. Pass a live green list
+ * (`resolveZoneMap(...).greenStates`) on interactive surfaces; the default is the
+ * baked snapshot, for static pages.
+ */
+export function shipScope(
+  greenStates: readonly string[] = Object.keys(ZONE_BY_STATE),
+): ShipScope {
+  const nonStateCodes = greenStates.filter(
+    (code) => code in NON_STATE_GREEN_DESTINATIONS,
+  );
+  const stateCount = greenStates.length - nonStateCodes.length;
+  const noun = stateCount === 1 ? "state" : "states";
+  const nonStateNames = nonStateCodes.map(
+    (code) => NON_STATE_GREEN_DESTINATIONS[code],
+  );
+  const shortNames = nonStateCodes.map(
+    (code) => NON_STATE_SHORT_NAMES[code] ?? NON_STATE_GREEN_DESTINATIONS[code],
+  );
+  const tail = nonStateNames.length ? ` and ${joinNames(nonStateNames)}` : "";
+  return {
+    stateCount,
+    nonStateNames,
+    phrase: `${stateCount} ${noun}${tail}`,
+    phraseUS: `${stateCount} U.S. ${noun}${tail}`,
+    shortPhrase: nonStateNames.length
+      ? `${stateCount} ${noun} + ${shortNames.join(" + ")}`
+      : `${stateCount} ${noun}`,
+  };
+}
 
 /**
  * Resolved state→zone map + green list the estimator prices *which zone* against.

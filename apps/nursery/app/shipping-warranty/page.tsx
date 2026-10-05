@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CategoryBar } from "../category-bar";
 import {
-  GREEN_STATE_COUNT,
+  shipScope,
   US_STATE_NAMES,
   ZONE_BY_STATE,
 } from "../../lib/shipping-estimate";
@@ -13,11 +13,17 @@ import {
 // policy` document on GOL-944 (rev "FINAL", Josh 2026-07-30). Do not alter the
 // terms, the state list, or any pricing language here.
 //
+// Wording of the ship-scope figure corrected on GOL-2941 (CMO ratification,
+// 2026-10-05): the derived count is a *destination* count and includes D.C., a
+// federal district, so "N states" was factually wrong. `shipScope()` derives
+// "N states and Washington, D.C." from the same engine mirror — the number is
+// unchanged and still never drifts. No terms, prices or list entries altered.
+//
 // Geography + pricing are the system of record from the checkout shipping
 // engine (`grove_headless` shipping-zone matrix, GOL-15): no
 // HI/AK/territories/international, live per-address rate at checkout billed at
 // cost + handling, no free-ship threshold. The state count and the spelled-out
-// list are DERIVED from the engine mirror (`GREEN_STATE_COUNT` / `ZONE_BY_STATE`
+// list are DERIVED from the engine mirror (`shipScope()` / `ZONE_BY_STATE`
 // in lib/shipping-estimate) so this page can never drift from what checkout
 // actually ships — the class of bug that left "21" and "22" both on this page
 // before GOL-2128. The engine owns eligibility; this is the human-readable
@@ -27,13 +33,17 @@ import {
 // .section-tag, .section-lede, .with-sidebar, .field-notes) — no bespoke CSS.
 export const dynamic = "force-dynamic";
 
+// Ship-scope wording derived from the same engine mirror as the list below, so
+// the figure and its noun stay correct together (GOL-2941).
+const SHIP_SCOPE = shipScope();
+
 // Title is the LEFT side only — `app/layout.tsx` appends " | At The Grove
 // Nursery" via `title.template` (GOL-2878). Repeating the brand here renders it
 // twice.
 export const metadata: Metadata = {
   title: "Shipping & Warranty",
   alternates: { canonical: "/shipping-warranty" },
-  description: `How and where At The Grove Nursery ships live trees: ${GREEN_STATE_COUNT} U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.`,
+  description: `How and where At The Grove Nursery ships live trees: ${SHIP_SCOPE.phraseUS}, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.`,
 };
 
 // Derived from the engine mirror (ZONE_BY_STATE → full names), Oxford-comma
@@ -64,7 +74,7 @@ export default function ShippingWarrantyPage() {
         </div>
         <p className="section-lede" style={{ maxWidth: "62ch" }}>
           At the Grove Nursery ships live trees within the United States to the{" "}
-          <strong>{GREEN_STATE_COUNT} states</strong> currently on our shipping map. We are a
+          <strong>{SHIP_SCOPE.phrase}</strong> currently on our shipping map. We are a
           small West Virginia nursery and are expanding our shipping footprint
           deliberately over time — the list below reflects where we can ship
           today.
@@ -232,13 +242,13 @@ export default function ShippingWarrantyPage() {
           <div className="field-notes-eyebrow">At a glance</div>
           <h3>The short version.</h3>
           <p>
-            Live trees, shipped dormant to {GREEN_STATE_COUNT} states, priced live at checkout at
+            Live trees, shipped dormant to {SHIP_SCOPE.phrase}, priced live at checkout at
             cost plus handling — with an arrive-alive guarantee.
           </p>
           <ul>
             <li>
               <span>Ships to</span>
-              <strong>{GREEN_STATE_COUNT} U.S. states</strong>
+              <strong>{SHIP_SCOPE.shortPhrase}</strong>
             </li>
             <li>
               <span>Ship window</span>
