@@ -571,7 +571,7 @@ export function ProductView({
                           ? // Green state, item not cleared into it. Different
                             // words from the not-green line above so the two
                             // reasons stay distinguishable at a glance.
-                            `not cleared for ${shipState} — see below`
+                            `not cleared for ${shipState}, see below`
                           : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
                   // (GOL-1313): bareroot follows today's mode; potted takes its

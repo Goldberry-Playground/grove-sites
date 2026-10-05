@@ -286,12 +286,12 @@ export function ShippingEstimator({
                 We ship to {stateName}, but it restricts {verdict.taxonLabel} for
                 plant-health reasons, so this one can’t travel there.
                 {verdict.substitute
-                  ? ` We can swap in ${verdict.substitute.label} (${verdict.substitute.botanical}), which ${stateName} does allow — ask us below and we’ll set it up. You can also pick this one up free at the farm.`
-                  : " You can still pick it up free at the farm — or ask us below and we’ll suggest something that clears."}
+                  ? ` We can swap in ${verdict.substitute.label} (${verdict.substitute.botanical}), which ${stateName} does allow. Ask us below and we’ll set it up, or pick this one up free at the farm.`
+                  : " You can still pick it up free at the farm, or ask us below and we’ll suggest something that clears."}
               </p>
             ) : (
               <p className="mt-1.5 text-xs text-foreground/70">
-                We build this mix with you, so its final plant list isn’t set yet —
+                We build this mix with you, so its final plant list isn’t set yet,
                 and {stateName} restricts a few of the plants we’d normally include.
                 We can’t promise it’s cleared until we’ve built it together, so
                 reserve it with us below and we’ll confirm your list in the consult,
@@ -325,7 +325,7 @@ export function ShippingEstimator({
                     : "Leave your email and we’ll build your list with you, cleared for your state."
                 }
                 submitLabel="Ask us"
-                successMessage={`Got it. We’ll email you about ${stateName} — usually within a business day.`}
+                successMessage={`Got it. We’ll email you about ${stateName}, usually within a business day.`}
                 consentText="We’ll only email you about this request. Unsubscribe anytime."
               />
             </div>
