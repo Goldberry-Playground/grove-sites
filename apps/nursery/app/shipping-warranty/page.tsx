@@ -27,6 +27,17 @@ import { formatWindow, shipWindowEnvelope } from "../../lib/fulfillment-mode";
 // `calendar` block, so a calendar edit is a data change here too. No terms,
 // prices or list entries altered.
 //
+// Served USDA-zone span derived on GOL-2957: the "Shipping season" prose
+// hardcoded "roughly USDA Zones 5-7", a three-zone band for a green list that
+// actually spans zones 3-10 (northern MN/ME through Florida and the Gulf). The
+// understatement ran in the harmful direction at the warm end — a Florida
+// shopper read "5-7" and reasonably concluded we don't serve them, while
+// checkout ships there. The span now renders `calendar.served_usda_range`
+// (backend-derived from the green-filtered PHZM matrix, grove-odoo-modules
+// GOL-2957), so a green-list change reshapes it with no copy edit; the clause
+// is omitted rather than guessed when the feed is degraded. No terms, prices or
+// list entries altered.
+//
 // Wording of the ship-scope figure corrected on GOL-2941 (CMO ratification,
 // 2026-10-05): the derived count is a *destination* count and includes D.C., a
 // federal district, so "N states" was factually wrong. `shipScope()` derives
@@ -83,6 +94,12 @@ export default async function ShippingWarrantyPage() {
   }
   const windows = shipWindowEnvelope(shippingCalendar);
   const fulfillmentDays = shippingCalendar?.fulfillment_days ?? [5, 10];
+  // GOL-2957: the served USDA hardiness span, derived from the same feed. The
+  // backend computes `[min, max]` across the green-filtered PHZM matrix, so
+  // adding or removing a green state reshapes it with no copy edit here. A
+  // degraded feed (null/absent) drops the parenthetical rather than asserting a
+  // possibly-stale band — the sentence still reads correctly without it.
+  const servedZones = shippingCalendar?.served_usda_range ?? null;
 
   return (
     <>
@@ -151,8 +168,11 @@ export default async function ShippingWarrantyPage() {
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
             <strong>Snow or frost will not hurt a dormant tree.</strong> For our
-            shipping region (roughly USDA Zones 5–7 across the states we serve),
-            the goal is to get trees in the ground while there is still good
+            shipping region
+            {servedZones
+              ? ` (USDA Zones ${servedZones[0]}–${servedZones[1]} across the states we serve)`
+              : ""}
+            , the goal is to get trees in the ground while there is still good
             moisture in the soil, so roots establish months before bud break.
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
@@ -325,3 +345,4 @@ export default async function ShippingWarrantyPage() {
     </>
   );
 }
+

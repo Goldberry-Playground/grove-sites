@@ -431,6 +431,17 @@ export interface ShippingCalendar {
    * in effect (GOL-1177) — the frontend renders it as a banner. `null` / absent
    * when there is no active hold. */
   weather_hold_note?: string | null;
+  /** `[min, max]` USDA plant-hardiness-zone span the green list actually covers,
+   * derived by the backend from the green-filtered PHZM matrix
+   * (grove-odoo-modules `shipping_calendar.served_usda_range`, GOL-2957). Lets a
+   * zone-agnostic surface (the `/shipping-warranty` "Shipping season" copy)
+   * state the served span honestly with no hand-typed literal — a green-list
+   * change reshapes the matrix and reshapes this with no copy edit. `null` (or
+   * absent) when the backend matrix is unavailable: render a fallback, never a
+   * bogus pair. NOT the `zone_1..zone_5` distance bands in
+   * {@link ShippingRateFeed.zones} and NOT the wider set of configured `zones`
+   * keys below (which span every zone the calendar is configured for). */
+  served_usda_range?: [number, number] | null;
   zones: Record<string, ShippingCalendarZone>;
 }
 
@@ -1117,3 +1128,4 @@ export interface OdooClient {
     subscribe(input: NewsletterSubscribeInput): Promise<NewsletterSubscribeResult>;
   };
 }
+
