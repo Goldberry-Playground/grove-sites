@@ -148,8 +148,27 @@ export function ShippingEstimator({
 
         {state !== "" && eligible && (
           <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-              <span aria-hidden="true" className="text-secondary">✓</span>
+            <p className="flex items-start gap-1.5 text-sm font-medium text-primary">
+              {/* Inline SVG, not U+2713: the three faces we load (Fraunces /
+                  Newsreader / IBM Plex Mono) cover no Dingbats, so the
+                  character fell through to whatever symbol font the device
+                  happened to have and painted as tofu on one that had none
+                  (GOL-3112). It also drops `text-secondary`, which measured
+                  2.41:1 against the panel: the same fill-value-used-as-a-
+                  foreground mistake `border-accent/70` made in GOL-3028.
+                  currentColor inherits the label ink instead, at 10.88:1. */}
+              <svg
+                aria-hidden="true"
+                className="mt-1 h-3 w-3 shrink-0"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M1.75 6.4 4.6 9.25 10.25 2.9" />
+              </svg>
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -208,8 +227,20 @@ export function ShippingEstimator({
 
         {state !== "" && !eligible && (
           <div className="rounded border border-accent/30 bg-accent/5 p-3">
-            <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-              <span aria-hidden="true" className="text-accent">ⓘ</span>
+            <p className="flex items-start gap-1.5 text-sm font-medium text-foreground">
+              {/* An ASCII letter in a bordered circle, not U+24D8: Enclosed
+                  Alphanumerics is outside the loaded faces too, so the glyph
+                  tofu'd the same way (GOL-3112). This is the construction
+                  GOL-2973 introduced and GOL-3028 corrected to a full-opacity
+                  accent border: 3.26:1 against the panel tint, over the 3:1
+                  non-text guideline, where /70 measured 2.27:1. Decorative and
+                  aria-hidden: the wording carries the state, not the icon. */}
+              <span
+                aria-hidden="true"
+                className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-accent text-[0.6rem] font-bold leading-none text-accent"
+              >
+                i
+              </span>
               We can’t ship living trees to {stateName} yet
             </p>
             <p className="mt-1.5 text-xs text-foreground/70">
