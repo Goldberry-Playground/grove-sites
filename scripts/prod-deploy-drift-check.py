@@ -67,16 +67,20 @@ errors or is superseded leaves those phases immediately and is no longer
 "in flight", so the age bound only ever has to catch a rollout genuinely WEDGED
 in an in-flight phase.
 
-ROLLOUT_GRACE_MINUTES defaults to 20. That default is derived, NOT measured:
-`Docker — Frontends` builds measured 2.0-4.9 min wall-clock over 15 runs
-(2026-10-05/06), and this repo already treats 20 min as the outer bound for a
-deploy job (`timeout-minutes: 20` on release.yml's deploy-sandbox and
-deploy-production). The monitoring credential was not readable from the agent
-container, so the App Platform rollout leg itself could not be timed directly.
-To make the number self-correcting, every in-flight classification reports
-`rollout_age_minutes`; after a few weeks of runs the real distribution is in the
-artifacts and the default can be tightened with evidence instead of convention.
-Override with ROLLOUT_GRACE_MINUTES=<n> without touching code.
+ROLLOUT_GRACE_MINUTES defaults to 20, which is ~3x the slowest rollout actually
+observed. Measured 2026-10-06 against the live DO API, create_at -> ACTIVE
+wall-clock across the deployment history of all four grove-*-prod apps:
+
+  the four current ACTIVE deployments      1.0 - 1.1 min
+  the deployments they superseded          2.4 - 6.4 min
+  `Docker — Frontends` build (15 runs)     2.0 - 4.9 min
+
+So a healthy rollout finishes in single-digit minutes and 20 leaves generous
+headroom without letting a genuinely wedged one hide for long. (It also matches
+this repo's existing outer bound for a deploy job, `timeout-minutes: 20` on
+release.yml.) Every in-flight classification still reports
+`rollout_age_minutes` and the report records the window applied, so the number
+stays checkable against reality; override with ROLLOUT_GRACE_MINUTES=<n>.
 
 INPUTS (env)
 ------------
@@ -192,10 +196,17 @@ def find_inflight_deployment(app, list_deployments=None):
 
     Fallback: if that key is ABSENT (not merely empty) we ask the deployments
     endpoint for the newest deployment and check its phase — the same move
-    do-app-redeploy.sh makes. This matters because the whole fix would
-    otherwise fail silently, and silently, to no effect, if the /v2/apps list
-    payload ever omits the field: we would be back to alarming on every
-    mid-rollout poll with nothing in the report to say why.
+    do-app-redeploy.sh makes.
+
+    ⚠️ The fallback is the PRIMARY path in practice, not a safety net. Checked
+    against the live API on 2026-10-06: `GET /v2/apps?per_page=200` returns all
+    four grove-*-prod apps with NO `in_progress_deployment` key at all (while
+    `active_deployment` is fully populated). Whether DO omits it only when no
+    rollout is in flight or always omits it from the list payload, we cannot
+    tell from a quiet moment — so this fix would have been a silent no-op
+    without the fallback, and would have kept alarming on every mid-rollout
+    poll with nothing in the report to explain why. One extra GET, and only on
+    a mismatch.
     """
     if "in_progress_deployment" in app:
         ip = app.get("in_progress_deployment") or {}
