@@ -9,6 +9,7 @@ import { TierNudge } from "../TierNudge";
 import { useGroveImage, useGroveLink } from "../link-context";
 import { clampQuantity } from "../quantity";
 import type { GroveTrustItem } from "../trust-items";
+import { TrustIcon } from "../TrustIcon";
 
 export interface CartPageProps {
   /** Cart lines. */
@@ -152,7 +153,7 @@ export function CartPage({
           <div className="grove-cart__trust-inner">
             {trustItems.map((t, i) => (
               <span key={i} className="grove-cart__trust-item">
-                <span aria-hidden="true">{t.icon}</span> {t.text}
+                <TrustIcon name={t.icon} /> {t.text}
               </span>
             ))}
           </div>

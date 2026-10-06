@@ -81,7 +81,7 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
         <p className="mt-2 text-sm text-ink-soft">Looking up your zone…</p>
       )}
       {status === "unknown" && (
-        <p className="mt-2 text-sm text-amber-700">
+        <p className="mt-2 text-sm text-caution">
           We couldn&apos;t find that ZIP — try entering your USDA zone directly.
         </p>
       )}
@@ -90,12 +90,60 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
           ZIP {input} is in USDA zone {resolvedZone}.
         </p>
       )}
+      {/* The yes/no answer pair.
+          Three things are load-bearing here, all from GOL-3117:
+
+          1. The mark is an inline SVG and sits OUTSIDE the sentence, aria-hidden.
+             It used to be a literal U+2713 at the head of the string, which is
+             the worst of both worlds: Dingbats is outside all three faces this
+             app loads, so it painted an empty .notdef box for sighted users,
+             and because it was inside the copy a screen reader announced it too.
+             The sentence alone now carries the answer.
+          2. The ink is a token (text-affirm / text-caution), not raw
+             text-green-700 / text-amber-700 — those do not follow a retheme, and
+             amber-700 specifically measured 3.93:1 on --paper-deep (GOL-678).
+          3. The two states differ in SHAPE, not only hue: a check for in-range
+             and a barred circle for out-of-range. A hardy/not-hardy answer told
+             in green-vs-amber alone is meaning encoded in colour (WCAG 1.4.1),
+             and the pair has to survive greyscale and all three CVD
+             simulations. Same contract as the GOL-682 stock lines (● vs ✕).
+
+          items-start, not items-center: both sentences wrap at 390px, and
+          centring floats the mark to the middle of the wrapped block. */}
       {fits === true && (
-        <p className="mt-2 text-sm text-green-700">✓ Yes — this plant is hardy in your zone.</p>
+        <p className="mt-2 flex items-start gap-1.5 text-sm text-affirm">
+          <svg
+            aria-hidden="true"
+            className="mt-1 h-3 w-3 shrink-0"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M1.75 6.4 4.6 9.25 10.25 2.9" />
+          </svg>
+          Yes — this plant is hardy in your zone.
+        </p>
       )}
       {fits === false && (
-        <p className="mt-2 text-sm text-amber-700">
-          This plant is rated for {range}; zone {resolvedZone} may be outside its comfort range.
+        <p className="mt-2 flex items-start gap-1.5 text-sm text-caution">
+          <svg
+            aria-hidden="true"
+            className="mt-0.5 h-3.5 w-3.5 shrink-0"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          >
+            <circle cx="6" cy="6" r="4.75" />
+            <path d="M3.5 6h5" />
+          </svg>
+          <span>
+            This plant is rated for {range}; zone {resolvedZone} may be outside its comfort range.
+          </span>
         </p>
       )}
     </div>

@@ -42,7 +42,8 @@ export {
 export { AddToCartButton, type AddToCartButtonProps } from "./AddToCartButton";
 export { StickyAddToCartBar, type StickyAddToCartBarProps } from "./StickyAddToCartBar";
 export { MiniCartDrawer, type MiniCartDrawerProps } from "./MiniCartDrawer";
-export { type GroveTrustItem } from "./trust-items";
+export { type GroveTrustItem, type GroveTrustIconName } from "./trust-items";
+export { TrustIcon, type TrustIconProps } from "./TrustIcon";
 export { CartPage, type CartPageProps } from "./CartPage";
 export {
   CheckoutPage,
