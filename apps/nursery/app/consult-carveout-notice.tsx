@@ -16,14 +16,28 @@ function sentenceList(parts: string[]): string {
 
 /**
  * The botanical as a reader wants it, not as the compliance field stores it.
- * Several catalog entries carry a trailing gloss the gate ignores
- * (`Morus alba 'Maple Leaf' (hybrid white mulberry)`), which would otherwise
- * render as nested parentheses inside our own parenthetical. The palette keeps
- * the raw string, because that is what `parseTaxon` must agree with; only the
- * display is trimmed.
+ * Two layers come off, in this order (GOL-3054 redline C):
+ *
+ * 1. A trailing gloss the gate ignores (`Morus alba 'Maple Leaf' (hybrid white
+ *    mulberry)`), which would otherwise render as nested parentheses inside our
+ *    own parenthetical.
+ * 2. A quoted cultivar epithet (`Morus alba 'Maple Leaf'` -> `Morus alba`).
+ *    CMO sign-off: for Indiana / Ohio / Wisconsin the exclusion list is exactly
+ *    one line, so that line IS the whole disclosure for three states. A cultivar
+ *    name invites the wrong inference, that only that one cultivar is
+ *    restricted, when the gate blocks on the species. Display what we block on,
+ *    and it then agrees with the body copy two lines above ("white mulberry").
+ *
+ * The palette keeps the raw string, because that is what `parseTaxon` must agree
+ * with; only the display is trimmed. Straight and curly quotes both, since
+ * catalog master data is hand-entered.
  */
 function displayBotanical(botanical: string): string {
-  return botanical.replace(/\s*\([^()]*\)\s*$/, "").trim() || botanical;
+  const trimmed = botanical
+    .replace(/\s*\([^()]*\)\s*$/, "")
+    .replace(/\s*['’‘"“][^'’‘"”]*['’”"]\s*$/, "")
+    .trim();
+  return trimmed || botanical;
 }
 
 export interface ConsultCarveOutNoticeProps {
@@ -60,8 +74,16 @@ export interface ConsultCarveOutNoticeProps {
  * The constraint is narrow and the number says so: Florida takes three of
  * fourteen species off the list, Indiana / Ohio / Wisconsin take one. A full
  * 100-tree food forest is genuinely deliverable in all four. So the notice leads
- * with what the shopper DOES get ("11 of the 14 species we grow"), then names
- * the exclusions plainly. Leading with the loss would overstate it.
+ * with what the shopper DOES get ("11 of our 14 food-forest species"), then
+ * names the exclusions plainly. Leading with the loss would overstate it.
+ *
+ * The denominator is deliberately scoped to the MIX, not to the nursery
+ * (GOL-3054 redline A). "the 14 species we grow" was a claim about the farm, and
+ * a false one: our own content names hazelnut, persimmon, shagbark hickory,
+ * elderberry and serviceberry besides. It was also unsafe, because
+ * `CONSULT_PALETTE` is a hand snapshot, so the day a fifteenth single publishes
+ * the sentence goes wrong on a payment page with nothing in CI to notice.
+ * Scoped to the mix, the worst case is "slightly conservative".
  *
  * ── Source of truth ─────────────────────────────────────────────────────────
  * Every exclusion is derived by running the palette through the same
@@ -84,9 +106,13 @@ export interface ConsultCarveOutNoticeProps {
  *   disclosed before payment, in the shopper's own terms, with nothing hidden
  *   behind a later step.
  *
- * Copy is pending CMO-Sora's sign-off (GOL-3028) — it is a delivery promise, not
- * a dev string. Strings live only here and in `shipping-estimator.tsx` so a
- * redline is a one-file change.
+ * Copy is SIGNED OFF by CMO-Sora on GOL-3054 (2026-10-05) with redlines A, B
+ * and C applied — it is a delivery promise, not a dev string. Every ratified
+ * string is pinned verbatim in `consult-carveout-copy.test.ts`, which is a
+ * sign-off condition: a delivery promise any future refactor can silently
+ * reword is not signed off. Strings live only here, in
+ * `shipping-estimator.tsx` and on the Format cards in `product-view.tsx`, so a
+ * redline stays a small change.
  */
 export function ConsultCarveOutNotice({
   state,
@@ -122,13 +148,13 @@ export function ConsultCarveOutNotice({
           i
         </span>
         <span>
-          Your {stateName} mix: {mix.clearedCount} of the {mix.paletteCount} species
-          we grow
+          Your {stateName} mix: {mix.clearedCount} of our {mix.paletteCount}{" "}
+          food-forest species
         </span>
       </p>
       <p className="mt-1.5 text-xs text-foreground/70">
         We ship to {stateName}, which restricts {reasons} for plant-health reasons.
-        So we build your list from everything else we grow. That’s still a full
+        So your list comes from the other {mix.clearedCount}. That’s still a full
         food forest.
       </p>
       <p className="mt-2 text-xs font-medium text-foreground">
