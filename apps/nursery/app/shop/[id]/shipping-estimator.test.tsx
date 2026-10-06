@@ -234,6 +234,20 @@ describe("ShippingEstimator — eligibility branches", () => {
     expect(seen).toContain("FL");
   });
 
+  // The one em dash the brand-voice guard (GOL-3065) exempts, pinned to a real
+  // render so the exemption can never drift into covering prose. A shippable
+  // tier with no rate in the table is a missing VALUE, not a message, and a
+  // bare dash in a price cell is what that is written as.
+  it("a shippable tier with no rate shows the em-dash placeholder, not a $0", () => {
+    const panel = at("WV", {
+      botanicalName: "Castanea spp.",
+      rates: {} as never,
+    });
+    expect(panel.textContent).toMatch(/\u2014/);
+    expect(panel.textContent).not.toMatch(/\$0/);
+    expect(panel.textContent).not.toMatch(DOLLARS);
+  });
+
   it("before a state is picked, nothing is promised about any state", () => {
     const { container } = renderEstimator({ botanicalName: "Castanea spp." });
     // Case-insensitive: the em-dash redline (GOL-3065) turned the clause into
