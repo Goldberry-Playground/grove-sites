@@ -195,6 +195,14 @@ apart:
 | --- | --- | --- | --- | --- |
 | #990 | `github-actions` 02:05:51Z | `ba3e3f57` | **0** | dead; rescued 02:10:04Z → merged 02:13:15Z |
 | #987 | `agenticos-developer` (armed) 02:06:59Z | `d16f97f1` | **7** | merged 02:13:15Z |
+| #991 | `agenticos-developer` (armed at open) | `4882806b` | **7** | merged 02:31:43Z, no rescue |
+
+#991 — the PR that added the arming script — is the end-to-end proof. Armed as
+the App at open time, 02:18:09Z; `agent-review/ada` went green 02:27:23Z;
+`auto-approve.yml` approved as `github-actions[bot]` 02:27:36Z; the **armed**
+auto-merge enqueued as the App and the merge group had **7 runs by 02:28:15Z**
+(~39 s); merged 02:31:43Z with `merged_by = agenticos-developer[bot]`. The
+arming preceded the enqueue by 9 minutes and the identity survived it.
 
 ### Doing it
 
@@ -208,6 +216,13 @@ scripts/ci/merge-queue-arm-automerge.sh --apply      # arm already-APPROVED agen
 ARM_UNAPPROVED=1 scripts/ci/merge-queue-arm-automerge.sh --apply   # steady state
 REPO=Goldberry-Playground/odoocker-goldberrygrove scripts/ci/merge-queue-arm-automerge.sh --apply
 ```
+
+**The default (approved-only) mode cannot be the steady state.** By the time
+`auto-approve.yml` has approved a PR it has *already* performed the enqueue on
+`GITHUB_TOKEN` — which is the wedge. Arming only helps if it happens **before**
+approval, so anything automated has to run `ARM_UNAPPROVED=1`. The
+approved-only default is for draining a backlog by hand and for the case where
+the enqueue has not happened yet.
 
 Auto-merge is allowed on all three repos and all three have a merge queue on
 `main` (re-measured 2026-10-06 — note REST `GET /repos/...` omits
@@ -230,10 +245,45 @@ Two guardrails worth knowing, both in
 - **It never re-arms a PR someone else armed**, which would mean disabling their
   auto-merge first and silently taking a merge decision from its owner.
 
-`ARM_UNAPPROVED=1` is opt-in for one reason: with auto-merge pre-armed, a
-protected-path PR merges the *moment* a human approves it rather than waiting
-for a separate enqueue. That deletes a manual step, but it changes when a
-reviewer's approval becomes final.
+### Pre-approval arming and protected paths
+
+`ARM_UNAPPROVED=1` is a semantic no-op for almost every agent PR:
+`auto-approve.yml` was going to approve and enqueue it anyway, so pre-arming
+changes only the enqueuing identity. There is exactly **one** class where it is
+not a no-op — an agent PR that touches a **protected path**. There
+`auto-approve.yml` hard-withholds its approval and a human reviews by hand, and
+pre-arming would make that human's approval *be* the merge rather than a
+reviewer approving and someone then deciding to enqueue.
+
+So `ARM_UNAPPROVED=1` **skips unapproved protected-path PRs.** It evaluates them
+against the **target repo's own** base-branch
+`scripts/ci/protected-paths-carveout.mjs` — the same definition
+`auto-approve.yml` withholds on, and read from the base branch so a PR cannot
+edit the carve-out to un-protect itself (the property `auto-approve.yml`
+preserves by checking out base-branch scripts). All three repos ship that file
+at the same path with their own `PROTECTED_GLOBS`, so a cross-repo sweep gets
+each repo's real list rather than this one's.
+
+That is what makes `ARM_UNAPPROVED=1` **safe to automate with no board decision
+attached.** `ARM_PROTECTED=1` is the separate, explicit override for the
+protected class — do not set it without the board's sign-off.
+
+It is **fail-closed**: a carve-out it cannot fetch, a `node` it cannot run, or a
+truncated changed-file list all skip the unapproved PR. An already-APPROVED PR
+is unaffected by any of it — its approval already happened, so there is no
+approval-timing semantics left to change.
+
+Live dry run, grove-sites, 2026-10-06 02:32Z (`ARM_UNAPPROVED=1`, 13 open PRs):
+7 unapproved PRs withheld for protected paths (`packages/checkout/**` ×3,
+`.github/workflows/**` ×4) — exactly the set `auto-approve.yml` withholds on —
+3 drafts and 2 non-agent authors skipped, 2 eligible.
+
+⚠️ The `files` connection caps `first` at **100**, and asking for more trips
+`EXCESSIVE_PAGINATION` — which GitHub returns as a **200 with an `errors` array**
+and a nulled field, so `curl -f` does not catch it and a partial response reads
+like real data. The first live run asked for 300 and got a null changed-file list
+on every PR. Fail-closed held (nothing was wrongly armed) but silently, so the
+sweep now logs GraphQL `errors` and treats a missing `repository` as fatal.
 
 ## Provisioning the App identity in Actions (optional — not recommended)
 
