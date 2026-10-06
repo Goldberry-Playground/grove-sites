@@ -94,14 +94,37 @@
 #   APP_LOGIN              arming identity      (default agenticos-developer)
 #   APP_AUTHOR_LOGIN       PR-author login to match (default $APP_LOGIN)
 #   ARM_UNAPPROVED         1 = arm PRs that are not approved yet (default 0)
+#   ARM_PROTECTED          1 = also pre-arm UNAPPROVED protected-path PRs
+#                          (default 0 -- needs a board decision, see below)
 #
 # ARM_UNAPPROVED is the conservative/steady-state switch. Default 0 arms only
 # already-APPROVED PRs -- exactly the set `auto-approve.yml` has already decided
-# to merge, so arming them changes nothing but the enqueuing identity. Setting
-# it to 1 arms open PRs before approval, which is the real steady state (GitHub
-# waits for the gates) but means a protected-path PR merges the moment a human
-# approves it, instead of waiting for a separate enqueue. That is a change in
-# when a reviewer's approval becomes final, so it is opt-in.
+# to merge, so arming them changes nothing but the enqueuing identity. But that
+# default is also structurally TOO LATE to be the steady state: by the time
+# auto-approve.yml has approved a PR it has already performed the enqueue on
+# `GITHUB_TOKEN`, which is the wedge. Useful arming happens BEFORE approval, so
+# an automated sweep has to run with ARM_UNAPPROVED=1.
+#
+# Pre-approval arming is only a semantic change for ONE class of PR (GOL-3118):
+# an agent PR that touches a protected path. auto-approve.yml hard-withholds its
+# approval there, so such a PR waits for a human review -- and pre-arming it
+# would make that human's approval *be* the merge, instead of a reviewer
+# approving and someone then deciding to enqueue. For every OTHER agent PR,
+# auto-approve.yml was going to approve and enqueue it anyway, so pre-arming
+# changes nothing but the enqueuing identity.
+#
+# So ARM_UNAPPROVED=1 skips unapproved protected-path PRs, using the TARGET
+# repo's own base-branch `scripts/ci/protected-paths-carveout.mjs` -- the same
+# definition auto-approve.yml withholds on, read from the base branch so a PR
+# cannot edit the carve-out to un-protect itself. That makes ARM_UNAPPROVED=1
+# safe to automate with no board decision attached. ARM_PROTECTED=1 is the
+# separate, explicit override for the protected class; do not set it without
+# the board's sign-off.
+#
+# Fail-closed: if the carve-out cannot be fetched or evaluated, or the PR's
+# changed-file list came back truncated, an UNAPPROVED PR is skipped. An
+# already-APPROVED PR is unaffected by any of this -- its approval already
+# happened, so there is no approval-timing semantics left to change.
 
 set -euo pipefail
 
@@ -111,6 +134,7 @@ BROKER_URL="${GH_TOKEN_BROKER_URL:-http://gh-token-broker:9099}"
 BROKER_KEY_FILE="${GH_BROKER_API_KEY_FILE:-/paperclip/gh-broker.key}"
 APP_LOGIN="${APP_LOGIN:-agenticos-developer}"
 ARM_UNAPPROVED="${ARM_UNAPPROVED:-0}"
+ARM_PROTECTED="${ARM_PROTECTED:-0}"
 OWNER="${REPO%%/*}"
 NAME="${REPO##*/}"
 
@@ -129,22 +153,66 @@ TOKEN="$(curl -fsS -H "Authorization: Bearer $(cat "$BROKER_KEY_FILE")" \
 
 gh_graphql() { curl -fsS -X POST -H "Authorization: Bearer $TOKEN" https://api.github.com/graphql -d "$1"; }
 
-log "repo=$REPO branch=$BRANCH app=$APP_LOGIN arm_unapproved=$ARM_UNAPPROVED apply=$APPLY"
+log "repo=$REPO branch=$BRANCH app=$APP_LOGIN arm_unapproved=$ARM_UNAPPROVED arm_protected=$ARM_PROTECTED apply=$APPLY"
 
 # Query bodies are built with printf, not a nested heredoc: a heredoc inside
 # command substitution silently yields an empty body here (same trap as
 # merge-queue-rescue.sh).
-PR_FIELDS='number id headRefOid isDraft state reviewDecision mergeable author{login} autoMergeRequest{enabledBy{login}}'
+PR_FIELDS='number id headRefOid isDraft state reviewDecision mergeable author{login} autoMergeRequest{enabledBy{login}} files(first:100){totalCount nodes{path}}'
 QUERY="$(printf '{"query":"query{repository(owner:\\"%s\\",name:\\"%s\\"){pullRequests(states:OPEN,first:100){nodes{%s}} mergeQueue(branch:\\"%s\\"){entries(first:100){nodes{pullRequest{number}}}}}}"}' \
   "$OWNER" "$NAME" "$PR_FIELDS" "$BRANCH")"
 
 GRAPH="$(gh_graphql "$QUERY")"
 
+# A GraphQL error comes back HTTP 200, so `curl -f` does not catch it and a
+# partially-nulled response reads like real data. Found live on 2026-10-06:
+# `files(first:300)` tripped EXCESSIVE_PAGINATION on every PR (the `files`
+# connection caps `first` at 100) and every changed-file list came back null.
+# Fail-closed caught it, but silently -- so say it out loud.
+GRAPH_ERRORS="$(GRAPH_JSON="$GRAPH" python3 -c '
+import json, os
+d = json.loads(os.environ["GRAPH_JSON"])
+errs = d.get("errors") or []
+if errs:
+    seen, out = set(), []
+    for e in errs:
+        m = "%s: %s" % (e.get("type"), e.get("message"))
+        if m not in seen:
+            seen.add(m); out.append(m)
+    print(" | ".join(out[:3]) + ("" if len(out) <= 3 else " | (+%d more)" % (len(out) - 3)))
+if d.get("data", {}).get("repository") is None:
+    raise SystemExit(2)
+')" || { log "FATAL: GraphQL returned no repository data: ${GRAPH_ERRORS:-<no error detail>}"; exit 1; }
+[ -n "$GRAPH_ERRORS" ] && log "WARN GraphQL partial errors: $GRAPH_ERRORS"
+
+# The protected-paths carve-out, read from the TARGET repo's BASE branch (never
+# the PR head -- otherwise a PR could edit the carve-out to un-protect itself,
+# the same property auto-approve.yml preserves by checking out base-branch
+# scripts). All three Goldberry repos ship this file at the same path with their
+# own PROTECTED_GLOBS, so a cross-repo sweep gets each repo's real definition
+# instead of this repo's. Only needed when we might arm something unapproved.
+CARVEOUT=""
+cleanup() { [ -n "$CARVEOUT" ] && rm -f "$CARVEOUT"; :; }
+trap cleanup EXIT
+if [ "$ARM_UNAPPROVED" = "1" ] && [ "$ARM_PROTECTED" != "1" ]; then
+  CARVEOUT="$(mktemp "${TMPDIR:-/tmp}/protected-paths-carveout.XXXXXX.mjs")"
+  if curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Accept: application/vnd.github.raw' \
+       "https://api.github.com/repos/$OWNER/$NAME/contents/scripts/ci/protected-paths-carveout.mjs?ref=$BRANCH" \
+       -o "$CARVEOUT" && [ -s "$CARVEOUT" ]; then
+    log "protected-paths carve-out: $OWNER/$NAME@$BRANCH ($(wc -c <"$CARVEOUT" | tr -d ' ') bytes)"
+  else
+    # Fail-closed, loudly: every unapproved PR is skipped below rather than
+    # pre-armed on an unknown protected-path status.
+    log "WARN could not fetch scripts/ci/protected-paths-carveout.mjs from $OWNER/$NAME@$BRANCH; unapproved PRs will all be skipped"
+    rm -f "$CARVEOUT"; CARVEOUT=""
+  fi
+fi
+
 # One JSON object per line: {"number","action","reason","id","headRefOid"}.
 # Passed through the environment, not a pipe -- a heredoc-sourced program takes
 # over stdin, so piped data would never reach it.
-DECISIONS="$(APP_LOGIN="$APP_LOGIN" APP_AUTHOR_LOGIN="${APP_AUTHOR_LOGIN:-$APP_LOGIN}" ARM_UNAPPROVED="$ARM_UNAPPROVED" GRAPH_JSON="$GRAPH" python3 <<'PYEOF'
-import json, os
+DECISIONS="$(APP_LOGIN="$APP_LOGIN" APP_AUTHOR_LOGIN="${APP_AUTHOR_LOGIN:-$APP_LOGIN}" ARM_UNAPPROVED="$ARM_UNAPPROVED" ARM_PROTECTED="$ARM_PROTECTED" CARVEOUT="$CARVEOUT" GRAPH_JSON="$GRAPH" python3 <<'PYEOF'
+import json, os, subprocess
 
 app = os.environ["APP_LOGIN"]
 # The App's PR-author login has no "[bot]" suffix in GraphQL's `author.login`,
@@ -153,6 +221,11 @@ app = os.environ["APP_LOGIN"]
 # resolved separately so a future rename cannot silently conflate them.
 app_author = os.environ.get("APP_AUTHOR_LOGIN", app)
 arm_unapproved = os.environ.get("ARM_UNAPPROVED", "0") == "1"
+arm_protected = os.environ.get("ARM_PROTECTED", "0") == "1"
+# Path to the TARGET repo's base-branch protected-paths carve-out, fetched by
+# the caller. Empty/missing => we cannot establish protected-path status, and
+# fail-closed means no unapproved PR gets pre-armed.
+carveout = os.environ.get("CARVEOUT", "")
 repo = json.loads(os.environ["GRAPH_JSON"])["data"]["repository"]
 
 # A PR already in the queue cannot be fixed by arming auto-merge: the entry (and
@@ -163,6 +236,43 @@ for e in ((repo.get("mergeQueue") or {}).get("entries") or {}).get("nodes") or [
     pr = e.get("pullRequest") or {}
     if pr.get("number") is not None:
         queued.add(pr["number"])
+
+def protected_paths(pr):
+    """-> ("clear"|"hit"|"unknown", detail). Fail-closed: 'unknown' is treated
+    exactly like 'hit' by the caller, because a false 'clear' pre-arms a PR
+    whose human approval would then merge it on the spot. The two are reported
+    separately only so the skip reason names the real cause -- being told to set
+    a board-gated override when the actual problem is a failed lookup sends the
+    operator the wrong way."""
+    if not carveout or not os.path.isfile(carveout):
+        return "unknown", "its protected-path status is unknown (carve-out unavailable)"
+    files = pr.get("files") or {}
+    nodes = files.get("nodes") or []
+    total = files.get("totalCount")
+    # `files(first:N)` caps at 100 server-side and truncates silently above it.
+    # Deciding on a partial list could miss the one protected file in the tail.
+    if not isinstance(total, int):
+        return "unknown", "its changed-file list is missing from the GraphQL response"
+    if total > len(nodes):
+        return "unknown", ("it changes %d files and only %d came back; re-run per-PR or raise the "
+                           "`files` page size (GitHub caps `first` at 100)" % (total, len(nodes)))
+    paths = [n.get("path") or "" for n in nodes]
+    try:
+        env = dict(os.environ, PR_FILES="\n".join(paths))
+        r = subprocess.run(["node", carveout], env=env, capture_output=True,
+                           text=True, timeout=60)
+    except Exception as exc:  # node missing, timeout, …
+        return "unknown", "the protected-path check could not run (%s)" % type(exc).__name__
+    if r.returncode == 0:
+        return "clear", ""
+    detail = (r.stdout or r.stderr or "").strip().replace("\n", " ")[:220]
+    # exit 1 WITH a reason on stdout is the carve-out's documented "protected
+    # path touched". Any other non-zero, or a throw (empty stdout), is a check
+    # we could not trust -- not a finding.
+    if r.returncode == 1 and r.stdout.strip():
+        return "hit", detail
+    return "unknown", detail or "the protected-path check exited %d" % r.returncode
+
 
 def classify(pr):
     """-> (action, reason). 'arm' or 'skip'. Conservative in every unclear case."""
@@ -199,8 +309,21 @@ def classify(pr):
     # stale head.
     if pr.get("mergeable") == "CONFLICTING":
         return "skip", "conflicting; resolve the conflict first"
-    if not arm_unapproved and pr.get("reviewDecision") != "APPROVED":
-        return "skip", "not approved (reviewDecision=%s); set ARM_UNAPPROVED=1 to arm pre-approval" % pr.get("reviewDecision")
+    if pr.get("reviewDecision") != "APPROVED":
+        if not arm_unapproved:
+            return "skip", "not approved (reviewDecision=%s); set ARM_UNAPPROVED=1 to arm pre-approval" % pr.get("reviewDecision")
+        # Pre-approval arming is a no-op in merge semantics EXCEPT on a
+        # protected path, where auto-approve.yml withholds its approval and a
+        # human reviews by hand: pre-arming there turns that human's approval
+        # into the merge itself. Keep that out of the automatable default.
+        if not arm_protected:
+            kind, detail = protected_paths(pr)
+            if kind == "hit":
+                return "skip", ("unapproved and %s; pre-arming would make a human reviewer's approval "
+                                "the merge itself -- ARM_PROTECTED=1 (board decision) to override" % detail)
+            if kind != "clear":
+                return "skip", ("unapproved and %s; skipping fail-closed rather than pre-arm on an "
+                                "unestablished protected-path status" % detail)
     return "arm", "eligible (reviewDecision=%s, mergeable=%s)" % (pr.get("reviewDecision"), pr.get("mergeable"))
 
 for pr in repo["pullRequests"]["nodes"]:

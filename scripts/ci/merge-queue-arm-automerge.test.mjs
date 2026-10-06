@@ -43,6 +43,14 @@ const selector = src.slice(start + 1, end).join("\n");
 
 const APP = "agenticos-developer";
 
+// The real carve-out, not a stub: the protected-path branch below is only
+// meaningful if it runs the same PROTECTED_GLOBS auto-approve.yml withholds on.
+// A cross-repo sweep fetches the TARGET repo's copy; here the local one is the
+// right definition because the fixtures are grove-sites paths.
+const carveout = join(repoRoot, "scripts", "ci", "protected-paths-carveout.mjs");
+
+const files = (paths) => ({ totalCount: paths.length, nodes: paths.map((path) => ({ path })) });
+
 const pr = (over = {}) => ({
   number: 987,
   id: "PR_node",
@@ -53,11 +61,12 @@ const pr = (over = {}) => ({
   mergeable: "MERGEABLE",
   author: { login: "agenticos-developer" },
   autoMergeRequest: null,
+  files: files(["scripts/ci/merge-queue-arm-automerge.sh"]),
   ...over,
 });
 
 // Runs the real selector over a synthetic graph and returns its decisions.
-function decide(prs, { queued = [], armUnapproved = false } = {}) {
+function decide(prs, { queued = [], armUnapproved = false, armProtected = false, carveoutPath = carveout } = {}) {
   const graph = {
     data: {
       repository: {
@@ -72,6 +81,8 @@ function decide(prs, { queued = [], armUnapproved = false } = {}) {
       ...process.env,
       APP_LOGIN: APP,
       ARM_UNAPPROVED: armUnapproved ? "1" : "0",
+      ARM_PROTECTED: armProtected ? "1" : "0",
+      CARVEOUT: carveoutPath,
       GRAPH_JSON: JSON.stringify(graph),
     },
   });
@@ -170,6 +181,96 @@ check("null author -> skip", decide([pr({ author: null })]), "skip", /not agenti
 // not the tool; merge-queue-rescue.sh is, and the reason must say so.
 check("already queued -> skip, pointing at the rescue script",
   decide([pr({ number: 990 })], { queued: [990] }), "skip", /rescue/);
+
+// ── Protected paths under ARM_UNAPPROVED=1 (GOL-3118) ──────────────────────
+// This is what makes ARM_UNAPPROVED=1 automatable without a board decision.
+// Pre-arming is semantically free EXCEPT on a protected path, where
+// auto-approve.yml withholds its approval and a human reviews by hand -- there,
+// pre-arming turns that human's approval into the merge itself.
+check("unapproved + protected path -> skip even with ARM_UNAPPROVED=1",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED", files: files([".github/workflows/auto-approve.yml"]) })],
+    { armUnapproved: true }),
+  "skip", /protected path\(s\) touched/);
+
+// A protected glob anywhere in the change set is enough -- including a wildcard
+// segment, which is where a hand-rolled matcher would have gone wrong.
+check("unapproved + protected path mixed into a safe change set -> skip",
+  decide([pr({
+    reviewDecision: "REVIEW_REQUIRED",
+    files: files(["README.md", "apps/nursery/tenant.config.ts", "scripts/ci/foo.sh"]),
+  })], { armUnapproved: true }),
+  "skip", /tenant\.config\.ts/);
+
+// The complement: an unapproved PR clear of every protected glob is exactly the
+// case the automated sweep exists for.
+check("unapproved + no protected path -> arm with ARM_UNAPPROVED=1",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED", files: files(["apps/nursery/app/page.tsx", "docs/x.md"]) })],
+    { armUnapproved: true }),
+  "arm");
+
+// ARM_PROTECTED=1 is the board-gated override, and it must not leak into any
+// other gate.
+check("ARM_PROTECTED=1 arms an unapproved protected-path PR",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED", files: files([".github/workflows/ci.yml"]) })],
+    { armUnapproved: true, armProtected: true }),
+  "arm");
+check("ARM_PROTECTED=1 does not override the draft rule",
+  decide([pr({ isDraft: true, reviewDecision: "REVIEW_REQUIRED", files: files([".github/workflows/ci.yml"]) })],
+    { armUnapproved: true, armProtected: true }),
+  "skip", /draft/);
+check("ARM_PROTECTED=1 does not override the human-author rule",
+  decide([pr({ author: { login: "EngineeringMoonBear" }, reviewDecision: "REVIEW_REQUIRED" })],
+    { armUnapproved: true, armProtected: true }),
+  "skip", /decides when it merges/);
+
+// An ALREADY-APPROVED protected-path PR is untouched by all of this: its
+// approval already happened, so there is no approval-timing semantics left to
+// change, and the default mode must keep arming it.
+check("approved protected-path PR -> arm (no protected check applies)",
+  decide([pr({ files: files([".github/workflows/auto-approve.yml"]) })]), "arm");
+
+// ── Fail-closed: an unestablished protected status is a skip, not an arm ────
+check("carve-out missing -> skip the unapproved PR",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED" })],
+    { armUnapproved: true, carveoutPath: join(repoRoot, "scripts", "ci", "does-not-exist.mjs") }),
+  "skip", /carve-out unavailable/);
+
+check("carve-out unset -> skip the unapproved PR",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED" })], { armUnapproved: true, carveoutPath: "" }),
+  "skip", /carve-out unavailable/);
+
+// `files(first:N)` caps silently; deciding on a partial list could miss the one
+// protected file in the tail.
+// Found live on 2026-10-06: `files(first:300)` tripped GitHub's
+// EXCESSIVE_PAGINATION (the `files` connection caps `first` at 100) and every
+// changed-file list came back null. Fail-closed held, which is why no PR was
+// wrongly armed -- these two pin that.
+check("truncated changed-file list -> skip the unapproved PR",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED", files: { totalCount: 412, nodes: [{ path: "README.md" }] } })],
+    { armUnapproved: true }),
+  "skip", /changes 412 files and only 1 came back/);
+
+check("missing changed-file list -> skip the unapproved PR",
+  decide([pr({ reviewDecision: "REVIEW_REQUIRED", files: null })], { armUnapproved: true }),
+  "skip", /missing from the GraphQL response/);
+
+// A lookup that failed must not be reported as a protected-path finding: the
+// skip reason has to name the real cause, or the operator reaches for the
+// board-gated override to fix a broken query.
+{
+  const got = decide([pr({ reviewDecision: "REVIEW_REQUIRED", files: null })], { armUnapproved: true });
+  if (/fail-closed/.test(got[0].reason) && !/ARM_PROTECTED/.test(got[0].reason)) {
+    console.log("  ok   an unestablished status is not reported as a protected-path finding");
+  } else {
+    failures++;
+    console.error(`  FAIL an unestablished status is not reported as a protected-path finding: ${JSON.stringify(got[0].reason)}`);
+  }
+}
+
+// A missing carve-out must NOT block the default (approved-only) mode -- that
+// mode makes no protected-path decision at all.
+check("carve-out missing is irrelevant to an approved PR",
+  decide([pr()], { carveoutPath: "" }), "arm");
 
 // ── Multi-PR shape: the sweep must decide per PR, not bail on the first skip ──
 {
