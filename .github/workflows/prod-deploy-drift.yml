@@ -14,6 +14,19 @@ name: Prod Deploy Drift Check
 # The redeploy that FIXES a drift is scripts/lib/do-app-redeploy.sh, wired into
 # the pin/promote flow (rides along with the GOL-1304 pinning PR).
 #
+# GOL-3138 — the alarm is no longer inline here. From 2026-10-03 to 2026-10-05
+# this workflow posted 14 consecutive "prod frontend drift" alarms to Discord
+# ops while all four prod apps were serving exactly their pinned build. The real
+# condition was a dead DIGITALOCEAN_TOKEN (`HTTP Error 401: Unauthorized`): the
+# checker returned non-zero WITHOUT writing a report, and the inline bash had
+# only one embed, so a monitoring outage was dressed up as a prod incident and
+# nobody rotated the credential for 2.6 days. scripts/prod-drift-alarm.py now
+# owns that decision — it tells a MONITOR problem apart from a PROD problem,
+# words the embed accordingly, and suppresses a re-post of an UNCHANGED state
+# inside RENOTIFY_HOURS. The run still goes red on every firing; suppression
+# silences Discord only, never CI. Behaviour is gated by
+# scripts/ci/prod-drift-alarm.test.mjs in the `CI scripts` job.
+#
 # Secrets (ADR-0001, resolved at run time from 1Password via the CI SA):
 #   DIGITALOCEAN_TOKEN       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
 #   DISCORD_OPS_WEBHOOK_URL  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
@@ -29,6 +42,9 @@ on:
 permissions:
   contents: read
   packages: read
+  # Read the PREVIOUS run's drift-report artifact, which is where the alarm
+  # dedupe state lives (no new bucket, credential or blast radius). Read-only.
+  actions: read
 
 concurrency:
   group: prod-deploy-drift
@@ -89,52 +105,54 @@ jobs:
         run: |
           python3 scripts/prod-deploy-drift-check.py
 
+      # Dedupe state for the alarm. `drift-report` is produced by this workflow
+      # only, the API returns artifacts newest-first, and our own upload happens
+      # AFTER the alarm step below — so the newest non-expired hit is the
+      # previous run's report. Best-effort: if this fails, the alarm has no prior
+      # state and fails OPEN (posts), because a duplicate alarm beats a missed one.
+      - name: Fetch previous drift report (alarm dedupe state)
+        if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=drift-report&per_page=5" \
+            --jq '[.artifacts[] | select(.expired == false)][0].archive_download_url // empty')"
+          if [ -z "$url" ]; then
+            echo "No previous drift-report artifact — the alarm will fail open and post."
+            exit 0
+          fi
+          gh api "$url" > prior.zip
+          unzip -o -q prior.zip -d prior-report
+          mv prior-report/drift-report.json prior-drift-report.json
+          echo "Dedupe state: $(jq -c '.alarm // {}' prior-drift-report.json)"
+
+      # Classify, word and (de-duplicate) the alarm. Exits non-zero whenever
+      # anything is wrong, so the run goes red on EVERY firing regardless of
+      # whether this particular firing posted to Discord.
       - name: Alarm + fail on drift
         if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'success'
         env:
           DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
           CHECK_OUTCOME: ${{ steps.check.outcome }}
+          # Repo-controlled context only — no event payload is interpolated here
+          # (see the security note at the top of this file).
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRIFT_REPORT_FILE: drift-report.json
+          PRIOR_REPORT_FILE: prior-drift-report.json
+          # Re-state an unchanged problem once a day. Raise the firing rate
+          # freely (GOL-3135 step 4) — this, not the cron, bounds alarm volume.
+          RENOTIFY_HOURS: "24"
         run: |
-          set -euo pipefail
-          if [ "$CHECK_OUTCOME" = "success" ]; then
-            echo "All prod frontends serve their pinned build. No drift."
-            exit 0
-          fi
+          python3 scripts/prod-drift-alarm.py
 
-          # Drift (or an app-level error). Build one Discord field per bad app.
-          echo "::error::Prod deploy drift detected — see report below and Discord."
-          FIELDS='[]'
-          if [ -f drift-report.json ]; then
-            FIELDS="$(jq -c '[.apps[] | select(.status != "OK" and .status != "SKIPPED")
-              | {name: .app, value: "\(.status): \(.detail // "serving \(.serving) != pin \(.intended)")", inline: false}]' drift-report.json)"
-          fi
-          [ "$FIELDS" = "[]" ] && FIELDS='[{"name":"drift","value":"See workflow logs","inline":false}]'
-
-          if [ -n "${DISCORD_OPS_WEBHOOK_URL:-}" ]; then
-            PAYLOAD=$(jq -n \
-              --argjson fields "$FIELDS" \
-              --arg run_url "$RUN_URL" \
-              '{
-                username: "🚨 Grove Prod Deploy",
-                embeds: [{
-                  title: "🚨 Prod frontend drift — serving build != pinned build",
-                  description: "One or more prod apps are not serving the image their pinned tag points to. Redeploy with scripts/lib/do-app-redeploy.sh (one create-deployment; never two back-to-back — GOL-1607).",
-                  color: 15158332,
-                  fields: $fields,
-                  footer: { text: "Workflow run: \($run_url)" }
-                }]
-              }')
-            curl -fsS -X POST -H "Content-Type: application/json" \
-              -d "$PAYLOAD" "$DISCORD_OPS_WEBHOOK_URL" \
-              || echo "::warning::Discord webhook failed — drift still detected, see logs"
-          else
-            echo "::warning::No Discord webhook — drift detected but not alarmed"
-          fi
-
-          # Fail loudly: the run goes red so the drift is impossible to miss.
-          exit 1
-
+      # Runs last on purpose: the alarm step rewrites the report with its
+      # `alarm` block, and THAT is what the next run reads as dedupe state.
+      # The checker now writes a report on every exit path (GOL-3138), so a
+      # failed run is no longer a hole in this artifact chain — the absence of
+      # this artifact on the 14 red runs is what made that streak undiagnosable.
       - name: Upload drift report
         if: always() && steps.creds.outputs.run == 'true'
         uses: actions/upload-artifact@v7

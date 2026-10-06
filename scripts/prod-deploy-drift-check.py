@@ -29,6 +29,24 @@ someone bumps the pin without an explicit create-deployment.
 A non-ACTIVE deployment phase (ERROR / stuck build) is also reported as drift —
 a prod app that failed its last rollout is exactly as broken as a stale one.
 
+PROD PROBLEM vs MONITOR PROBLEM (GOL-3138)
+------------------------------------------
+"The checker could not do its job" is NOT "prod is drifted", and conflating the
+two is how 14 consecutive runs (2026-10-03 -> 2026-10-05) posted a
+"prod frontend drift" alarm to Discord ops while prod was in fact serving
+exactly its pinned build. The real condition was a dead DigitalOcean token
+(`HTTP Error 401: Unauthorized`), and because the old code returned before
+writing the report, the failed runs produced no `drift-report.json` artifact at
+all, so nothing downstream could tell the two apart.
+
+So: every failure path now WRITES THE REPORT before returning, and the report
+carries `monitor_ok`. A checker-side failure sets `monitor_ok: false` and
+`drift: false`; a genuine prod problem sets `drift: true`. The alarm layer
+(scripts/prod-drift-alarm.py) words the Discord message off those two flags —
+"prod is drifted" vs "the drift check is blind". Both still fail the run. That
+script owns the MONITOR-vs-PROD status taxonomy (MONITOR_STATUSES); the statuses
+this file emits are inputs to it.
+
 INPUTS (env)
 ------------
   DIGITALOCEAN_TOKEN   DO API token (read-only is enough; we only GET)
@@ -41,9 +59,11 @@ INPUTS (env)
 EXIT
 ----
   0  every targeted app is serving exactly its pinned build
-  1  at least one app is drifted / unhealthy (or a hard error occurred)
+  1  at least one app is drifted / unhealthy, OR the check could not run
+     (distinguish the two via `drift` / `monitor_ok` in the report)
 """
 import base64
+import datetime
 import json
 import os
 import sys
@@ -69,6 +89,40 @@ MANIFEST_ACCEPT = ", ".join([
 ])
 
 
+def write_report(report):
+    """Persist the report if DRIFT_REPORT_FILE is set, and echo it to the log.
+
+    Called on EVERY exit path, including the hard-error ones. The artifact being
+    absent on a failed run is what made GOL-3138 undiagnosable from the API.
+    """
+    report.setdefault(
+        "generated_at",
+        datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    report_file = os.environ.get("DRIFT_REPORT_FILE", "").strip()
+    if report_file:
+        with open(report_file, "w") as fh:
+            json.dump(report, fh, indent=2)
+    print("\n=== prod deploy drift report ===")
+    print(json.dumps(report, indent=2))
+    return report
+
+
+def monitor_failure(detail, app_names=()):
+    """A checker-side failure: prod status is UNKNOWN, not bad. Red run, no drift."""
+    print(f"::error::Drift check could not run: {detail}")
+    write_report({
+        "drift": False,
+        "monitor_ok": False,
+        "monitor_error": detail,
+        # One row per targeted app so the alarm reads "these four are unwatched",
+        # not "one global thing broke" — the operator cares about the coverage gap.
+        "apps": [{"app": name, "status": "MONITOR_ERROR", "detail": detail}
+                 for name in app_names],
+    })
+    return 1
+
+
 def _get(url, headers, want_header=None):
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -87,26 +141,34 @@ def ghcr_digest(owner, repo, ref, bearer_b64):
 def main():
     do_token = os.environ.get("DIGITALOCEAN_TOKEN", "").strip()
     ghcr_token = os.environ.get("GHCR_TOKEN", "").strip()
-    if not do_token:
-        print("::error::DIGITALOCEAN_TOKEN is empty — cannot query App Platform.")
-        return 1
-    if not ghcr_token:
-        print("::error::GHCR_TOKEN is empty — cannot resolve GHCR digests.")
-        return 1
-
     app_names = os.environ.get("APP_NAMES", "").split() or DEFAULT_APPS
+
+    if not do_token:
+        return monitor_failure(
+            "DIGITALOCEAN_TOKEN is empty — cannot query App Platform.", app_names)
+    if not ghcr_token:
+        return monitor_failure(
+            "GHCR_TOKEN is empty — cannot resolve GHCR digests.", app_names)
     # GHCR accepts a GitHub token base64-encoded as the bearer.
     bearer_b64 = base64.b64encode(ghcr_token.encode()).decode()
 
     try:
         apps = _get(DO_API, {"Authorization": f"Bearer {do_token}"})["apps"]
-    except (urllib.error.URLError, KeyError) as exc:
-        print(f"::error::Failed to list DigitalOcean apps: {exc}")
-        return 1
+    # URLError/HTTPError are OSError subclasses; bare OSError additionally catches
+    # the socket TIMEOUT that urlopen raises, which the old tuple let escape as an
+    # uncaught traceback. ValueError covers a non-JSON body, KeyError a missing
+    # "apps" key. Nothing here may crash the run without writing a report.
+    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+        # The GOL-3138 streak lived here: a rotated/expired DO token 401s and the
+        # old code returned 1 with no report, which the workflow then dressed up
+        # as a prod drift alarm. A dead monitoring credential is an OPS problem
+        # — same fail-loud-but-honest treatment as OP_CI_SA_TOKEN upstream.
+        return monitor_failure(f"Failed to list DigitalOcean apps: {exc}", app_names)
 
     by_name = {a["spec"]["name"]: a for a in apps}
     results = []
     drift = False
+    monitor_ok = True
 
     for name in app_names:
         app = by_name.get(name)
@@ -140,10 +202,12 @@ def main():
 
         try:
             intended = ghcr_digest(owner, repo, tag, bearer_b64)
-        except (urllib.error.URLError, urllib.error.HTTPError) as exc:
-            drift = True
+        except (urllib.error.URLError, OSError) as exc:  # incl. socket timeout
+            # Registry unreachable/unauthorized -> we do not KNOW the pin, so this
+            # is a monitor problem (monitor_ok=False), not drift. Still red.
+            monitor_ok = False
             results.append({"app": name, "status": "GHCR_ERROR", "tag": tag,
-                            "detail": str(exc)})
+                            "detail": f"could not resolve {owner}/{repo}:{tag}: {exc}"})
             print(f"::error::{name}: could not resolve GHCR {owner}/{repo}:{tag} ({exc})")
             continue
 
@@ -172,15 +236,9 @@ def main():
 
         results.append(entry)
 
-    report = {"drift": drift, "apps": results}
-    report_file = os.environ.get("DRIFT_REPORT_FILE", "").strip()
-    if report_file:
-        with open(report_file, "w") as fh:
-            json.dump(report, fh, indent=2)
-
-    print("\n=== prod deploy drift report ===")
-    print(json.dumps(report, indent=2))
-    return 1 if drift else 0
+    write_report({"drift": drift, "monitor_ok": monitor_ok, "apps": results})
+    # Both a drifted prod app and a blind checker fail the run; the report says which.
+    return 1 if (drift or not monitor_ok) else 0
 
 
 if __name__ == "__main__":
