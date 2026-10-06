@@ -44,13 +44,66 @@ name: preview-sweep
 #
 # Secrets: 1Password via the grove-ci-prod-ro service account (no static
 #   DIGITALOCEAN_TOKEN). Provisioning: see README-preview.md.
+#
+# CADENCE (GOL-3132): `schedule` alone is NOT a cadence, and for this workflow
+# that costs money. GitHub makes no delivery guarantee for cron and throttles it
+# at the account level — measured 2026-10-06 over 7 days of history on `main`,
+# this workflow's `0 */6` (4/day), `missing-checks-sweep`'s `3,23,43 * * * *`
+# (72/day) and `prod-deploy-drift`'s `*/30` (48/day) ALL landed at ~5 firings a
+# day. The uniform rate across three very different crons is throttling, not a
+# config fault.
+#
+# The damage here is not the average rate — ~5/day is close to the declared 4 —
+# it is the JITTER. Observed firings: 03:27, 23:23, 12:47, 02:34 … i.e. real
+# gaps of 10-20 h between sweeps, against a 6 h design. The "~$0.20 of waste"
+# bound below was only ever true of the declared cron; at a 20 h gap a leaked
+# droplet burns ~$0.66, and the idle reaper that is "the lever that actually
+# controls spend" runs ~TTL + up-to-20h after work stops rather than ~TTL.
+#
+# So two event heartbeats are added and `schedule` is kept as the floor:
+#
+#   push: branches: [main]   — every merge-queue merge. Closing a PR is exactly
+#       what turns its preview into an orphan, so a merge is the single most
+#       predictive moment to sweep, and `push` to the default branch is
+#       delivered independently of any PR's event.
+#   workflow_run: preview-down, completed — the immediate retry for documented
+#       failure mode #1 above ("preview-down.yml crashed mid-destroy"). A
+#       crashed teardown is re-reaped in a minute instead of up to 20 h.
+#
+# Deliberately NOT `pull_request: types: [closed]`, for two reasons: it is the
+# same event class whose unreliable delivery this is working around, and on a
+# public repo a fork PR's `pull_request` run gets no secrets, so the sweep
+# would fire credential-less and fail. `workflow_run` and `push` both run in
+# the DEFAULT-BRANCH context with full secret access.
+#
+# Safe to run more often: the sweep is repo-wide and idempotent, every
+# ambiguity resolves toward KEEPING the droplet (fail-safe posture above), the
+# `preview-sweep` concurrency group with `cancel-in-progress: false` serialises
+# bursts instead of racing TF state, and the repo is public so Actions minutes
+# on standard runners are free. No input defaults change: every `github.event.
+# inputs.*` below already falls back via `|| '<default>'`, exactly as it does
+# under `schedule` today.
+#
+# ⚠️ A `workflow_run` leg only exists once this file is on the DEFAULT branch,
+# so it cannot be exercised from a PR — verify after merge with
+# `gh run list --workflow preview-sweep.yml --json event,createdAt`.
 ###############################################################################
 
 on:
   schedule:
-    # Every 6 hours. Preview droplets are cheap (~$0.033/hr) so a 6h reaper
-    # window caps a leaked droplet at ~$0.20 of waste. Cron is UTC.
+    # The declared floor, not the real cadence — see CADENCE above (GOL-3132).
+    # Preview droplets are cheap (~$0.033/hr) so a 6h reaper window caps a
+    # leaked droplet at ~$0.20 of waste. Cron is UTC.
     - cron: "0 */6 * * *"
+  push:
+    # Event heartbeat: a merge closes a PR, which is what orphans its preview.
+    branches: [main]
+  workflow_run:
+    # Event heartbeat: re-reap after a teardown that crashed mid-destroy.
+    # The triggering run's conclusion is irrelevant — we only want the tick,
+    # and the sweep is repo-wide, so it never reads the triggering payload.
+    workflows: [preview-down]
+    types: [completed]
   workflow_dispatch:
     inputs:
       dry_run:
