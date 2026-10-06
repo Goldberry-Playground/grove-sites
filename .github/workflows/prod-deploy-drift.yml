@@ -30,6 +30,7 @@ name: Prod Deploy Drift Check
 # Secrets (ADR-0001, resolved at run time from 1Password via the CI SA):
 #   DIGITALOCEAN_TOKEN       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
 #   DISCORD_OPS_WEBHOOK_URL  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+#   CREDENTIAL_EXPIRES       op://Grove Prod/odoocker/expires  (GOL-3140)
 # GHCR digests are read with the workflow's GITHUB_TOKEN (packages: read).
 
 on:
@@ -147,6 +148,61 @@ jobs:
           RENOTIFY_HOURS: "24"
         run: |
           python3 scripts/prod-drift-alarm.py
+
+      # GOL-3140 — warn BEFORE the credential dies, not 2.6 days after.
+      #
+      # DO PATs now default to a 90-day expiry and DO exposes no endpoint to
+      # introspect your own PAT, so the expiry can only be RECORDED and watched.
+      # The `odoocker` item already carries an `expires` DATE field, so this is
+      # one secret reference and no new schedule or credential.
+      #
+      # Loaded in its OWN step, deliberately: folding `expires` into the
+      # load-secrets step above would mean a problem reading a calendar date
+      # could fail that step, and every drift step is gated on
+      # `steps.secrets.outcome == 'success'` — i.e. a bad date could blind prod
+      # monitoring, which is the exact failure GOL-3138 exists to stop. Here the
+      # worst case is a missing warning. `export-env: false` keeps the value in
+      # this step's (masked) outputs instead of $GITHUB_ENV.
+      #
+      # `op read` on an EMPTY 1Password field exits 0 with empty output
+      # (verified against the live item), so this reference is safe TODAY while
+      # the field is still blank — the script is inert until a human fills it in.
+      # A MISSING field would exit 1, which is why the pre-existing `expires`
+      # field is reused rather than a new one being requested.
+      - name: Load recorded credential expiry
+        id: expiry
+        if: always() && steps.creds.outputs.run == 'true'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v5
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          CREDENTIAL_EXPIRES: op://Grove Prod/odoocker/expires
+        with:
+          export-env: false
+
+      # Always runs: the alarm step above exits non-zero on any problem, and a
+      # rotation reminder must not be skipped just because today's run is red —
+      # a dead credential is precisely when you most want to be told to rotate.
+      # The script itself always exits 0; an approaching expiry is a chore, not
+      # an incident, and red is reserved for "prod is drifted" / "the check is
+      # blind". Behaviour is gated by
+      # scripts/ci/prod-credential-expiry-warn.test.mjs in the `CI scripts` job.
+      - name: Warn on approaching credential expiry
+        if: always() && steps.creds.outputs.run == 'true'
+        env:
+          CREDENTIAL_EXPIRES: ${{ steps.expiry.outputs.CREDENTIAL_EXPIRES }}
+          CREDENTIAL_LABEL: DIGITALOCEAN_TOKEN
+          CREDENTIAL_REF: op://Grove Prod/odoocker/expires
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # Shares the drift-report artifact with the drift alarm (no new
+          # bucket). Merges its own block in; never overwrites `alarm`.
+          STATE_FILE: drift-report.json
+          PRIOR_STATE_FILE: prior-drift-report.json
+          WARN_DAYS: "14"
+          URGENT_DAYS: "3"
+        run: |
+          python3 scripts/prod-credential-expiry-warn.py
 
       # Runs last on purpose: the alarm step rewrites the report with its
       # `alarm` block, and THAT is what the next run reads as dedupe state.
