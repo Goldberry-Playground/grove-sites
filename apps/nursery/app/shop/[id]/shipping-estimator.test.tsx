@@ -72,14 +72,16 @@ describe("ShippingEstimator — eligibility branches", () => {
     expect(panel.textContent).not.toMatch(/exact rate is confirmed at checkout/);
     // It must NOT borrow the consult-built disclosure: nothing here is built in
     // a consult, and promising one would be a different lie.
-    expect(panel.textContent).not.toMatch(/of the 14 species/);
+    expect(panel.textContent).not.toMatch(/of our 14 food-forest species/);
   });
 
   it("green + consult-built into FL: discloses the constraint with real numbers", () => {
     // Template 134 (Centennial Food Forest, $400) shipping to Florida. Florida
-    // restricts chestnut and dogwood, so 11 of the 14 species we grow clear.
+    // restricts chestnut and dogwood, so 11 of our 14 palette species clear.
     const panel = at("FL", { botanicalName: null, consultBuilt: true });
-    expect(panel.textContent).toMatch(/Your Florida mix: 11 of the 14 species we grow/);
+    expect(panel.textContent).toMatch(
+      /Your Florida mix: 11 of our 14 food-forest species/,
+    );
     expect(panel.textContent).toMatch(/restricts chestnut and dogwood/);
     // Every excluded species is named — a count alone is not a disclosure.
     expect(panel.textContent).toMatch(/American Chestnut/);
@@ -94,7 +96,9 @@ describe("ShippingEstimator — eligibility branches", () => {
 
   it("green + consult-built into IN: one exclusion, and only WHITE mulberry", () => {
     const panel = at("IN", { botanicalName: null, consultBuilt: true });
-    expect(panel.textContent).toMatch(/Your Indiana mix: 13 of the 14 species we grow/);
+    expect(panel.textContent).toMatch(
+      /Your Indiana mix: 13 of our 14 food-forest species/,
+    );
     expect(panel.textContent).toMatch(/restricts white mulberry/);
     expect(panel.textContent).toMatch(/Mulberry/);
     // Morus rubra is clean, so the notice must not imply every mulberry is out.

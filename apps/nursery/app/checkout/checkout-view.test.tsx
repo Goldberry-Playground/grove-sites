@@ -57,7 +57,9 @@ describe("nursery checkout — consult-built carve-out disclosure (GOL-3028)", (
     mount([CONSULT_LINE]);
     await chooseState("FL");
     const notice = await screen.findByTestId("consult-carveout-notice");
-    expect(notice.textContent).toMatch(/Your Florida mix: 11 of the 14 species we grow/);
+    expect(notice.textContent).toMatch(
+      /Your Florida mix: 11 of our 14 food-forest species/,
+    );
     expect(notice.textContent).toMatch(/American Chestnut/);
     expect(notice.textContent).toMatch(/Dogwood/);
     // Checkout wording, not PDP wording: the deposit is the thing in front of
