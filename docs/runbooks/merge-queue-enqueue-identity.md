@@ -21,6 +21,58 @@ gh api graphql -f query='{repository(owner:"Goldberry-Playground",name:"grove-si
 gh api "repos/$REPO/actions/runs?head_sha=<GROUP_COMMIT_OID>" -q '.total_count'
 ```
 
+### Second symptom — a stacked PR's merge re-gates its parent's checks (GOL-2999)
+
+The same unprovisioned identity has a second, differently-shaped failure, and on
+a stacked PR chain it is the one you will actually hit.
+
+When the PR being merged targets a **topic branch** rather than `main`, there is
+no merge queue on that branch, so `gh pr merge --squash` performs a **direct
+merge**. With `ENQUEUE_TOKEN` empty that merge push is made by `GITHUB_TOKEN`,
+and it moves the head of the **parent** PR (the one whose base is that topic
+branch). GitHub then refuses to auto-run workflows for the resulting
+`pull_request` event, so every workflow on the parent's new head is created in
+`action_required` — parked for a maintainer's "Approve and run". The required
+contexts publish **nothing at all**: no check-run, no commit status. Branch
+protection reports them as `Expected`, and there is no red signal anywhere.
+
+The tell is the merge actor, not the enqueuer:
+
+```bash
+REPO=Goldberry-Playground/grove-sites
+# The head commit of the gated PR is the stacked child's squash merge...
+gh pr view <CHILD_PR> --repo "$REPO" --json mergedBy,mergeCommit
+#   mergedBy.login == "app/github-actions"  -> merged under GITHUB_TOKEN
+# ...and every run on the parent's head is parked:
+gh api "repos/$REPO/actions/runs?head_sha=<PARENT_HEAD_SHA>" \
+  --jq '.workflow_runs[] | select(.conclusion=="action_required")
+        | "\(.name)\t\(.triggering_actor.login)"'
+```
+
+Note the gate lives in the run's **`conclusion`**, not its `status`: a held run
+reads `status=completed, conclusion=action_required`.
+
+**Remediation (per occurrence, agent-safe on an agent-authored PR):**
+
+```bash
+gh pr close <PARENT_PR> --repo "$REPO" && gh pr reopen <PARENT_PR> --repo "$REPO"
+```
+
+Close/reopen re-fires the whole `pull_request` event on the **same head SHA** —
+nothing rebinds — under the closing identity, so the runs are created ungated.
+Check first that no auto-merge is armed (closing disarms it) and that no human is
+mid-review. The previously-parked runs flip `action_required` -> `failure` as
+superseded; that is expected bookkeeping, not new breakage.
+
+Approving the parked runs from the Actions tab is only a **half fix**: a re-run
+keeps the run's `actor` as `github-actions[bot]` (only `triggering_actor` becomes
+the approver), so every event chained off that run stays suppressed — including
+the `workflow_run` trigger `auto-approve.yml` listens on.
+
+Provisioning the App identity below fixes this symptom and the merge-queue wedge
+at once: an App-identity merge push is not suppressed, so the parent's checks
+simply run.
+
 ## Cause
 
 GitHub never creates workflow runs for events triggered by the automatic
@@ -104,6 +156,13 @@ both directions against the real function extracted from the workflow.
 
 Adding Actions secrets/variables needs repo-admin rights the ops service account
 does not have — **Josh / CEO must run this.**
+
+> **Status 2026-10-05 (GOL-2999):** still unprovisioned. `gh variable list` is
+> empty for `grove-sites`, `grove-odoo-modules` and `odoocker-goldberrygrove`,
+> and `MERGE_QUEUE_APP_PRIVATE_KEY` is absent from each repo's secrets, so the
+> mint step is skipped and every agent merge still runs on `GITHUB_TOKEN`. Each
+> stacked-PR merge therefore keeps re-gating its parent (second symptom above) —
+> GOL-2999 was the latest instance and needed a manual close/reopen.
 
 Use the existing agent App, `agenticos-developer` (it already authors the agent
 PRs, and it is the identity proven in the A/B above). From the App's settings
