@@ -236,7 +236,10 @@ describe("ShippingEstimator — eligibility branches", () => {
 
   it("before a state is picked, nothing is promised about any state", () => {
     const { container } = renderEstimator({ botanicalName: "Castanea spp." });
-    expect(container.textContent).toMatch(/pick yours to see your rate/);
+    // Case-insensitive: the em-dash redline (GOL-3065) turned the clause into
+    // its own sentence, so the "p" capitalised. The assertion is about the
+    // promise being absent, not about the punctuation around it.
+    expect(container.textContent).toMatch(/pick yours to see your rate/i);
     expect(container.textContent).not.toMatch(/Not cleared/);
   });
 });
