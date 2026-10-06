@@ -661,18 +661,6 @@
 }
 
 /* Summary — card/title/total shared (CheckoutShared.css); cart-specific below. */
-.grove-cart__summary-list {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--grove-space-2);
-  font-size: var(--grove-text-sm);
-}
-.grove-cart__summary-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--grove-space-4);
-}
 
 /* Checkout CTA — shared forest fill (CheckoutShared.css); cart renders an <a>. */
 .grove-cart__summary-cta {
@@ -799,6 +787,12 @@
   }
 }
 
+/* Notice slot (GOL-3028): the live region stays mounted so the first notice is
+   announced; `:empty` drops the stray grid gap when it renders nothing. */
+.grove-checkout__state-notice:empty {
+  display: none;
+}
+
 /* Fields */
 .grove-checkout__field {
   display: block;
@@ -894,23 +888,15 @@
   color: var(--grove-color-ink-a50);
 }
 
-/* Summary — card/title/total shared (CheckoutShared.css); lists local. */
-.grove-checkout__order-list,
-.grove-checkout__summary-list {
+/* Summary — card/title/total/list/row shared (CheckoutShared.css); order list local. */
+.grove-checkout__order-list {
   display: flex;
   flex-direction: column;
   gap: var(--grove-space-2);
   font-size: var(--grove-text-sm);
-}
-.grove-checkout__order-list {
   list-style: none;
   margin: 0 0 var(--grove-space-4);
   padding: 0;
-}
-.grove-checkout__order-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--grove-space-4);
 }
 .grove-checkout__order-name {
   flex: 1;
@@ -919,13 +905,8 @@
   color: var(--grove-color-ink-a50);
 }
 .grove-checkout__summary-list {
-  margin: 0;
   border-top: 1px solid var(--grove-color-line);
   padding-top: var(--grove-space-3);
-}
-.grove-checkout__summary-row {
-  display: flex;
-  justify-content: space-between;
 }
 
 /* Error — shared surface (CheckoutShared.css); checkout-only deltas. */
@@ -1339,6 +1320,29 @@
 .grove-checkout__summary-row dt,
 .grove-cart__summary-row dt {
   color: var(--grove-color-ink-a70);
+}
+/* Summary list + its label/value rows — identical markup on the cart summary and
+   the checkout form summary, so the base lives here once (GOL-872 dedup). The
+   checkout order list reuses the row; its own border/padding deltas stay local. */
+.grove-checkout__summary-list,
+.grove-cart__summary-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--grove-space-2);
+  font-size: var(--grove-text-sm);
+}
+.grove-checkout__summary-row,
+.grove-checkout__order-row,
+.grove-cart__summary-row {
+  display: flex;
+  justify-content: space-between;
+}
+/* The two rows that carry a wrapping name beside a figure need a floor between
+   them; the checkout summary row (short label + amount) deliberately does not. */
+.grove-checkout__order-row,
+.grove-cart__summary-row {
+  gap: var(--grove-space-4);
 }
 /* "Due today" — the flat reservation deposit row (GOL-2233), emphasised so a
    buyer reads the $10 they pay now before the full order total beneath it.
