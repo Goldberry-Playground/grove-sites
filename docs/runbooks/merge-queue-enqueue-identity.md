@@ -40,6 +40,13 @@ enqueue because the full-CI gate in `auto-approve.yml` already passed, so **the
 healthier the PR, the more likely it silently fails to merge**. And because the
 enqueue is also the *last* step, nothing downstream ever notices.
 
+**A dead entry stalls the whole queue, not just its own PR.** The merge queue is
+sequential, so a dead entry at position 1 holds up every healthy entry behind it
+for the full eviction timeout. Measured 2026-10-06: #990's dead group sat at
+position 1 while #987 waited at position 2 with 7 green runs of its own. The
+cost of one wedge is therefore every PR behind it — which is why a backlog of
+agent PRs does not drain on its own.
+
 **Evidence — every merge-queue entry across all three repos on 2026-09-23. Same
 commits, same required checks; the only variable was the enqueuing identity
 (`AddedToMergeQueueEvent.enqueuer` on each PR's timeline):**
@@ -100,10 +107,107 @@ inside the grace window, and it stays quiet, because a false positive would fail
 a healthy PR's merge. `scripts/ci/merge-queue-wedge-detector.test.mjs` asserts
 both directions against the real function extracted from the workflow.
 
-## Provisioning the App identity (one-time, human step)
+## The fix that needs no provisioning: arm auto-merge under the App (GOL-3118)
 
-Adding Actions secrets/variables needs repo-admin rights the ops service account
-does not have — **Josh / CEO must run this.**
+**Auto-merge inherits the identity of whoever enabled it.** When auto-merge is
+armed on a PR, GitHub performs the eventual enqueue attributed to the identity
+that armed it — and that enqueue creates `merge_group` workflow runs normally.
+
+So the enqueue identity does **not** have to come from inside the workflow. It
+never did. Agents already hold a non-`GITHUB_TOKEN` identity: every agent PR is
+authored by `agenticos-developer[bot]` using a broker-minted installation token
+(`GH_TOKEN_BROKER_URL`). Arming auto-merge with that same token makes every
+subsequent enqueue healthy — no Actions variable, no Actions secret, no App
+private key anywhere.
+
+**Evidence** (`AutoMergeEnabledEvent.actor` vs the resulting
+`AddedToMergeQueueEvent.enqueuer`, grove-sites, 2026-09-30):
+
+| PR | armed by | resulting enqueuer | enqueues needed |
+| --- | --- | --- | --- |
+| #921 | `agenticos-developer` 19:50:49Z | `agenticos-developer[bot]` 20:10:25Z | **1** → merged |
+| #923 | `agenticos-developer` 20:12:22Z | `agenticos-developer[bot]` 20:15:45Z | **1** → merged |
+| #933 | `agenticos-developer` 20:26:05Z | `agenticos-developer[bot]` 20:31:54Z | **1** → merged |
+| #900 | `EngineeringMoonBear` 19:04:58Z | `EngineeringMoonBear` 19:12:20Z | **1** → merged |
+
+#921's twenty-minute gap is the load-bearing detail: arming happened *before*
+the checks were green, GitHub did the waiting, and the enqueue it made twenty
+minutes later still carried the arming identity. Every other agent PR in that
+window shows the `github-actions[bot]` → 0 runs → manual rescue pattern; these
+are the only ones that enqueued once and merged.
+
+Confirmed deliberately on 2026-10-06, both entries in the same queue 68 seconds
+apart:
+
+| PR | enqueued by | group commit | `merge_group` runs | outcome |
+| --- | --- | --- | --- | --- |
+| #990 | `github-actions` 02:05:51Z | `ba3e3f57` | **0** | dead; rescued 02:10:04Z → merged 02:13:15Z |
+| #987 | `agenticos-developer` (armed) 02:06:59Z | `d16f97f1` | **7** | merged 02:13:15Z |
+
+### Doing it
+
+The steady state is to arm the PR in the same breath as opening it, with the
+broker token already in hand. The sweep script is the backstop and the
+backlog drain:
+
+```bash
+scripts/ci/merge-queue-arm-automerge.sh              # dry run, lists decisions
+scripts/ci/merge-queue-arm-automerge.sh --apply      # arm already-APPROVED agent PRs
+ARM_UNAPPROVED=1 scripts/ci/merge-queue-arm-automerge.sh --apply   # steady state
+REPO=Goldberry-Playground/odoocker-goldberrygrove scripts/ci/merge-queue-arm-automerge.sh --apply
+```
+
+Auto-merge is allowed on all three repos and all three have a merge queue on
+`main` (re-measured 2026-10-06 — note REST `GET /repos/...` omits
+`allow_auto_merge` for a token without admin read, which reads as "disabled";
+GraphQL `autoMergeAllowed` is authoritative).
+
+The script **bypasses no gate**: auto-merge still requires every required review
+and every required status check, including the protected-paths human review that
+`auto-approve.yml` withholds its approval for. Arming decides *who* enqueues,
+not *whether* the PR may merge.
+
+Two guardrails worth knowing, both in
+`scripts/ci/merge-queue-arm-automerge.test.mjs`:
+
+- **It never arms a PR it did not author.** `auto-approve.yml` approves
+  maintainer PRs but deliberately does not enqueue them, so the human keeps
+  control over when their own PR merges. A dry run on 2026-10-06 would have
+  armed #941 (`EngineeringMoonBear`'s, approved, checks still pending) before
+  that rule existed.
+- **It never re-arms a PR someone else armed**, which would mean disabling their
+  auto-merge first and silently taking a merge decision from its owner.
+
+`ARM_UNAPPROVED=1` is opt-in for one reason: with auto-merge pre-armed, a
+protected-path PR merges the *moment* a human approves it rather than waiting
+for a separate enqueue. That deletes a manual step, but it changes when a
+reviewer's approval becomes final.
+
+## Provisioning the App identity in Actions (optional — not recommended)
+
+> **Not required.** The section above fixes this with no credential at all.
+> `vars.MERGE_QUEUE_APP_CLIENT_ID` being unset is now a supported resting state,
+> not a pending chore. Kept here because `auto-approve.yml` still honours the
+> variables if they ever appear, and because the reasoning should not have to be
+> rediscovered.
+
+Why we chose not to: ADR-0001 keeps the App private key in `gh-token-broker`
+alone — *"`gh-token-broker` holds one long-lived secret (the GitHub App private
+key) and mints short-lived, repo-scoped tokens on demand. Agents never see the
+root key"* — and `.github/workflows/README-preview.md` commits CI to reading
+credentials from 1Password at runtime rather than storing them (*"no static
+Spaces/CF/DO tokens live in GitHub secrets"*). `MERGE_QUEUE_APP_PRIVATE_KEY`
+would be the first long-lived root credential in Actions secrets, in three
+repos, to buy a capability the broker already gives away for free.
+
+`REQUIRED_CHECKS_ADMIN_TOKEN` (present in all three repos) would also work as an
+enqueue identity, and is likewise rejected: it is an elevated admin PAT scoped
+for ruleset reconciliation, so routine enqueues under it are a least-privilege
+regression, and it expires silently.
+
+If it is ever provisioned anyway, adding Actions secrets/variables needs
+repo-admin rights the ops service account does not have — **Josh / CEO must run
+this.**
 
 Use the existing agent App, `agenticos-developer` (it already authors the agent
 PRs, and it is the identity proven in the A/B above). From the App's settings
