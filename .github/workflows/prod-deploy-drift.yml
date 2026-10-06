@@ -14,16 +14,48 @@ name: Prod Deploy Drift Check
 # The redeploy that FIXES a drift is scripts/lib/do-app-redeploy.sh, wired into
 # the pin/promote flow (rides along with the GOL-1304 pinning PR).
 #
+# Security note on the event triggers: `workflow_run` and `push: main` both run
+# in DEFAULT-BRANCH context with full access to the secrets below, which is why
+# they are used here instead of `pull_request` (a fork PR run gets no secrets
+# and this check cannot work without them). No step consumes any field of
+# `github.event.workflow_run.*` or any other attacker-controllable payload
+# value -- the job reads only `secrets.*`, repo-controlled file paths and the
+# DigitalOcean/GHCR APIs -- so there is no pwn-request path here. Keep it that
+# way: do not interpolate event payload fields into a run: block in this file.
+#
 # Secrets (ADR-0001, resolved at run time from 1Password via the CI SA):
 #   DIGITALOCEAN_TOKEN       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
 #   DISCORD_OPS_WEBHOOK_URL  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
 # GHCR digests are read with the workflow's GITHUB_TOKEN (packages: read).
 
 on:
+  # GOL-3132: GitHub throttles `schedule` to ~5 firings/day on this account
+  # NO MATTER what the cron says -- measured across three workflows whose crons
+  # declared 72, 48 and 4 firings/day, all of which delivered ~5. So the
+  # `*/30` below is really a ~4-hourly check, and the 30-minute bound in its
+  # comment was never true. `schedule` is kept as the FLOOR (it is the only
+  # trigger that fires when the repo is completely quiet); the event triggers
+  # below are what actually give this check its cadence.
   schedule:
-    # Every 30 minutes. A stale prod frontend is a revenue/brand problem during
-    # launch season; 30 min bounds how long it can hide.
+    # Nominally every 30 minutes; see above -- expect ~5/day from this leg.
     - cron: "*/30 * * * *"
+
+  # Drift is CREATED by a deploy, so deploy-adjacent events are the useful
+  # heartbeat. Prerequisite (GOL-3135) was teaching the checker about in-flight
+  # rollouts: before that, `serving != pinned` during a healthy rollout counted
+  # as DRIFT, so raising the firing rate would have raised the FALSE-ALARM rate
+  # into Discord ops. The checker now classifies a fresh in-flight rollout onto
+  # the pinned digest as ROLLING_OUT (exit 0) and only alarms once it is wedged
+  # past ROLLOUT_GRACE_MINUTES.
+  push:
+    branches: [main]
+
+  workflow_run:
+    workflows:
+      - Docker — Frontends
+      - Release — deploy Goldberry
+    types: [completed]
+
   workflow_dispatch: {}
 
 permissions:
@@ -106,7 +138,10 @@ jobs:
           echo "::error::Prod deploy drift detected — see report below and Discord."
           FIELDS='[]'
           if [ -f drift-report.json ]; then
-            FIELDS="$(jq -c '[.apps[] | select(.status != "OK" and .status != "SKIPPED")
+            # ROLLING_OUT is informational (a healthy in-flight rollout,
+            # GOL-3135) and never why the run went red -- excluded so an alarm
+            # for a genuinely drifted app does not also list a fine one.
+            FIELDS="$(jq -c '[.apps[] | select(.status != "OK" and .status != "SKIPPED" and .status != "ROLLING_OUT")
               | {name: .app, value: "\(.status): \(.detail // "serving \(.serving) != pin \(.intended)")", inline: false}]' drift-report.json)"
           fi
           [ "$FIELDS" = "[]" ] && FIELDS='[{"name":"drift","value":"See workflow logs","inline":false}]'
