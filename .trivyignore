@@ -1,4 +1,53 @@
-# CVE-2026-93687 — braces 3.0.3 DoS via stack overflow
-# No fixed version available as of 2026-10-05; braces is a transitive dev dep only.
-# Remove once a patched braces is released and the lockfile is updated.
-CVE-2026-93687
+# Suppressions for the `Dependency audit` CI gate (.github/workflows/ci.yml).
+#
+# Trivy auto-detects THIS filename in the scan working directory (`--ignorefile`
+# defaults to `.trivyignore`), so the gate honours this file with no workflow
+# edit. Do NOT rename it to `.trivyignore.yaml`: that filename is a valid Trivy
+# format but is NOT auto-detected, so it silently suppresses nothing — a
+# suppression that looks handled and isn't. Measured on trivy 0.70.0, the
+# version pinned by trivy-action@v0.36.0, against this very lockfile:
+#
+#   .trivyignore.yaml, auto-detected                  -> exit 1 (NOT suppressed)
+#   .trivyignore.yaml, explicit --ignorefile           -> exit 0 (suppressed)
+#   .trivyignore with `exp:` in the future             -> exit 0 (suppressed)
+#   .trivyignore with `exp:` in the past               -> exit 1 (lapsed)
+#   .trivyignore with a malformed `exp:`               -> exit 1 (fails closed)
+#
+# FORMAT, enforced by scripts/ci/trivyignore-policy.test.mjs:
+#   * one suppression per line, `<ID> exp:YYYY-MM-DD` — the `exp:` is mandatory.
+#     Trivy stops honouring the line once the date passes, so the exception has
+#     to be re-decided instead of calcifying. A malformed date suppresses
+#     nothing, which is why the test insists on the exact shape.
+#   * the comment block directly above each line must carry a `statement:`
+#     explaining why the vulnerable code is UNREACHABLE for us, not merely that
+#     the finding is inconvenient.
+#   * never raise `severity` or flip `exit-code` to 0 in ci.yml instead of
+#     adding a line here (ci.yml's gate comment forbids it explicitly).
+
+# ── CVE-2026-93687 · braces@3.0.3 · HIGH ────────────────────────────────────
+# DoS via stack overflow from deeply nested brace patterns.
+#
+# Published between 15:36Z (grove-sites' last green `CI` run, 37334204779) and
+# 19:40Z on 2026-10-05, at which point `Dependency audit` went red on EVERY open
+# grove-sites PR. Because auto-approve.yml requires the whole `CI` run green
+# before it merges, that wedged the repo's entire agent merge path, not just one
+# PR. Trivy reports no fixed version — the `Fixed Version` column is empty and
+# 3.0.3 is the current braces release — so there is nothing to upgrade or
+# `pnpm override` to.
+#
+# Dependency path — dev-only, lint-time, exactly one chain:
+#   @next/eslint-plugin-next@16.2.1 (devDependency)
+#     -> fast-glob@3.3.1 -> micromatch@4.0.8 -> braces@3.0.3
+# Verified against pnpm-lock.yaml: the only dependent of braces is micromatch,
+# whose only dependent is fast-glob, whose only dependent is the ESLint plugin.
+# No workspace package.json declares braces or micromatch directly.
+#
+# statement: Dev-only transitive dependency reached solely through
+#   @next/eslint-plugin-next -> fast-glob -> micromatch -> braces. The brace
+#   patterns braces expands are built by the ESLint plugin from our own eslint
+#   configuration and repo-local file paths, so no untrusted input ever reaches
+#   one; and the package is a devDependency present in no runtime image and no
+#   deployed bundle, so there is no production attack surface at all. The impact
+#   ceiling is "a lint job crashes on a pattern we wrote ourselves". No fixed
+#   version is published yet; upgrade out of this suppression as soon as one is.
+CVE-2026-93687 exp:2026-11-04
