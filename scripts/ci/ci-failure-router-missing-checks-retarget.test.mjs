@@ -123,6 +123,12 @@ async function runSweep({ timeline = [], gatedRuns = [] } = {}) {
             head: { sha: SHA },
           },
         ],
+        // GOL-3151: the sweep reads mergeability before composing the remedy.
+        // Mergeable here, so every assertion below is about the MERGEABLE
+        // path — i.e. the close/reopen advice these cases have always carried.
+        // `blocked` is the real `mergeable_state` of a PR wedged on a missing
+        // required context: mergeable, but not mergeable *yet*.
+        get: async () => ({ data: { mergeable: true, mergeable_state: "blocked" } }),
       },
       checks: { listForRef: async () => ({ data: { check_runs: [] } }) },
       actions: {
