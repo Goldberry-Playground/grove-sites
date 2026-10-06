@@ -18,7 +18,12 @@ import { catalogCards, readShopGrid } from "./qa-helpers";
  *     every state the server accepts is selectable;
  *   - the PDP shipping estimator agrees: a green state yields a price line, a
  *     non-green state (CA — never shippable, plant-health) yields the
- *     "when we ship to your state" capture instead of a price.
+ *     "when we ship to your state" capture instead of a price;
+ *   - and (GOL-2973) the estimator never quotes a rate for a GREEN state that
+ *     the per-product plant-health carve-out gate (GOL-2132) refuses at
+ *     checkout. That third case had no branch at all until GOL-2973: /shop/22
+ *     rendered "✓ We ship to Florida … from $20" on prod while checkout
+ *     hard-stopped the same shopper — advertise-then-reject.
  *
  * The server half (an off-list state injected past the UI is rejected with a
  * 400) is checkout-unsupported-state.spec.ts.
@@ -74,5 +79,71 @@ test.describe("checkout — ship-to green list mirror", () => {
     await stateSelect.selectOption("CA");
     await expect(estimator.getByRole("button", { name: "Notify me", exact: true })).toBeVisible();
     await expect(estimator.getByText(/\$\d/)).toHaveCount(0);
+  });
+
+  // The invariant, written so it cannot false-fail on per-environment catalog
+  // data: whatever this product's compliance posture is, a rate and a
+  // "not cleared" notice must never appear together. One of them is a lie.
+  test("PDP estimator never shows a rate and a carve-out notice at once", async ({ page }) => {
+    const [first] = catalogCards(await readShopGrid(page));
+    expect(first).toBeTruthy();
+    await page.goto(first.href);
+
+    const estimator = page.locator('[aria-labelledby="ship-est-label"]');
+    test.skip((await estimator.count()) === 0, "this product renders no shipping estimator");
+    const stateSelect = estimator.locator("select").first();
+
+    // Two unregulated green states, the three green states that carry a
+    // carve-out rule, and one off-list state.
+    for (const state of ["WV", "GA", "FL", "IN", "OH", "TX"]) {
+      await stateSelect.selectOption(state);
+      const text = await estimator.innerText();
+      const notCleared = /Not cleared for|confirm this mix for/.test(text);
+      const quoted = /\$\d/.test(text);
+      expect(
+        notCleared && quoted,
+        `${state}: estimator showed a rate AND a carve-out notice together`,
+      ).toBe(false);
+      // Whichever branch rendered, it offered a way forward.
+      expect(
+        /Ask us|Notify me|from |Free/.test(text),
+        `${state}: estimator left the shopper with no next action`,
+      ).toBe(true);
+    }
+  });
+
+  // Targeted: the exact product and state from the GOL-2973 report. Chestnut
+  // Grove (template 22) declares a Castanea-led botanical, which the carve-out
+  // map blocks into FL/OR/WA. Skipped rather than failed where the catalog
+  // differs (not published, or `grove_compliance_exempt` still set) so this
+  // can't go red on a data difference it isn't testing.
+  test("Chestnut Grove quotes WV but is not cleared for FL", async ({ page }) => {
+    const res = await page.goto("/shop/22");
+    test.skip(!res || res.status() >= 400, "template 22 is not published here");
+
+    const estimator = page.locator('[aria-labelledby="ship-est-label"]');
+    test.skip((await estimator.count()) === 0, "template 22 renders no shipping estimator");
+    const stateSelect = estimator.locator("select").first();
+
+    // Control: an unregulated green state still prices normally.
+    await stateSelect.selectOption("WV");
+    await expect(estimator.getByText(/\$\d|Free/).first()).toBeVisible();
+
+    await stateSelect.selectOption("FL");
+    const flText = await estimator.innerText();
+    test.skip(
+      !/Not cleared for Florida/.test(flText),
+      "template 22 is not carve-out-blocked into FL in this environment",
+    );
+    // No rate, the reason named, the swap offered, a live next action.
+    expect(flText).not.toMatch(/\$\d/);
+    expect(flText).not.toMatch(/exact rate is confirmed at checkout/);
+    expect(flText).toMatch(/restricts chestnut/);
+    expect(flText).toMatch(/Shagbark Hickory/);
+    await expect(estimator.getByRole("button", { name: "Ask us", exact: true })).toBeVisible();
+
+    // And the geography branch keeps its own, different words.
+    await stateSelect.selectOption("TX");
+    await expect(estimator.getByText(/ship living trees to Texas yet/)).toBeVisible();
   });
 });
