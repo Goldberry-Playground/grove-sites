@@ -18,7 +18,9 @@
 # (grove-sites' `Lighthouse CI` is a commit status, not a check-run), and mints
 # one deduped `ci-failure` issue — mirrored to Paperclip — per PR whose required
 # context is absent past the grace window. Findings are alert-only; the issue
-# body carries the one-step close/reopen remediation for a human to run.
+# body carries the remediation for a human to run: close/reopen for a dropped,
+# gated or retarget-skipped trigger, but a merge of the base for a `dirty` PR,
+# where close/reopen cannot work at all (GOL-3098).
 name: Missing required-check sweep
 
 on:
