@@ -337,6 +337,39 @@ runs:
               }
             }
 
+            // ── Merge-queue dequeue cascade (GOL-3050) ───────────────────
+            // When GitHub destroys a merge group — the group is re-formed, a
+            // member is dequeued, or an earlier member merges first — it
+            // deletes the `gh-readonly-queue/…` ref and CANCELS every run
+            // in flight on it. Those runs land here as conclusion `failure`
+            // with ZERO failing jobs and ≥1 cancelled job, on a branch that
+            // no longer exists. Nothing is broken, and nothing is actionable:
+            // odoocker PR #790's group died at 19:21Z on 2026-10-05 and the
+            // PR merged green at 23:56Z the same day — after three ownerless
+            // issues (one per watched workflow: CI, Config freeze, Production
+            // Plan Guard) had been minted and burned a DevOps triage
+            // heartbeat each, and sat open until the next daily sweep.
+            //
+            // Precision matters as much as it does for GOL-1957/GOL-2807: a
+            // merge group is the ONLY place a semantic conflict between two
+            // queued PRs can show up. So this suppresses only the shape that
+            // carries no failure at all — one real failing job anywhere in
+            // the run (`failedJobs.length > 0`, cancelled siblings included)
+            // and the run is routed exactly as before.
+            const cancelledJobs = jobs.filter((j) => j.conclusion === "cancelled");
+            const dequeueCascade =
+              RUN_EVENT === "merge_group" &&
+              queueBaseOf(HEAD_BRANCH) !== null &&
+              failedJobs.length === 0 &&
+              cancelledJobs.length > 0;
+            if (dequeueCascade) {
+              core.notice(
+                `Suppressed ci-failure routing for \`${HEAD_BRANCH}\`: the merge group was destroyed mid-run — ` +
+                `${cancelledJobs.length} cancelled job(s), zero failing jobs. Not a failure (GOL-3050).`,
+              );
+              return;
+            }
+
             if (!pr) {
               if (onlyKnownRed) {
                 core.notice(
