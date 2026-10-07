@@ -19,14 +19,25 @@
 - No late bundling past an order deadline.
 - Server never trusts the client: wave/zone/date/potted-season are re-validated in `_create_draft_order` and `checkout_quote`.
 - Copy: no em dashes, sentence case. Pickup pre-order subline: "$10 deposit today · pick up, we will call you to schedule".
-- Ship via Train 3 (freeze Fri 2026-10-16, up Mon 10-19, promote Wed 10-21). gom and grove-sites PRs promote together; gom first.
+- Ship as a HOTFIX to prod before Fri 2026-10-16 (Josh 2026-10-07); gom first (backward compatible), then grove-sites. Train 3 (up Mon 10-19) carries only cleanup.
+- A cart is either immediate or a pre-order for exactly one wave; never mixed. Customer copy says so explicitly.
 - Never `git stash`; ignore " 2" iCloud duplicates; prod applies `-target`ed.
 
-## Open decisions (resolve before Task B2; recommendation in bold)
+## Decisions (RULED by Josh 2026-10-07)
 
-1. **Wave granularity: one wave per ORDER.** The cart lines carry a wave; checkout sends one `ship_wave`. If lines disagree, checkout asks the shopper to pick one. (Alternative, per-line waves, means split shipments and split settlement; not this train.)
-2. **Keep Bareroot + Potted variants as two SKUs on one pool** (no Odoo variant collapse this train). Josh's "Odoo just potted" holds at the stock level via `grove_shared_pool_qty`. Data task D1 fixes the products that break the pairing.
-3. **Window Oct 7 to Oct 21:** from Oct 16 until Train 3 promotes, prod runs the hotfix + current GOL-2233 rule (after the cutover every bareroot order takes the deposit and ships in the zone's auto-resolved wave). Acceptable, or pull B1 to B3 into a gom hotfix before Oct 16?
+1. **One wave per ORDER, and no mixing pre-orders with immediate orders.** A cart is EITHER immediate (Potted pickup / Peat & bagged shipped, charged in full) OR a pre-order for exactly one wave (Fall or Spring, $10 deposit). Enforced in three places and said explicitly to the customer:
+   - PDP: the pre-order card states "Pre-orders check out on their own, one wave per order." Adding across the line (immediate into a pre-order cart, pre-order into an immediate cart, or a second wave) does not add; it shows an inline message with the fix ("Check out or clear your cart first", or "Switch this order to the spring wave").
+   - Cart and checkout: a banner names the order type ("Pre-order · fall wave · $10 deposit today" or "Ships now / ready for pickup, charged in full").
+   - Backend: `_create_draft_order` returns 400 for a mixed cart (any potted-tier line together with any bareroot line) and for more than one wave.
+2. **Keep Bareroot + Potted variants as two SKUs on one pool** (`grove_shared_pool_qty`). EVERY published plant listing must have the pair; Task D1 lists the gaps from the live audit.
+3. **Ship the wave flow as a HOTFIX before Oct 16**, not Train 3. Deploy order: gom first (backward compatible: a request without `ship_wave` keeps today's behaviour), then grove-sites. Train 3 only carries cleanup (F4 retirement of the auto-resolved mode, legacy no-wave path removal).
+
+## Corrections from the rulings (apply to the tasks below)
+
+- Peat & bagged is the POTTED variant shipped (immediate, charged in full), not the bareroot variant relabelled. In F3, `formatsForMethod` for `ship` in season returns the potted format (label "Peat & bagged") followed by the bareroot format (the pre-order card). The hotfix #1021 relabel of the bareroot variant as "Peat & bagged" is replaced.
+- B2 rule 3 becomes backward compatible for the hotfix window: `ship_wave` missing on a bareroot line → derive the next open wave for the zone with `preorder_waves` (first open of fall, spring) and store it; present but closed → 400. Remove the derivation in Train 3.
+- B2 adds rule 7: mixed cart (potted-tier and bareroot lines together) → 400 "Pre-orders check out on their own. Remove the trees that ship now, or check them out first."
+- F2 adds `orderKind(items): "immediate" | "preorder" | "empty" | "mixed"` and `canAdd(items, incoming): { ok: true } | { ok: false; reason: "mixed" | "wave"; message: string }`; `AddToCartButton`/`StickyAddToCartBar` call `canAdd` and render the message instead of adding.
 
 ## File map
 
@@ -347,10 +358,21 @@ UI (matches mockup v4):
 
 ## Part D: Odoo data (Josh, or this session once Odoo writes are permitted)
 
-### Task D1: Pairing and season data
+### Task D1: Pairing and season data (all published inventory)
 
-- [ ] Every published plant template has both a Bareroot and a Potted variant per cultivar/rootstock so the shared pool works. Known gaps: #93 American Chestnut and #130 White Oak (potted only, no Format axis): add the Format attribute with Bareroot + Potted.
-- [ ] Chestnut Hybrid #8 shows Bareroot 102 vs Potted 51 on the storefront; with a shared pool these should match. Inspect `stock.quant` for both variants and consolidate onto the Potted variant.
+Live storefront audit 2026-10-07 (23 published templates):
+
+| Template | Today | Needed |
+|---|---|---|
+| 3, 4, 5, 9, 10, 11, 13, 14, 15, 17, 19, 86 | Bareroot + Potted pair, quantities match | none |
+| 8 Chestnut - Hybrid | pair, but Bareroot 102 vs Potted 51 | consolidate stock onto the Potted variant (one pool) |
+| 87 Black Walnut | pair, but Bareroot 25 vs Potted 0 | consolidate stock onto the Potted variant |
+| 91 PawPaw | single variant, tier bareroot, no Format axis | add Format attribute (Bareroot + Potted), move stock to Potted |
+| 93 American Chestnut | single variant, tier potted, no Format axis | add Format attribute (Bareroot + Potted) |
+| 130 White Oak | single variant, tier potted, no Format axis | add Format attribute (Bareroot + Potted) |
+| 22, 132, 133, 134, 135, 140 (bundles / packages) | Bareroot only | Josh to confirm: add a Potted variant to each kit, or keep packages pre-order only |
+
+- [ ] Apply the table in Odoo (Josh, or this session once `mcp__odoo__update_record` / `create_record` are permitted). Adding an attribute line to a template with existing variants archives and recreates variants: re-check sale lines and cart variant ids after.
 - [ ] Verify sysparam `grove_headless.shipping_calendar` does not override `leafed_window` away from May 1 to Oct 15.
 - [ ] After D1, re-run the catalog audit script from this session (`$TMPDIR/pv.py` pattern) and confirm every listing shows paired formats.
 
