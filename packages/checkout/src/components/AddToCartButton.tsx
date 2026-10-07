@@ -2,7 +2,7 @@
 
 import { trackAddToCart } from "@grove/analytics";
 import { AddToCartButton as UIAddToCartButton } from "@grove/ui-kit";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
 import { canAdd } from "../cart-reducer";
@@ -55,6 +55,10 @@ export function AddToCartButton({
 }: AddToCartButtonProps) {
   const { items, add, openDrawer } = useCart();
   const [blocked, setBlocked] = useState<string | null>(null);
+  // The refusal is stale once the shopper clears the cart or checks out.
+  useEffect(() => {
+    if (items.length === 0) setBlocked(null);
+  }, [items.length]);
 
   return (
     <>
@@ -67,7 +71,7 @@ export function AddToCartButton({
         const verdict = canAdd(items, { wave });
         if (!verdict.ok) {
           setBlocked(verdict.message);
-          return;
+          return false;
         }
         setBlocked(null);
         add({ variantId, templateId, name, price, imageUrl, pickupOnly, wave }, quantity);

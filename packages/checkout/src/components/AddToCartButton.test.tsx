@@ -158,4 +158,12 @@ describe("<AddToCartButton /> — one wave per order, no mixing", () => {
     expect(screen.getByRole("status").textContent).toMatch(/Your cart is a fall pre-order/);
     expect(cartLines()).toHaveLength(1);
   });
+
+  it("does not flash 'Added' on a refused add", async () => {
+    seed();
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} wave="fall" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(screen.queryByText(/added/i)).toBeNull();
+  });
 });

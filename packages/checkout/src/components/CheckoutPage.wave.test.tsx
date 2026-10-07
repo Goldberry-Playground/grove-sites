@@ -113,4 +113,21 @@ describe("<CheckoutPage /> — pre-order wave", () => {
     const call = spy.mock.calls.find((c) => String(c[0]).includes("/api/checkout/session"))!;
     expect(JSON.parse(String((call[1] as RequestInit).body)).shipWave).toBe("fall");
   });
+
+  it("labels a legacy cart the backend prices as a deposit as a pre-order, not charged in full", async () => {
+    seed([line(1)]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ depositNow: true, depositReason: "off-season", amountDueToday: 10 }),
+    );
+    render(
+      <CartProvider>
+        <CheckoutPage depositQuoteHref="/api/cart/quote" />
+      </CartProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("order-type").textContent).toBe(
+        "Pre-order · $10 deposit today, balance when your trees ship",
+      ),
+    );
+  });
 });

@@ -2,6 +2,8 @@
 
 import { CartPage as UICartPage } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
+import { orderKind, orderWave } from "../cart-reducer";
+import { MIXED_CART_MESSAGE, orderTypeLine } from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -36,22 +38,43 @@ export function CartPage({
 } = {}) {
   const { items, hydrated, setQuantity, remove, subtotal, totalQuantity } =
     useCart();
-  const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
-    depositQuoteHref,
-    items,
-  );
+  const kind = orderKind(items);
+  const shipWave = orderWave(items);
+  const mixedCart = hydrated && kind === "mixed";
+  const {
+    quote: depositQuote,
+    settled: depositSettled,
+    error: quoteError,
+  } = useCartDepositQuote(depositQuoteHref, items, undefined, shipWave);
+  const orderTypeText = orderTypeLine({
+    kind,
+    wave: shipWave,
+    depositNow: depositQuote?.depositNow === true,
+    pickup: false,
+  });
+  const blockingMessage = mixedCart ? MIXED_CART_MESSAGE : quoteError;
   const dueToday = dueTodayFor(depositQuote);
   // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
   // nudge only once the quote confirms a charged-in-full cart — never while the
   // quote is loading or if it failed (both leave the charge mode unknown), so a
   // reservation cart can't flash a discount promise it will never honour.
   const { nudge } = useTierNudge(tiersHref, items, {
-    hidden: !(depositSettled && !depositQuote?.depositNow),
+    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "mixed",
     surface: "cart",
   });
 
   return (
     <WithGroveNext>
+      {orderTypeText ? (
+        <p className="grove-cart__order-type" data-testid="order-type">
+          {orderTypeText}
+        </p>
+      ) : null}
+      {blockingMessage ? (
+        <p role="alert" className="grove-cart__order-blocked">
+          {blockingMessage}
+        </p>
+      ) : null}
       <UICartPage
         items={items}
         subtotal={subtotal}

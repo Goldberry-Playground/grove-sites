@@ -1,7 +1,7 @@
 "use client";
 
 import { StickyAddToCartBar as UIStickyAddToCartBar } from "@grove/ui-kit";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
 import { canAdd } from "../cart-reducer";
@@ -53,6 +53,9 @@ export function StickyAddToCartBar({
 }: StickyAddToCartBarProps) {
   const { items, add, openDrawer, totalQuantity, hydrated } = useCart();
   const [blocked, setBlocked] = useState<string | null>(null);
+  useEffect(() => {
+    if (items.length === 0) setBlocked(null);
+  }, [items.length]);
   // Never let a stray fractional/NaN quantity reach the cart from the bar.
   const addQuantity = Number.isInteger(quantity) && quantity >= 1 ? quantity : 1;
 

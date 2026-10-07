@@ -13,6 +13,7 @@ import {
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { orderKind, orderWave } from "../cart-reducer";
+import { MIXED_CART_MESSAGE, orderTypeLine } from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -159,7 +160,7 @@ export function CheckoutPage({
   // charge mode unknown, and we must not flash a discount promise on what may be
   // a reservation cart.
   const { nudge, tiers } = useTierNudge(tiersHref, items, {
-    hidden: !(depositSettled && !depositQuote?.depositNow),
+    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "mixed",
     surface: "checkout",
   });
 
@@ -278,23 +279,21 @@ export function CheckoutPage({
     );
   }
 
-  const orderTypeLine =
-    kind === "preorder"
-      ? `Pre-order · ${shipWave} wave · $10 deposit today, balance when ${
-          fulfillment === "pickup" ? "you pick up" : "your trees ship"
-        }`
-      : kind === "immediate"
-        ? "Ships now or ready for pickup · charged in full"
-        : null;
+  const orderTypeText = orderTypeLine({
+    kind,
+    wave: shipWave,
+    depositNow: depositQuote?.depositNow === true,
+    pickup: fulfillment === "pickup",
+  });
   const blockingMessage = mixedCart
-    ? "Pre-orders check out on their own. Remove the trees that ship now, or check them out first."
+    ? MIXED_CART_MESSAGE
     : quoteError;
 
   return (
     <WithGroveNext>
-      {orderTypeLine && !mixedCart ? (
+      {orderTypeText ? (
         <p className="grove-checkout__order-type" data-testid="order-type">
-          {orderTypeLine}
+          {orderTypeText}
         </p>
       ) : null}
       {blockingMessage ? (
