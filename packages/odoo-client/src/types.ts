@@ -516,6 +516,12 @@ export interface ShippingRateFeed {
   zone_by_state: Record<string, string>;
   green_states: string[];
   packing: ShippingPackingSpec;
+  /** Flat shipping-and-handling fee the ORDER pays ONCE on top of the packed
+   * carrier cost (grove-odoo-modules GOL-2923). When present, every `zones` cell
+   * is RAW carrier cost with no handling in it, so any estimate built from a cell
+   * must add this once per order (not per box). Absent on a backend predating
+   * GOL-2923, whose cells already carry the handling: treat absent as 0. */
+  shipping_handling_fee?: number;
   /** Per-USDA-zone twice-yearly ship calendar (GOL-1172). Replaces the old
    * single global `dormant_window`. */
   calendar: ShippingCalendar;
