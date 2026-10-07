@@ -26,8 +26,13 @@
 #                   SHA, because a run parked at `action_required` (an approval
 #                   gate, typically because the head was moved under the ambient
 #                   GITHUB_TOKEN) publishes no check-run and no status either —
-#                   byte-identical to a dropped trigger unless you look.
-#                   GOL-2838 adds a third cause: the producing job EXISTS but is
+#                   byte-identical to a dropped trigger unless you look. GOL-2850:
+#                   it also reads the PR timeline, because a base retargeted
+#                   AFTER the head commit (`automatic_base_change_succeeded`,
+#                   e.g. a stacked PR whose parent merged) leaves the same empty
+#                   head — the branch-filtered workflows were correctly skipped
+#                   at push time and no event ever re-fires them.
+#                   GOL-2838 adds another cause: the producing job EXISTS but is
 #                   queued behind a held `concurrency` group (a run merely
 #                   *waiting* on an Environment approval holds one), so it never
 #                   gets a runner and an `if: always()` aggregate gate that
@@ -41,8 +46,16 @@
 #                   required context with NO check-run AND NO commit status of any
 #                   state on a head SHA older than the grace window, and mints one
 #                   deduped `ci-failure` issue per PR (mirrored to Paperclip).
+#                   GOL-3031: it also catches the opposite shape — a required
+#                   context that is PRESENT and terminal but never ran, because
+#                   GitHub's control plane marked it `cancelled`/`stale` with an
+#                   empty `runner_name` (the 2026-10-05 Actions incident). And
+#                   for that one cause — the only one that provably cannot be a
+#                   code defect, since no test executed — it SELF-HEALS: a
+#                   bounded close+reopen re-fires CI on the unchanged head SHA
+#                   instead of parking the fix on a human.
 name: CI failure router (shared)
-description: Provenance-based CI-failure routing, recency-safe auto-close, and missing-required-check detection.
+description: Provenance-based CI-failure routing, recency-safe auto-close, missing-required-check detection, and bounded self-heal of control-plane job drops.
 
 inputs:
   mode:
@@ -105,6 +118,47 @@ inputs:
       window in which GitHub is still creating queued check-runs.
     required: false
     default: "20"
+  self-heal:
+    description: >-
+      GOL-3031. When "true", a required context that GitHub's control plane
+      DROPPED (its newest job is terminally `cancelled`/`stale` with an empty
+      `runner_name`, i.e. it never reached a machine) is re-fired automatically
+      by closing and reopening the PR on its unchanged head SHA. Bounded by
+      `refire-budget` + `refire-gap-minutes`; only ever applied to a bot-authored
+      PR whose every non-success job is such a drop. Needs `pull-requests: write`
+      in the calling workflow — with read-only it degrades to alert-only and says
+      so in the minted issue.
+    required: false
+    default: "true"
+  refire-budget:
+    description: >-
+      Maximum automatic close/reopen re-fires per head SHA (GOL-3031). Counted in
+      the minted issue body, so it survives the sweep's stateless cron. On
+      exhaustion the sweep escalates on the issue instead of looping.
+    required: false
+    default: "3"
+  refire-gap-minutes:
+    description: >-
+      Minimum minutes between two automatic re-fires of the same head SHA
+      (GOL-3031). Must exceed a normal CI duration, or the sweep re-fires a run
+      that simply has not finished yet.
+    required: false
+    default: "30"
+  mergeability-poll-tries:
+    description: >-
+      GOL-3151. How many times to read `mergeable` for a wedged PR before giving
+      up and calling it unknown. GitHub computes mergeability asynchronously and
+      returns `null` on a cold read — and a base move, which is exactly the
+      situation this sweep lands in, invalidates the cached answer. One read
+      therefore cannot tell "mergeable" from "not computed yet".
+    required: false
+    default: "4"
+  mergeability-poll-ms:
+    description: >-
+      GOL-3151. Milliseconds to wait between mergeability reads. "0" disables
+      the wait (what the unit fixtures use).
+    required: false
+    default: "2000"
 
 runs:
   using: composite
@@ -125,13 +179,19 @@ runs:
         TRIGGER: ${{ inputs.trigger }}
         PR_MERGED: ${{ inputs.pr-merged }}
         GRACE_MINUTES: ${{ inputs.grace-minutes }}
+        SELF_HEAL: ${{ inputs.self-heal }}
+        REFIRE_BUDGET: ${{ inputs.refire-budget }}
+        REFIRE_GAP_MINUTES: ${{ inputs.refire-gap-minutes }}
+        MERGEABILITY_POLL_TRIES: ${{ inputs.mergeability-poll-tries }}
+        MERGEABILITY_POLL_MS: ${{ inputs.mergeability-poll-ms }}
       with:
         github-token: ${{ inputs.github-token }}
         script: |
           const {
             MODE, RUN_ID, WF_NAME, HEAD_BRANCH, HEAD_SHA, RUN_URL, RUN_EVENT,
             RUN_ATTEMPT, RUN_STARTED_AT, GONE_BRANCH, TRIGGER, PR_MERGED,
-            GRACE_MINUTES,
+            GRACE_MINUTES, SELF_HEAL, REFIRE_BUDGET, REFIRE_GAP_MINUTES,
+            MERGEABILITY_POLL_TRIES, MERGEABILITY_POLL_MS,
           } = process.env;
           const { owner, repo } = context.repo;
 
@@ -299,6 +359,39 @@ runs:
                 });
                 core.info(`Minted issue #${issue.number}`);
               }
+            }
+
+            // ── Merge-queue dequeue cascade (GOL-3050) ───────────────────
+            // When GitHub destroys a merge group — the group is re-formed, a
+            // member is dequeued, or an earlier member merges first — it
+            // deletes the `gh-readonly-queue/…` ref and CANCELS every run
+            // in flight on it. Those runs land here as conclusion `failure`
+            // with ZERO failing jobs and ≥1 cancelled job, on a branch that
+            // no longer exists. Nothing is broken, and nothing is actionable:
+            // odoocker PR #790's group died at 19:21Z on 2026-10-05 and the
+            // PR merged green at 23:56Z the same day — after three ownerless
+            // issues (one per watched workflow: CI, Config freeze, Production
+            // Plan Guard) had been minted and burned a DevOps triage
+            // heartbeat each, and sat open until the next daily sweep.
+            //
+            // Precision matters as much as it does for GOL-1957/GOL-2807: a
+            // merge group is the ONLY place a semantic conflict between two
+            // queued PRs can show up. So this suppresses only the shape that
+            // carries no failure at all — one real failing job anywhere in
+            // the run (`failedJobs.length > 0`, cancelled siblings included)
+            // and the run is routed exactly as before.
+            const cancelledJobs = jobs.filter((j) => j.conclusion === "cancelled");
+            const dequeueCascade =
+              RUN_EVENT === "merge_group" &&
+              queueBaseOf(HEAD_BRANCH) !== null &&
+              failedJobs.length === 0 &&
+              cancelledJobs.length > 0;
+            if (dequeueCascade) {
+              core.notice(
+                `Suppressed ci-failure routing for \`${HEAD_BRANCH}\`: the merge group was destroyed mid-run — ` +
+                `${cancelledJobs.length} cancelled job(s), zero failing jobs. Not a failure (GOL-3050).`,
+              );
+              return;
             }
 
             if (!pr) {
@@ -561,6 +654,138 @@ runs:
           if (MODE === "missing-checks") {
             const graceMin = Number(GRACE_MINUTES || "20");
             const nowMs = Date.now();
+            const selfHeal = String(SELF_HEAL ?? "true") !== "false";
+            const refireBudget = Number(REFIRE_BUDGET || "3");
+            const refireGapMin = Number(REFIRE_GAP_MINUTES || "30");
+
+            // ── GOL-3031: tell a control-plane DROP apart from a cancellation
+            // ── that means something.
+            //
+            // The 2026-10-05 Actions incident did not FAIL our jobs; it never
+            // gave them a runner. They sat `queued`, then GitHub's control plane
+            // marked them `completed / cancelled` with `runner_name = ""`. Two of
+            // grove-odoo-modules #310's five required contexts landed there and
+            // the PR sat `mergeable_state=blocked` for an afternoon while the
+            // suite was never red (`693 passed` when ci.yml's literal command was
+            // run locally at that SHA).
+            //
+            // `cancelled` alone is ambiguous — humans and `cancel-in-progress`
+            // cancel jobs legitimately all day. The unambiguous signal is
+            // `cancelled`/`stale` WITH AN EMPTY `runner_name`: the job never
+            // reached a machine, so no test ever ran and no human could have
+            // stopped something that had not started.
+            //
+            // Two API facts shape this:
+            //   - `runner_name` exists only on the Actions JOBS object, never on
+            //     a check-run, so the `present` set below cannot see it. The
+            //     classification has to read runs + their jobs.
+            //   - DO NOT key the decision on per-SHA check-runs (the bug v4 of
+            //     GOL-2988's watcher had). Check-runs are cumulative per commit,
+            //     so a stale `cancelled` check stays the NEWEST one for its name
+            //     until the new attempt reaches that job. With a fan-in job that
+            //     only starts after the lint jobs pass, a check-run-keyed
+            //     detector sees nothing pending mid-flight and re-fires — killing
+            //     the very run it was waiting for. Every decision below keys on
+            //     the latest WORKFLOW RUN per workflow for the SHA: not
+            //     `completed` -> never touch it.
+            const JOB_DROP_CONCLUSIONS = new Set(["cancelled", "stale"]);
+            const JOB_BENIGN_CONCLUSIONS = new Set([null, undefined, "success", "skipped", "neutral"]);
+            // A job is a DROP only if it ended `cancelled`/`stale` AND no runner
+            // was ever assigned. Anything else that is not benign is a REAL
+            // failure: a `failure`/`timed_out`/`action_required` conclusion, or a
+            // cancellation of a job that HAD a runner (someone/something stopped
+            // work that was actually running).
+            const classifyJobs = (jobs) => {
+              const real = [];
+              const dropped = [];
+              for (const j of jobs || []) {
+                const c = j.conclusion ?? null;
+                if (JOB_BENIGN_CONCLUSIONS.has(c)) continue;
+                const hadRunner = Boolean((j.runner_name || "").trim());
+                if (JOB_DROP_CONCLUSIONS.has(c) && !hadRunner) dropped.push(j.name);
+                else real.push(j.name);
+              }
+              return { real: [...new Set(real)].sort(), dropped: [...new Set(dropped)].sort() };
+            };
+            // Newest run per workflow on a SHA. A superseded-run cancellation
+            // (our `concurrency: cancel-in-progress: true`) is filtered out here
+            // and nowhere else: only the newest run for a workflow is ever read,
+            // so the cancelled older attempt is invisible by construction.
+            const newestRunPerWorkflow = (runs) => {
+              const byWf = new Map();
+              for (const r of runs || []) {
+                const key = r.workflow_id ?? r.name;
+                const prev = byWf.get(key);
+                const at = (x) => new Date(x.run_started_at || x.created_at || 0).getTime();
+                if (!prev || at(r) > at(prev) || (at(r) === at(prev) && (r.id ?? 0) > (prev.id ?? 0))) {
+                  byWf.set(key, r);
+                }
+              }
+              return [...byWf.values()];
+            };
+
+            // ── GOL-3151: is there anything to re-fire ONTO? ───────────────
+            //
+            // A `pull_request` workflow checks out `refs/pull/N/merge`, and
+            // GitHub publishes NO merge ref for a PR whose head CONFLICTS with
+            // its base. So on a conflicting PR, close/reopen re-fires the event
+            // exactly as this action advertises — and then every job dies at the
+            // checkout step. The canned remedy turns N contexts that are merely
+            // MISSING into N that are RED, and where
+            // `dismiss_stale_reviews_on_push` is on, the head move burns the
+            // `agent-review/*` sign-off on the way past.
+            //
+            // Worked case (GOL-3149, grove-odoo-modules #318, 2026-10-06): #315
+            // squash-merged at 02:25:35Z and the bot retargeted #318 onto `main`
+            // one second later. The squash left the branch carrying the
+            // pre-squash commit, so `main...head` was 2 ahead / 5 behind —
+            // DIVERGED, conflicting on `grove_headless/__manifest__.py`. The
+            // retarget DIAGNOSIS was right; the remedy would have taken 5
+            // missing contexts to 5 red. What actually fixed it was a
+            // `synchronize` push that was ALSO a conflict resolution.
+            //
+            // Mergeability is computed asynchronously: the first read after a
+            // base move returns `null` while the background job runs. So poll,
+            // bounded — and treat a still-`null` answer as UNKNOWN, never as
+            // "fine". `pulls.list` carries no `mergeable`/`mergeable_state` at
+            // all, hence a dedicated `pulls.get`; it is issued only for a PR
+            // that is already flagged, which is rare.
+            const MERGE_TRIES = Math.max(1, Number(MERGEABILITY_POLL_TRIES || "4") || 4);
+            const MERGE_WAIT_MS = Math.max(0, Number(MERGEABILITY_POLL_MS ?? "2000") || 0);
+            const readMergeability = async (number) => {
+              let state = null;
+              for (let i = 0; i < MERGE_TRIES; i++) {
+                let data;
+                try {
+                  ({ data } = await github.rest.pulls.get({ owner, repo, pull_number: number }));
+                } catch (e) {
+                  // Fail CLOSED for the self-heal, fail OPEN for the report: an
+                  // unreadable mergeability must never silently license a
+                  // close/reopen, but it must not lose the issue either.
+                  core.info(`PR #${number}: cannot read mergeability (${e.status}) — treating as unknown.`);
+                  return {
+                    conflicting: false, unknown: true, state: null,
+                    why: `the mergeability read failed (\`${e.status}\`)`,
+                  };
+                }
+                state = data.mergeable_state ?? null;
+                // `mergeable: false` and `mergeable_state: "dirty"` are the same
+                // fact reported twice; either one alone is enough.
+                if (data.mergeable === false || state === "dirty") {
+                  return { conflicting: true, unknown: false, state: state || "dirty", why: null };
+                }
+                if (data.mergeable === true) {
+                  return { conflicting: false, unknown: false, state, why: null };
+                }
+                if (i < MERGE_TRIES - 1 && MERGE_WAIT_MS) {
+                  await new Promise((r) => setTimeout(r, MERGE_WAIT_MS));
+                }
+              }
+              return {
+                conflicting: false, unknown: true, state,
+                why: `\`mergeable\` was still \`null\` after ${MERGE_TRIES} read(s) — GitHub had not finished computing it`,
+              };
+            };
 
             // Declared required contexts + the protected branch they gate,
             // read from the repo file.
@@ -639,13 +864,34 @@ runs:
             // re-run for the same PR+SHA is a strict no-op — acceptance #5).
             const marker = (num) => `<!-- d3-missing-checks:PR${num} -->`;
             const DATA_RE = /<!-- d3-missing-checks-data:(\{.*?\}) -->/;
-            const dataMarker = (sha) =>
-              `<!-- d3-missing-checks-data:${JSON.stringify({ sha: sha || "" })} -->`;
-            const recordedSha = (body) => {
+            // The data marker doubles as the re-fire budget ledger (GOL-3031).
+            // The sweep is a stateless 20-minute cron with no storage of its own,
+            // so the issue it already mints per PR IS the state store: without a
+            // persisted count, "bounded" would reset every tick and the bound
+            // would be a lie. Kept deliberately FLAT — DATA_RE's `\{.*?\}` stops
+            // at the first `}`, so a nested object would silently truncate.
+            // `refires`/`lastRefireAt` are absent on pre-GOL-3031 bodies and read
+            // back as 0/null, so old issues keep working.
+            const dataMarker = ({ sha, refires = 0, lastRefireAt = null, escalated = false }) =>
+              `<!-- d3-missing-checks-data:${JSON.stringify({
+                sha: sha || "", refires, lastRefireAt, escalated,
+              })} -->`;
+            const recordedData = (body) => {
               const m = (body ?? "").match(DATA_RE);
-              if (m) { try { return JSON.parse(m[1]).sha; } catch { /* */ } }
-              return null;
+              if (m) {
+                try {
+                  const d = JSON.parse(m[1]);
+                  return {
+                    sha: d.sha ?? null,
+                    refires: Number(d.refires) || 0,
+                    lastRefireAt: d.lastRefireAt ?? null,
+                    escalated: Boolean(d.escalated),
+                  };
+                } catch { /* fall through */ }
+              }
+              return { sha: null, refires: 0, lastRefireAt: null, escalated: false };
             };
+            const recordedSha = (body) => recordedData(body).sha;
 
             // These sweeps mint `ci-failure`-labelled issues so the GitHub App
             // mirrors them to Paperclip — same notification path as the router.
@@ -656,9 +902,38 @@ runs:
               openIssues.find((i) => (i.body ?? "").includes(marker(num)));
 
             const flagged = new Set(); // PR numbers currently flagged
+            // GOL-3031. Why a non-flagged PR was not flagged, so the self-heal
+            // close loop below can tell "the checks are green now" apart from
+            // "the re-fire we just triggered has not finished yet". Closing the
+            // issue in the second case would DESTROY THE BUDGET LEDGER it
+            // carries: the next drop would mint a fresh issue with refires=0 and
+            // the bound would be unenforceable — an unbounded close/reopen loop,
+            // one per 20-minute tick.
+            const prState = new Map();
 
             for (const pr of prs) {
               const sha = pr.head.sha;
+
+              // Grace FIRST: only flag once the head SHA is older than the
+              // window in which GitHub would normally have created queued
+              // check-runs. A head inside the window can never be flagged, so
+              // this gate is ahead of every read below — which now includes the
+              // per-run job listings GOL-3031 added, the most expensive of them.
+              let commitDate = null;
+              try {
+                const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
+                commitDate = commit.commit.committer?.date || commit.commit.author?.date || null;
+              } catch (e) {
+                core.info(`PR #${pr.number}: cannot read head commit (${e.status}); skipping to avoid a false positive.`);
+                continue;
+              }
+              if (!commitDate) continue;
+              const ageMin = (nowMs - new Date(commitDate).getTime()) / 60000;
+              if (ageMin < graceMin) {
+                core.info(`PR #${pr.number}: head ${sha.slice(0, 7)} is ${ageMin.toFixed(1)}m old (< ${graceMin}m grace) — within the queue window, skipping.`);
+                prState.set(pr.number, { sha, inFlight: true });
+                continue;
+              }
 
               // Union of check-run NAMES and commit-status CONTEXTS on the head
               // SHA. grove-sites' `Lighthouse CI` is a commit status, not a
@@ -677,31 +952,101 @@ runs:
               );
               for (const s of statuses) present.add(s.context);
 
-              const missing = requiredContexts.filter((c) => !present.has(c));
-              if (!missing.length) continue;
+              const absent = requiredContexts.filter((c) => !present.has(c));
 
-              // Grace: only flag once the head SHA is older than the window in
-              // which GitHub would normally have created queued check-runs.
-              let commitDate = null;
+              // GOL-3031: a required context can also be wedged while PRESENT —
+              // reported, terminal, and never run. Read the newest workflow run
+              // per workflow on this SHA once, up here, because both the
+              // drop classification and the `action_required` leg below need it.
+              let runsOnSha = [];
+              let runsReadable = true;
               try {
-                const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
-                commitDate = commit.commit.committer?.date || commit.commit.author?.date || null;
+                const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
+                  owner, repo, head_sha: sha, per_page: 100,
+                });
+                runsOnSha = runsResp.data.workflow_runs || [];
               } catch (e) {
-                core.info(`PR #${pr.number}: cannot read head commit (${e.status}); skipping to avoid a false positive.`);
-                continue;
+                // `actions: read` missing, or the API is unhappy. Fall back to
+                // absent-only detection rather than dropping the PR.
+                runsReadable = false;
+                core.info(`PR #${pr.number}: cannot list workflow runs for ${sha.slice(0, 7)} (${e.status}); absent-context detection only.`);
               }
-              if (!commitDate) continue;
-              const ageMin = (nowMs - new Date(commitDate).getTime()) / 60000;
-              if (ageMin < graceMin) {
-                core.info(`PR #${pr.number}: head ${sha.slice(0, 7)} is ${ageMin.toFixed(1)}m old (< ${graceMin}m grace); missing [${missing.join(", ")}] — within queue window, skipping.`);
-                continue;
+              const newest = newestRunPerWorkflow(runsOnSha);
+              const gated = newest.filter((r) => r.conclusion === "action_required");
+              const gatedActors = [...new Set(
+                gated.map((r) => r.triggering_actor?.login || r.actor?.login).filter(Boolean),
+              )];
+              // THE mid-flight guard. If the newest run for ANY workflow on this
+              // SHA has not completed, work is still happening: classify nothing
+              // as dropped and re-fire nothing. This is the one invariant that
+              // keeps the self-heal from killing the run it is waiting for.
+              const inFlight = newest.filter((r) => r.status !== "completed");
+
+              const realFailures = [];
+              const droppedJobs = [];
+              let jobsReadable = runsReadable;
+              if (!inFlight.length) {
+                for (const r of newest) {
+                  if (r.conclusion === "success" || r.conclusion === "skipped") continue;
+                  // An approval-gated run is the `gated` leg's business, not a
+                  // drop: its jobs are held, not lost, and they have no runner
+                  // either — classifying them would cross the two causes.
+                  if (r.conclusion === "action_required") continue;
+                  try {
+                    const jobsResp = await github.rest.actions.listJobsForWorkflowRun({
+                      owner, repo, run_id: r.id, per_page: 100,
+                    });
+                    const { real, dropped } = classifyJobs(jobsResp.data.jobs || []);
+                    realFailures.push(...real);
+                    droppedJobs.push(...dropped);
+                  } catch (e) {
+                    jobsReadable = false;
+                    core.info(`PR #${pr.number}: cannot list jobs for run ${r.id} (${e.status}); not classifying it.`);
+                  }
+                }
               }
+              const droppedRequired = requiredContexts.filter(
+                (c) => !absent.includes(c) && droppedJobs.includes(c),
+              );
+              // Split the real failures by whether they GATE the merge. Only a
+              // red REQUIRED context can make a re-fire wrong (it would hide a
+              // genuine red); a red non-required job cannot, and treating it as
+              // blocking would disable the self-heal outright in any repo with
+              // a permanently-failing advisory job — grove-sites' non-blocking
+              // `claude-review` is exactly that, and it runs on every head.
+              const realRequired = realFailures.filter((j) => requiredContexts.includes(j));
+              const realAdvisory = realFailures.filter((j) => !requiredContexts.includes(j));
+
+              // One wedge list, in the declared order, for the rest of the path.
+              const missing = requiredContexts.filter(
+                (c) => absent.includes(c) || droppedRequired.includes(c),
+              );
+              prState.set(pr.number, { sha, inFlight: inFlight.length > 0 });
+              if (!missing.length) continue;
 
               flagged.add(pr.number);
 
-              // Why is the context absent? Two causes look IDENTICAL from
-              // check-runs + statuses alone, because a workflow run parked at
-              // `action_required` publishes neither (GOL-2732):
+              // GOL-3151. Read mergeability once, here: only for a PR this
+              // sweep is actually going to write about, and before the
+              // remediation is composed — whether a merge ref exists is what
+              // decides if close/reopen is the fix or the next outage.
+              const merge = await readMergeability(pr.number);
+              if (merge.conflicting) {
+                core.warning(`PR #${pr.number}: mergeable_state=${merge.state} — close/reopen SUPPRESSED (no refs/pull/${pr.number}/merge to check out; re-firing would manufacture reds).`);
+              } else if (merge.unknown) {
+                core.info(`PR #${pr.number}: mergeability unknown (${merge.why}) — advice only, no automatic re-fire.`);
+              }
+
+              // Why is the context wedged? Four causes, and the remedy is
+              // close/reopen for all four — but the DIAGNOSIS has to tell them
+              // apart or triage hunts the wrong fault:
+              //   (d) control-plane drop — GOL-3031. The context IS present and
+              //       terminal, so the absence legs below never see it; its
+              //       newest job ended `cancelled`/`stale` with no runner. This
+              //       one is decided FIRST because it is the only cause proven
+              //       by hard evidence rather than inferred from an absence, and
+              //       the only one that cannot possibly be a code defect — no
+              //       test executed, so nothing can have gone red.
               //   (a) dropped trigger  — GitHub never created the run.
               //   (b) approval gate    — the run exists but is held pending a
               //       maintainer's "Approve and run". GitHub does this when the
@@ -720,92 +1065,85 @@ runs:
               // auto-approve.yml. A head move that gated CI also dismissed the
               // bot approval, so the PR then sits at REVIEW_REQUIRED, all-green
               // and silent. Close/reopen re-parents the chain and fixes both.
-              // GOL-2838 adds cause (c): the required context's producer job
-              // EXISTS but is queued behind a held `concurrency` group, so it
-              // never gets a runner and an `if: always()` aggregate gate that
+
+              // GOL-2838 cause (e): the required context's producer job EXISTS
+              // but is queued behind a held `concurrency` group, so it never
+              // gets a runner and an `if: always()` aggregate gate that
               // `needs:` it never starts either — again publishing nothing. The
-              // discriminator against (a) is API-observable: a run on this head
-              // is still live and owns a job with no runner. Naming it matters
-              // because close/reopen is WRONG here — the fresh run queues
-              // behind the very same holder and the only effect is churn (the
-              // concurrency trap of GOL-2310).
-              let gated = [];
-              let gatedActors = [];
-              let queued = [];   // [{ run, jobName }] on THIS head, awaiting a runner
-              let holders = [];  // live runs elsewhere that can own the group
+              // discriminator against a dropped trigger is API-observable: a run
+              // on this head is still live and owns a job with no runner and no
+              // steps. Naming it matters because close/reopen is WRONG here —
+              // the fresh run queues behind the very same holder and the only
+              // effect is churn (the concurrency trap of GOL-2310). Reuses the
+              // `runsOnSha` read above; costs extra API calls only for a PR
+              // that is already flagged AND has a live run on its head.
+              const queued = [];   // [{ run, jobName }] on THIS head, awaiting a runner
+              const holders = [];  // live runs elsewhere that can own the group
               const parkedOn = new Map(); // holder run id -> [{ env, reviewers }]
-              try {
-                const runsResp = await github.rest.actions.listWorkflowRunsForRepo({
-                  owner, repo, head_sha: sha, per_page: 100,
-                });
-                const headRuns = runsResp.data.workflow_runs || [];
-                gated = headRuns.filter((r) => r.conclusion === "action_required");
-                gatedActors = [...new Set(
-                  gated.map((r) => r.triggering_actor?.login || r.actor?.login).filter(Boolean),
-                )];
-
-                // A job with `runner_name == null` and zero steps has been
-                // created but never dispatched: either queued on concurrency or
-                // scheduler-dropped. Only inspect runs that are still live.
-                const LIVE = new Set(["queued", "pending", "waiting", "in_progress", "requested"]);
-                for (const run of headRuns.filter((r) => LIVE.has(r.status))) {
-                  const jobsResp = await github.rest.actions.listJobsForWorkflowRun({
-                    owner, repo, run_id: run.id, per_page: 100,
-                  });
-                  for (const j of jobsResp.data.jobs || []) {
-                    if (LIVE.has(j.status) && !j.runner_name && !(j.steps || []).length) {
-                      queued.push({ run, jobName: j.name });
-                    }
-                  }
-                }
-
-                if (queued.length) {
-                  // Candidate group holders: any live run that is NOT on this
-                  // head. `waiting` is the pathological one — it means the run
-                  // is parked on an Environment approval, which holds its
-                  // concurrency group for as long as the human takes.
-                  const seen = new Set();
-                  for (const st of ["waiting", "in_progress", "queued", "pending"]) {
-                    const r = await github.rest.actions.listWorkflowRunsForRepo({
-                      owner, repo, status: st, per_page: 50,
+              const LIVE = new Set(["queued", "pending", "waiting", "in_progress", "requested"]);
+              if (!gated.length && !droppedRequired.length) {
+                try {
+                  // A job with `runner_name == null` and zero steps has been
+                  // created but never dispatched: either queued on concurrency
+                  // or scheduler-dropped. Only inspect runs that are still live.
+                  for (const run of runsOnSha.filter((r) => LIVE.has(r.status))) {
+                    const jobsResp = await github.rest.actions.listJobsForWorkflowRun({
+                      owner, repo, run_id: run.id, per_page: 100,
                     });
-                    for (const run of r.data.workflow_runs || []) {
-                      if (run.head_sha === sha || seen.has(run.id)) continue;
-                      seen.add(run.id);
-                      holders.push(run);
+                    for (const j of jobsResp.data.jobs || []) {
+                      if (LIVE.has(j.status) && !j.runner_name && !(j.steps || []).length) {
+                        queued.push({ run, jobName: j.name });
+                      }
                     }
                   }
-                  // Name the environment + reviewers for the parked ones: that
-                  // is the whole actionable payload (who must approve/cancel).
-                  for (const run of holders.filter((r) => r.status === "waiting")) {
-                    try {
-                      const pd = await github.rest.actions.getPendingDeploymentsForRun({
-                        owner, repo, run_id: run.id,
-                      });
-                      const envs = (pd.data || []).map((d) => ({
-                        env: d.environment?.name,
-                        reviewers: (d.reviewers || [])
-                          .map((x) => x.reviewer?.login || x.reviewer?.name)
-                          .filter(Boolean),
-                      })).filter((d) => d.env);
-                      if (envs.length) parkedOn.set(run.id, envs);
-                    } catch (e) {
-                      // `actions: read` is not granted (403) or the API is
-                      // unhappy: lose the environment/approver detail, keep the
-                      // holder link and the do-not-close/reopen verdict.
-                      core.info(`Cannot read pending deployments for run ${run.id} (${e.status}).`);
-                    }
-                  }
-                }
-              } catch (e) {
-                // `actions: read` missing, or the API is unhappy — fall back to
-                // the dropped-trigger wording rather than dropping the issue.
-                core.info(`PR #${pr.number}: cannot list workflow runs for ${sha.slice(0, 7)} (${e.status}); reporting without approval-gate detection.`);
-              }
 
+                  if (queued.length) {
+                    // Candidate group holders: any live run that is NOT on this
+                    // head. `waiting` is the pathological one — it means the run
+                    // is parked on an Environment approval, which holds its
+                    // concurrency group for as long as the human takes.
+                    const seen = new Set();
+                    for (const st of ["waiting", "in_progress", "queued", "pending"]) {
+                      const r = await github.rest.actions.listWorkflowRunsForRepo({
+                        owner, repo, status: st, per_page: 50,
+                      });
+                      for (const run of r.data.workflow_runs || []) {
+                        if (run.head_sha === sha || seen.has(run.id)) continue;
+                        seen.add(run.id);
+                        holders.push(run);
+                      }
+                    }
+                    // Name the environment + reviewers for the parked ones: that
+                    // is the whole actionable payload (who must approve/cancel).
+                    for (const run of holders.filter((r) => r.status === "waiting")) {
+                      try {
+                        const pd = await github.rest.actions.getPendingDeploymentsForRun({
+                          owner, repo, run_id: run.id,
+                        });
+                        const envs = (pd.data || []).map((d) => ({
+                          env: d.environment?.name,
+                          reviewers: (d.reviewers || [])
+                            .map((x) => x.reviewer?.login || x.reviewer?.name)
+                            .filter(Boolean),
+                        })).filter((d) => d.env);
+                        if (envs.length) parkedOn.set(run.id, envs);
+                      } catch (e) {
+                        // `actions: read` is not granted (403) or the API is
+                        // unhappy: lose the environment/approver detail, keep the
+                        // holder link and the do-not-close/reopen verdict.
+                        core.info(`Cannot read pending deployments for run ${run.id} (${e.status}).`);
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Jobs/runs unreadable — fall back to the other causes'
+                  // wording rather than dropping the issue.
+                  core.info(`PR #${pr.number}: cannot inspect live runs for ${sha.slice(0, 7)} (${e.status}); reporting without lock-queue detection.`);
+                }
+              }
               // An `action_required` park is the stronger signal: if BOTH are
               // present, report the gate (the queued job is downstream of it).
-              const lockQueued = !gated.length && queued.length > 0;
+              const lockQueued = !gated.length && !droppedRequired.length && queued.length > 0;
               const holderLine = (r) => {
                 const envs = (parkedOn.get(r.id) || [])
                   .map((d) => `\`${d.env}\`${d.reviewers.length ? ` (approver: ${d.reviewers.map((x) => `\`${x}\``).join(", ")})` : ""}`)
@@ -815,7 +1153,68 @@ runs:
                   `, triggered by \`${r.triggering_actor?.login || r.actor?.login || "unknown"}\``;
               };
 
-              const diagnosis = lockQueued
+              // Cause (c): the PR's BASE was retargeted after this head was
+              // pushed (GOL-2850). A `pull_request` workflow filtered by
+              // `branches: [main]` is matched against the base AT EVENT TIME,
+              // so a stacked PR (base = a topic branch) legitimately gets no
+              // CI while it is stacked. When the parent merges, GitHub
+              // retargets the child onto the protected branch
+              // (`automatic_base_change_succeeded`) — but a base change fires
+              // neither `opened`, `synchronize` nor `reopened`, so the
+              // branch-filtered workflows never get a second chance and the
+              // contexts stay absent on an unchanged head forever.
+              // NOT a dropped trigger: nothing was lost, the event was
+              // correctly filtered. The PR wedges identically, but saying
+              // "dropped trigger" sends triage hunting a phantom GitHub fault
+              // instead of recognising the stacked-PR class.
+              let retargetedAt = null;
+              if (!gated.length && !droppedRequired.length && !lockQueued) {
+                try {
+                  const events = await github.paginate(
+                    github.rest.issues.listEventsForTimeline,
+                    { owner, repo, issue_number: pr.number, per_page: 100 },
+                  );
+                  const headMs = new Date(commitDate).getTime();
+                  const after = (events || [])
+                    .filter(
+                      (e) =>
+                        e.event === "automatic_base_change_succeeded" ||
+                        e.event === "base_ref_changed",
+                    )
+                    .map((e) => e.created_at)
+                    .filter((t) => t && new Date(t).getTime() > headMs)
+                    .sort();
+                  if (after.length) retargetedAt = after[after.length - 1];
+                } catch (e) {
+                  // Timeline unreadable — fall back to the dropped-trigger
+                  // wording rather than dropping the issue.
+                  core.info(`PR #${pr.number}: cannot read timeline (${e.status}); reporting without retarget detection.`);
+                }
+              }
+              const dropRunUrls = newest
+                .filter((r) => r.conclusion && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== "action_required")
+                .map((r) => `[${r.name}](${r.html_url})`);
+              const diagnosis = droppedRequired.length
+                ? [
+                    `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) and they DO report on the head SHA — terminally \`cancelled\`/\`stale\` with an **empty \`runner_name\`**. The job never reached a machine, so **no test ever ran**: this is GitHub's control plane dropping work, not a failure of this code.`,
+                    "",
+                    "⛔ **Do not triage this as a code defect.** A `cancelled` conclusion normally means a human or a `cancel-in-progress` concurrency rule stopped the job — but neither can stop something that never started, and an unassigned runner means the suite was never executed. The PR sits at `mergeable_state=blocked` with nothing red anywhere.",
+                    "",
+                    `**Dropped required context(s):** ${droppedRequired.map((c) => `\`${c}\``).join(", ")}`,
+                    absent.length
+                      ? `**Also absent entirely (no check-run, no status):** ${absent.map((c) => `\`${c}\``).join(", ")}`
+                      : "",
+                    dropRunUrls.length ? `**Run(s) on this head:** ${dropRunUrls.join(", ")}` : "",
+                    realAdvisory.length
+                      ? `**Also red, but not required (does not gate, and does not block the re-fire):** ${realAdvisory.map((j) => `\`${j}\``).join(", ")}`
+                      : "",
+                    gated.length
+                      ? `**Note:** ${gated.length} run(s) on this head are ALSO parked at \`action_required\` (${gated.map((r) => `[${r.name}](${r.html_url})`).join(", ")}) — see GOL-2732/GOL-2802. Close/reopen clears both.`
+                      : "",
+                    "",
+                    `_Precedent: the 2026-10-05 Actions incident (\`degraded_performance\` from 19:11:58Z) landed two of grove-odoo-modules #310's five required contexts in exactly this state. Running \`ci.yml\`'s literal command at that SHA gave \`693 passed\` (GOL-2988 / GOL-3031)._`,
+                  ].filter(Boolean).join("\n")
+                : lockQueued
                 ? [
                     `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but publish nothing because the job that produces them **exists and is waiting for a runner** — not because the trigger was dropped. This is a **queued job, not a missing run.**`,
                     `**Job(s) awaiting a runner on this head:** ${queued.map((q) => `\`${q.jobName}\` ([${q.run.name}](${q.run.html_url}))`).join(", ")}`,
@@ -836,10 +1235,41 @@ runs:
                       ? `**Triggering actor:** ${gatedActors.map((a) => `\`${a}\``).join(", ")}${gatedActors.includes("github-actions[bot]") ? " — the ambient `GITHUB_TOKEN`. GitHub will not auto-run workflows for events it triggers, so **every** head move made under that identity re-gates this PR. Fix the automation that moved the head to push/merge as the GitHub App instead (see GOL-2504, GOL-2114, GOL-2524)." : ""}`
                       : "",
                   ].filter(Boolean).join("\n")
+                : retargetedAt
+                ? [
+                    `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but have **no check-run and no commit status of any state** on the head SHA, and no workflow run on this head is awaiting approval — because this PR's **base was retargeted at ${retargetedAt}, AFTER its head commit (${commitDate})**.`,
+                    "",
+                    `A \`pull_request\` workflow filtered by \`branches: [${baseBranch}]\` is matched against the base **at event time**. When this head was pushed the base was a different branch (the usual cause: a stacked PR whose parent has since merged), so those workflows were correctly skipped. A base change fires neither \`opened\`, \`synchronize\` nor \`reopened\`, so they never get a second chance on this head.`,
+                    "",
+                    "This is a **filtered trigger that will never re-fire, not a dropped one** — GitHub lost nothing. The PR wedges identically, and the fix is the same.",
+                  ].join("\n")
                 : `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but have **no check-run and no commit status of any state** on the head SHA, and no workflow run on this head is awaiting approval. That is a dropped trigger, not a slow run — the PR will hang at "Expected — waiting for status" until it is cleared.`;
 
               const parked = holders.filter((r) => r.status === "waiting");
-              const remediation = lockQueued
+              // GOL-3151. On a CONFLICTING PR, close/reopen is not a weaker
+              // fix — it is an actively harmful one, because there is no
+              // `refs/pull/N/merge` for the re-fired `pull_request` jobs to
+              // check out. Suppress the command ENTIRELY (an agent or a human
+              // following this issue literally is the failure mode being
+              // guarded) and say why, so nobody reinstates it.
+              const remediation = merge.conflicting
+                ? [
+                    `⛔ **Do NOT close/reopen this PR — it is \`${merge.state}\`: its head conflicts with \`${baseBranch}\`.**`,
+                    "",
+                    `A \`pull_request\` workflow checks out \`refs/pull/${pr.number}/merge\`, and **GitHub publishes no merge ref for a conflicting PR**. Close/reopen would re-fire \`pull_request\` exactly as advertised, and then every job would fail at the checkout step — turning ${missing.length} *missing* required context(s) into ${missing.length} **red** ones. Where \`dismiss_stale_reviews_on_push\` is enabled, the head move also dismisses any \`agent-review/*\` sign-off on the way past.`,
+                    "",
+                    "**Remediation** — the head has to MOVE, and the move has to RESOLVE the conflict. A `synchronize` push does both: it is a `pull_request` event against the PR's current base **and** it restores a merge ref, so the required workflows run against a checkout that exists.",
+                    "```bash",
+                    `gh pr checkout ${pr.number} --repo ${owner}/${repo}`,
+                    `git fetch origin ${baseBranch}`,
+                    `git rebase origin/${baseBranch}   # resolve the conflict, then:`,
+                    "git push --force-with-lease",
+                    "```",
+                    `If the rebase does not converge — typically because the base was **rewritten** under this branch (a squash-merge of a parent PR leaves the child carrying the pre-squash commits, so \`${baseBranch}...head\` reads *diverged* rather than merely behind) — **re-author** instead: branch fresh off current \`origin/${baseBranch}\`, cherry-pick or re-apply this PR's own commits onto it, and force-push that. Replaying a rewritten history onto its own successor re-applies changes the base already contains.`,
+                    "",
+                    `_Mergeability read: \`mergeable_state=${merge.state}\`. The diagnosis above is unchanged and still correct — only the remedy differs (GOL-3151 / GOL-3149)._`,
+                  ].join("\n")
+                : lockQueued
                 ? [
                   "**Remediation — do NOT close and reopen this PR.**",
                   "The job is queued, so close/reopen does not regenerate anything that is missing: it cancels this run and files a *fresh* one that queues behind the very same holder. The only effect is churn (the concurrency trap of GOL-2310).",
@@ -854,21 +1284,36 @@ runs:
                     : "Wait for the listed live run(s) to finish; the queued job starts on its own when the group is released. If nothing is holding the group and the job has sat with no runner for well past a normal run of that job, it is a GitHub scheduler drop — see GOL-2310, which needs `actions:write` (`gh run cancel <id> && gh run rerun <id>`) and is a maintainer action.",
                 ].join("\n\n")
                 : [
-                gated.length
-                  ? "**Remediation** — close and reopen the PR so the whole `pull_request` event re-fires under a non-`GITHUB_TOKEN` identity (plain PR permissions; no `actions: write` needed):"
-                  : "**Remediation** — the reliable way to regenerate a dropped `pull_request` event is to close and reopen the PR:",
-                "```bash",
-                `gh pr close ${pr.number} --repo ${owner}/${repo} && gh pr reopen ${pr.number} --repo ${owner}/${repo}`,
-                "```",
-                "Close/reopen re-fires `pull_request` on the **same head SHA** (nothing rebinds), so the missing workflow(s) run on the current head. This is a mutating action on the PR — safe for an agent-authored PR, but check first that no auto-merge is armed (closing disarms it) and that no human is mid-review; if one is, coordinate first (GOL-1958 keeps auto-remediation out of scope for now).",
-                gated.length
-                  ? "⚠️ **Approving the gated run(s) from the Actions tab is only a HALF fix** (GOL-2802). It does turn the required contexts green, but a re-run keeps the run's `actor` as `github-actions[bot]` — only `triggering_actor` becomes the approver — so every event chained off that run stays suppressed, including the `workflow_run` trigger `auto-approve.yml` listens on. When the same bot head move also dismissed an approving review (`dismiss_stale_reviews_on_push`), nothing restores it: the PR then sits at `REVIEW_REQUIRED` with every check green and no red signal anywhere. Close/reopen re-parents the whole event chain and clears both at once. On a **human's** PR, do not close/reopen it for them — a maintainer's approving review also re-fires `auto-approve.yml` via its `pull_request_review` entrypoint."
-                  : "",
-              ].filter(Boolean).join("\n");
+                    droppedRequired.length
+                      ? "**Remediation** — re-fire CI on the **unchanged** head SHA by closing and reopening the PR. There is nothing to fix in the code; the same commit just needs a runner. (`POST /actions/runs/{id}/rerun` would be the obvious lever, but the agent App installation token has no `actions: write` — it 403s — so close/reopen is the only re-trigger available for an unchanged SHA, and it works because `pull_request` default types include `reopened`):"
+                      : gated.length
+                      ? "**Remediation** — close and reopen the PR so the whole `pull_request` event re-fires under a non-`GITHUB_TOKEN` identity (plain PR permissions; no `actions: write` needed):"
+                      : retargetedAt
+                        ? "**Remediation** — close and reopen the PR. `reopened` is a `pull_request` event matched against the PR's *current* base, so the branch-filtered workflows run this time:"
+                        : "**Remediation** — the reliable way to regenerate a dropped `pull_request` event is to close and reopen the PR:",
+                    // GOL-3151: unknown ≠ fine. If we could not confirm a merge
+                    // ref exists, the command below may still be the harmful one,
+                    // so hand over the one-line check rather than a bare command.
+                    merge.unknown
+                      ? `⚠️ **Confirm this PR is not CONFLICTING before you run that.** ${merge.why}, so this sweep could not prove a \`refs/pull/${pr.number}/merge\` ref exists. GitHub publishes none for a conflicting PR, and close/reopen then re-fires \`pull_request\` onto a checkout that does not exist — ${missing.length} *missing* context(s) become ${missing.length} **red**. Check with \`gh pr view ${pr.number} --repo ${owner}/${repo} --json mergeable,mergeStateStatus\`; if it is conflicting, rebase or re-author and push instead of closing/reopening (GOL-3151).`
+                      : "",
+                    "```bash",
+                    `gh pr close ${pr.number} --repo ${owner}/${repo} && gh pr reopen ${pr.number} --repo ${owner}/${repo}`,
+                    "```",
+                    "Close/reopen re-fires `pull_request` on the **same head SHA** (nothing rebinds), so the missing workflow(s) run on the current head. This is a mutating action on the PR — safe for an agent-authored PR, but check first that no auto-merge is armed (closing disarms it) and that no human is mid-review; if one is, coordinate first (GOL-1958 keeps auto-remediation out of scope for now).",
+                    gated.length
+                      ? "⚠️ **Approving the gated run(s) from the Actions tab is only a HALF fix** (GOL-2802). It does turn the required contexts green, but a re-run keeps the run's `actor` as `github-actions[bot]` — only `triggering_actor` becomes the approver — so every event chained off that run stays suppressed, including the `workflow_run` trigger `auto-approve.yml` listens on. When the same bot head move also dismissed an approving review (`dismiss_stale_reviews_on_push`), nothing restores it: the PR then sits at `REVIEW_REQUIRED` with every check green and no red signal anywhere. Close/reopen re-parents the whole event chain and clears both at once. On a **human's** PR, do not close/reopen it for them — a maintainer's approving review also re-fires `auto-approve.yml` via its `pull_request_review` entrypoint."
+                      : "",
+                  ].filter(Boolean).join("\n");
               const summary = [
                 `**PR:** [#${pr.number} — ${pr.title}](${pr.html_url})`,
                 `**Head SHA:** \`${sha}\` (age ${ageMin.toFixed(0)}m, past the ${graceMin}m grace window)`,
                 `**Missing required context(s):** ${missing.map((c) => `\`${c}\``).join(", ")}`,
+                ...(merge.conflicting
+                  ? [`**Mergeability:** \`${merge.state}\` — ⛔ this PR **conflicts** with \`${baseBranch}\`, so it has no \`refs/pull/${pr.number}/merge\` ref and close/reopen would manufacture reds (GOL-3151).`]
+                  : merge.unknown
+                    ? [`**Mergeability:** unknown — ${merge.why}.`]
+                    : []),
                 "",
                 diagnosis,
                 "",
@@ -876,17 +1321,113 @@ runs:
               ].join("\n");
 
               const existing = missingIssueFor(pr.number);
+
+              // ── GOL-3031 self-heal: bounded automatic re-fire ─────────────
+              // The ledger lives in the issue body's data marker, keyed to the
+              // head SHA — a new head is a new problem and resets the budget.
+              const ledger = existing
+                ? recordedData(existing.body)
+                : { sha: null, refires: 0, lastRefireAt: null, escalated: false };
+              const sameHead = ledger.sha === sha;
+              const refiresSoFar = sameHead ? ledger.refires : 0;
+              const lastRefireAt = sameHead ? ledger.lastRefireAt : null;
+              const sinceRefireMin = lastRefireAt
+                ? (nowMs - new Date(lastRefireAt).getTime()) / 60000
+                : Infinity;
+
+              // Only a bot-authored PR is ever closed/reopened automatically. A
+              // human's PR keeps the manual command in the issue instead: a
+              // maintainer may be mid-review, and their approving review is
+              // itself a re-fire path for auto-approve.yml (GOL-2802).
+              const prAuthor = pr.user?.login || "";
+              const authorIsBot = pr.user?.type === "Bot" || /\[bot\]$/.test(prAuthor);
+
+              // Ordered so the FIRST failing guard is the one reported. Every
+              // guard is a reason NOT to touch the PR.
+              const refirePlan = !droppedRequired.length
+                ? { ok: false, why: "not-a-drop" }
+                : !selfHeal
+                  ? { ok: false, why: "disabled", note: "`self-heal: \"false\"` in the calling workflow." }
+                  // GOL-3151: no merge ref, no re-fire. This sits high in the
+                  // chain because it is the only guard whose violation makes the
+                  // remediation WORSE than doing nothing — the others merely make
+                  // it pointless. It is also the one that has to hold BEFORE
+                  // anyone raises a caller to `pull-requests: write` and switches
+                  // this path on.
+                  : merge.conflicting
+                    ? { ok: false, why: "conflicting", note: `The PR is \`${merge.state}\` — its head conflicts with \`${baseBranch}\`, so GitHub publishes no \`refs/pull/${pr.number}/merge\` for a \`pull_request\` workflow to check out. A close/reopen would re-fire CI onto a missing merge ref and turn every expected context RED, and the head move would dismiss any \`agent-review/*\` sign-off with it.` }
+                    // And `null` is not consent: an uncomputed `mergeable` is
+                    // indistinguishable from a conflicting one, so the
+                    // advice-only path wins.
+                    : merge.unknown
+                      ? { ok: false, why: "mergeability-unknown", note: `${merge.why}, so it is unproven that this PR has a merge ref to re-fire onto.` }
+                      : inFlight.length
+                        ? { ok: false, why: "in-flight", note: `${inFlight.length} run(s) on this head have not completed.` }
+                        : !jobsReadable
+                          ? { ok: false, why: "jobs-unreadable", note: "Could not read every run's jobs, so \"every non-success job is a drop\" is unproven." }
+                          : realRequired.length
+                            ? { ok: false, why: "real-failure", note: `Required job(s) failed with a runner assigned: ${realRequired.map((j) => `\`${j}\``).join(", ")}. A re-fire would only hide a real failure.` }
+                            : !authorIsBot
+                              ? { ok: false, why: "human-pr", note: `PR author \`${prAuthor || "unknown"}\` is not a bot.` }
+                              : refiresSoFar >= refireBudget
+                                ? { ok: false, why: "budget", note: `${refiresSoFar}/${refireBudget} automatic re-fires already spent on this head SHA.` }
+                                : sinceRefireMin < refireGapMin
+                                  ? { ok: false, why: "gap", note: `Last re-fire was ${sinceRefireMin.toFixed(0)}m ago (< ${refireGapMin}m minimum gap).` }
+                                  : { ok: true };
+
+              const refireStatus = refirePlan.ok
+                ? `🔁 **Self-heal:** re-firing CI automatically on this unchanged head SHA (attempt ${refiresSoFar + 1}/${refireBudget}, minimum ${refireGapMin}m between attempts).`
+                : refirePlan.why === "budget"
+                  ? `🛑 **Self-heal STOPPED — budget exhausted.** ${refirePlan.note} Not re-firing again on \`${sha}\`; this needs a human. Either GitHub is still degraded (check https://www.githubstatus.com) or something other than the control plane is eating these jobs. **Escalate to Josh / the CEO rather than re-running this by hand in a loop.**`
+                  : refirePlan.why === "not-a-drop"
+                    ? ""
+                    // GOL-3151: do NOT tell anyone to "run the command above"
+                    // when the conflicting arm deliberately removed it. The
+                    // held-off note has to point at the remedy that exists.
+                    : refirePlan.why === "conflicting"
+                      ? `⛔ **Self-heal REFUSED — the PR is \`${merge.state}\`.** ${refirePlan.note} Resolve the conflict and push (the remediation above), and do **not** close/reopen this PR by hand either.`
+                      : `⏸️ **Self-heal held off** (${refirePlan.why}). ${refirePlan.note || ""} Run the command above by hand if you want it cleared now.`;
+
+              const fullSummary = refireStatus
+                ? `${summary}\n\n${refireStatus}`
+                : summary;
+
+              // The hard stop has to be LOUD ONCE, not loud every tick: this
+              // sweep runs every 20 minutes, so a budget-exhausted escalation
+              // that re-comments on each pass is the same notification spam the
+              // dedup marker exists to prevent. The ledger latches it.
+              const escalateNow = refirePlan.why === "budget" && !(sameHead && ledger.escalated);
+              if (refirePlan.why === "budget") {
+                core.warning(`PR #${pr.number}: re-fire budget exhausted (${refiresSoFar}/${refireBudget}) on ${sha.slice(0, 7)} — escalating, not re-firing.`);
+              } else if (!refirePlan.ok && refirePlan.why !== "not-a-drop") {
+                core.info(`PR #${pr.number}: self-heal held off (${refirePlan.why}) — ${refirePlan.note || ""}`);
+              }
+
+              // Persist the ledger BEFORE acting on it. If the close/reopen
+              // throws halfway, the spent attempt is still recorded: the failure
+              // mode is over-counting by one, never an unbounded loop.
+              const nextLedger = {
+                sha,
+                refires: refirePlan.ok ? refiresSoFar + 1 : refiresSoFar,
+                lastRefireAt: refirePlan.ok ? new Date(nowMs).toISOString() : lastRefireAt,
+                escalated: escalateNow || (sameHead && ledger.escalated),
+              };
+
+              let issueNumber = existing?.number ?? null;
               if (existing) {
-                if (recordedSha(existing.body) === sha) {
+                const ledgerChanged =
+                  ledger.sha !== nextLedger.sha ||
+                  ledger.refires !== nextLedger.refires ||
+                  ledger.lastRefireAt !== nextLedger.lastRefireAt ||
+                  ledger.escalated !== nextLedger.escalated;
+                if (!ledgerChanged && !refirePlan.ok) {
                   core.info(`PR #${pr.number}: issue #${existing.number} already open for head ${sha.slice(0, 7)} — no-op (dedup).`);
                   continue;
                 }
-                // Head advanced but the context is still missing — keep one
-                // issue, refresh its recorded SHA, add a note.
                 const oldBody = existing.body ?? "";
                 const newBody = DATA_RE.test(oldBody)
-                  ? oldBody.replace(DATA_RE, dataMarker(sha))
-                  : `${oldBody}\n${dataMarker(sha)}`;
+                  ? oldBody.replace(DATA_RE, dataMarker(nextLedger))
+                  : `${oldBody}\n${dataMarker(nextLedger)}`;
                 if (newBody !== oldBody) {
                   await github.rest.issues.update({
                     owner, repo, issue_number: existing.number, body: newBody,
@@ -894,7 +1435,9 @@ runs:
                 }
                 await github.rest.issues.createComment({
                   owner, repo, issue_number: existing.number,
-                  body: `Head advanced to \`${sha}\` and the required context(s) are still missing.\n\n${summary}`,
+                  body: sameHead
+                    ? `Head \`${sha}\` is still wedged.\n\n${fullSummary}`
+                    : `Head advanced to \`${sha}\` and the required context(s) are still missing.\n\n${fullSummary}`,
                 });
                 core.info(`Updated missing-checks issue #${existing.number} for PR #${pr.number}.`);
               } else {
@@ -908,17 +1451,66 @@ runs:
                 }
                 const body = [
                   marker(pr.number),
-                  dataMarker(sha),
-                  summary,
+                  dataMarker(nextLedger),
+                  fullSummary,
                   "",
-                  "_Filed by the CI failure router (missing-required-check sweep, GOL-1958); mirrored to Paperclip for analysis._",
+                  "_Filed by the CI failure router (missing-required-check sweep, GOL-1958 / GOL-3031); mirrored to Paperclip for analysis._",
                 ].join("\n");
                 const { data: issue } = await github.rest.issues.create({
                   owner, repo,
-                  title: `${lockQueued ? "Lock-queued" : gated.length ? "Approval-gated" : "Missing"} required check on PR #${pr.number}: ${missing.join(", ")}`,
+                  title: `${droppedRequired.length ? "Control-plane drop (no runner) on" : lockQueued ? "Lock-queued required check on" : gated.length ? "Approval-gated required check on" : retargetedAt ? "Retarget-skipped required check on" : "Missing required check on"} PR #${pr.number}: ${missing.join(", ")}`,
                   body, labels: ["ci-failure"],
                 });
+                issueNumber = issue.number;
                 core.info(`Minted missing-checks issue #${issue.number} for PR #${pr.number}.`);
+              }
+
+              if (!refirePlan.ok) continue;
+
+              // Close + reopen on the SAME head SHA. Nothing rebinds, so the
+              // already-green `agent-review/*` check-runs and any approving
+              // review on this SHA survive. NEVER pass --delete-branch anywhere
+              // near this path: GOL-1658 deleted the head ref before the merge
+              // queue completed and silently closed the PR unmerged.
+              try {
+                await github.rest.pulls.update({
+                  owner, repo, pull_number: pr.number, state: "closed",
+                });
+                await github.rest.pulls.update({
+                  owner, repo, pull_number: pr.number, state: "open",
+                });
+                core.notice(`PR #${pr.number}: re-fired CI on ${sha.slice(0, 7)} via close+reopen (attempt ${nextLedger.refires}/${refireBudget}) — control-plane drop of [${droppedRequired.join(", ")}].`);
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issueNumber,
+                  body: [
+                    `🔁 Re-fired CI automatically on unchanged head \`${sha}\` (close+reopen, attempt ${nextLedger.refires}/${refireBudget}).`,
+                    "",
+                    pr.auto_merge
+                      ? "⚠️ Auto-merge was armed on this PR and closing disarms it. `auto-approve.yml` re-arms on the next green CI completion; if this PR ends up green and unmerged, that is the thing to look at."
+                      : "",
+                    `_Automatic remediation by the missing-required-check sweep (GOL-3031). Next attempt no sooner than ${refireGapMin}m from now, ${refireBudget - nextLedger.refires} left on this SHA._`,
+                  ].filter(Boolean).join("\n"),
+                });
+              } catch (e) {
+                // 403 is the expected shape while a consumer workflow still
+                // grants `pull-requests: read` (GOL-3031 splits that permission
+                // bump into its own protected-path PR). Degrade to alert-only
+                // and say which permission is missing, rather than failing the
+                // whole sweep for every other PR.
+                const degraded = e.status === 403 || e.status === 404;
+                core.warning(`PR #${pr.number}: automatic re-fire failed (${e.status} ${e.message}). ${degraded ? "The calling workflow needs `permissions: pull-requests: write`." : ""}`);
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issueNumber,
+                  body: [
+                    `⚠️ Automatic re-fire of head \`${sha}\` FAILED: \`${e.status} ${e.message}\`.`,
+                    "",
+                    degraded
+                      ? "This is almost certainly a permission wall, not a logic fault: the calling workflow grants `permissions: pull-requests: read`, and close/reopen needs **`pull-requests: write`**. Until that is granted this sweep is alert-only — run the close/reopen command above by hand."
+                      : "Run the close/reopen command above by hand.",
+                    "",
+                    "_Missing-required-check sweep (GOL-3031)._",
+                  ].filter(Boolean).join("\n"),
+                });
               }
             }
 
@@ -930,6 +1522,17 @@ runs:
               if (!m) continue;
               const num = Number(m[1]);
               if (flagged.has(num)) continue;
+              // GOL-3031: hold the issue open while a re-fire we triggered is
+              // still running. Closing it would take the budget ledger in its
+              // body with it, and the next drop would mint a fresh issue with
+              // refires=0 — the bound would be unenforceable and the sweep
+              // would close/reopen the PR once per tick, forever.
+              const ld = recordedData(issue.body);
+              const st = prState.get(num);
+              if (ld.refires > 0 && st && st.sha === ld.sha && st.inFlight) {
+                core.info(`Holding missing-checks issue #${issue.number} open — re-fire ${ld.refires} for PR #${num} is still in flight on ${ld.sha.slice(0, 7)}.`);
+                continue;
+              }
               const reason = evaluated.has(num)
                 ? `all required contexts now report on PR #${num}'s head`
                 : `PR #${num} is no longer an open non-draft PR on \`${baseBranch}\``;

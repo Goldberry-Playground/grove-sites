@@ -561,10 +561,109 @@ a { color: inherit; text-decoration: none; }
   line-height: 1.15;
   margin: 0.4rem 0;
 }
-.journal__empty {
-  padding: 2rem;
-  background: var(--paper-deep);
-  font-style: italic;
+/* ─── Journal "no article here" states (GOL-2803) ───
+   Three different facts, three different surfaces. The route used to print
+   "No posts yet. Check back soon." for ALL of them, so a Ghost outage read as
+   an empty journal and a stale link read as a deleted essay.
+
+   ACCESSIBILITY CONTRACT — do not reduce this to colour:
+   the three are told apart by ICON SHAPE, HEADING TEXT and BORDER STYLE
+   (dashed = empty, solid = error, dotted = missing). Strip the hue and all
+   three still read, which is what keeps them legible in grayscale and under
+   deuteranopia / protanopia / tritanopia (WCAG 1.4.1).
+
+   Square corners, mono eyebrow-weight rules and the display face are the hub's
+   own editorial idiom — deliberately NOT the storefronts' 12px-radius card, so
+   this reads as the hub rather than as a transplant. Error colour comes from
+   the token contract's status role (--grove-color-error-fg, 6.50:1 on the hub's
+   paper), not from --gb-plum: plum already means "Goldberry" on vendor cards
+   here and must not double as the alarm hue. */
+.journal-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: clamp(2.5rem, 6vw, 4rem) clamp(1.5rem, 4vw, 2.5rem);
+  margin: 0 0 2rem;
+  background: var(--paper-soft);
+}
+.journal-state__icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 0.25rem;
+}
+.journal-state__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0;
+}
+.journal-state__body {
+  max-width: 46ch;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 0;
+}
+.journal-state__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 0.75rem 0 0;
+}
+.journal-state__link {
+  color: var(--moss);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.journal-state__link:hover { color: var(--ink); }
+/* On the 404 and the error boundary the way out is the page's one action, so
+   it gets a real 44px target (WCAG 2.5.8). Inside .journal-state__body the same
+   class sits INLINE in a sentence, where a 44px box would wreck the line box —
+   and where 2.5.8 exempts it. */
+.journal-state__action .journal-state__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.journal-state__retry { min-height: 44px; }
+
+/* Border opacities are load-bearing, not decorative: the border STYLE is one
+   of the three non-colour cues, so the border itself has to clear the 3:1
+   non-text contrast floor (WCAG 1.4.11). moss@65% = 3.73:1 and ink@55% =
+   3.98:1 on the state background; moss@45% measured 2.32:1 and failed. Do not
+   soften these for looks. */
+.journal-empty {
+  border: 1px dashed color-mix(in srgb, var(--moss) 65%, transparent);
+}
+.journal-empty .journal-state__icon { color: var(--moss); }
+
+.journal-error {
+  border: 1px solid var(--grove-color-error-fg);
+  background: color-mix(in srgb, var(--grove-color-error-fg) 5%, var(--paper-soft));
+}
+.journal-error .journal-state__icon { color: var(--grove-color-error-fg); }
+
+/* Neutral ink, not the alarm hue: a stale link is not a system failure and
+   should not be dressed as one. */
+.journal-missing {
+  border: 1px dotted color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.journal-missing .journal-state__icon { color: var(--ink-soft); }
+
+/* On the index the block sits under the masthead rule and shares its edges —
+   alignment beats a floating card. On the standalone state pages there is no
+   neighbouring content to align to, so it caps at a card measure and centres
+   rather than stretching a two-line message across 1100px. */
+.journal-post > .journal-state {
+  max-width: 640px;
+  margin-inline: auto;
 }
 
 .journal-post {
@@ -1003,6 +1102,13 @@ a { color: inherit; text-decoration: none; }
   max-width: 1300px;
   margin: 0 auto;
 }
+/* This homepage section and the /journal ROUTE (line ~530) both claim the bare
+   `.journal` class, and this one wins on source order — so the route has been
+   silently rendering at 1300px instead of its declared 900px, running post
+   excerpts to a ~120-character measure. Re-asserting the route's measure under
+   its own modifier rather than renaming this section, which would touch the
+   homepage. Untangling the collision properly is GOL-2803's follow-up. */
+.journal--index { max-width: 900px; }
 .journal-head {
   display: grid;
   grid-template-columns: 1fr auto;

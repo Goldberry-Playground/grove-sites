@@ -1,19 +1,13 @@
 import { notFound } from "next/navigation";
-import { createGhostClient, type Post } from "@grove/ghost-client";
+import { isGhostNotFound, type Post } from "@grove/ghost-client";
 import { JournalProductEmbed } from "../../../../components/JournalProductEmbed";
+import { ghost } from "../../../../lib/ghost";
 import { sanitizePostHtml } from "../../../../lib/sanitize";
 import { marketplace } from "../../../../data/marketplace";
 
 export const revalidate = 300;
 
 type Params = { slug: string };
-
-function ghost() {
-  return createGhostClient({
-    ghostUrl: process.env.HUB_GHOST_URL ?? "http://localhost:2368",
-    contentKey: process.env.HUB_GHOST_CONTENT_API_KEY ?? "",
-  });
-}
 
 export default async function JournalPostPage({
   params,
@@ -23,10 +17,22 @@ export default async function JournalPostPage({
   const { slug } = await params;
   let post: Post | null = null;
 
+  // A 404 is a promise about the RESOURCE, not about our infrastructure
+  // (GOL-2803). This route used to catch everything and `notFound()`, so a
+  // Ghost outage told the reader — and every crawler, at `revalidate = 300` —
+  // that a live essay was permanently gone.
   try {
-    post = await ghost().posts.get(slug);
-  } catch {
-    post = null;
+    // `?? null` mirrors the list route's `?? []`: a 200 with an unexpected body
+    // degrades to a clean 404 rather than throwing (GOL-2756).
+    post = (await ghost().posts.get(slug)) ?? null;
+  } catch (err) {
+    // `isGhostNotFound` is duck-typed on name + status, NOT `instanceof`:
+    // @grove/ghost-client is src-mapped into four Next apps and a duplicated
+    // module instance would silently downgrade every 404 into an error state.
+    if (isGhostNotFound(err)) notFound();
+    // Anything else is an outage. Let it reach ./error.tsx, which answers with
+    // an honest 500 and a retry — rather than dressing it up as a 404.
+    throw err;
   }
   if (!post) notFound();
 

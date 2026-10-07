@@ -5,15 +5,66 @@ import Link from "next/link";
 import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
+import {
+  SITE_URL,
+  DEFAULT_OG_IMAGE,
+  DEFAULT_OG_IMAGE_WIDTH,
+  DEFAULT_OG_IMAGE_HEIGHT,
+  DEFAULT_OG_IMAGE_ALT,
+} from "../lib/site-metadata";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
 import "./globals.css";
 
+// Site-wide metadata defaults (GOL-2878 Phase 1).
+//
+// `metadataBase` was unset in every storefront, which is why `<link
+// rel="canonical">` and `og:url` could not resolve: Next silently drops a
+// relative URL in either field without it. Everything below is a DEFAULT —
+// routes override `title`/`description`/`openGraph` per page.
+//
+// Deliberately NOT set here: `alternates.canonical` and `openGraph.url`. Both
+// are inherited by any route that does not set its own, so a value in the root
+// layout would point every page's canonical at the homepage — the classic
+// self-inflicted duplicate-content bug. Each page supplies its own.
 export const metadata: Metadata = {
-  title: tenantConfig.name,
+  metadataBase: new URL(SITE_URL),
+  title: {
+    // 22 chars of suffix against a ~60-char target leaves each page ~38. Every
+    // staged PDP title fits inside that, so no route needs `title.absolute`.
+    default: tenantConfig.name,
+    template: `%s | ${tenantConfig.name}`,
+  },
   description: tenantConfig.description,
+  openGraph: {
+    type: "website",
+    siteName: tenantConfig.name,
+    locale: "en_US",
+    title: {
+      default: tenantConfig.name,
+      template: `%s | ${tenantConfig.name}`,
+    },
+    description: tenantConfig.description,
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        width: DEFAULT_OG_IMAGE_WIDTH,
+        height: DEFAULT_OG_IMAGE_HEIGHT,
+        alt: DEFAULT_OG_IMAGE_ALT,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: {
+      default: tenantConfig.name,
+      template: `%s | ${tenantConfig.name}`,
+    },
+    description: tenantConfig.description,
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 export default async function RootLayout({

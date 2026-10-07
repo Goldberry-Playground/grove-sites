@@ -1,3 +1,5 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,9 +7,84 @@ import { isGhostNotFound, postLede, type Post } from "@grove/ghost-client";
 import { ghost } from "../../../lib/ghost";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { tenantConfig } from "../../../tenant.config";
+import { DEFAULT_OG_IMAGE } from "../../../lib/site-metadata";
 
 // Matches /blog — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
+
+/**
+ * One Ghost fetch per request, shared by `generateMetadata` and the page.
+ *
+ * Three outcomes have to stay distinguishable (GOL-2788): the post exists, the
+ * post is gone, or Ghost is unreachable. Collapsing the last two would answer
+ * 404 for a live page and tell search engines to drop it. `cache()` means
+ * adding metadata did not double the Ghost traffic on every post view.
+ */
+const loadPost = cache(
+  async (slug: string): Promise<{ post: Post | null; failed: boolean }> => {
+    try {
+      // `?? null` mirrors the list route's `?? []`: a 200 with an unexpected
+      // body degrades to a clean 404 instead of throwing (GOL-2756).
+      return { post: (await ghost.posts.get(slug)) ?? null, failed: false };
+    } catch (e) {
+      if (isGhostNotFound(e)) return { post: null, failed: false };
+      return { post: null, failed: true };
+    }
+  },
+);
+
+/**
+ * Per-post title, description and share card (GOL-2878 Phase 1).
+ *
+ * Same defect as the PDPs: every post served `<title>At The Grove
+ * Nursery</title>` and the site-level description. It matters here too because
+ * `app/sitemap.ts` now submits these URLs to search engines — advertising
+ * twenty pages that share one title would just hand Google twenty duplicates.
+ *
+ * Everything below comes from Ghost (title, excerpt, feature image, dates); no
+ * copy is written here. A post with no excerpt gets no description rather than
+ * a generated one — an inherited site description would be worse than none,
+ * since Google will compose a snippet from the body itself.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+
+  const { post } = await loadPost(slug);
+  // Missing OR unreachable. Neither can produce honest metadata, and a
+  // transient Ghost outage must not emit a canonical for a page that is about
+  // to render the "journal is resting" error state.
+  if (!post) return { title: "Journal", robots: { index: false, follow: true } };
+
+  const description = post.excerpt?.trim() || undefined;
+  const canonicalPath = `/blog/${post.slug}`;
+  const image = post.featureImage ?? DEFAULT_OG_IMAGE;
+
+  return {
+    title: post.title,
+    description,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      type: "article",
+      siteName: tenantConfig.name,
+      title: post.title,
+      description,
+      url: canonicalPath,
+      publishedTime: post.published_at,
+      modifiedTime: post.updated_at,
+      images: [{ url: image, alt: post.title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: [image],
+    },
+  };
+}
 
 export default async function BlogPostPage({
   params,
@@ -20,18 +97,7 @@ export default async function BlogPostPage({
   // 500 on a deleted post or — worse — answer 404 for a post that exists but
   // that we simply could not reach, which lies to the reader and tells search
   // engines to drop a live page.
-  let post: Post | null = null;
-  let failed = false;
-
-  try {
-    // `?? null` mirrors the list route's `?? []`: a 200 with an unexpected
-    // body degrades to a clean 404 instead of throwing (GOL-2756).
-    post = (await ghost.posts.get(slug)) ?? null;
-  } catch (e) {
-    if (isGhostNotFound(e)) notFound();
-    failed = true;
-  }
-
+  const { post, failed } = await loadPost(slug);
   if (!failed && !post) notFound();
 
   if (failed) {
