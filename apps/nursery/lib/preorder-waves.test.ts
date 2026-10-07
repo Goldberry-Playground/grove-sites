@@ -7,7 +7,9 @@ import {
   USDA_ZONE_KEY,
   farmZoneOf,
   firstOpenWave,
+  PICKUP_FALL_WAVE,
   isPreorderSeason,
+  pickupWaves,
   preorderWaves,
   readUsdaZone,
   waveZones,
@@ -170,5 +172,68 @@ describe("remembered USDA zone", () => {
   it("ignores garbage", () => {
     localStorage.setItem(USDA_ZONE_KEY, "eight");
     expect(readUsdaZone()).toBeNull();
+  });
+});
+
+function pickup(m: number, d: number, calendar: ShippingCalendar | null = null) {
+  const out: Record<string, PreorderWave> = {};
+  for (const w of pickupWaves(utc(m, d), calendar)) out[w.wave] = w;
+  return out;
+}
+
+// Mirrors grove_headless/tests/test_preorder_waves.py TestPickupWaves (Josh 2026-10-07).
+describe("pickupWaves (fixed farm-pickup fall schedule)", () => {
+  it("window values are exact", () => {
+    const w = pickup(10, 7);
+    expect(PICKUP_FALL_WAVE.ship_window).toEqual([
+      [10, 20],
+      [10, 31],
+    ]);
+    expect(w.fall.ship_window).toEqual([
+      [10, 20],
+      [10, 31],
+    ]);
+    expect(w.fall.order_by).toEqual([10, 15]);
+    expect(w.spring.ship_window).toEqual([
+      [4, 5],
+      [4, 15],
+    ]);
+    expect(w.spring.order_by).toEqual([3, 29]);
+    expect(w.spring).toEqual(waves(FARM_ZONE, 10, 7).spring);
+  });
+
+  it("Oct 7: fall and spring open", () => {
+    const w = pickup(10, 7);
+    expect(w.fall.open).toBe(true);
+    expect(w.fall.reason).toBeNull();
+    expect(w.spring.open).toBe(true);
+  });
+
+  it("Oct 15: fall still open (inclusive)", () => {
+    expect(pickup(10, 15).fall.open).toBe(true);
+  });
+
+  it("Oct 16: fall closed deadline_passed, spring open; zone 6 shipped fall unaffected", () => {
+    const w = pickup(10, 16);
+    expect(w.fall.open).toBe(false);
+    expect(w.fall.reason).toBe("deadline_passed");
+    expect(w.spring.open).toBe(true);
+    expect(waves(6, 10, 16).fall.open).toBe(true);
+  });
+
+  it("Aug 31: both closed, opens_sep_1", () => {
+    const w = pickup(8, 31);
+    expect(w.fall.open).toBe(false);
+    expect(w.fall.reason).toBe("opens_sep_1");
+    expect(w.spring.open).toBe(false);
+    expect(w.spring.reason).toBe("opens_sep_1");
+  });
+
+  it("prefers the feed's calendar.pickup_waves", () => {
+    const fromFeed: PreorderWave[] = [
+      { wave: "fall", ship_window: [[10, 21], [10, 30]], order_by: [10, 14], open: false, reason: "deadline_passed" },
+    ];
+    const calendar = { pickup_waves: fromFeed } as unknown as ShippingCalendar;
+    expect(pickupWaves(utc(10, 7), calendar)).toBe(fromFeed);
   });
 });
