@@ -460,3 +460,37 @@ export async function expectCartNotEmpty(page: Page): Promise<void> {
   await expect(page.getByText("Your cart is empty.")).toHaveCount(0);
   await expect(page.locator(".grove-cart__line").first()).toBeVisible();
 }
+
+/** The Farm pickup / Shipped toggle on the PDP ("How do you want it?"). */
+export function fulfillmentToggle(page: Page, method: "pickup" | "ship"): Locator {
+  return page
+    .getByRole("group", { name: "Fulfillment" })
+    .getByRole("button", { name: method === "pickup" ? /^Farm pickup/ : /^Shipped/ });
+}
+
+/**
+ * Walk the shop grid for a listing that carries BOTH formats of the pickup/shipped
+ * gate: an immediate Potted variant and the Bareroot pre-order card (the paired
+ * SKUs on one pool, ruling 2 of the 2026-10-07 hotfix). Returns null when QA holds
+ * no such listing, so callers `test.skip` (a data gap, not a regression).
+ */
+export async function findPairedProductOrNull(
+  page: Page,
+  limit = 24,
+): Promise<{ href: string; name: string } | null> {
+  const hrefs = await collectProductHrefs(page);
+  for (const href of hrefs.slice(0, limit)) {
+    await page.goto(href);
+    await page
+      .getByRole("group", { name: "Fulfillment" })
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .catch(() => {});
+    const hasPreorder = (await page.locator("[data-preorder-card]").count()) > 0;
+    const hasPotted =
+      (await page.getByRole("button", { name: /^Potted/ }).count()) > 0;
+    if (hasPreorder && hasPotted) {
+      return { href, name: (await page.locator("h1").first().innerText()).trim() };
+    }
+  }
+  return null;
+}

@@ -3,7 +3,9 @@ import {
   addCurrentProductToCart,
   expectOnReview,
   fillCheckoutForm,
+  findPairedProductOrNull,
   findProductByCtaOrNull,
+  fulfillmentToggle,
   submitAndCaptureSession,
   uniqueBuyerEmail,
 } from "./helpers";
@@ -118,5 +120,33 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
       `a pickup order for ${product.name} must be accepted; server said: ${errorBody ?? "(no body)"}`,
     ).toBe(200);
     await expectOnReview(page);
+  });
+
+  test("a potted tree chosen for Farm pickup locks checkout to pickup", async ({ page }) => {
+    // Pickup-chosen potted lines are pickupOnly (2026-10-07 gate), whatever the
+    // listing's own shipping tier. Pin the browser clock inside the potted season.
+    await page.clock.setFixedTime(new Date("2026-10-07T12:00:00-04:00"));
+    const product = await findPairedProductOrNull(page);
+    test.skip(
+      product === null,
+      "no listing with both a Potted and a Bareroot pre-order format in the QA catalog",
+    );
+    if (!product) return;
+
+    await page.goto(product.href);
+    await fulfillmentToggle(page, "pickup").click();
+    await page.getByRole("button", { name: /^Potted/ }).first().click();
+    const anchor = page.locator("[data-add-to-cart-anchor]").first();
+    await anchor.getByRole("button", { name: "Add to cart", exact: true }).first().click();
+    await expect(
+      anchor.getByRole("button", { name: "Added!", exact: true }).first(),
+    ).toBeVisible({ timeout: 5_000 });
+
+    await page.goto("/checkout");
+    const form = page.locator("form.grove-checkout__grid");
+    await expect(form).toBeVisible();
+    await expect(form.locator('input[name="fulfillment"][value="ship"]')).toHaveCount(0);
+    await expect(form.locator('input[name="fulfillment"][value="pickup"]')).toBeChecked();
+    await expect(page.getByTestId("order-type")).toContainText("charged in full");
   });
 });
