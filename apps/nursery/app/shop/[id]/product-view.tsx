@@ -297,9 +297,32 @@ export function ProductView({
   const wave: ShipWave | null = waves.some((w) => w.wave === chosenWave && w.open)
     ? chosenWave
     : firstOpenWave(waves);
-  const hasBarerootFormat = formatOptions(variants, cultivar).some(
-    (f) => tierOfFormat(cultivar, f) === "bareroot",
-  );
+  // Tier presence comes from the VARIANTS, not the Format axis: prod lists
+  // formatless single-variant products (#91 PawPaw bareroot, #130 White Oak
+  // potted) that must pass the same season / pre-order gate as a paired listing.
+  const axisFormats = formatOptions(variants, cultivar);
+  const formatlessTier: ShippingTier | null =
+    axisFormats.length === 0 && variants.length > 0
+      ? tierFor({
+          shippingTier: pickVariant(variants, { cultivar })?.shippingTier ?? null,
+          format: null,
+        })
+      : null;
+  const productTiers: ShippingTier[] = formatlessTier
+    ? [formatlessTier]
+    : axisFormats.map((f) => tierOfFormat(cultivar, f));
+  const hasBareroot = productTiers.includes("bareroot");
+  const hasPotted = productTiers.includes("potted");
+  /** Does `m` offer anything to buy today (formatless products included)? */
+  const offeredFor = (m: FulfillmentMethod): boolean =>
+    formatlessTier
+      ? formatsForMethod(["formatless"], m, () => formatlessTier, {
+          pottedSeason,
+          preorderSeason,
+          pottedShips,
+        }).length > 0
+      : axisFormats.length === 0 || formatsFor(m, cultivar).length > 0;
+  const formatlessOffered = formatlessTier != null && offeredFor(method);
 
   function chooseZone(next: number) {
     setUsdaZone(next);
@@ -507,9 +530,10 @@ export function ProductView({
 
   // Pre-order vs immediate CTA. A bareroot line is a pre-order for ONE open
   // wave and carries it to the cart (F2 `canAdd` refuses mixing); with no open
-  // wave the CTA is unavailable. Nothing offered at all (bareroot-only product
-  // before Sep 1, potted-only out of season) also locks the CTA.
-  const nothingOffered = formatOptions(variants, cultivar).length > 0 && formats.length === 0;
+  // wave the CTA is unavailable. Nothing offered for this method (a bareroot-only
+  // listing before Sep 1, a potted-only listing outside May 1 to Oct 15, with or
+  // without a Format axis) also locks the CTA.
+  const nothingOffered = !offeredFor(method);
   const isPreorder = !nothingOffered && selectedTier === "bareroot";
   const ctaDisabled = buy.ctaDisabled || nothingOffered || (isPreorder && wave == null);
   const ctaLabel =
@@ -522,7 +546,7 @@ export function ProductView({
   // Before Sep 1 nothing bareroot is offered; say when it will be if the shopper
   // has nothing to buy today.
   const showPreordersOpen =
-    hasBarerootFormat &&
+    hasBareroot &&
     !preorderSeason &&
     pottedSeason &&
     (nothingOffered || !isPurchasable(selected));
@@ -601,8 +625,7 @@ export function ProductView({
             </span>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Fulfillment">
               {METHOD_OPTIONS.map(([m, label, sub]) => {
-                const unavailable = formatOptions(variants, cultivar).length > 0 &&
-                  formatsFor(m, cultivar).length === 0;
+                const unavailable = !offeredFor(m);
                 const isActive = method === m;
                 return (
                   <button
@@ -627,7 +650,7 @@ export function ProductView({
             </div>
           </div>
 
-          {method === "ship" && hasBarerootFormat && !pickupOnly && (
+          {method === "ship" && hasBareroot && !pickupOnly && (
             <div className="mb-5">
               <label htmlFor="usda-zone" className="block text-sm font-semibold text-foreground mb-2">
                 Your USDA zone
@@ -650,10 +673,34 @@ export function ProductView({
             </div>
           )}
 
-          {formats.length > 0 && (
+          {(formats.length > 0 || formatlessOffered) && (
             <div className="mb-5">
               <span className="block text-sm font-semibold text-foreground mb-2">Format</span>
               <div className="flex flex-wrap gap-2">
+                {/* A formatless listing's single variant, shown as the same card a
+                    paired listing would show for its tier. */}
+                {formatlessOffered && formatlessTier === "bareroot" && (
+                  <PreorderCard
+                    method={method}
+                    price={selected?.price ?? null}
+                    selected
+                    onSelect={() => {}}
+                    zone={waveZone}
+                    waves={waves}
+                    wave={wave}
+                    onChooseWave={setChosenWave}
+                  />
+                )}
+                {formatlessOffered && formatlessTier === "potted" && (
+                  <div className="rounded border border-primary bg-primary/5 px-4 py-2 text-left text-sm">
+                    <span className="block font-medium text-foreground">
+                      {pickupOnly ? "Potted" : methodFormatLabel(method, "potted", "Potted")}
+                    </span>
+                    <span className="block text-xs text-ink-soft">
+                      ${price.toFixed(2)} · charged in full
+                    </span>
+                  </div>
+                )}
                 {formats.map((f) => {
                   const fVariant = pickVariant(variants, { cultivar, format: f });
                   const fHint = shippingHintFor({
@@ -892,6 +939,10 @@ export function ProductView({
                   : "Potted trees aren’t shipped. Pick yours up free at the farm, or choose a bareroot format to ship to your door."}
               </span>
             </p>
+          )}
+
+          {hasPotted && !hasBareroot && !pottedSeason && (
+            <p className="mb-4 text-xs text-ink-soft">Potted trees are sold May 1 to Oct 15.</p>
           )}
 
           {showPreordersOpen && (

@@ -46,16 +46,48 @@ const VARIANTS: ViewVariant[] = [
   },
 ];
 
-function renderPdp() {
+// Prod #91 PawPaw: one bareroot variant, no Format axis.
+const PAWPAW: ViewVariant[] = [
+  {
+    id: 191,
+    name: "PawPaw",
+    price: 15,
+    available: true,
+    qtyAvailable: 20,
+    cultivar: null,
+    format: null,
+    rootstock: null,
+    shippingTier: "bareroot",
+    imageUrl: "",
+  },
+];
+
+// Prod #130 White Oak: one potted variant, no Format axis.
+const WHITE_OAK: ViewVariant[] = [
+  {
+    id: 230,
+    name: "White Oak",
+    price: 18,
+    available: true,
+    qtyAvailable: 12,
+    cultivar: null,
+    format: null,
+    rootstock: null,
+    shippingTier: "potted",
+    imageUrl: "",
+  },
+];
+
+function renderPdp(variants: ViewVariant[] = VARIANTS, productId = 4) {
   return render(
     <CartProvider>
       <ProductView
-        productId={4}
+        productId={productId}
         name="American Persimmon"
         featured={false}
         heroImage=""
         images={[]}
-        variants={VARIANTS}
+        variants={variants}
         fallbackPrice={12}
         saleOk
       />
@@ -220,5 +252,45 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     const group = within(formatGroup());
     expect(group.queryByRole("button", { name: /bareroot pre-order/i })).toBeNull();
     expect(group.getByRole("button", { name: /peat & bagged/i })).toBeTruthy();
+  });
+
+  it("Oct 7 Shipped, formatless bareroot (#91): zone select + pre-order card, adds with wave", async () => {
+    const user = userEvent.setup();
+    renderPdp(PAWPAW, 91);
+    expect(screen.getByRole("button", { name: /bareroot pre-order/i })).toBeTruthy();
+    expect(
+      screen.getByText("Pre-orders check out on their own, one wave per order."),
+    ).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText("Your USDA zone"), "8");
+    const fall = screen.getByRole("button", { name: /fall wave/i });
+    expect(fall.getAttribute("aria-disabled")).toBe("false");
+    expect(screen.getByRole("button", { name: /spring wave/i })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /spring wave/i }));
+    await user.click(screen.getAllByRole("button", { name: /pre-order for \$10/i })[0]);
+    expect(cartLines().find((l) => l.variantId === 191)?.wave).toBe("spring");
+  });
+
+  it("Oct 7 Farm pickup, formatless bareroot (#91): pickup waves shown", async () => {
+    const user = userEvent.setup();
+    renderPdp(PAWPAW, 91);
+    await user.click(screen.getByRole("button", { name: /farm pickup/i }));
+    expect(screen.getByRole("button", { name: /fall pickup/i })).toBeTruthy();
+  });
+
+  it("Oct 7 Shipped, formatless potted (#130): Peat & bagged, add enabled", () => {
+    renderPdp(WHITE_OAK, 130);
+    expect(screen.getByText("Peat & bagged")).toBeTruthy();
+    const add = screen.getAllByRole("button", { name: /add to cart/i })[0] as HTMLButtonElement;
+    expect(add.disabled).toBe(false);
+  });
+
+  it("Oct 16, formatless potted (#130): no enabled add-to-cart", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12)));
+    renderPdp(WHITE_OAK, 130);
+    for (const b of screen.queryAllByRole("button", { name: /add to cart|pre-order/i })) {
+      expect((b as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(screen.getByText("Potted trees are sold May 1 to Oct 15.")).toBeTruthy();
+    expect(screen.getAllByText("Not available right now").length).toBeGreaterThan(0);
   });
 });
