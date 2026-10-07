@@ -7,6 +7,7 @@ import {
   cartStorageKey,
   removeItem,
   setItemQuantity,
+  setOrderWave,
   subtotal,
   totalQuantity,
   validateCartItems,
@@ -320,5 +321,27 @@ describe("pre-order waves", () => {
 
   it("canAdd refuses switching a single-wave cart to the other wave", () => {
     expect(canAdd([spring(1)], { wave: "fall" }).ok).toBe(false);
+  });
+});
+
+describe("setOrderWave — move a pre-order to another wave (GOL-3194)", () => {
+  it("rewrites every waved line to the new wave and keeps the rest of each line", () => {
+    const cart: CartItem[] = [
+      { ...apple, quantity: 2, wave: "fall" },
+      { ...birch, quantity: 1, wave: "fall", pickupOnly: true },
+    ];
+    const moved = setOrderWave(cart, "spring");
+    expect(moved).toEqual([
+      { ...apple, quantity: 2, wave: "spring" },
+      { ...birch, quantity: 1, wave: "spring", pickupOnly: true },
+    ]);
+    expect(orderWave(moved)).toBe("spring");
+    expect(cart[0].wave).toBe("fall"); // pure
+  });
+
+  it("leaves an immediate cart unchanged (no wave to move)", () => {
+    const cart: CartItem[] = [{ ...apple, quantity: 1 }];
+    expect(setOrderWave(cart, "spring")).toEqual(cart);
+    expect(orderKind(setOrderWave(cart, "spring"))).toBe("immediate");
   });
 });
