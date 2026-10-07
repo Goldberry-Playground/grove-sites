@@ -291,8 +291,11 @@ export function ShippingEstimator({
                 );
               })}
             </ul>
-            <p className="mt-2 text-xs text-foreground/55">
-              Estimated UPS Ground, priced per box — your trees ship together in as few
+            {/* `text-ink-soft`, not `text-foreground/55`: the line now carries
+                the handling fee (pricing, not decoration), and /55 measured
+                3.48:1 on this panel at 12px, under the 4.5:1 AA floor. */}
+            <p className="mt-2 text-xs text-ink-soft">
+              Estimated UPS Ground, priced per box. Your trees ship together in as few
               boxes as possible.
               {fee > 0 && anyQuoted && (
                 <> Includes our {handlingLabel} handling fee, charged once per order.</>
