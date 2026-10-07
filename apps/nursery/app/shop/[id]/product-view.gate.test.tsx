@@ -346,7 +346,8 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     const user = userEvent.setup();
     renderPdp(POTTED_ONLY, 4, { pickupOnly: true });
     expect(methodButton(/farm pickup/i).getAttribute("aria-pressed")).toBe("true");
-    await addToCart(user);
+    expect(methodButton(/shipped/i).disabled).toBe(true);
+    await user.click(screen.getAllByRole("button", { name: /reserve for farm pickup|add to cart/i })[0]);
     expect(cartLines().find((l) => l.variantId === 131)?.pickupOnly).toBe(true);
   });
 
