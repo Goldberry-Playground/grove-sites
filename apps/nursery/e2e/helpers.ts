@@ -85,20 +85,69 @@ export async function collectProductHrefs(page: Page): Promise<string[]> {
   return [...new Set(hrefs)];
 }
 
-/** The enabled inline buy CTAs a PDP can render (see `buyStateFor`):
- *  "Add to Cart" for an in-stock item, "Reserve" for a bareroot preorder, and
- *  "Reserve for farm pickup" for a farm-pickup-only line (GOL-2588 — the label is
- *  the buy box's own signal that the order cannot ship, so a spec that needs a
- *  SHIPPABLE product must not match it). */
-export type BuyLabel = "Add to Cart" | "Reserve" | "Reserve for farm pickup";
+/** The enabled inline buy CTAs a PDP can render (product-view.tsx `ctaLabel`,
+ *  hotfix 2026-10-07): "Add to cart" for an immediate (in-stock / potted) line,
+ *  "Pre-order for $10" for a bareroot wave pre-order (enabled only once an open
+ *  wave is chosen, see {@link prepareWavePreorder}), and "Reserve for farm
+ *  pickup" for a farm-pickup-only line (`PICKUP_CTA_LABEL`, GOL-2588; the label
+ *  is the buy box's own signal that the order cannot ship, so a spec that needs a
+ *  SHIPPABLE product must not match it). The old "Add to Cart" / "Reserve" labels
+ *  no longer render on the PDP. */
+export const ADD_TO_CART = "Add to cart";
+export const PREORDER_CTA = "Pre-order for $10";
+export const PICKUP_ONLY_CTA = "Reserve for farm pickup";
+export type BuyLabel = typeof ADD_TO_CART | typeof PREORDER_CTA | typeof PICKUP_ONLY_CTA;
 
 /** Every buy CTA, in the order a spec that just needs *a* product in the cart
  *  should prefer them. */
-export const ANY_BUY_LABEL: BuyLabel[] = [
-  "Add to Cart",
-  "Reserve",
-  "Reserve for farm pickup",
-];
+export const ANY_BUY_LABEL: BuyLabel[] = [ADD_TO_CART, PREORDER_CTA, PICKUP_ONLY_CTA];
+
+/** How a "Pre-order for $10" line is set up on the PDP before its CTA enables. */
+export interface WavePreorderOpts {
+  /** Fulfillment toggle to choose. Default "ship". */
+  method?: "ship" | "pickup";
+  /** USDA zone for a shipped pre-order; must match the checkout ZIP's zone,
+   *  since the backend validates the wave against the destination ZIP. Default
+   *  6, the zone of the default checkout ZIP 26651 (Summersville WV). */
+  zone?: number;
+  /** Prefer this wave when it is open; otherwise the first open wave. */
+  wave?: "fall" | "spring";
+}
+
+/**
+ * On a PDP, set up a bareroot wave pre-order so "Pre-order for $10" can enable:
+ * choose the fulfillment, the USDA zone (shipped), the Bareroot pre-order
+ * format, and an OPEN wave (the PDP auto-picks the first open one; click the
+ * preferred one when given). Returns the chosen wave, or null when the listing
+ * has no pre-order card or no wave is open for that zone today (real date).
+ */
+export async function prepareWavePreorder(
+  page: Page,
+  { method = "ship", zone = 6, wave }: WavePreorderOpts = {},
+): Promise<"fall" | "spring" | null> {
+  const toggle = page.getByRole("group", { name: "Fulfillment" });
+  await toggle.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+  if ((await page.locator("[data-preorder-card]").count()) === 0) return null;
+  const methodButton = fulfillmentToggle(page, method);
+  if ((await methodButton.count()) > 0) await methodButton.first().click();
+  if (method === "ship") {
+    const zoneSelect = page.locator("#usda-zone");
+    if ((await zoneSelect.count()) > 0) await zoneSelect.selectOption(String(zone));
+  }
+  const format = page.getByRole("button", { name: /^Bareroot pre-order/ }).first();
+  if ((await format.count()) > 0) await format.click();
+  const group = page.getByRole("group", { name: "Pre-order wave" });
+  if ((await group.count()) === 0) return null;
+  const open = group.getByRole("button").and(page.locator('[aria-disabled="false"]'));
+  if ((await open.count()) === 0) return null;
+  const preferred = wave
+    ? open.filter({ hasText: wave === "fall" ? /^Fall/ : /^Spring/ })
+    : open;
+  const target = (await preferred.count()) > 0 ? preferred.first() : open.first();
+  await target.click();
+  const name = (await target.innerText()).trim().toLowerCase();
+  return name.startsWith("fall") ? "fall" : "spring";
+}
 
 /**
  * Like {@link findProductByCta} but returns `null` instead of throwing when the
@@ -125,13 +174,16 @@ export interface FoundProduct {
   name: string;
   /** Which enabled CTA matched — pass this back to `addCurrentProductToCart`. */
   buyLabel: BuyLabel;
+  /** For a "Pre-order for $10" match: the wave that was open, so the caller can
+   *  assert it or re-select it after navigating back to `href`. */
+  wave?: "fall" | "spring";
 }
 
 /**
  * Walk the shop grid and return the first product whose inline buy button is an
  * *enabled* CTA with one of the given labels, in preference order. Pass a single
- * label ("Add to Cart") when the flow must complete payment; pass a fallback
- * list (`["Add to Cart", "Reserve"]`) for specs that only need *a* product in
+ * label ("Add to cart") when the flow must complete payment; pass a fallback
+ * list (`[ADD_TO_CART, PREORDER_CTA]`) for specs that only need *a* product in
  * the cart to reach the checkout form + ship-to-state gate (specs 3/4), so they
  * stay green against Reserve-only QA data. Skips sold-out / coming-soon
  * (disabled) products. Throws a diagnostic if none is found, since that means QA
@@ -145,9 +197,12 @@ export async function findProductByCta(
     limit = 24,
     skipHref,
     nameMatch,
+    preorder = {},
   }: {
     limit?: number;
     skipHref?: string;
+    /** Setup used to enable a "Pre-order for $10" CTA (zone / method / wave). */
+    preorder?: WavePreorderOpts;
     /** When set, only products whose grid card name matches are considered
      *  (e.g. /bareroot/i to avoid the pickup-only potted fixture on a ship flow). */
     nameMatch?: RegExp;
@@ -172,10 +227,16 @@ export async function findProductByCta(
     await page.goto(href);
     const anchor = page.locator("[data-add-to-cart-anchor]");
     for (const buyLabel of labels) {
+      // The pre-order CTA only enables once an open wave is chosen.
+      let wave: "fall" | "spring" | undefined;
+      if (buyLabel === PREORDER_CTA) {
+        wave = (await prepareWavePreorder(page, preorder)) ?? undefined;
+        if (!wave) continue;
+      }
       const cta = anchor.getByRole("button", { name: buyLabel, exact: true });
       if ((await cta.count()) > 0 && (await cta.first().isEnabled())) {
         const name = (await page.locator("h1").first().innerText()).trim();
-        return { href, name, buyLabel };
+        return wave ? { href, name, buyLabel, wave } : { href, name, buyLabel };
       }
     }
   }
@@ -189,13 +250,20 @@ export async function findProductByCta(
 /**
  * On a product-detail page, set the quantity (via the typed input, not the
  * steppers) and click the buy CTA. Waits for the "Added!" flash so we know the
- * cart mutation actually fired before moving on.
+ * cart mutation actually fired before moving on. For "Pre-order for $10" the
+ * PDP is first set up with {@link prepareWavePreorder} (same `preorder` options
+ * the finder used), since navigating back to the PDP resets the wave choice.
  */
 export async function addCurrentProductToCart(
   page: Page,
   quantity = 1,
-  label: BuyLabel = "Add to Cart",
+  label: BuyLabel = ADD_TO_CART,
+  preorder: WavePreorderOpts = {},
 ): Promise<void> {
+  if (label === PREORDER_CTA) {
+    const wave = await prepareWavePreorder(page, preorder);
+    if (!wave) throw new Error("No open pre-order wave on this PDP for the requested zone / method");
+  }
   // Scope to the first anchor and the first Quantity input within it. Under a
   // transient double-render window on the PDP (SSR + client add-to-cart forms
   // coexisting for a tick, and/or a client-nav overlap that briefly keeps two
@@ -459,4 +527,58 @@ export async function expectCartNotEmpty(page: Page): Promise<void> {
   await page.goto("/cart");
   await expect(page.getByText("Your cart is empty.")).toHaveCount(0);
   await expect(page.locator(".grove-cart__line").first()).toBeVisible();
+}
+
+/** The Farm pickup / Shipped toggle on the PDP ("How do you want it?"). */
+export function fulfillmentToggle(page: Page, method: "pickup" | "ship"): Locator {
+  return page
+    .getByRole("group", { name: "Fulfillment" })
+    .getByRole("button", { name: method === "pickup" ? /^Farm pickup/ : /^Shipped/ });
+}
+
+/**
+ * Is the REAL date (UTC) inside the potted / peat & bagged season (May 1 to
+ * Oct 15, inclusive)? The backend validates the season on its own clock, which a
+ * browser-side `page.clock` cannot move, so specs that need an immediate potted
+ * line guard on the real date and skip with a reason when it is out of season.
+ */
+export function pottedSeasonToday(now: Date = new Date()): boolean {
+  // UTC, like the backend's `_today_utc`, so the guard flips on the same day.
+  const m = now.getUTCMonth() + 1;
+  const d = now.getUTCDate();
+  return (m >= 5 && m <= 9) || (m === 10 && d <= 15);
+}
+
+/**
+ * Walk the shop grid for a listing with the Bareroot pre-order card (the card is
+ * always present for a bareroot variant) and, when `needPotted`, ALSO an
+ * immediate potted format. The PDP opens on "Shipped" where that format is
+ * labelled "Peat & bagged", so the potted check switches to Farm pickup first
+ * ("Potted") and falls back to either label. Returns the scan size so callers can
+ * name it in a skip reason; `product` is null when none matched.
+ */
+export async function findPairedProduct(
+  page: Page,
+  { needPotted, limit = 24 }: { needPotted: boolean; limit?: number },
+): Promise<{ product: { href: string; name: string } | null; scanned: number; listings: number }> {
+  const hrefs = await collectProductHrefs(page);
+  let scanned = 0;
+  for (const href of hrefs.slice(0, limit)) {
+    scanned++;
+    await page.goto(href);
+    const toggle = page.getByRole("group", { name: "Fulfillment" });
+    await toggle.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+    if ((await page.locator("[data-preorder-card]").count()) === 0) continue;
+    if (needPotted) {
+      const pickup = fulfillmentToggle(page, "pickup");
+      if ((await pickup.count()) > 0) await pickup.click();
+      if ((await page.getByRole("button", { name: /^(Potted|Peat & bagged)/ }).count()) === 0) continue;
+    }
+    return {
+      product: { href, name: (await page.locator("h1").first().innerText()).trim() },
+      scanned,
+      listings: hrefs.length,
+    };
+  }
+  return { product: null, scanned, listings: hrefs.length };
 }

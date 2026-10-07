@@ -413,6 +413,27 @@ export interface ShippingPackingSpec {
 /** A `[month, day]` pair (1-based), the calendar's date primitive. */
 export type MonthDay = [number, number];
 
+/** A pre-order ship wave: Fall or Spring. */
+export type ShipWave = "fall" | "spring";
+
+/** One pre-order wave for a zone, from `calendar.resolved[zone].waves`. */
+export interface PreorderWave {
+  wave: ShipWave;
+  ship_window: [MonthDay, MonthDay];
+  /** Last day (inclusive) the wave can be ordered. */
+  order_by: MonthDay;
+  open: boolean;
+  reason: null | "opens_sep_1" | "deadline_passed";
+}
+
+/** Server-resolved fulfillment for one zone (`calendar.resolved[zone]`): the
+ * `resolve_fulfillment` dict plus the zone's pre-order waves. `waves` is
+ * absent on a backend that predates the wave flow. */
+export interface ShippingCalendarResolvedZone {
+  waves?: PreorderWave[];
+  [key: string]: unknown;
+}
+
 /** One USDA hardiness zone's two dormant-bareroot ship windows, each
  * `[[startMonth, startDay], [endMonth, endDay]]`. Staggered per zone as the
  * agronomy §5.3 data lands. */
@@ -451,6 +472,9 @@ export interface ShippingCalendar {
    * when there is no active hold. */
   weather_hold_note?: string | null;
   zones: Record<string, ShippingCalendarZone>;
+  /** Per-USDA-zone server-resolved fulfillment, keyed like `zones`. Optional:
+   * older backends omit it. */
+  resolved?: Record<string, ShippingCalendarResolvedZone>;
 }
 
 /** The single shippable mode a client resolves a `(date, usdaZone)` to against
@@ -842,6 +866,9 @@ export interface OrderCreateInput {
    * order with a shopper-facing 400 rather than silently pricing without it
    * (GOL-2088). */
   promoCode?: string;
+  /** Pre-order wave this order belongs to (one wave per order). Omit for an
+   * immediate order; the server re-validates it against the zone's waves. */
+  shipWave?: ShipWave | null;
   items: OrderItemInput[];
 }
 
@@ -967,12 +994,14 @@ export interface CheckoutSession {
 export interface CheckoutQuoteInput {
   items: OrderItemInput[];
   fulfillment?: "ship" | "pickup" | null;
+  shipWave?: ShipWave | null;
 }
 
 /** Raw response from POST /grove/api/v1/checkout/quote (GOL-2233). */
 export interface ApiCheckoutQuoteResponse {
   deposit_now: boolean;
-  deposit_reason: "sold-out" | "off-season" | null;
+  deposit_reason: "sold-out" | "off-season" | "preorder" | null;
+  ship_wave?: ShipWave | null;
   deposit_amount: number;
   amount_due_today: number | null;
   after_cutover: boolean;
@@ -990,7 +1019,9 @@ export interface ApiCheckoutQuoteResponse {
  *  predicate the checkout session charges by. */
 export interface CheckoutQuote {
   depositNow: boolean;
-  depositReason: "sold-out" | "off-season" | null;
+  depositReason: "sold-out" | "off-season" | "preorder" | null;
+  /** The wave the quote was priced for; null for an immediate cart. */
+  shipWave: ShipWave | null;
   /** The flat deposit in dollars (backend constant). */
   depositAmount: number;
   /** Dollars charged today under the deposit path; null when charged in full. */
@@ -1013,6 +1044,8 @@ export interface PromoPreviewInput {
   fulfillment?: "ship" | "pickup" | null;
   /** The code the buyer typed; omit to preview only the automatic volume tier. */
   promoCode?: string;
+  /** Pre-order wave of the cart being previewed; omit for an immediate cart. */
+  shipWave?: ShipWave | null;
 }
 
 /** Raw response from POST /grove/api/v1/checkout/promo/preview. */
