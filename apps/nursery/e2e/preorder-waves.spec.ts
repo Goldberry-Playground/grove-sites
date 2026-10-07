@@ -1,9 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   expectOnReview,
-  findPairedProductOrNull,
+  findPairedProduct,
   fillCheckoutForm,
   fulfillmentToggle,
+  pottedSeasonToday,
   submitAndCaptureSession,
 } from "./helpers";
 
@@ -11,17 +12,13 @@ import {
  * Fall / spring bareroot pre-order waves (hotfix 2026-10-07, Josh's rulings).
  *
  * Like the rest of this suite these run against the deployed QA storefront +
- * backend (no local backend; CI runs them on the preview droplet). The browser
- * clock is pinned with `page.clock.setFixedTime` so client-side season logic is
- * deterministic; server-rendered dates still come from the server clock, so the
- * specs assert behaviour that holds on either side of that skew and skip when the
- * QA catalog lacks the paired Potted + Bareroot fixture.
+ * backend (no local backend; CI runs them on the preview droplet). The backend
+ * validates season and waves on its real clock, which a browser-side
+ * `page.clock` cannot move, so specs hold on the REAL date: the potted-dependent
+ * one skips (with a reason) outside May 1 to Oct 15, and neither pins the clock.
  */
 
-const NO_FIXTURE =
-  "no listing with both a Potted and a Bareroot pre-order format in the QA catalog";
-
-async function clickAddToCart(page: import("@playwright/test").Page, label: string) {
+async function clickAddToCart(page: Page, label: string) {
   const anchor = page.locator("[data-add-to-cart-anchor]").first();
   await anchor.getByRole("button", { name: label, exact: true }).first().click();
   return anchor;
@@ -31,9 +28,11 @@ test.describe("pre-order waves", () => {
   test("a shipped zone 8 spring pre-order sends shipWave spring and a $10 deposit", async ({
     page,
   }) => {
-    await page.clock.setFixedTime(new Date("2026-10-20T12:00:00-04:00"));
-    const product = await findPairedProductOrNull(page);
-    test.skip(product === null, NO_FIXTURE);
+    const { product, scanned, listings } = await findPairedProduct(page, { needPotted: false });
+    test.skip(
+      product === null,
+      `none of the ${scanned} scanned PDPs (of ${listings} listings) carried the Bareroot pre-order card`,
+    );
     if (!product) return;
 
     await page.goto(product.href);
@@ -42,6 +41,10 @@ test.describe("pre-order waves", () => {
     await page.getByRole("button", { name: /^Bareroot pre-order/ }).first().click();
     const spring = page.getByRole("button", { name: /^Spring wave/ });
     await expect(spring).toBeVisible();
+    test.skip(
+      (await spring.getAttribute("aria-disabled")) === "true",
+      "the zone 8 spring wave is closed today (past its order-by or before Sep 1)",
+    );
     await spring.click();
     await expect(spring).toHaveAttribute("aria-pressed", "true");
     await expect(
@@ -58,7 +61,13 @@ test.describe("pre-order waves", () => {
       "Pre-order · spring wave · $10 deposit today, balance when your trees ship",
     );
 
-    await fillCheckoutForm(page, { state: "WV" });
+    // Georgia is a green-list state in USDA zone 8, matching the zone chosen on the PDP.
+    await fillCheckoutForm(page, {
+      state: "GA",
+      city: "Atlanta",
+      zip: "30301",
+      street: "100 Peachtree St",
+    });
     const sessionBodies: unknown[] = [];
     page.on("request", (req) => {
       if (req.url().includes("/api/checkout/session") && req.method() === "POST") {
@@ -77,9 +86,15 @@ test.describe("pre-order waves", () => {
   });
 
   test("adding a pre-order to a cart that holds a potted line is refused", async ({ page }) => {
-    await page.clock.setFixedTime(new Date("2026-10-07T12:00:00-04:00"));
-    const product = await findPairedProductOrNull(page);
-    test.skip(product === null, NO_FIXTURE);
+    test.skip(
+      !pottedSeasonToday(),
+      "real date is outside the potted season (May 1 to Oct 15); no immediate line to conflict with",
+    );
+    const { product, scanned, listings } = await findPairedProduct(page, { needPotted: true });
+    test.skip(
+      product === null,
+      `none of the ${scanned} scanned PDPs (of ${listings} listings) had both a potted format and the Bareroot pre-order card`,
+    );
     if (!product) return;
 
     // Immediate line first: potted for Farm pickup.
@@ -100,7 +115,7 @@ test.describe("pre-order waves", () => {
       .getByRole("button")
       .and(page.locator('[aria-disabled="false"]'))
       .first();
-    await expect(openWave).toBeVisible();
+    await expect(openWave, "an open farm-zone pickup wave is needed").toBeVisible();
     await openWave.click();
     await clickAddToCart(page, "Pre-order for $10");
     await expect(

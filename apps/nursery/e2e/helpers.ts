@@ -469,28 +469,47 @@ export function fulfillmentToggle(page: Page, method: "pickup" | "ship"): Locato
 }
 
 /**
- * Walk the shop grid for a listing that carries BOTH formats of the pickup/shipped
- * gate: an immediate Potted variant and the Bareroot pre-order card (the paired
- * SKUs on one pool, ruling 2 of the 2026-10-07 hotfix). Returns null when QA holds
- * no such listing, so callers `test.skip` (a data gap, not a regression).
+ * Is the REAL date inside the potted / peat & bagged season (May 1 to Oct 15,
+ * inclusive)? The backend validates the season on its own clock, which a
+ * browser-side `page.clock` cannot move, so specs that need an immediate potted
+ * line guard on the real date and skip with a reason when it is out of season.
  */
-export async function findPairedProductOrNull(
+export function pottedSeasonToday(now: Date = new Date()): boolean {
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+  return (m >= 5 && m <= 9) || (m === 10 && d <= 15);
+}
+
+/**
+ * Walk the shop grid for a listing with the Bareroot pre-order card (the card is
+ * always present for a bareroot variant) and, when `needPotted`, ALSO an
+ * immediate potted format. The PDP opens on "Shipped" where that format is
+ * labelled "Peat & bagged", so the potted check switches to Farm pickup first
+ * ("Potted") and falls back to either label. Returns the scan size so callers can
+ * name it in a skip reason; `product` is null when none matched.
+ */
+export async function findPairedProduct(
   page: Page,
-  limit = 24,
-): Promise<{ href: string; name: string } | null> {
+  { needPotted, limit = 24 }: { needPotted: boolean; limit?: number },
+): Promise<{ product: { href: string; name: string } | null; scanned: number; listings: number }> {
   const hrefs = await collectProductHrefs(page);
+  let scanned = 0;
   for (const href of hrefs.slice(0, limit)) {
+    scanned++;
     await page.goto(href);
-    await page
-      .getByRole("group", { name: "Fulfillment" })
-      .waitFor({ state: "visible", timeout: 10_000 })
-      .catch(() => {});
-    const hasPreorder = (await page.locator("[data-preorder-card]").count()) > 0;
-    const hasPotted =
-      (await page.getByRole("button", { name: /^Potted/ }).count()) > 0;
-    if (hasPreorder && hasPotted) {
-      return { href, name: (await page.locator("h1").first().innerText()).trim() };
+    const toggle = page.getByRole("group", { name: "Fulfillment" });
+    await toggle.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+    if ((await page.locator("[data-preorder-card]").count()) === 0) continue;
+    if (needPotted) {
+      const pickup = fulfillmentToggle(page, "pickup");
+      if ((await pickup.count()) > 0) await pickup.click();
+      if ((await page.getByRole("button", { name: /^(Potted|Peat & bagged)/ }).count()) === 0) continue;
     }
+    return {
+      product: { href, name: (await page.locator("h1").first().innerText()).trim() },
+      scanned,
+      listings: hrefs.length,
+    };
   }
-  return null;
+  return { product: null, scanned, listings: hrefs.length };
 }

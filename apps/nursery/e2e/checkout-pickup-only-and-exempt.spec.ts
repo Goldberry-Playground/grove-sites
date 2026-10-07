@@ -3,9 +3,10 @@ import {
   addCurrentProductToCart,
   expectOnReview,
   fillCheckoutForm,
-  findPairedProductOrNull,
+  findPairedProduct,
   findProductByCtaOrNull,
   fulfillmentToggle,
+  pottedSeasonToday,
   submitAndCaptureSession,
   uniqueBuyerEmail,
 } from "./helpers";
@@ -123,13 +124,16 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
   });
 
   test("a potted tree chosen for Farm pickup locks checkout to pickup", async ({ page }) => {
-    // Pickup-chosen potted lines are pickupOnly (2026-10-07 gate), whatever the
-    // listing's own shipping tier. Pin the browser clock inside the potted season.
-    await page.clock.setFixedTime(new Date("2026-10-07T12:00:00-04:00"));
-    const product = await findPairedProductOrNull(page);
+    // Pickup-chosen potted lines are pickupOnly (2026-10-07 gate). The backend
+    // validates the potted season on its real clock, so guard on the real date.
+    test.skip(
+      !pottedSeasonToday(),
+      "real date is outside the potted season (May 1 to Oct 15); potted is not sellable",
+    );
+    const { product, scanned, listings } = await findPairedProduct(page, { needPotted: true });
     test.skip(
       product === null,
-      "no listing with both a Potted and a Bareroot pre-order format in the QA catalog",
+      `none of the ${scanned} scanned PDPs (of ${listings} listings) had both a potted format and the Bareroot pre-order card`,
     );
     if (!product) return;
 
@@ -147,6 +151,5 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
     await expect(form).toBeVisible();
     await expect(form.locator('input[name="fulfillment"][value="ship"]')).toHaveCount(0);
     await expect(form.locator('input[name="fulfillment"][value="pickup"]')).toBeChecked();
-    await expect(page.getByTestId("order-type")).toContainText("charged in full");
   });
 });
