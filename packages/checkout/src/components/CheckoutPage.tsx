@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { trackBeginCheckout } from "@grove/analytics";
-import type { CheckoutSession, PromoPreview } from "@grove/odoo-client";
+import type { CheckoutSession, PromoPreview, ShipWave } from "@grove/odoo-client";
 import type { CartTiers } from "../hooks/useTierNudge";
 import {
+  Button,
   CheckoutPage as UICheckoutPage,
   CheckoutReview,
   type GroveCheckoutOrder,
@@ -119,7 +120,7 @@ export function CheckoutPage({
   /** Storefront `/api/cart/tiers` route — enables the volume nudge line. */
   tiersHref?: string;
 } = {}) {
-  const { items, hydrated, subtotal } = useCart();
+  const { items, hydrated, subtotal, setWave } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   // Mirrors the form's ship/pickup radio so the "due today" quote follows the
@@ -144,6 +145,11 @@ export function CheckoutPage({
   // form shows. Derived, never seeded into state, so a line added in another tab
   // can't leave a stale "ship" behind.
   const fulfillment: GroveFulfillment = lockedToPickup ? "pickup" : chosenFulfillment;
+  // The ship-to ZIP as typed. The quote validates a pre-order wave against the
+  // destination's USDA zone, so sending it surfaces a closed wave here, next to
+  // a fix, instead of as a refusal at "Continue to payment" (GOL-3194).
+  const [shippingZip, setShippingZip] = useState("");
+  const orderTypeRef = useRef<HTMLParagraphElement | null>(null);
   // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
   // from the storefront's `/api/cart/quote` when wired; null = charged in full.
   // One wave per order, never mixed with immediate items (the PDP prevents it;
@@ -157,7 +163,22 @@ export function CheckoutPage({
     settled: depositSettled,
     error: quoteError,
     failed: quoteFailed,
-  } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave);
+    alternateWave,
+  } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave, shippingZip);
+  // The backend refused this wave for the destination but confirmed the other
+  // one quotes: offer the switch. Hidden once the cart already holds that wave
+  // (the re-quote is in flight and the stale refusal has not cleared yet).
+  const switchWave =
+    hydrated && kind === "preorder" && quoteError !== null && alternateWave !== null && alternateWave !== shipWave
+      ? alternateWave
+      : null;
+
+  function switchOrderWave(wave: ShipWave) {
+    setWave(wave);
+    // The button unmounts with the refusal; land focus on the order line, which
+    // now names the new wave, rather than dropping it to <body>.
+    orderTypeRef.current?.focus();
+  }
   // A pre-order may only start a session once the BACKEND has confirmed the $10
   // deposit for this wave. An older backend ignores `ship_wave` and would charge
   // in full under a "$10 deposit" page; the quote route's catalog fallback is
@@ -304,18 +325,46 @@ export function CheckoutPage({
     ? MIXED_CART_MESSAGE
     : quoteError ?? (showPreorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
 
+  const notice =
+    orderTypeText || blockingMessage ? (
+      <>
+        {orderTypeText ? (
+          <p
+            ref={orderTypeRef}
+            tabIndex={-1}
+            aria-live="polite"
+            className="grove-checkout__order-type"
+            data-testid="order-type"
+          >
+            {orderTypeText}
+          </p>
+        ) : null}
+        {blockingMessage ? (
+          <p role="alert" className="grove-checkout__order-blocked">
+            {blockingMessage}
+          </p>
+        ) : null}
+        {switchWave ? (
+          <div className="grove-checkout__wave-switch">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="grove-checkout__wave-switch-button"
+              onClick={() => switchOrderWave(switchWave)}
+            >
+              Switch this order to the {switchWave} wave
+            </Button>
+            <p className="grove-checkout__wave-switch-note">
+              Every tree in this order moves to the {switchWave} wave. The deposit stays $10.
+            </p>
+          </div>
+        ) : null}
+      </>
+    ) : null;
+
   return (
     <WithGroveNext>
-      {orderTypeText ? (
-        <p className="grove-checkout__order-type" data-testid="order-type">
-          {orderTypeText}
-        </p>
-      ) : null}
-      {blockingMessage ? (
-        <p role="alert" className="grove-checkout__order-blocked">
-          {blockingMessage}
-        </p>
-      ) : null}
       <UICheckoutPage
         items={items}
         subtotal={subtotal}
@@ -349,7 +398,9 @@ export function CheckoutPage({
         trustItems={BRAND_TRUST[brand].checkout}
         dueToday={dueToday}
         onFulfillmentChange={setChosenFulfillment}
+        onShippingZipChange={setShippingZip}
         submitDisabled={blocked}
+        notice={notice}
       />
     </WithGroveNext>
   );
