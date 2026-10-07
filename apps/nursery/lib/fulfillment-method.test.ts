@@ -16,7 +16,6 @@ const cal = {
 } as unknown as ShippingCalendar;
 const tierOf = (f: string): ShippingTier =>
   /bare\s*-?\s*root/i.test(f) ? "bareroot" : "potted";
-const all = () => true;
 
 describe("isPottedSeason", () => {
   it("is inclusive of both leafed_window endpoints", () => {
@@ -40,84 +39,49 @@ describe("isPottedSeason", () => {
 
 describe("formatsForMethod", () => {
   const both = ["Bareroot", "Potted"];
+  const run = (
+    f: string[],
+    m: "ship" | "pickup",
+    o: { pottedSeason: boolean; preorderSeason: boolean; pottedShips?: boolean },
+  ) => formatsForMethod(f, m, tierOf, o);
 
-  it("ship never returns a potted format when a bareroot one exists", () => {
-    expect(
-      formatsForMethod(both, "ship", tierOf, {
-        pottedSeason: true,
-        isPurchasable: all,
-      }),
-    ).toEqual(["Bareroot"]);
-    expect(
-      formatsForMethod(both, "ship", tierOf, {
-        pottedSeason: false,
-        isPurchasable: all,
-      }),
-    ).toEqual(["Bareroot"]);
+  it("in season from Sep 1: potted (peat and bagged) then the bareroot pre-order, both methods", () => {
+    const o = { pottedSeason: true, preorderSeason: true };
+    expect(run(both, "ship", o)).toEqual(["Potted", "Bareroot"]);
+    expect(run(both, "pickup", o)).toEqual(["Potted", "Bareroot"]);
   });
 
-  it("ship keeps a potted-only product in season (shown as peat and bagged)", () => {
-    expect(
-      formatsForMethod(["Potted"], "ship", tierOf, {
-        pottedSeason: true,
-        isPurchasable: all,
-      }),
-    ).toEqual(["Potted"]);
+  it("in season before Sep 1: potted only, no pre-order", () => {
+    const o = { pottedSeason: true, preorderSeason: false };
+    expect(run(both, "ship", o)).toEqual(["Potted"]);
+    expect(run(both, "pickup", o)).toEqual(["Potted"]);
   });
 
-  it("ship offers nothing for a potted-only product out of season", () => {
-    expect(
-      formatsForMethod(["Potted"], "ship", tierOf, {
-        pottedSeason: false,
-        isPurchasable: all,
-      }),
-    ).toEqual([]);
+  it("after Oct 15: only the bareroot pre-order, both methods", () => {
+    const o = { pottedSeason: false, preorderSeason: true };
+    expect(run(both, "ship", o)).toEqual(["Bareroot"]);
+    expect(run(both, "pickup", o)).toEqual(["Bareroot"]);
+    // Jan to Apr: still the pre-order (spring wave), never potted.
+    expect(run(both, "pickup", { pottedSeason: false, preorderSeason: false })).toEqual([
+      "Bareroot",
+    ]);
   });
 
-  it("pickup shows only potted in season when potted is purchasable", () => {
-    expect(
-      formatsForMethod(both, "pickup", tierOf, {
-        pottedSeason: true,
-        isPurchasable: all,
-      }),
-    ).toEqual(["Potted"]);
+  it("a potted-only product sells potted in season and nothing out of it", () => {
+    expect(run(["Potted"], "ship", { pottedSeason: true, preorderSeason: true })).toEqual([
+      "Potted",
+    ]);
+    expect(run(["Potted"], "pickup", { pottedSeason: false, preorderSeason: true })).toEqual([]);
   });
 
-  it("pickup falls back to bareroot when potted is sold out in season", () => {
-    const pottedSoldOut = (f: string) => tierOf(f) !== "potted";
-    expect(
-      formatsForMethod(both, "pickup", tierOf, {
-        pottedSeason: true,
-        isPurchasable: pottedSoldOut,
-      }),
-    ).toEqual(["Bareroot"]);
-  });
-
-  it("pickup shows bareroot out of season", () => {
-    expect(
-      formatsForMethod(both, "pickup", tierOf, {
-        pottedSeason: false,
-        isPurchasable: all,
-      }),
-    ).toEqual(["Bareroot"]);
-  });
-
-  it("pickup keeps a potted-only product so the card can show sold out", () => {
-    expect(
-      formatsForMethod(["Potted"], "pickup", tierOf, {
-        pottedSeason: false,
-        isPurchasable: () => false,
-      }),
-    ).toEqual(["Potted"]);
+  it("drops shipped potted when the feed cannot ship it", () => {
+    const o = { pottedSeason: true, preorderSeason: true, pottedShips: false };
+    expect(run(both, "ship", o)).toEqual(["Bareroot"]);
+    expect(run(both, "pickup", o)).toEqual(["Potted", "Bareroot"]);
   });
 
   it("returns nothing for a product without a Format axis", () => {
-    expect(
-      formatsForMethod([], "ship", tierOf, {
-        pottedSeason: true,
-        isPurchasable: all,
-      }),
-    ).toEqual([]);
+    expect(run([], "ship", { pottedSeason: true, preorderSeason: true })).toEqual([]);
   });
 });
 
@@ -125,16 +89,11 @@ describe("methodFormatLabel", () => {
   it("names a shipped potted variant peat and bagged", () => {
     expect(methodFormatLabel("ship", "potted", "Potted")).toBe("Peat & bagged");
   });
-  it("names a pickup bareroot variant bareroot pre-order", () => {
-    expect(methodFormatLabel("pickup", "bareroot", "Peat & bagged")).toBe(
-      "Bareroot pre-order",
-    );
+  it("names the bareroot variant bareroot pre-order for both methods", () => {
+    expect(methodFormatLabel("pickup", "bareroot", "Bareroot")).toBe("Bareroot pre-order");
+    expect(methodFormatLabel("ship", "bareroot", "Bareroot")).toBe("Bareroot pre-order");
   });
-  it("leaves every other combination alone", () => {
-    expect(methodFormatLabel("ship", "bareroot", "Peat & bagged")).toBe(
-      "Peat & bagged",
-    );
-    expect(methodFormatLabel("ship", "bareroot", "Bareroot")).toBe("Bareroot");
+  it("keeps the potted label for pickup", () => {
     expect(methodFormatLabel("pickup", "potted", "Potted")).toBe("Potted");
   });
 });

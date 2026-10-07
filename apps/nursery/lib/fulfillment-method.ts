@@ -9,13 +9,13 @@ import type { FulfillmentPref } from "./fulfillment-pref";
 /**
  * Farm pickup vs Shipped, chosen BEFORE Format on the PDP (Josh 2026-10-07).
  *
- * Odoo holds one potted stock pool. Shipped, a potted tree leaves the pot at
- * packing and travels peat and bagged; picked up, it goes home in the pot. So
- * Shipped never offers a "Potted" card, and Farm pickup shows Potted only in the
- * potted season (feed `leafed_window`, prod May 1 to Oct 15). Outside it, both
- * methods fall to the bareroot variant, whose charge shape is still decided by
- * the GOL-2233 rule in `fulfillment-mode.ts`. Spec: vault "Grove Peat and Bagged
- * Shipping" plus the 2026-10-07 pickup/shipped ruling.
+ * Every plant listing is a Bareroot + Potted pair over one stock pool. The
+ * potted variant is the IMMEDIATE purchase, sold only in the potted season
+ * (feed `leafed_window`, prod May 1 to Oct 15) and charged in full: picked up it
+ * goes home in the pot ("Potted"), shipped it leaves the pot at packing and
+ * travels "Peat & bagged". The bareroot variant is always a pre-order for one
+ * Fall/Spring wave ($10 deposit), offered from Sep 1 (when both waves open) and
+ * for every date outside the potted season. See `preorder-waves.ts`.
  */
 export type FulfillmentMethod = FulfillmentPref;
 
@@ -38,27 +38,25 @@ export function isPottedSeason(
 }
 
 /**
- * The Format values to render for `method`, in display order.
- *  - ship: every non-potted format; a potted-only product keeps its potted
- *    format in season (labelled peat and bagged) and offers nothing out of it.
- *  - pickup: potted formats in season while one is purchasable; otherwise the
- *    non-potted formats; a potted-only product keeps its potted format so the
- *    card can still say sold out.
+ * The Format values to render for `method`, potted (immediate) first, then
+ * bareroot (the pre-order card):
+ *  - in the potted season: potted formats (shipped only when `pottedShips`),
+ *    then bareroot formats once pre-orders are open (on/after Sep 1);
+ *  - outside it: bareroot formats only, for both methods.
+ * A sold-out potted format stays (its card says sold out); before Sep 1 that
+ * means nothing bareroot is offered either, by design.
  */
 export function formatsForMethod(
   formats: string[],
   method: FulfillmentMethod,
   tierOf: (format: string) => ShippingTier,
-  opts: { pottedSeason: boolean; isPurchasable: (format: string) => boolean },
+  opts: { pottedSeason: boolean; preorderSeason: boolean; pottedShips?: boolean },
 ): string[] {
   const potted = formats.filter((f) => tierOf(f) === "potted");
-  const other = formats.filter((f) => tierOf(f) !== "potted");
-  if (method === "ship") {
-    if (other.length > 0) return other;
-    return opts.pottedSeason ? potted : [];
-  }
-  if (opts.pottedSeason && potted.some(opts.isPurchasable)) return potted;
-  return other.length > 0 ? other : potted;
+  const bareroot = formats.filter((f) => tierOf(f) !== "potted");
+  if (!opts.pottedSeason) return bareroot;
+  const immediate = method === "ship" && opts.pottedShips === false ? [] : potted;
+  return opts.preorderSeason ? [...immediate, ...bareroot] : immediate;
 }
 
 /** Card label for a format under the chosen method. */
@@ -67,7 +65,7 @@ export function methodFormatLabel(
   tier: ShippingTier,
   computedLabel: string,
 ): string {
-  if (method === "ship" && tier === "potted") return "Peat & bagged";
-  if (method === "pickup" && tier === "bareroot") return "Bareroot pre-order";
+  if (tier === "bareroot") return "Bareroot pre-order";
+  if (method === "ship") return "Peat & bagged";
   return computedLabel;
 }

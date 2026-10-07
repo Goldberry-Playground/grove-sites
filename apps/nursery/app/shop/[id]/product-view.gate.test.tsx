@@ -6,10 +6,12 @@ import { CartProvider } from "@grove/checkout";
 import { ProductView, type ViewVariant } from "./product-view";
 
 /**
- * Farm pickup / Shipped gate (Josh 2026-10-07 hotfix). Prod template 4
- * (American Persimmon) offered "Potted" as a SHIPPED format: a potted tree ships
- * de-potted as peat and bagged, so Shipped must never show a Potted card, and a
- * potted tree chosen for pickup must be locked to pickup in the cart.
+ * Farm pickup / Shipped gate + Fall/Spring pre-order waves (Josh 2026-10-07).
+ * Prod template 4 (American Persimmon) is a Bareroot + Potted pair. In the
+ * potted season the potted variant is the immediate buy ("Potted" picked up,
+ * "Peat & bagged" shipped); the bareroot variant is the "Bareroot pre-order"
+ * card from Sep 1, and the only card after Oct 15. A potted tree chosen for
+ * pickup is locked to pickup in the cart; a pre-order carries its wave.
  */
 
 vi.mock("next/image", () => ({
@@ -79,7 +81,7 @@ function memoryStorage() {
   };
 }
 
-function cartLines(): Array<{ variantId: number; pickupOnly?: boolean }> {
+function cartLines(): Array<{ variantId: number; pickupOnly?: boolean; wave?: string }> {
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)!;
     const v = localStorage.getItem(k)!;
@@ -110,21 +112,43 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     expect(screen.getByRole("button", { name: /shipped/i })).toBeTruthy();
   });
 
-  it("Shipped never offers a Potted card", () => {
+  it("Oct 7 Shipped: Peat & bagged + Bareroot pre-order, both waves open for zone 8", async () => {
+    const user = userEvent.setup();
     renderPdp();
     const group = within(formatGroup());
-    expect(group.queryByRole("button", { name: /potted/i })).toBeNull();
-    expect(group.getByRole("button", { name: /bareroot/i })).toBeTruthy();
+    expect(group.getByRole("button", { name: /peat & bagged/i })).toBeTruthy();
+    expect(group.queryByRole("button", { name: /^potted/i })).toBeNull();
+    expect(group.getByRole("button", { name: /bareroot pre-order/i })).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText("Your USDA zone"), "8");
+    const fall = group.getByRole("button", { name: /fall wave/i });
+    const spring = group.getByRole("button", { name: /spring wave/i });
+    expect(fall.getAttribute("aria-disabled")).toBe("false");
+    expect(spring.getAttribute("aria-disabled")).toBe("false");
+    expect(fall.textContent).toContain("Approx Nov 9 to Dec 12");
+    expect(fall.textContent).toContain("Order by Nov 21");
+    expect(localStorage.getItem("grove:usda-zone")).toBe("8");
   });
 
-  it("Farm pickup offers Potted in season, without a ship quote", async () => {
+  it("Oct 7 Farm pickup: Potted + Bareroot pre-order, without a ship quote", async () => {
     const user = userEvent.setup();
     renderPdp();
     await user.click(screen.getByRole("button", { name: /farm pickup/i }));
+    expect(screen.queryByLabelText("Your USDA zone")).toBeNull();
     const group = within(formatGroup());
-    const potted = group.getByRole("button", { name: /potted/i });
+    const potted = group.getByRole("button", { name: /^potted/i });
     expect(potted.textContent).not.toMatch(/ship \$|ships from/);
-    expect(group.queryByRole("button", { name: /bareroot/i })).toBeNull();
+    expect(group.getByRole("button", { name: /bareroot pre-order/i }).textContent).toContain(
+      "pick up, we will call you to schedule",
+    );
+    expect(group.getByRole("button", { name: /fall pickup/i })).toBeTruthy();
+    expect(group.getByRole("button", { name: /spring pickup/i })).toBeTruthy();
+  });
+
+  it("states that pre-orders check out on their own", () => {
+    renderPdp();
+    expect(
+      screen.getByText("Pre-orders check out on their own, one wave per order."),
+    ).toBeTruthy();
   });
 
   it("a potted tree added for Farm pickup is locked to pickup in the cart", async () => {
@@ -136,17 +160,65 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     );
     const line = cartLines().find((l) => l.variantId === 91);
     expect(line?.pickupOnly).toBe(true);
+    expect(line?.wave).toBeUndefined();
   });
 
-  it("after Oct 15, Farm pickup offers the bareroot pre-order, not Potted", async () => {
+  it("adding the pre-order passes the chosen wave to the cart line", async () => {
+    const user = userEvent.setup();
+    renderPdp();
+    await user.selectOptions(screen.getByLabelText("Your USDA zone"), "8");
+    await user.click(screen.getByRole("button", { name: /spring wave/i }));
+    await user.click(screen.getAllByRole("button", { name: /pre-order for \$10/i })[0]);
+    const line = cartLines().find((l) => l.variantId === 92);
+    expect(line?.wave).toBe("spring");
+  });
+
+  it("the pre-order CTA waits for a zone when shipped", async () => {
+    const user = userEvent.setup();
+    renderPdp();
+    await user.click(
+      within(formatGroup()).getByRole("button", { name: /bareroot pre-order/i }),
+    );
+    expect(screen.getByText(/choose your usda zone above/i)).toBeTruthy();
+    const cta = screen.getAllByRole("button", { name: /pre-order for \$10/i })[0];
+    expect((cta as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("after Oct 15 both methods offer only the bareroot pre-order", async () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12)));
     const user = userEvent.setup();
     renderPdp();
-    await user.click(screen.getByRole("button", { name: /farm pickup/i }));
+    for (const m of [/shipped/i, /farm pickup/i]) {
+      await user.click(screen.getByRole("button", { name: m }));
+      const group = within(formatGroup());
+      expect(group.queryByRole("button", { name: /potted|peat & bagged/i })).toBeNull();
+      expect(group.getByRole("button", { name: /bareroot pre-order/i })).toBeTruthy();
+    }
+  });
+
+  it("Nov 22 zone 8: fall greyed with Order-by passed, spring selectable", async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 22, 12)));
+    localStorage.setItem("grove:usda-zone", "8");
+    const user = userEvent.setup();
+    renderPdp();
     const group = within(formatGroup());
-    expect(group.queryByRole("button", { name: /potted/i })).toBeNull();
-    expect(
-      group.getByRole("button", { name: /bareroot pre-order/i }),
-    ).toBeTruthy();
+    const fall = group.getByRole("button", { name: /fall wave/i });
+    expect(fall.getAttribute("aria-disabled")).toBe("true");
+    expect(fall.textContent).toContain("Order-by passed");
+    const spring = group.getByRole("button", { name: /spring wave/i });
+    expect(spring.getAttribute("aria-disabled")).toBe("false");
+    await user.click(fall);
+    expect(fall.getAttribute("aria-pressed")).toBe("false");
+    expect(spring.getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getAllByRole("button", { name: /pre-order for \$10/i })[0]);
+    expect(cartLines().find((l) => l.variantId === 92)?.wave).toBe("spring");
+  });
+
+  it("Aug 31: no pre-order card yet", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 31, 12)));
+    renderPdp();
+    const group = within(formatGroup());
+    expect(group.queryByRole("button", { name: /bareroot pre-order/i })).toBeNull();
+    expect(group.getByRole("button", { name: /peat & bagged/i })).toBeTruthy();
   });
 });
