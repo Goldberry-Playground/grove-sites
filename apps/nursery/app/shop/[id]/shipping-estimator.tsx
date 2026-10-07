@@ -9,6 +9,8 @@ import {
   ZONE_RATE_TABLE,
   SNAPSHOT_ZONE_MAP,
   estimateTierShipping,
+  handlingFee,
+  hasBoxFeed,
   shipsTo,
   type RateTable,
   type ZoneMap,
@@ -170,6 +172,16 @@ export function ShippingEstimator({
   // count (GOL-2292) — the interactive panel reflects the live backend, unlike
   // the static marketing pages that keep the module-level GREEN_STATE_COUNT.
   const greenCount = zoneMap.greenStates.length || GREEN_STATE_COUNT;
+  // The once-per-order S&H fee (GOL-2923) is folded into every box-feed quote
+  // below, because each quote prices a one-unit order. Say so in words: a
+  // shopper adding a second tree should know the $5 doesn't repeat, which is
+  // the part a per-unit "from $X" can't carry on its own (GOL-3188). Zero on a
+  // feed predating GOL-2923, whose cells still carry handling, so no line.
+  const fee = hasBoxFeed(feed) ? handlingFee(feed) : 0;
+  const handlingLabel = Number.isInteger(fee)
+    ? `$${fee}`
+    : `$${fee.toFixed(2)}`;
+  const anyQuoted = tiers.some((t) => !t.pickupOnly);
 
   return (
     <section
@@ -281,7 +293,11 @@ export function ShippingEstimator({
             </ul>
             <p className="mt-2 text-xs text-foreground/55">
               Estimated UPS Ground, priced per box — your trees ship together in as few
-              boxes as possible. Your exact rate is confirmed at checkout.
+              boxes as possible.
+              {fee > 0 && anyQuoted && (
+                <> Includes our {handlingLabel} handling fee, charged once per order.</>
+              )}{" "}
+              Your exact rate is confirmed at checkout.
             </p>
           </div>
         )}
