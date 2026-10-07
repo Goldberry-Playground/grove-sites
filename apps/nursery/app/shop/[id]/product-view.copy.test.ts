@@ -77,7 +77,7 @@ describe("preorder-card.tsx: wave card copy (2026-10-07 waves hotfix)", () => {
       "Pre-order",
       "$10 deposit today",
       "balance when it ships",
-      "pick up, we will call you to schedule",
+      "$10 deposit today · pick up, we will call you to schedule",
       "Fall wave",
       "Spring wave",
       "Fall pickup",

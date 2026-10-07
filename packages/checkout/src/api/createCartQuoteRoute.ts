@@ -42,6 +42,36 @@ export interface CartQuoteRouteOptions<Quote> {
   preferBackend?: boolean;
 }
 
+/** Flat per-order pre-order deposit in dollars (backend `PREORDER_DEPOSIT`). */
+export const WAVE_PREORDER_DEPOSIT = 10;
+
+/**
+ * The fallback answer for a wave cart when the backend quote is unavailable.
+ * A wave cart is always a pre-order: one flat $10 deposit today, whatever the
+ * stock. `estimated: true` marks it as the storefront's own estimate, so it is
+ * display-only: the checkout guard (`preorderDepositConfirmed`) never treats it
+ * as the backend confirming the deposit, and submit stays blocked.
+ */
+export interface EstimatedWaveQuote {
+  depositNow: true;
+  depositReason: "preorder";
+  shipWave: ShipWave;
+  depositAmount: number;
+  amountDueToday: number;
+  estimated: true;
+}
+
+function estimatedWaveQuote(shipWave: ShipWave): EstimatedWaveQuote {
+  return {
+    depositNow: true,
+    depositReason: "preorder",
+    shipWave,
+    depositAmount: WAVE_PREORDER_DEPOSIT,
+    amountDueToday: WAVE_PREORDER_DEPOSIT,
+    estimated: true,
+  };
+}
+
 const MAX_ITEMS = 50;
 const MAX_QUANTITY = 9999;
 
@@ -142,6 +172,11 @@ export function createCartQuoteRoute<Quote>(
         }
       }
     }
+
+    // A wave cart is a pre-order by definition; the brand rule only knows the
+    // stock / cutover triggers and would estimate it as charged in full while
+    // the page says $10 deposit. Answer with the (display-only) wave estimate.
+    if (waveChoice) return NextResponse.json(estimatedWaveQuote(waveChoice));
 
     // One catalog read per distinct template; every line of that template
     // resolves from the same payload.

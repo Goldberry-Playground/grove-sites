@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PREORDER_CTA, prepareWavePreorder } from "./helpers";
 import { catalogCards, readShopGrid } from "./qa-helpers";
 
 /**
@@ -12,7 +13,8 @@ import { catalogCards, readShopGrid } from "./qa-helpers";
  *
  * Contract asserted:
  *   - the /shop grid's stock line and each PDP's buy box agree with
- *     lib/buy-state.ts: an "In stock" card opens to an enabled "Add to Cart";
+ *     lib/buy-state.ts: an "In stock" card opens to an enabled "Add to cart"
+ *     (or, for a bareroot listing, "Pre-order for $10" once an open wave is chosen);
  *     a "Sold out" card opens to a disabled "Sold out" CTA;
  *   - on an UNAVAILABLE PDP the restock capture ("Notify me when it's back")
  *     renders and the footer newsletter is suppressed;
@@ -25,7 +27,7 @@ import { catalogCards, readShopGrid } from "./qa-helpers";
 const RESTOCK_RE = /Notify me when it's (back|available)/;
 
 test.describe("shop — buy state + capture arbitration", () => {
-  test("an in-stock product: enabled Add to Cart, no restock capture, footer newsletter present", async ({
+  test("an in-stock product: enabled buy CTA, no restock capture, footer newsletter present", async ({
     page,
   }) => {
     const cards = catalogCards(await readShopGrid(page));
@@ -34,8 +36,15 @@ test.describe("shop — buy state + capture arbitration", () => {
 
     await page.goto(inStock!.href);
     const anchor = page.locator("[data-add-to-cart-anchor]");
-    const cta = anchor.getByRole("button", { name: /^(Add to Cart|Reserve)$/ });
+    const cta = anchor.getByRole("button", {
+      name: /^(Add to cart|Pre-order for \$10|Reserve for farm pickup)$/,
+    });
     await expect(cta.first()).toBeVisible();
+    // A bareroot pre-order CTA enables only once an open wave is chosen.
+    if ((await cta.first().innerText()).trim() === PREORDER_CTA) {
+      const wave = await prepareWavePreorder(page);
+      test.skip(wave === null, "the in-stock listing is a bareroot pre-order with no open zone 6 wave today (real date)");
+    }
     await expect(cta.first()).toBeEnabled();
 
     // Available → nothing higher than newsletter registers.
@@ -74,7 +83,7 @@ test.describe("shop — buy state + capture arbitration", () => {
     await page.goto(soldOut!.href);
     const anchor = page.locator("[data-add-to-cart-anchor]");
     // A sold-out (or cap-reached) product must never offer a live buy CTA.
-    await expect(anchor.getByRole("button", { name: "Add to Cart", exact: true })).toHaveCount(0);
+    await expect(anchor.getByRole("button", { name: "Add to cart", exact: true })).toHaveCount(0);
     const soldOutCta = anchor.getByRole("button", { name: /^(Sold out|Coming soon)$/ });
     if ((await soldOutCta.count()) > 0) await expect(soldOutCta.first()).toBeDisabled();
     // "Sold out" is carried in words on the stock line, never colour alone.

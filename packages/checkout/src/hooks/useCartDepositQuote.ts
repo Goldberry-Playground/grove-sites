@@ -10,6 +10,10 @@ export interface CartDepositQuote {
   depositReason: "sold-out" | "off-season" | "preorder" | null;
   shipWave?: ShipWave | null;
   amountDueToday: number | null;
+  /** Set by the storefront quote route when the backend quote was unavailable
+   *  and this is its own catalog estimate (display only, never confirms a
+   *  pre-order deposit). Absent on a backend-confirmed quote. */
+  estimated?: boolean;
 }
 
 export type QuoteFulfillment = "ship" | "pickup";
@@ -42,6 +46,12 @@ export interface CartDepositQuoteState {
    * and blocks submit, because the session would be refused for the same reason.
    */
   error: string | null;
+  /**
+   * True when the last quote attempt failed without a shopper-facing reason (a
+   * non-400 error, a malformed body, or a network failure), so the charge mode
+   * is unknown and will stay unknown until the cart or fulfillment changes.
+   */
+  failed: boolean;
 }
 
 /**
@@ -68,6 +78,7 @@ export function useCartDepositQuote(
   const [quote, setQuote] = useState<CartDepositQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
+  const [failed, setFailed] = useState(false);
   // Serialize the inputs so the effect keys on cart CONTENT, not array identity.
   const key = JSON.stringify({
     items: items.map((i) => ({ variantId: i.variantId, templateId: i.templateId, quantity: i.quantity })),
@@ -80,11 +91,13 @@ export function useCartDepositQuote(
       // No charge rule to quote — a definite "no deposit", so callers may act.
       setQuote(null);
       setError(null);
+      setFailed(false);
       setSettled(true);
       return;
     }
     // A fresh quote is in flight; hold any deposit-conditioned UI until it lands.
     setSettled(false);
+    setFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -112,6 +125,7 @@ export function useCartDepositQuote(
             }
           } else {
             setError(null);
+            setFailed(true);
           }
           return;
         }
@@ -122,9 +136,13 @@ export function useCartDepositQuote(
           setSettled(true);
         } else {
           setQuote(null);
+          setFailed(true);
         }
       } catch {
-        if (!controller.signal.aborted) setQuote(null);
+        if (!controller.signal.aborted) {
+          setQuote(null);
+          setFailed(true);
+        }
       }
     }, DEBOUNCE_MS);
     return () => {
@@ -135,5 +153,5 @@ export function useCartDepositQuote(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, key]);
 
-  return { quote, settled, error };
+  return { quote, settled, error, failed };
 }

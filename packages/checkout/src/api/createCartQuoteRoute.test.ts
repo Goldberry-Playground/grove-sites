@@ -206,4 +206,44 @@ describe("createCartQuoteRoute — pre-order waves", () => {
     expect(resolve).not.toHaveBeenCalled();
     expect(get).not.toHaveBeenCalled();
   });
+
+  it("falls back to a display-only $10 pre-order estimate for a wave cart on a non-400 failure", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { odoo, get } = fakeOdoo(undefined, async () => {
+      throw new OdooApiError(502, "Odoo API error: 502", "");
+    });
+    const resolve = vi.fn(() => ({ depositNow: false, depositReason: null, amountDueToday: null }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve });
+    const res = await POST(postReq({ items, fulfillment: "pickup", shipWave: "spring" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      depositNow: true,
+      depositReason: "preorder",
+      shipWave: "spring",
+      depositAmount: 10,
+      amountDueToday: 10,
+      estimated: true,
+    });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("uses the wave estimate when the backend predates the quote route (404) too", async () => {
+    const { odoo } = fakeOdoo();
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve });
+    const body = await (await POST(postReq({ items, shipWave: "fall" }))).json();
+    expect(body).toMatchObject({ depositNow: true, depositReason: "preorder", shipWave: "fall", amountDueToday: 10, estimated: true });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it("returns the backend quote unmarked (not estimated) when it answers", async () => {
+    const waved = { ...backendQuote, depositReason: "preorder" as const, shipWave: "fall" as const };
+    const { odoo } = fakeOdoo(undefined, async () => waved);
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const body = await (await POST(postReq({ items, shipWave: "fall" }))).json();
+    expect(body).toEqual(waved);
+    expect("estimated" in body).toBe(false);
+  });
 });

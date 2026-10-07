@@ -39,7 +39,7 @@ describe("<CartPage /> — order type and pre-order deposit", () => {
     const spy = mockFetch({ depositNow: true, depositReason: "preorder", shipWave: "fall", amountDueToday: 10 });
     renderCart();
     expect((await screen.findByTestId("order-type")).textContent).toBe(
-      "Pre-order · fall wave · $10 deposit today, balance when your trees ship",
+      "Pre-order · fall wave · $10 deposit today, balance when your trees ship or when you pick up",
     );
     expect(await screen.findByText("Due today (pre-order deposit)")).toBeTruthy();
     const quoteCall = spy.mock.calls.find((c) => String(c[0]).includes("quote"))!;
@@ -61,7 +61,9 @@ describe("<CartPage /> — order type and pre-order deposit", () => {
     mockFetch({ depositNow: true, depositReason: "off-season", amountDueToday: 10 });
     renderCart();
     await waitFor(() =>
-      expect(screen.getByTestId("order-type").textContent).toBe("Pre-order · $10 deposit today, balance when your trees ship"),
+      expect(screen.getByTestId("order-type").textContent).toBe(
+        "Pre-order · $10 deposit today, balance when your trees ship or when you pick up",
+      ),
     );
   });
 
@@ -71,5 +73,31 @@ describe("<CartPage /> — order type and pre-order deposit", () => {
     renderCart();
     expect((await screen.findByRole("alert")).textContent).toMatch(/^Pre-orders check out on their own/);
     expect(screen.queryByTestId("order-type")).toBeNull();
+  });
+
+  it("says pick up for an all-pickup-only pre-order cart", async () => {
+    seed([{ ...line(1, "fall"), pickupOnly: true }]);
+    mockFetch({ depositNow: true, depositReason: "preorder", shipWave: "fall", amountDueToday: 10 });
+    renderCart();
+    expect((await screen.findByTestId("order-type")).textContent).toBe(
+      "Pre-order · fall wave · $10 deposit today, balance when you pick up",
+    );
+  });
+
+  it("shows no deposit warning when the backend confirms the wave", async () => {
+    seed([line(1, "fall")]);
+    mockFetch({ depositNow: true, depositReason: "preorder", shipWave: "fall", amountDueToday: 10 });
+    renderCart();
+    expect(await screen.findByText("Due today (pre-order deposit)")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("warns when an older backend does not echo the wave (would charge in full)", async () => {
+    seed([line(1, "fall")]);
+    mockFetch({ depositNow: false, depositReason: null, shipWave: null, amountDueToday: null });
+    renderCart();
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "We could not confirm your pre-order deposit. Please try again shortly.",
+    );
   });
 });

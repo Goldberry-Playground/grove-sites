@@ -130,4 +130,65 @@ describe("<CheckoutPage /> — pre-order wave", () => {
       ),
     );
   });
+
+  describe("pre-order deposit confirmation (older backend guard)", () => {
+    const UNCONFIRMED = "We could not confirm your pre-order deposit. Please try again shortly.";
+    async function renderWith(quote: unknown, status = 200) {
+      seed([line(1, "fall")]);
+      const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(quote, status));
+      render(
+        <CartProvider>
+          <CheckoutPage depositQuoteHref="/api/cart/quote" />
+        </CartProvider>,
+      );
+      await screen.findByLabelText(/Full name/);
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+      return spy;
+    }
+
+    it("allows submit when the backend echoes the same wave with depositNow", async () => {
+      await renderWith({ depositNow: true, depositReason: "preorder", shipWave: "fall", amountDueToday: 10 });
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("blocks submit when an older backend ignores the wave (no shipWave echo)", async () => {
+      await renderWith({ depositNow: false, depositReason: null, amountDueToday: null });
+      expect((await screen.findByRole("alert")).textContent).toBe(UNCONFIRMED);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+
+    it("blocks submit when the quote echoes a different wave", async () => {
+      await renderWith({ depositNow: true, depositReason: "preorder", shipWave: "spring", amountDueToday: 10 });
+      expect((await screen.findByRole("alert")).textContent).toBe(UNCONFIRMED);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+
+    it("blocks submit when the wave is echoed but depositNow is false", async () => {
+      await renderWith({ depositNow: false, depositReason: null, shipWave: "fall", amountDueToday: null });
+      expect((await screen.findByRole("alert")).textContent).toBe(UNCONFIRMED);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+
+    it("blocks submit on the route's display-only fallback estimate", async () => {
+      await renderWith({
+        depositNow: true,
+        depositReason: "preorder",
+        shipWave: "fall",
+        depositAmount: 10,
+        amountDueToday: 10,
+        estimated: true,
+      });
+      expect((await screen.findByRole("alert")).textContent).toBe(UNCONFIRMED);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+      // The estimate still shows the $10 due today (display only).
+      expect(screen.getAllByText(/\$10\.00/).length).toBeGreaterThan(0);
+    });
+
+    it("blocks submit and says so when the quote fails outright (5xx)", async () => {
+      await renderWith({ error: "upstream" }, 502);
+      expect((await screen.findByRole("alert")).textContent).toBe(UNCONFIRMED);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+  });
 });

@@ -4,6 +4,7 @@ import {
   expectOnReview,
   fillCheckoutForm,
   findProductByCta,
+  findProductByCtaOrNull,
   submitAndCaptureSession,
   submitCheckoutForm,
   usd,
@@ -38,7 +39,7 @@ const PROMO_NOT_PROVISIONED_REASON = `promo code "${PROMO}" not provisioned on t
 
 test.describe("checkout — promo code", () => {
   test("promo input is offered and upper-cases the entry", async ({ page }) => {
-    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
+    const product = await findProductByCta(page, ["Add to cart", "Pre-order for $10"]);
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, product.buyLabel);
     await page.goto("/checkout");
@@ -54,11 +55,16 @@ test.describe("checkout — promo code", () => {
   test("a promo on a deposit (preorder) cart is rejected server-side and surfaced", async ({
     page,
   }) => {
-    // A Reserve line makes the cart a deposit cart; grove_headless refuses promo
+    // A wave pre-order makes the cart a deposit cart; grove_headless refuses promo
     // codes on those ("Promo codes can't be applied to preorder (deposit) carts").
-    const reserve = await findProductByCta(page, "Reserve");
+    const reserve = await findProductByCtaOrNull(page, "Pre-order for $10");
+    test.skip(
+      reserve === null,
+      "no bareroot listing with an open zone 6 pre-order wave on this target today (real date)",
+    );
+    if (!reserve) return;
     await page.goto(reserve.href);
-    await addCurrentProductToCart(page, 1, "Reserve");
+    await addCurrentProductToCart(page, 1, "Pre-order for $10", { wave: reserve.wave });
     await page.goto("/checkout");
     await fillCheckoutForm(page, { state: "WV" });
     await fillPromoCode(page, PROMO);
@@ -86,9 +92,9 @@ test.describe("checkout — promo code", () => {
       // GOL-2233 season cutover; after it every order is a flat-deposit cart, and
       // the deposit-rejection test above is the relevant one.
       test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-      const product = await findProductByCta(page, "Add to Cart");
+      const product = await findProductByCta(page, "Add to cart");
       await page.goto(product.href);
-      await addCurrentProductToCart(page, 1, "Add to Cart");
+      await addCurrentProductToCart(page, 1, "Add to cart");
       await page.goto("/checkout");
       await fillCheckoutForm(page, { state: "WV" });
       await fillPromoCode(page, PROMO);

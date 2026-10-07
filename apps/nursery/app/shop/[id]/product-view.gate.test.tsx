@@ -151,6 +151,10 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     expect(group.getByRole("button", { name: /peat & bagged/i })).toBeTruthy();
     expect(group.queryByRole("button", { name: /^potted/i })).toBeNull();
     expect(group.getByRole("button", { name: /bareroot pre-order/i })).toBeTruthy();
+    // Shipped keeps the price in front of the deposit line.
+    expect(
+      group.getByRole("button", { name: /bareroot pre-order/i }).querySelector("span.block.text-xs")?.textContent,
+    ).toMatch(/^\$\d+\.\d{2} · \$10 deposit today · balance when it ships$/);
     await user.selectOptions(screen.getByLabelText("Your USDA zone"), "8");
     const fall = group.getByRole("button", { name: /fall wave/i });
     const spring = group.getByRole("button", { name: /spring wave/i });
@@ -169,8 +173,10 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     const group = within(formatGroup());
     const potted = group.getByRole("button", { name: /^potted/i });
     expect(potted.textContent).not.toMatch(/ship \$|ships from/);
-    expect(group.getByRole("button", { name: /bareroot pre-order/i }).textContent).toContain(
-      "pick up, we will call you to schedule",
+    const pickupCard = group.getByRole("button", { name: /bareroot pre-order/i });
+    // Exactly the pickup subline, no price prefix (M4).
+    expect(pickupCard.querySelector("span.block.text-xs")?.textContent).toBe(
+      "$10 deposit today · pick up, we will call you to schedule",
     );
     expect(group.getByRole("button", { name: /fall pickup/i })).toBeTruthy();
     expect(group.getByRole("button", { name: /spring pickup/i })).toBeTruthy();

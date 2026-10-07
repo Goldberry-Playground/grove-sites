@@ -77,7 +77,7 @@ test.describe("qa gate — backend health", () => {
     // the BFF's response shape. Both a created order and a validation 400 are
     // healthy; a non-JSON body or a 5xx is the incident signature.
     const { failures } = collectFailures(page);
-    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
+    const product = await findProductByCta(page, ["Add to cart", "Pre-order for $10"]);
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, product.buyLabel);
     await page.goto("/checkout");

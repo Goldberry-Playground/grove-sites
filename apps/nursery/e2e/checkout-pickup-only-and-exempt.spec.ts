@@ -41,7 +41,7 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
   test("an exempt bundle with an Ohio address reaches Review & pay", async ({ page }) => {
     // Any shippable buy CTA: a bundle can be in stock or reservable, but it must
     // not be pickup-only (that is the other test's subject and a different gate).
-    const product = await findProductByCtaOrNull(page, ["Add to Cart", "Reserve"], {
+    const product = await findProductByCtaOrNull(page, ["Add to cart", "Pre-order for $10"], {
       nameMatch: /remembrance grove/i,
     });
     test.skip(

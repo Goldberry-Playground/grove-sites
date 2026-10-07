@@ -3,7 +3,12 @@
 import { CartPage as UICartPage } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { orderKind, orderWave } from "../cart-reducer";
-import { MIXED_CART_MESSAGE, orderTypeLine } from "../order-type";
+import {
+  MIXED_CART_MESSAGE,
+  PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
+  orderTypeLine,
+  preorderDepositConfirmed,
+} from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -45,14 +50,29 @@ export function CartPage({
     quote: depositQuote,
     settled: depositSettled,
     error: quoteError,
+    failed: quoteFailed,
   } = useCartDepositQuote(depositQuoteHref, items, undefined, shipWave);
+  // The cart page has no ship / pickup choice yet: an all-pickup-only cart is
+  // pickup, anything else reads neutrally (never "when your trees ship" for an
+  // order that may be picked up).
+  const allPickupOnly = items.length > 0 && items.every((i) => i.pickupOnly === true);
   const orderTypeText = orderTypeLine({
     kind,
     wave: shipWave,
     depositNow: depositQuote?.depositNow === true,
-    pickup: false,
+    pickup: allPickupOnly ? true : null,
   });
-  const blockingMessage = mixedCart ? MIXED_CART_MESSAGE : quoteError;
+  // Same guard as the checkout form: a pre-order the backend has not confirmed
+  // as a $10 deposit for this wave (older backend, or the route's estimate).
+  const preorderUnconfirmed =
+    hydrated &&
+    kind === "preorder" &&
+    quoteError === null &&
+    (depositSettled || quoteFailed) &&
+    !preorderDepositConfirmed(depositQuote, shipWave);
+  const blockingMessage = mixedCart
+    ? MIXED_CART_MESSAGE
+    : quoteError ?? (preorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
   const dueToday = dueTodayFor(depositQuote);
   // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
   // nudge only once the quote confirms a charged-in-full cart — never while the

@@ -13,7 +13,12 @@ import {
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
 import { orderKind, orderWave } from "../cart-reducer";
-import { MIXED_CART_MESSAGE, orderTypeLine } from "../order-type";
+import {
+  MIXED_CART_MESSAGE,
+  PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
+  orderTypeLine,
+  preorderDepositConfirmed,
+} from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -151,8 +156,18 @@ export function CheckoutPage({
     quote: depositQuote,
     settled: depositSettled,
     error: quoteError,
+    failed: quoteFailed,
   } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave);
-  const blocked = mixedCart || quoteError !== null;
+  // A pre-order may only start a session once the BACKEND has confirmed the $10
+  // deposit for this wave. An older backend ignores `ship_wave` and would charge
+  // in full under a "$10 deposit" page; the quote route's catalog fallback is
+  // display-only. Submit stays off while the quote is in flight; the message
+  // shows once it has landed (or failed) without that confirmation.
+  const preorderCart = hydrated && kind === "preorder";
+  const preorderUnconfirmed =
+    preorderCart && quoteError === null && !preorderDepositConfirmed(depositQuote, shipWave);
+  const showPreorderUnconfirmed = preorderUnconfirmed && (depositSettled || quoteFailed);
+  const blocked = mixedCart || quoteError !== null || preorderUnconfirmed;
   const dueToday = dueTodayFor(depositQuote);
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
@@ -287,7 +302,7 @@ export function CheckoutPage({
   });
   const blockingMessage = mixedCart
     ? MIXED_CART_MESSAGE
-    : quoteError;
+    : quoteError ?? (showPreorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
 
   return (
     <WithGroveNext>

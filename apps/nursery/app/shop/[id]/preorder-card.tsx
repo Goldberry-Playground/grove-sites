@@ -11,7 +11,7 @@ import {
 
 export interface PreorderCardProps {
   method: FulfillmentMethod;
-  /** Variant price, shown before the deposit line. */
+  /** Variant price, shown before the deposit line when shipped (not for pickup). */
   price: number | null;
   /** The bareroot format is the selected Format. */
   selected: boolean;
@@ -49,13 +49,14 @@ export function PreorderCard({
   const chosen = waves.find((w) => w.wave === wave && w.open) ?? null;
   const needsZone = method === "ship" && zone == null;
   const greyed = !needsZone && !anyOpen;
-  const subline = [
-    price != null ? `$${price.toFixed(2)}` : null,
-    "$10 deposit today",
-    method === "pickup" ? "pick up, we will call you to schedule" : "balance when it ships",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Pickup reads exactly "$10 deposit today · pick up, we will call you to
+  // schedule" (no price prefix); shipped keeps the variant price in front.
+  const subline =
+    method === "pickup"
+      ? "$10 deposit today · pick up, we will call you to schedule"
+      : [price != null ? `$${price.toFixed(2)}` : null, "$10 deposit today", "balance when it ships"]
+          .filter(Boolean)
+          .join(" · ");
 
   return (
     <div
