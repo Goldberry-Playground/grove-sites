@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "../Button";
 import { TierNudge } from "../TierNudge";
@@ -211,6 +211,12 @@ export interface CheckoutPageProps {
    */
   onFulfillmentChange?: (fulfillment: GroveFulfillment) => void;
   /**
+   * Fired on every edit of the ship-to ZIP, with the raw field value, so the
+   * consumer can re-quote against the destination once the ZIP is complete
+   * (a pre-order wave is validated against the destination's zone).
+   */
+  onShippingZipChange?: (zip: string) => void;
+  /**
    * Lock fulfillment to pickup because the cart cannot be shipped at all — it
    * holds at least one farm-pickup-only line (GOL-2588). The Fulfillment
    * fieldset then offers pickup ALONE (a disabled "Ship to me" would be a dead
@@ -239,6 +245,12 @@ export interface CheckoutPageProps {
    * only keeps the buyer from posting an order that is certain to be refused.
    */
   submitDisabled?: boolean;
+  /**
+   * Order-level notices the host owns (the order type, a refusal that blocks
+   * submit, a fix for it), rendered under the page title so they sit inside the
+   * page grid, ahead of the form they govern.
+   */
+  notice?: ReactNode;
 }
 
 /**
@@ -312,9 +324,11 @@ export function CheckoutPage({
   tierNudge = null,
   dueToday = null,
   onFulfillmentChange,
+  onShippingZipChange,
   forcePickup = false,
   forcePickupNote,
   submitDisabled = false,
+  notice,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -547,6 +561,7 @@ export function CheckoutPage({
 
       <div className="grove-checkout">
         <h1 className="grove-checkout__title">Checkout</h1>
+        {notice ? <div className="grove-checkout__notice">{notice}</div> : null}
 
         <form ref={formRef} onSubmit={handleSubmit} className="grove-checkout__grid">
           <div className="grove-checkout__col">
@@ -723,7 +738,10 @@ export function CheckoutPage({
                   label="ZIP"
                   required
                   value={shipping.zip}
-                  onChange={(v) => setShipping({ ...shipping, zip: v })}
+                  onChange={(v) => {
+                    setShipping({ ...shipping, zip: v });
+                    onShippingZipChange?.(v);
+                  }}
                   autoComplete="postal-code"
                 />
                 <SelectField
