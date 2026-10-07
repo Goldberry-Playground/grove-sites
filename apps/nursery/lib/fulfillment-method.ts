@@ -1,4 +1,8 @@
-import type { MonthDay, ShippingCalendar, ShippingTier } from "@grove/odoo-client";
+import type {
+  MonthDay,
+  ShippingCalendar,
+  ShippingTier,
+} from "@grove/odoo-client";
 import { monthDayOf } from "./fulfillment-mode";
 import type { FulfillmentPref } from "./fulfillment-pref";
 
@@ -24,7 +28,10 @@ export const POTTED_SEASON_FALLBACK: [MonthDay, MonthDay] = [
 const ord = (md: MonthDay) => md[0] * 100 + md[1];
 
 /** Is `date` (UTC month/day) inside the potted season, endpoints inclusive? */
-export function isPottedSeason(date: Date, calendar?: ShippingCalendar | null): boolean {
+export function isPottedSeason(
+  date: Date,
+  calendar?: ShippingCalendar | null,
+): boolean {
   const [start, end] = calendar?.leafed_window ?? POTTED_SEASON_FALLBACK;
   const d = ord(monthDayOf(date));
   return d >= ord(start) && d <= ord(end);

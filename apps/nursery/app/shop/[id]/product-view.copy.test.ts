@@ -41,3 +41,23 @@ describe("product-view.tsx — customer-facing copy honours the no-em-dash rule 
     ).toEqual([]);
   });
 });
+
+describe("product-view.tsx — pickup / shipped gate (2026-10-07 hotfix)", () => {
+  const src = stripComments(readFileSync(SOURCE, "utf8"));
+
+  it("renders the method selector before Format", () => {
+    expect(src).toContain("How do you want it?");
+    expect(src).toContain("Farm pickup");
+    expect(src).toContain("Shipped");
+    expect(src.indexOf("How do you want it?")).toBeLessThan(src.indexOf(">Format<"));
+  });
+
+  it("filters formats through formatsForMethod and relabels by method", () => {
+    expect(src).toContain("formatsForMethod(");
+    expect(src).toContain("methodFormatLabel(");
+  });
+
+  it("locks a pickup-chosen potted line to pickup in the cart", () => {
+    expect(src).toMatch(/method === "pickup" && selectedTier === "potted"/);
+  });
+});

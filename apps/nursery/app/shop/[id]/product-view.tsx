@@ -43,11 +43,13 @@ import {
   type FulfillmentResolution,
 } from "../../../lib/fulfillment-mode";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
+import { readFulfillmentPref, writeFulfillmentPref } from "../../../lib/fulfillment-pref";
 import {
-  formatForPref,
-  readFulfillmentPref,
-  writeFulfillmentPref,
-} from "../../../lib/fulfillment-pref";
+  formatsForMethod,
+  isPottedSeason,
+  methodFormatLabel,
+  type FulfillmentMethod,
+} from "../../../lib/fulfillment-method";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import {
   evaluateCompliance,
@@ -220,9 +222,27 @@ export function ProductView({
   const [cultivar, setCultivar] = useState<string | null>(() =>
     defaultCultivar(variants, cultivars, isPurchasable, isInStock),
   );
-  const formats = useMemo(() => formatOptions(variants, cultivar), [variants, cultivar]);
+  // Farm pickup vs Shipped comes BEFORE Format (Josh 2026-10-07): Shipped never
+  // offers a Potted card, and Farm pickup shows Potted only in the potted season.
+  // SSR opens on "ship"; the mount effect below restores the remembered intent.
+  const [method, setMethod] = useState<FulfillmentMethod>("ship");
+  const pottedSeason = isPottedSeason(new Date(), shippingFeed?.calendar ?? null);
+  const tierOfFormat = (c: string | null, f: string): ShippingTier =>
+    tierFor({
+      shippingTier: pickVariant(variants, { cultivar: c, format: f })?.shippingTier ?? null,
+      format: f,
+    });
+  const formatsFor = (m: FulfillmentMethod, c: string | null): string[] =>
+    formatsForMethod(formatOptions(variants, c), m, (f) => tierOfFormat(c, f), {
+      pottedSeason,
+      isPurchasable: (f) => isPurchasable(pickVariant(variants, { cultivar: c, format: f })),
+    });
+  const formats = useMemo(
+    () => formatsFor(method, cultivar),
+    [variants, cultivar, method, pottedSeason],
+  );
   const [format, setFormat] = useState<string | null>(() =>
-    defaultFormat(variants, formats, cultivar, isPurchasable, isInStock),
+    defaultFormat(variants, formatsFor("ship", cultivar), cultivar, isPurchasable, isInStock),
   );
   const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
   const [rootstock, setRootstock] = useState<string | null>(() =>
@@ -236,41 +256,12 @@ export function ProductView({
   // the SAME count — tapping the bar no longer silently adds just 1 (GOL-1055).
   const [quantity, setQuantity] = useState(1);
 
-  // Is a given Format farm-pickup-only under today's Box Engine feed? Shared by
-  // the ship-vs-pickup preference persist (on click) and restore (on mount) so
-  // both read "shippable vs pickup" the exact same way the buy box does above.
-  const formatPickupOnly = (f: string | null): boolean =>
-    f != null &&
-    isPickupOnly(
-      tierFor({
-        shippingTier: pickVariant(variants, { cultivar, format: f })?.shippingTier ?? null,
-        format: f,
-      }),
-      shippingFeed,
-      pickupOnly,
-    );
-  const formatPurchasable = (f: string): boolean =>
-    isPurchasable(pickVariant(variants, { cultivar, format: f }));
-
-  // Bias the opening Format toward the shopper's remembered ship-vs-pickup
-  // intent (GOL-2089): if they last chose a shipped format on another PDP, open
-  // a shippable format here (and symmetrically for pickup) — but only when the
-  // neutral default's intent actually differs and a *purchasable* format of the
-  // wanted intent exists. Client-only and mount-once (SSR renders the neutral
-  // GOL-1862 default, so hydration is unchanged); a later explicit click always
-  // wins because the parent owns `format` after this runs.
+  // Restore the shopper's remembered ship-vs-pickup intent (GOL-2089) as the
+  // METHOD. Client-only and mount-once, so SSR hydrates on the neutral "ship"
+  // default; an explicit click always wins afterwards.
   useEffect(() => {
     const pref = readFulfillmentPref();
-    if (!pref) return;
-    const wantPickup = pref === "pickup";
-    if (format != null && formatPickupOnly(format) === wantPickup) return; // already aligned
-    const preferred = formatForPref(formats, pref, formatPurchasable, formatPickupOnly);
-    if (preferred && preferred !== format) {
-      setFormat(preferred);
-      setPinnedImage(null);
-    }
-    // Mount-only restore, mirroring the estimator's saved-state effect; the
-    // parent owns `format` thereafter.
+    if (pref && pref !== method) chooseMethod(pref, { persist: false });
   }, []);
 
   // Live backend rate table when available, else the bundled snapshot (GOL-969).
@@ -391,7 +382,7 @@ export function ProductView({
     // Keep the current format if the new cultivar offers it, else re-pick its
     // first *purchasable* format so the switch never lands on a dead default
     // (GOL-1862) — same order-independent rule as the initial mount.
-    const nextFormats = formatOptions(variants, next);
+    const nextFormats = formatsFor(method, next);
     const nextFormat =
       format && nextFormats.includes(format)
         ? format
@@ -413,10 +404,21 @@ export function ProductView({
   function chooseFormat(next: string) {
     setFormat(next);
     setPinnedImage(null);
-    // Remember the ship-vs-pickup intent behind this explicit pick so the next
-    // PDP opens aligned (GOL-2089). Intent is generic (pickup-only → pickup,
-    // else ship), so it survives GOL-2031's potted-shippable flip.
-    writeFulfillmentPref(formatPickupOnly(next) ? "pickup" : "ship");
+  }
+
+  // Switch Farm pickup / Shipped, keeping the current format when the new method
+  // still offers it, else re-picking its first purchasable one (GOL-1862). The
+  // method is the remembered intent the next PDP opens on (GOL-2089).
+  function chooseMethod(next: FulfillmentMethod, opts: { persist?: boolean } = {}) {
+    setMethod(next);
+    const nextFormats = formatsFor(next, cultivar);
+    setFormat(
+      format && nextFormats.includes(format)
+        ? format
+        : defaultFormat(variants, nextFormats, cultivar, isPurchasable, isInStock),
+    );
+    setPinnedImage(null);
+    if (opts.persist !== false) writeFulfillmentPref(next);
   }
 
   function chooseRootstock(next: string) {
@@ -434,6 +436,9 @@ export function ProductView({
     format,
   });
   const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed, pickupOnly);
+  // A potted tree chosen for Farm pickup must never ship as potted: flag the
+  // cart line pickupOnly so the GOL-2588 checkout lock forces pickup.
+  const cartPickupOnly = selectedPickupOnly || (method === "pickup" && selectedTier === "potted");
 
   // One buy-state decision drives the stock line, the CTA, and the sticky bar,
   // so the inline box and the mobile bar can never contradict each other
@@ -541,6 +546,38 @@ export function ProductView({
             </div>
           )}
 
+          <div className="mb-5">
+            <span className="block text-sm font-semibold text-foreground mb-2">
+              How do you want it?
+            </span>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Fulfillment">
+              {METHOD_OPTIONS.map(([m, label, sub]) => {
+                const unavailable = formatOptions(variants, cultivar).length > 0 &&
+                  formatsFor(m, cultivar).length === 0;
+                const isActive = method === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => chooseMethod(m)}
+                    aria-pressed={isActive}
+                    disabled={unavailable}
+                    className={`flex-1 rounded border px-4 py-2 text-left text-sm transition ${
+                      isActive
+                        ? "border-primary bg-primary/5"
+                        : "border-primary/15 hover:border-primary/40"
+                    } ${unavailable ? "opacity-60" : ""}`}
+                  >
+                    <span className="block font-medium text-foreground">{label}</span>
+                    <span className="block text-xs text-ink-soft">
+                      {unavailable ? "Not available right now" : sub}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {formats.length > 0 && (
             <div className="mb-5">
               <span className="block text-sm font-semibold text-foreground mb-2">Format</span>
@@ -619,7 +656,7 @@ export function ProductView({
                       }`}
                     >
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
-                        {fLabel}
+                        {methodFormatLabel(method, fTier, fLabel)}
                         {fBadge && (
                           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
                             {fBadge}
@@ -632,7 +669,7 @@ export function ProductView({
                           fFulfillment,
                           // Pickup-only formats don't quote a ship line — the
                           // fulfillment already says "Farm pickup only".
-                          fPickupOnly ? null : shipText,
+                          fPickupOnly || method === "pickup" ? null : shipText,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -697,7 +734,7 @@ export function ProductView({
               fulfillment story instead (progressive disclosure: don't ask for
               input that cannot change the outcome). Potted-only products keep
               the panel, because their bareroot siblings still price per state. */}
-          {estimatorTiers.length > 0 && !pickupOnly && (
+          {estimatorTiers.length > 0 && !pickupOnly && method === "ship" && (
             <ShippingEstimator
               state={shipState}
               onStateChange={setShipState}
@@ -821,7 +858,7 @@ export function ProductView({
               idleLabel={buy.ctaLabel}
               quantity={quantity}
               onQuantityChange={setQuantity}
-              pickupOnly={selectedPickupOnly}
+              pickupOnly={cartPickupOnly}
             />
           </div>
 
@@ -876,7 +913,7 @@ export function ProductView({
         disabled={buy.ctaDisabled}
         idleLabel={buy.ctaLabel}
         quantity={quantity}
-        pickupOnly={selectedPickupOnly}
+        pickupOnly={cartPickupOnly}
       />
     </>
   );
@@ -895,6 +932,12 @@ const STOCK_TONE_CLASS: Record<StockTone, string> = {
 };
 
 /** Friendly per-tier label for the shipping estimator rows. */
+/** Fulfillment method buttons, in display order (Josh 2026-10-07). */
+const METHOD_OPTIONS: ReadonlyArray<readonly [FulfillmentMethod, string, string]> = [
+  ["pickup", "Farm pickup", "Free · Tue to Sat"],
+  ["ship", "Shipped", "To 31 states and Washington, D.C."],
+];
+
 const TIER_LABEL: Record<ShippingTier, string> = {
   potted: "Potted",
   bareroot: "Bareroot",
