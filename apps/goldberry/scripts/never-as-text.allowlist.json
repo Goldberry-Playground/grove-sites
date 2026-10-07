@@ -33,6 +33,7 @@
     "app/globals.css :: .visit-hero__eyebrow :: color: var(--harvest-gold)",
     "app/globals.css :: /* Kicker line (replaces the old \"№ 01\" generic numbering with a typographic mono+rule treatment that reads as an almanac heading rather than a list index). */ .grows-card__kicker :: color: var(--harvest-gold)",
     "app/globals.css :: /* Leaf glyph replaces the \"Pillar 01 / Pillar 02\" mono numbering. The numbering felt like a SaaS landing template; a serif italic flourish with a small botanical mark reads as almanac chapter-heading. */ .about-vision-pillar__glyph :: color: var(--harvest-gold)",
-    "app/globals.css :: /* Prose anchor — italic harvest-gold display emphasis used inside body prose (e.g. \"Chestnuts. The main event.\"). Distinct from the mono row labels so the eye reads it as part of the sentence, not a tag. */ .prose-anchor :: color: var(--harvest-gold)"
+    "app/globals.css :: /* Prose anchor — italic harvest-gold display emphasis used inside body prose (e.g. \"Chestnuts. The main event.\"). Distinct from the mono row labels so the eye reads it as part of the sentence, not a tag. */ .prose-anchor :: color: var(--harvest-gold)",
+    "app/globals.css :: /* Social row under the logo (shared @grove/ui SocialLinks, ringed like the /alliance logo tiles). Harvest Gold on Chestnut Reserve is ~4.8:1. */ .brand-footer__social :: color: var(--harvest-gold, #edd682)"
   ]
 }

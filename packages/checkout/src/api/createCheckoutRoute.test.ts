@@ -46,7 +46,7 @@ function validShipping() {
 
 function validPayload(overrides: Record<string, unknown> = {}) {
   return {
-    contact: { name: "Pat Customer", email: "pat@example.com" },
+    contact: { name: "Pat Customer", email: "pat@example.com", phone: "3045551212" },
     shipping: validShipping(),
     items: [{ variantId: 7, quantity: 2 }],
     ...overrides,
@@ -132,6 +132,19 @@ describe("createCheckoutRoute payload validation", () => {
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/contact\.name/);
+    expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing or blank phone", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+    for (const phone of [undefined, "", "   "]) {
+      const res = await handler(
+        postReq(validPayload({ contact: { name: "Pat", email: "p@example.com", phone } })),
+      );
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/contact\.phone/);
+    }
     expect(odoo.orders.create).not.toHaveBeenCalled();
   });
 

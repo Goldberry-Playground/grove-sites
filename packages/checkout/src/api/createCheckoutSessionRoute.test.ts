@@ -41,7 +41,7 @@ function makeOdoo(session: CheckoutSession | Error = FAKE_SESSION): OdooClient {
 
 function validPayload(overrides: Record<string, unknown> = {}) {
   return {
-    contact: { name: "Pat Customer", email: "pat@example.com" },
+    contact: { name: "Pat Customer", email: "pat@example.com", phone: "3045551212" },
     shipping: {
       street: "123 Main St",
       city: "Asheville",

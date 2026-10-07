@@ -93,7 +93,7 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
       {status === "unknown" && (
         <p className="mt-2 flex items-start gap-1.5 text-sm text-caution">
           <CautionMark />
-          <span>We couldn&apos;t find that ZIP — try entering your USDA zone directly.</span>
+          <span>We couldn&apos;t find that ZIP. Try entering your USDA zone directly.</span>
         </p>
       )}
       {resolvedZone != null && /^\d{5}$/.test(input) && (
@@ -104,14 +104,14 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
       {fits === true && (
         <p className="mt-2 flex items-start gap-1.5 text-sm font-semibold text-affirm">
           <CheckMark />
-          <span>Yes — this plant is hardy in your zone.</span>
+          <span>Yes, this plant is hardy in your zone.</span>
         </p>
       )}
       {fits === false && (
         <p className="mt-2 flex items-start gap-1.5 text-sm font-semibold text-caution">
           <CautionMark />
           <span>
-            Outside its range — this plant is rated for {range}, and you are in zone{" "}
+            Outside its range. This plant is rated for {range}, and you are in zone{" "}
             {resolvedZone}.
           </span>
         </p>
@@ -125,7 +125,7 @@ export function ZoneCheck({ zoneMin, zoneMax }: { zoneMin: number | null; zoneMa
    have — and tofus outright where nothing covers U+2713. The house pattern for
    this is already CSS/SVG shapes (see `.stock-line::before` and `.facet-caret`
    in globals.css). Both are aria-hidden and inherit `currentColor`: the verdict
-   itself is carried by the words ("Yes —" / "Outside its range —"), so nothing
+   itself is carried by the words ("Yes," / "Outside its range."), so nothing
    depends on the mark or on colour (WCAG 1.4.1). */
 function CheckMark() {
   return (

@@ -119,6 +119,25 @@ export interface ApiProductListItem {
    * mocks and pre-field payloads default to "not exempt".
    */
   compliance_exempt?: boolean;
+  /**
+   * Substitution-bundle override (GOL-2988, grove_headless
+   * `_ships_all_green_states`). `true` when this template is a bundle built on a
+   * **phantom (Kit) BoM**: checkout explodes it into per-destination components
+   * and substitutes anything the destination restricts (GOL-2237), so the gate
+   * skips the per-taxon carve-out for the line entirely and it ships anywhere
+   * **on the green list**.
+   *
+   * Derived from the SAME `_bom_find(..., bom_type="phantom")` lookup the
+   * checkout carve-out gate performs, so advertise and fulfil cannot drift. Like
+   * `compliance_exempt` it does NOT widen the green list, and for the same
+   * reason the storefront treats the two identically: both mean "no per-product
+   * regulated-state block", never "ships everywhere".
+   *
+   * Emitted on both list and detail. Optional so mocks and a grove_headless
+   * build predating 19.0.1.63.0 default to "not a substitution bundle" — which
+   * is also the catalog-wide truth while prod holds zero `mrp.bom` (GOL-2949).
+   */
+  ships_all_green_states?: boolean;
 }
 
 /** Paginated product list response. */
@@ -335,6 +354,22 @@ export interface ShippingZoneMap {
  * against the known catalog — the backend rate-checker only ever emits these. */
 export type ShippingBoxId = "small" | "large";
 
+/** Box-catalog id from grove_headless `models/shipping_boxes.py` POTTED_BOXES —
+ * the potted / peat-and-bagged engine (GOL-2031, go-live GOL-2199 2026-09-08).
+ * `p24x10x4` holds 1-5 units, `p24x10x6` holds 6-10; both are 24" long and pack
+ * by UNIT COUNT with no season mode, which is why they are a separate union
+ * from {@link ShippingBoxId} rather than more members of it.
+ *
+ * These ids appear as RATE rows in the feed's `zones` map, but NOT in
+ * `packing.boxes`: `rate_feed()` serializes its box catalog from `BOXES` only,
+ * so the potted specs (length/capacity) are backend-internal. A client can
+ * therefore price potted from the feed but cannot mirror the potted packer from
+ * it — see `hasPottedRates` in the nursery app's `shipping-estimate.ts`. */
+export type PottedBoxId = "p24x10x4" | "p24x10x6";
+
+/** Any box id that can carry a per-box rate row in the feed's `zones` map. */
+export type ShippingRatedBoxId = ShippingBoxId | PottedBoxId;
+
 /** Packing mode from `shipping_boxes.py` MODES. Trees are dormant or leafed-out
  * at the nursery by season, which drives per-box capacity. */
 export type PackingMode = "dormant" | "leafed";
@@ -350,7 +385,7 @@ export interface ShippingBoxRate {
  * the legacy tier-keyed {@link ShippingRateTable}. */
 export type ShippingBoxRateTable = Record<
   string,
-  Partial<Record<ShippingBoxId, ShippingBoxRate>>
+  Partial<Record<ShippingRatedBoxId, ShippingBoxRate>>
 >;
 
 /** One box in the catalog, as surfaced by the feed's `packing.boxes` — a subset
@@ -432,6 +467,48 @@ export type ShippableMode = "bareroot-preorder" | "bareroot-in-window" | "peat-a
  * served from the same module globals, so it can never disagree with the charge
  * within a running instance. `zone_by_state` is the authoritative 21-state green
  * list the frontend eligibility gate must stay in lockstep with. */
+/** One plant-health carve-out rule from the feed's `compliance.carve_outs`
+ * (grove_headless `plant_compliance.CARVE_OUTS`, GOL-2132). `"block"` = the
+ * taxon may NOT ship to any of `states`; `"allow"` = it may ship ONLY to those.
+ * Keys of the containing map are lowercased taxon tokens at genus *or*
+ * genus+species resolution (`"castanea"`, `"morus alba"`) — look up the
+ * species key first, exactly as the backend does. */
+export interface ShippingCarveOutRule {
+  kind: "block" | "allow";
+  states: string[];
+}
+
+/** The `compliance` block of the schema-2 feed (`plant_compliance.carve_out_feed`).
+ * Serialized beside `green_states` so the storefront renders its per-item
+ * carve-out notice from the same map checkout hard-rejects an order with and the
+ * two can never drift (GOL-2973). `regulated_states` is every state any rule
+ * touches — and the ONLY states where an empty/unparseable botanical name
+ * fail-safes to "can't confirm". Optional: absent on a backend predating the
+ * block, where a client falls back to its baked snapshot. */
+export interface ShippingComplianceFeed {
+  schema: number;
+  carve_outs: Record<string, ShippingCarveOutRule>;
+  regulated_states: string[];
+}
+
+/** One substitute we ship in place of a restricted genus
+ * (`bundle_substitution.SUBSTITUTES`, GOL-2237). `native` false means a state
+ * receiving it can no longer be sold an "all natives" claim. */
+export interface ShippingTaxonSubstitute {
+  botanical: string;
+  label: string;
+  native: boolean;
+}
+
+/** The `bundle_substitution` block of the schema-2 feed
+ * (`bundle_substitution.substitution_feed`): WHAT to swap a blocked genus to,
+ * keyed by genus. Pairs with {@link ShippingComplianceFeed}, which says WHICH
+ * taxa are blocked where. Optional for the same reason. */
+export interface ShippingSubstitutionFeed {
+  schema: number;
+  substitutes: Record<string, ShippingTaxonSubstitute>;
+}
+
 export interface ShippingRateFeed {
   /** Feed schema version. 2 for Box Engine v2. */
   schema: number;
@@ -442,6 +519,14 @@ export interface ShippingRateFeed {
   /** Per-USDA-zone twice-yearly ship calendar (GOL-1172). Replaces the old
    * single global `dormant_window`. */
   calendar: ShippingCalendar;
+  /** Per-product plant-health carve-out map (GOL-2132), the second gate that
+   * sits on top of `green_states`: a green destination can still refuse a
+   * specific taxon. Optional — absent on a backend predating
+   * `plant_compliance.carve_out_feed()`. */
+  compliance?: ShippingComplianceFeed | null;
+  /** What we offer in place of a blocked genus (GOL-2237). Optional for the
+   * same reason as `compliance`. */
+  bundle_substitution?: ShippingSubstitutionFeed | null;
 }
 
 /** Cart line from /grove/api/v1/cart. */
@@ -578,6 +663,24 @@ export interface Product {
    * of this flag (GOL-2588). Defaults to false in the normalizer.
    */
   complianceExempt?: boolean;
+  /**
+   * Substitution bundle (Odoo phantom/Kit BoM, GOL-2988). `true` when checkout
+   * skips the per-line GOL-2132 carve-out for this product because it explodes
+   * the bundle per destination and swaps out whatever that state restricts
+   * (GOL-2237) — so the line ships anywhere **on the green list**.
+   *
+   * Read it exactly as {@link Product.complianceExempt}: "no per-PRODUCT
+   * regulated-state block", NOT "ships everywhere". The per-STATE green-list
+   * gate (`shipsTo`) is unchanged, so the storefront must not widen its state
+   * select or drop the "we can't ship living trees there yet" notice on the
+   * strength of this flag. What it DOES suppress is the GOL-2973 carve-out
+   * notice: without it, the moment the real phantom BoMs are seeded (GOL-2589)
+   * a `Castanea`-led bundle (template 132) would ship fine at checkout while the
+   * PDP told the shopper it was "Not cleared for Florida" — the advertise-vs-
+   * reject mismatch pointing the other way, turning away a fulfillable order
+   * (GOL-3015). Defaults to false in the normalizer.
+   */
+  shipsAllGreenStates?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**

@@ -18,8 +18,12 @@ import { CategoryBar } from "../category-bar";
 // a sensible follow-up; for now we capture the lead honestly and reply by hand.
 export const dynamic = "force-dynamic";
 
+// Title is the LEFT side only — `app/layout.tsx` appends " | At The Grove
+// Nursery" via `title.template` (GOL-2878). Repeating the brand here renders it
+// twice.
 export const metadata: Metadata = {
-  title: "Wholesale & Trade — At The Grove Nursery",
+  title: "Wholesale & Trade",
+  alternates: { canonical: "/wholesale" },
   description:
     "Bare-root fruit trees, berries, and edible perennials at trade volume for landscapers, orchardists, CSAs, schools, and homestead co-ops. Cold-grown, hardy stock shipped at the right week.",
 };

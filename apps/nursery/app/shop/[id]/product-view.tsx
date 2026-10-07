@@ -25,10 +25,10 @@ import {
 } from "../../../lib/variant-select";
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
-  estimateBoxFloor,
   estimateTierShipping,
   GREEN_STATE_COUNT,
   hasBoxFeed,
+  estimateTierFloor,
   isPickupOnly,
   PICKUP_ONLY_FULFILLMENT,
   resolveRateTable,
@@ -50,6 +50,11 @@ import {
   writeFulfillmentPref,
 } from "../../../lib/fulfillment-pref";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
+import {
+  evaluateCompliance,
+  resolveCompliance,
+  resolveSubstitutes,
+} from "../../../lib/plant-compliance";
 import { PolicyLink } from "./policy-link";
 import { ZoneCheck } from "./zone-check";
 import { AtAGlance, PlantTwoHint } from "./at-a-glance";
@@ -138,6 +143,30 @@ export interface ProductViewProps {
    * case the whole at-a-glance stack collapses.
    */
   facts?: GrowingFacts;
+  /**
+   * Declared botanical name (Odoo `grove_botanical_name`, surfaced as
+   * `facts.botanical_name`) — the taxon the per-product plant-health carve-out
+   * gate is keyed on (GOL-2132). Threaded through so the estimator and the
+   * Format cards can tell "green state" from "green state this item is cleared
+   * into" (GOL-2973). Null/"" on a consult-built mix with no declared botanical.
+   */
+  botanicalName?: string | null;
+  /**
+   * Odoo `grove_compliance_exempt` (GOL-2587). `true` → checkout skips the
+   * carve-out gate for this product, so the storefront must show no carve-out
+   * notice either. (GOL-2588 deliberately did not thread this: back then the
+   * storefront's only per-state notice was the green-list gate, which the
+   * exemption does not widen. GOL-2973 adds a notice the exemption DOES
+   * suppress, so it has to reach the client now.)
+   */
+  complianceExempt?: boolean;
+  /**
+   * `ships_all_green_states` (GOL-2988): this product is a phantom/Kit-BoM
+   * substitution bundle, so checkout substitutes restricted components per
+   * destination and skips the carve-out gate. Threaded for the same reason as
+   * `complianceExempt` — it suppresses the GOL-2973 notice (GOL-3015).
+   */
+  shipsAllGreenStates?: boolean;
 }
 
 /**
@@ -162,6 +191,9 @@ export function ProductView({
   shippingFeed,
   shippingZoneMap,
   facts,
+  botanicalName,
+  complianceExempt,
+  shipsAllGreenStates,
 }: ProductViewProps) {
   // Is a resolved variant farm-pickup-only? The product-level override
   // (`pickupOnly`, GOL-2587 P1) wins over the tier, so a Bareroot variant on a
@@ -267,6 +299,35 @@ export function ProductView({
   // backend re-zoning (e.g. TN → zone_7) reprices the PDP without a rebuild.
   const zoneMap = useMemo(() => resolveZoneMap(shippingZoneMap), [shippingZoneMap]);
 
+  // Per-item plant-health carve-out verdict for the chosen state (GOL-2132 /
+  // GOL-2973), resolved ONCE here and shared with the estimator panel so the
+  // Format cards and the panel can never disagree about whether this item
+  // clears the destination. Feed-first (the same `compliance` block checkout
+  // refuses on), snapshot fallback. "clear" is the only state that may quote a
+  // rate; the other two are green destinations this item can't travel to.
+  const complianceMap = useMemo(() => resolveCompliance(shippingFeed), [shippingFeed]);
+  const complianceSubstitutes = useMemo(() => resolveSubstitutes(shippingFeed), [shippingFeed]);
+  const complianceVerdict = useMemo(
+    () =>
+      evaluateCompliance({
+        botanicalName,
+        complianceExempt,
+        shipsAllGreenStates,
+        state: shipState,
+        compliance: complianceMap,
+        substitutes: complianceSubstitutes,
+      }),
+    [
+      botanicalName,
+      complianceExempt,
+      shipsAllGreenStates,
+      shipState,
+      complianceMap,
+      complianceSubstitutes,
+    ],
+  );
+  const shipStateCleared = complianceVerdict.kind === "clear";
+
   // Which of the three shippable modes bareroot is in TODAY (GOL-1114). Resolved
   // from the schema-2 feed's per-USDA-zone calendar (GOL-1172/1177) against the
   // current date: preorder (deposit now) / ships-now / peat & bagged. Null on the
@@ -280,17 +341,25 @@ export function ProductView({
   );
 
   // Stateless "from $X" floor for the Format cards before a shopper picks a state
-  // (GOL-1822). Under Box Engine v2 bareroot ships PER PACKED BOX, so the legacy
-  // per-tree `ShippingHint.fromShipping` (e.g. bareroot $12) both reads as a
-  // per-tree charge the engine won't honour and under-quotes the real per-box
-  // floor. `estimateBoxFloor` is the cheapest single-tree box rate over every
+  // (GOL-1822). Under Box Engine v2 shipping is priced PER PACKED BOX, so the
+  // legacy per-tree `ShippingHint.fromShipping` (e.g. bareroot $12) both reads as
+  // a per-tree charge the engine won't honour and under-quotes the real per-box
+  // floor. `estimateTierFloor` is the cheapest single-unit box rate over every
   // zone — a genuine per-box number that can never dip below the state-specific
   // estimate. Null on the legacy backend (no box feed), where the per-tier hint
   // still matches how that backend charges, so the cards fall back to it.
-  const boxFloor = useMemo(
-    () => (hasBoxFeed(shippingFeed) ? estimateBoxFloor(shippingFeed) : null),
-    [shippingFeed],
-  );
+  //
+  // Keyed BY TIER because potted re-joined the shippable set (GOL-2199, wired up
+  // in GOL-2757 / #813) and its cartons are dearer than the bareroot ones: one
+  // shared floor would quote the bareroot number on a potted card and under-
+  // quote the shopper.
+  const floorFor = useMemo(() => {
+    const cache = new Map<ShippingTier, number | null>();
+    return (tier: ShippingTier): number | null => {
+      if (!cache.has(tier)) cache.set(tier, estimateTierFloor(tier, shippingFeed));
+      return cache.get(tier) ?? null;
+    };
+  }, [shippingFeed]);
 
   // Distinct shipping tiers this product offers, for the state estimator.
   const estimatorTiers = useMemo<EstimatorTier[]>(() => {
@@ -503,8 +572,11 @@ export function ProductView({
                     format: f,
                   });
                   const fPickupOnly = isPickupOnly(fTier, shippingFeed, pickupOnly);
+                  // A carve-out blocks the ITEM, not the format, so it kills the
+                  // quote for every format (GOL-2973) — the card must not echo a
+                  // "ship $20 to FL" the estimator panel just said we can't do.
                   const fEst =
-                    shipState && !fPickupOnly
+                    shipState && !fPickupOnly && shipStateCleared
                       ? estimateTierShipping(shipState, fTier, {
                           feed: shippingFeed,
                           rates: rateTable,
@@ -515,18 +587,25 @@ export function ProductView({
                   // branch is the existing shippable copy. Before a state is
                   // picked, prefer the Box Engine v2 per-box floor over the
                   // legacy per-tree hint so the card can't advertise a per-tree
-                  // "$12" the engine won't honour (GOL-1822); `boxFloor` is null
+                  // "$12" the engine won't honour (GOL-1822); `floorFor` is null
                   // on the legacy backend, where the per-tier hint still holds.
-                  const fFromFloor = boxFloor ?? fHint.fromShipping;
+                  const fFromFloor = floorFor(fTier) ?? fHint.fromShipping;
                   const shipText = fPickupOnly
                     ? "farm pickup only"
                     : fEst != null
                       ? `ship $${fEst.toFixed(0)} to ${shipState}`
                       : shipState && !shipsTo(shipState, zoneMap)
                         ? `not shipping to ${shipState} yet`
-                        : `ships from ~$${fFromFloor}`;
+                        : shipState && !shipStateCleared
+                          ? // Green state, item not cleared into it. Different
+                            // words from the not-green line above so the two
+                            // reasons stay distinguishable at a glance.
+                            `not cleared for ${shipState}, see below`
+                          : `ships from ~$${fFromFloor}`;
                   // Same tier-presentation authority as the estimator rows above
-                  // (GOL-1313): bareroot follows today's mode, potted stays pickup.
+                  // (GOL-1313): bareroot follows today's mode; potted takes its
+                  // static hint, or the pickup line while the feed prices no
+                  // potted box (GOL-2199 / #813).
                   const {
                     label: fLabel,
                     fulfillment: fFulfillment,
@@ -639,6 +718,9 @@ export function ProductView({
               rates={rateTable}
               feed={shippingFeed}
               zoneMap={zoneMap}
+              botanicalName={botanicalName}
+              complianceExempt={complianceExempt}
+              shipsAllGreenStates={shipsAllGreenStates}
             />
           )}
 

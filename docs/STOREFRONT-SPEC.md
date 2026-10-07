@@ -1,5 +1,7 @@
 # Storefront Experience Spec — Variants, Gallery, Preorders
 
+> **Amendment 2026-09-30 — shop navigation:** category navigation is superseded by `docs/superpowers/specs/2026-09-30-nursery-shop-departments-design.md` (departments: Orchard & food forest, Mycoforestry, Forest farming, Seed & scion; the cross-department **Guilds** collection; deals as badges; search across departments; the Odoo category tree is the source of truth). Target: Release Train #3.
+
 > ## Decisions 2026-07-20 — end-of-July QA deploy scope
 >
 > Locked 2026-07-20 for the QA window (2026-07-28 → 31). Where this block conflicts with the phasing below, this block wins for the July build; the rest of the spec remains canonical for cart/checkout/preorder mechanics.
@@ -36,7 +38,8 @@ shared so goldberry/ggg light up when they have products.
 - One card per product template: hero image, name, "N varieties",
   "from $X" (min variant price). No variant spam.
 - Category nav driven by real Odoo categories (Apple, Mulberry, Plum, Fig, …)
-  replacing the mock SHOP_CATEGORIES source.
+  replacing the mock SHOP_CATEGORIES source. **Superseded 2026-09-30:** see the
+  shop-departments spec (department tree + `grove_slug` from Odoo).
 
 ### Product detail page
 - **Gallery**: hero = product main image; slideshow strip = eCommerce Media

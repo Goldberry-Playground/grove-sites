@@ -63,6 +63,12 @@ const nextConfig: NextConfig = {
   // Verified live (Next 15.5.21): a config `Cache-Control` is clobbered by the
   // optimizer, but `CDN-Cache-Control` — a key the optimizer never sets —
   // lands cleanly on every `/_next/image` response.
+  // /links is the short link-in-bio URL printed in social bios; the canonical,
+  // indexable page is /alliance. Permanent (308) so search engines consolidate
+  // on /alliance; the query string (?utm_source=…) passes through untouched.
+  async redirects() {
+    return [{ source: "/links", destination: "/alliance", permanent: true }];
+  },
   async headers() {
     return [
       {

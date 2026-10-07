@@ -1285,3 +1285,201 @@ h1 em, h2 em, h3 em {
    @grove/ui-kit/styles.css above) and is mapped to --grove-* roles. The
    shared version also adds a :focus-visible ring (the GOL-109 focus token),
    an a11y improvement over this former local copy. — GOL-113 */
+
+/* ─────────────────────────────────────────────
+   Journal post detail (/blog/[slug]) — GOL-2788
+
+   Until now there was no detail route at all: every card on /blog pointed at a
+   404 (ggg, nursery) or nowhere (goldberry). This is the reading surface those
+   cards now land on.
+
+   One measure for the whole article (`.journal-post` max-width) so the back
+   link, headline, feature image, body and footer all share a left AND right
+   edge — nothing floats. Type comes from the tenant scale; the body reuses this
+   app's existing prose component (`.rich-text`) and only steps its size up from
+   in-page-block to article scale, rather than inventing a second prose system.
+   ───────────────────────────────────────────── */
+.journal-post {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem) clamp(3rem, 6vw, 4.5rem);
+}
+.journal-post__back {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
+}
+/* 44px tap target (GOL-2753) without pushing the label off the top of the
+   column — the box grows downward from the text, hence the negative margin. */
+.journal-post__back a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-block: -0.6rem;
+  color: var(--grove-color-ink-soft);
+  text-decoration: none;
+}
+.journal-post__back-arrow {
+  width: 1.1em;
+  height: 1.1em;
+  flex: none;
+}
+.journal-post__back a:hover {
+  color: var(--forest);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.journal-post__head {
+  padding-bottom: clamp(1.25rem, 3vw, 1.75rem);
+  margin-bottom: clamp(1.5rem, 4vw, 2.25rem);
+  border-bottom: 1px solid var(--parch-deep);
+}
+.journal-post__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--grove-color-ink-soft);
+  margin: 0 0 0.85rem;
+}
+.journal-post__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4.5vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--forest);
+  margin: 0;
+}
+.journal-post__lede {
+  font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0.85rem 0 0;
+}
+.journal-post__img {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--parch-soft);
+  margin-bottom: clamp(1.5rem, 4vw, 2.25rem);
+}
+
+.journal-post__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: clamp(1.75rem, 4vw, 2.5rem) 0 0;
+}
+.journal-post__tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--parch-soft);
+  border-radius: 999px;
+  /* The chip fill is one step off the page, which on its own reads as a smudge
+     rather than an object. The border is what makes it a chip. */
+  border: 1px solid var(--parch-deep);
+  padding: 0.35rem 0.75rem;
+}
+
+.journal-post__foot {
+  margin-top: clamp(2rem, 5vw, 3rem);
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--parch-deep);
+}
+.journal-post__more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--orange-deep);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.journal-post__more:hover { color: var(--forest); }
+
+/* Third "no content" state, alongside empty (dashed) and error (solid):
+   we looked, and the entry is not there. Told apart by a DOTTED border, its
+   own icon (a page with a magnifier) and its own heading — meaning never
+   rides on colour, so it survives grayscale and deuteranopia/protanopia/
+   tritanopia (WCAG 1.4.1). Neutral ink, not the alarm hue: a stale link is
+   not a system failure and should not be dressed as one. */
+.journal-missing {
+  border: 1px dotted rgba(31, 63, 43, 0.45);
+  background: rgba(249, 243, 226, 0.6);
+}
+.journal-missing .journal-state__icon { color: var(--grove-color-ink-soft); }
+/* On the 404 this link is the page's one action, standing on its own rather
+   than sitting inline in a sentence — so it gets a real 44px target. Scoped to
+   .journal-missing: the list route's states use the same class INLINE inside a
+   paragraph, where a 44px box would wreck the line box (and where WCAG 2.5.8
+   exempts it anyway). */
+.journal-missing .journal-state__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 0.4rem;
+}
+
+/* Article-scale prose. `.rich-text` is tuned for an in-page block (prose-sm,
+   its own 68ch measure); a journal entry IS the page, so step the size up and
+   hand the measure back to `.journal-post`. Double class, so this holds
+   wherever the two blocks end up in source order. */
+.journal-post__body.rich-text {
+  font-size: 1.05rem;
+  line-height: 1.75;
+  max-width: none;
+  color: var(--ink);
+}
+.journal-post__body.rich-text > * + * { margin-top: 1.1em; }
+.journal-post__body.rich-text h2 { font-size: 1.45rem; }
+.journal-post__body.rich-text h3 { font-size: 1.2rem; }
+.journal-post__body.rich-text * + :is(h2, h3) { margin-top: 1.8em; }
+.journal-post__body.rich-text blockquote {
+  margin-inline: 0;
+  padding: 0.15rem 0 0.15rem 1.25rem;
+  border-left: 3px solid var(--leaf-deep);
+  font-style: italic;
+  color: var(--grove-color-ink-soft);
+}
+.journal-post__body.rich-text :is(img, figure) { max-width: 100%; height: auto; }
+.journal-post__body.rich-text img { border-radius: 10px; }
+.journal-post__body.rich-text figcaption {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--grove-color-ink-soft);
+  margin-top: 0.5rem;
+}
+.journal-post__body.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--parch-deep);
+  margin: 2em 0;
+}
+
+/* This app has no global :focus-visible base, so the journal's own links get an
+   explicit ring rather than inheriting the UA default (which is near-invisible
+   on these warm, low-contrast surfaces). Keyboard operability, WCAG 2.4.7. */
+.journal-post a:focus-visible,
+.journal-state__link:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+  border-radius: 2px;
+}

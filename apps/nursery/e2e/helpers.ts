@@ -244,6 +244,8 @@ export async function fillCheckoutForm(
   // hijacks the hosted page with an OTP challenge (GOL-1157). Callers can still
   // pin an explicit email.
   await form.getByLabel("Email").fill(input.email ?? uniqueBuyerEmail());
+  // Phone is required on every checkout (2026-09-30).
+  await form.getByLabel("Phone").fill("3045551212");
   await form.getByLabel("Street").fill(input.street ?? "123 Orchard Ln");
   await form.getByLabel("City").fill(input.city ?? "Summersville");
   if (input.state) {
@@ -334,7 +336,7 @@ export async function fillStripeCheckoutAndPay(
   // `radio "Card"` with no such id. Try the id, then the accessible radio, and
   // only then wait for the card number field — never rely on one shape.
   const cardRadio = page.locator("#payment-method-accordion-item-title-card");
-  if (await cardRadio.count()) await cardRadio.check({ force: true });
+  if (await cardRadio.count()) await cardRadio.check({ force: true }).catch(() => {});
 
   // Stripe has shipped the hosted page under two DOMs:
   //   (legacy, GOL-1149) the card fields (#cardNumber …) live in the main

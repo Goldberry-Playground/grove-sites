@@ -191,7 +191,7 @@ export function PlantTwoHint({
           satisfied ? "mt-3 text-sm stock-line stock-line--in" : "sr-only"
         }
       >
-        {satisfied ? `Quantity ${quantity} — enough for a pair.` : ""}
+        {satisfied ? `Quantity ${quantity}, enough for a pair.` : ""}
       </p>
     </div>
   );
