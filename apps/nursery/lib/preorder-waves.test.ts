@@ -28,7 +28,7 @@ describe("preorderWaves (TS port of B1)", () => {
     const w = waves(8, 9, 1);
     expect(w.fall.open && w.spring.open).toBe(true);
     expect(w.fall.order_by).toEqual([11, 21]);
-    expect(w.spring.order_by).toEqual([4, 16]);
+    expect(w.spring.order_by).toEqual([2, 22]);
   });
 
   it("closed before Sep 1 in summer", () => {
@@ -49,8 +49,8 @@ describe("preorderWaves (TS port of B1)", () => {
 
   it("spring is open through the new year until its order-by", () => {
     expect(waves(8, 1, 10).spring.open).toBe(true);
-    expect(waves(8, 4, 16).spring.open).toBe(true);
-    const w = waves(8, 4, 17);
+    expect(waves(8, 2, 22).spring.open).toBe(true);
+    const w = waves(8, 2, 23);
     expect(w.spring.open).toBe(false);
     expect(w.spring.reason).toBe("deadline_passed");
   });
@@ -78,7 +78,7 @@ describe("preorderWaves (TS port of B1)", () => {
     ]);
     expect(w.spring.ship_window).toEqual([
       [3, 1],
-      [4, 30],
+      [4, 15],
     ]);
   });
 });
@@ -99,9 +99,9 @@ describe("preorderWaves: feed first", () => {
       zones: {
         "8": {
           fall: [[11, 9], [12, 12]],
-          spring: [[3, 1], [4, 30]],
+          spring: [[3, 1], [4, 15]],
           fall_order_deadline: [10, 1],
-          spring_order_deadline: [4, 16],
+          spring_order_deadline: [2, 22],
         },
       },
     } as unknown as ShippingCalendar;
