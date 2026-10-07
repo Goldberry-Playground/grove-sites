@@ -8,13 +8,17 @@ import { tenantConfig } from "../../tenant.config";
 export const dynamic = "force-dynamic";
 
 export default async function BlogPage() {
+  // GOL-2756: no seed/mock fallback anywhere on this route — the journal shows
+  // real posts or an honest "no posts" surface, never invented entries. The
+  // `?? []` guards a 200 with an unexpected body (which used to throw a 500 on
+  // `.length` rather than degrading to the empty state).
   let posts: Post[] = [];
-  let error: string | null = null;
+  let failed = false;
 
   try {
-    posts = await ghost.posts.list({ limit: 10, include: "tags,authors" });
-  } catch (e) {
-    error = e instanceof Error ? e.message : "Failed to load posts";
+    posts = (await ghost.posts.list({ limit: 10, include: "tags,authors" })) ?? [];
+  } catch {
+    failed = true;
   }
 
   return (
@@ -23,17 +27,70 @@ export default async function BlogPage() {
         {tenantConfig.copy.blogHeading}
       </h1>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-8 text-red-800 text-sm">
-          Unable to load blog posts. The blog will be available once Ghost is
-          configured with a Content API key.
+      {/* Error and empty are distinct, on-brand states (GOL-2756, mirroring
+          nursery's GOL-1113 pattern). The old error box encoded "something
+          broke" in raw Tailwind red alone and the empty state was a bare <p>.
+          Meaning now rides on icon SHAPE + heading text + border style (solid
+          vs dashed), so it survives grayscale and deuteranopia/protanopia/
+          tritanopia (WCAG 1.4.1); colour is a secondary cue only — cherry for
+          the error, amber for the friendly "coming soon", never red/green. */}
+      {failed && (
+        <div role="alert" className="journal-state journal-error mb-8">
+          <svg
+            className="journal-state__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <p className="journal-state__title">The bench notes are offline</p>
+          <p className="journal-state__body">
+            We couldn&rsquo;t reach the journal just now. This is on our end, not
+            yours — try again in a moment.{" "}
+            <Link href="/shop" className="journal-state__link">
+              See what&rsquo;s on the bench
+            </Link>{" "}
+            in the meantime.
+          </p>
         </div>
       )}
 
-      {posts.length === 0 && !error && (
-        <p className="text-foreground/60 mb-8">
-          No posts published yet. Check back soon!
-        </p>
+      {!failed && posts.length === 0 && (
+        <div role="status" className="journal-state journal-empty mb-8">
+          <svg
+            className="journal-state__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 7h16" />
+            <path d="M4 12h16" />
+            <path d="M4 17h10" />
+            <path d="M18.5 15.5v5" />
+            <path d="M16 18h5" />
+          </svg>
+          <p className="journal-state__title">Nothing written up yet</p>
+          <p className="journal-state__body">
+            We&rsquo;re still at the bench. Build notes, wood stories and
+            finished-piece write-ups land here as they&rsquo;re done — check
+            back soon.{" "}
+            <Link href="/shop" className="journal-state__link">
+              See what&rsquo;s on the bench
+            </Link>{" "}
+            while you wait.
+          </p>
+        </div>
       )}
 
       <div className="space-y-8">

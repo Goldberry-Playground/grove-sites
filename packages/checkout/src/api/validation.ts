@@ -116,8 +116,10 @@ export function validateOrderInput(payload: unknown): string | null {
   ) {
     return `contact.email must be a valid email of at most ${MAX_EMAIL} chars`;
   }
-  if (!isOptionalBoundedString(contact.phone, MAX_PHONE)) {
-    return `contact.phone must be a string of at most ${MAX_PHONE} chars`;
+  // Required on every checkout (Josh, 2026-09-30): the number is written to the
+  // Odoo partner that shipping labels and pickup coordination read.
+  if (typeof contact.phone !== "string" || !isBoundedString(contact.phone.trim(), MAX_PHONE)) {
+    return `contact.phone is required (1..${MAX_PHONE} chars)`;
   }
 
   // Optional promo code — bounded when present. Eligibility (does the cart meet

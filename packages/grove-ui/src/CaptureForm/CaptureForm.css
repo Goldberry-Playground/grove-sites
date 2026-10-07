@@ -75,6 +75,24 @@
   color: var(--grove-color-foreground);
 }
 
+/* 44px tap-target floor for the field + submit pair (GOL-2753). Button sizing
+   comes from <Button>'s inline `padding`/`fontSize`, so the rendered height was
+   a function of the inherited line-height: 38.8-42.4px depending on brand and
+   viewport. min-height is the one property no inline style sets, so it wins
+   without forking Button. Both members of the pair, so the inline (footer) row
+   still aligns — same rule as .grove-checkout__promo-row (GOL-2432). */
+.grove-capture__input,
+.grove-capture .grove-btn {
+  min-height: 2.75rem;
+}
+
+/* Centre the label once min-height exceeds the content box. */
+.grove-capture .grove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .grove-capture__input:focus-visible {
   outline: 2px solid var(--grove-color-primary);
   outline-offset: 1px;

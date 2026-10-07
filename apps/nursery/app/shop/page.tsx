@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { getCatalogNav } from "../../lib/catalog-nav";
 import { findDepartment, ORCHARD_SLUG } from "../../lib/departments";
 import { DepartmentNav } from "../department-nav";
 import { ShopBrowse } from "./shop-browse";
+import { tenantConfig } from "../../tenant.config";
 
 // The page renders dynamically (per-request) because it awaits `searchParams`
 // for the live facet selection — that alone opts it out of build-time static
@@ -15,6 +17,19 @@ import { ShopBrowse } from "./shop-browse";
 // the browse fetch is served from the shared Data Cache and refreshed at most
 // once a minute (per facet URL), and the publish webhook's
 // `revalidatePath('/shop')` still flushes it immediately on a new/edited product.
+
+// Catalog index metadata (GOL-2878 Phase 1).
+//
+// Title reuses the heading already on the page (`tenantConfig.copy.shopHeading`)
+// rather than inventing a keyword-tuned one — a commercial title here is a
+// brand-voice call for CMO, flagged on the ticket. The canonical is the bare
+// `/shop`: the facet params (`?cat=`, `?q=`, `?tags=`, `?all=1`) multiply into
+// effectively unbounded URLs that are all the same catalog, and every one of
+// them was indexable as a separate page before this.
+export const metadata: Metadata = {
+  title: tenantConfig.copy.shopHeading,
+  alternates: { canonical: "/shop" },
+};
 
 interface ShopPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

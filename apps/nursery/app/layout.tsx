@@ -1,18 +1,70 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
+import {
+  SITE_URL,
+  DEFAULT_OG_IMAGE,
+  DEFAULT_OG_IMAGE_WIDTH,
+  DEFAULT_OG_IMAGE_HEIGHT,
+  DEFAULT_OG_IMAGE_ALT,
+} from "../lib/site-metadata";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
 import "./globals.css";
 
+// Site-wide metadata defaults (GOL-2878 Phase 1).
+//
+// `metadataBase` was unset in every storefront, which is why `<link
+// rel="canonical">` and `og:url` could not resolve: Next silently drops a
+// relative URL in either field without it. Everything below is a DEFAULT —
+// routes override `title`/`description`/`openGraph` per page.
+//
+// Deliberately NOT set here: `alternates.canonical` and `openGraph.url`. Both
+// are inherited by any route that does not set its own, so a value in the root
+// layout would point every page's canonical at the homepage — the classic
+// self-inflicted duplicate-content bug. Each page supplies its own.
 export const metadata: Metadata = {
-  title: tenantConfig.name,
+  metadataBase: new URL(SITE_URL),
+  title: {
+    // 22 chars of suffix against a ~60-char target leaves each page ~38. Every
+    // staged PDP title fits inside that, so no route needs `title.absolute`.
+    default: tenantConfig.name,
+    template: `%s | ${tenantConfig.name}`,
+  },
   description: tenantConfig.description,
+  openGraph: {
+    type: "website",
+    siteName: tenantConfig.name,
+    locale: "en_US",
+    title: {
+      default: tenantConfig.name,
+      template: `%s | ${tenantConfig.name}`,
+    },
+    description: tenantConfig.description,
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        width: DEFAULT_OG_IMAGE_WIDTH,
+        height: DEFAULT_OG_IMAGE_HEIGHT,
+        alt: DEFAULT_OG_IMAGE_ALT,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: {
+      default: tenantConfig.name,
+      template: `%s | ${tenantConfig.name}`,
+    },
+    description: tenantConfig.description,
+    images: [DEFAULT_OG_IMAGE],
+  },
 };
 
 export default async function RootLayout({
@@ -60,6 +112,22 @@ export default async function RootLayout({
           <main>{children}</main>
           <footer className="mt-auto border-t border-primary/10 px-6 py-8 text-sm text-ink-soft">
             <div className="mx-auto flex max-w-6xl flex-col items-center gap-6">
+              {/* Nursery logo, centered atop the footer like Goldberry's
+                  brand-footer__logo; the header keeps the text name. */}
+              <Image
+                src="/brand/nursery-logo-horizontal.png"
+                alt={tenantConfig.name}
+                width={900}
+                height={261}
+                // The source is 900px so DPR 3 has real detail to draw on, but
+                // without `sizes` next/image falls back to a 1x/2x density
+                // srcset off the `width` prop and hands a 1x screen the whole
+                // 900px file. Describing the clamp instead lets the optimizer
+                // pick per rung: ~384px at 1x, 640 at DPR 2, 900 at DPR 3.
+                // 26vw crosses the clamp floor at 846px and the cap at 1154px.
+                sizes="(max-width: 846px) 220px, (min-width: 1154px) 300px, 26vw"
+                className="h-auto w-[clamp(220px,26vw,300px)]"
+              />
               {/* One-CTA-per-page (GOL-2178): the shared footer newsletter is the
                   lowest-priority capture tier, so it renders ONLY when the page
                   registers nothing higher-priority (a restock/state capture).

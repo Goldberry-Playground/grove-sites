@@ -10,6 +10,7 @@ import {
   orderDeadlineLine,
   tierFulfillment,
   DEPOSIT_CUTOVER,
+  depositByDate,
   zoneShipNote,
   type ShippableMode,
 } from "./fulfillment-mode";
@@ -60,7 +61,7 @@ describe("ship-window timing — in-stock bareroot, on/before the Oct 15 cutover
       expect(r.mode).toBe("bareroot-in-window");
       expect(r.depositNow).toBe(false);
       expect(r.depositReason).toBeNull();
-      expect(r.preorderSeason).toBeNull();
+      expect(r.shipSeason).toBeNull();
     }
   });
 
@@ -72,23 +73,99 @@ describe("ship-window timing — in-stock bareroot, on/before the Oct 15 cutover
     }
   });
 
-  it("Aug 15 → Sep 14: RETIRED fall-preorder window now ships now, charged in full (GOL-2233)", () => {
+  it("Aug 15 → Sep 14: RETIRED fall-preorder window is charged in full, but SHIPS in the fall window (GOL-2233 + grove-sites#814)", () => {
     // The crux of the ruling: the GOL-1114 calendar copy showed "PREORDER —
     // deposit now" here. An in-stock variant on/before Oct 15 no longer deposits.
+    // But the CHARGE moving did not move the TIMING: zone 6 ships Sep 15 - Oct 30,
+    // so these dates are charged now and ship in that wave. Fusing the two made
+    // the copy claim "Ships now" on a date no zone ships on (grove-sites#814).
     for (const [m, d] of [[8, 15], [8, 31], [9, 14]] as const) {
       const r = resolveShippableMode(on(m, d), CAL);
       expect(r.mode).toBe("bareroot-in-window");
       expect(r.depositNow).toBe(false);
       expect(r.depositReason).toBeNull();
+      expect(r.shipSeason).toBe("fall"); // NOT shipping today
     }
   });
 
-  it("Sep 15 → Oct 15: fall bareroot ships now, charged in full", () => {
+  it("Sep 15 → Oct 15: fall window is OPEN, so bareroot really does ship now", () => {
     for (const [m, d] of [[9, 15], [10, 1], [10, 15]] as const) {
       const r = resolveShippableMode(on(m, d), CAL);
       expect(r.mode).toBe("bareroot-in-window");
       expect(r.depositNow).toBe(false);
+      expect(r.shipSeason).toBeNull(); // window open → ships today
     }
+  });
+});
+
+// grove-sites#814 / GOL-2757 — "Ships now · charged in full" used to render on
+// every in-stock pre-cutover date, including the gap between the preorder switch
+// and the zone's window. Charge and timing are now separate clauses, and only an
+// OPEN window may say "Ships now".
+describe("grove-sites#814 — charge and ship timing are separate clauses", () => {
+  it("in the pre-window gap: charged in full today, ships in the named wave", () => {
+    const r = resolveShippableMode(on(9, 1), CAL); // zone 6 ships Sep 15 - Oct 30
+    expect(r.depositNow).toBe(false);
+    expect(r.shipSeason).toBe("fall");
+    expect(barerootTimingShort(r)).toBe("Charged in full today · ships this fall");
+    expect(barerootNote(r)).toContain("Charged in full today");
+    expect(barerootNote(r)).toContain("ship them dormant this fall");
+    // the defect: never claim same-day shipping outside an open window
+    expect(barerootTimingShort(r)).not.toContain("Ships now");
+    expect(barerootNote(r)).not.toContain("Ships now");
+  });
+
+  it("inside an open window: the ships-now claim is kept, because it is true", () => {
+    const r = resolveShippableMode(on(10, 1), CAL); // inside zone 6's fall window
+    expect(r.shipSeason).toBeNull();
+    expect(barerootTimingShort(r)).toBe("Ships now · charged in full");
+    expect(barerootNote(r)).toContain("Ships now and charged in full today");
+  });
+
+  it("no in-stock pre-cutover day claims ships-now outside an open window", () => {
+    const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    for (let m = 1; m <= 12; m++) {
+      for (let d = 1; d <= daysInMonth[m - 1]; d++) {
+        const r = resolveShippableMode(on(m, d), CAL);
+        if (r.mode !== "bareroot-in-window") continue;
+        const claimsNow = barerootTimingShort(r).includes("Ships now");
+        // ships-now is claimed if and only if no upcoming wave is pending
+        expect(claimsNow).toBe(r.shipSeason === null);
+      }
+    }
+  });
+
+  it("a deposit order still names its wave (charge changed, phrasing did not)", () => {
+    const r = resolveShippableMode(on(11, 15), CAL);
+    expect(r.depositNow).toBe(true);
+    expect(r.shipSeason).toBe("spring");
+    expect(barerootTimingShort(r)).toBe("$10 to reserve · ships this spring");
+  });
+});
+
+// grove-sites#815 / GOL-2757 — the deposit half of the GOL-2233 rule is pure
+// date arithmetic against a local constant, so a feedless surface must still
+// state it. `depositByDate` is that feed-free answer.
+describe("grove-sites#815 — depositByDate (feed-free deposit rule)", () => {
+  it("is false on/before the cutover and true after it", () => {
+    expect(depositByDate(on(10, 15))).toBe(false);
+    expect(depositByDate(on(10, 16))).toBe(true);
+    expect(depositByDate(on(1, 1))).toBe(false);
+    expect(depositByDate(on(12, 31))).toBe(true);
+  });
+
+  it("agrees with the full resolver's depositNow on every in-stock day", () => {
+    const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    for (let m = 1; m <= 12; m++) {
+      for (let d = 1; d <= daysInMonth[m - 1]; d++) {
+        expect(depositByDate(on(m, d))).toBe(resolveShippableMode(on(m, d), CAL).depositNow);
+      }
+    }
+  });
+
+  it("honours an injected cutover, like the resolver's depositCutover opt", () => {
+    expect(depositByDate(on(10, 1), [9, 30])).toBe(true);
+    expect(depositByDate(on(9, 30), [9, 30])).toBe(false);
   });
 });
 
@@ -109,7 +186,7 @@ describe("GOL-2233 deposit rule — charge keys to sold-out / Oct 15 cutover, no
     expect(r.mode).toBe("bareroot-preorder");
     expect(r.depositNow).toBe(true);
     expect(r.depositReason).toBe("sold-out");
-    expect(r.preorderSeason).toBe("fall");
+    expect(r.shipSeason).toBe("fall");
   });
 
   it("after the cutover → flat $10 deposit even when in stock, reason off-season", () => {
@@ -118,7 +195,7 @@ describe("GOL-2233 deposit rule — charge keys to sold-out / Oct 15 cutover, no
       expect(r.mode).toBe("bareroot-preorder");
       expect(r.depositNow).toBe(true);
       expect(r.depositReason).toBe("off-season");
-      expect(r.preorderSeason).not.toBeNull();
+      expect(r.shipSeason).not.toBeNull();
     }
   });
 
@@ -157,8 +234,11 @@ describe("edge cases — no dead months, one mode per day", () => {
         expect(["bareroot-preorder", "bareroot-in-window", "peat-and-bagged"]).toContain(r.mode);
         // deposit is taken exactly when (and only when) the mode is a reserve
         expect(r.depositNow).toBe(r.mode === "bareroot-preorder");
-        // a deposit always names the season it will ship in; nothing else does
-        expect(r.preorderSeason !== null).toBe(r.mode === "bareroot-preorder");
+        // a pending wave is named exactly when the order does NOT ship today:
+        // every deposit order, plus a charged-in-full order still awaiting its
+        // zone window (grove-sites#814). Peat & bagged always ships today.
+        if (r.mode === "bareroot-preorder") expect(r.shipSeason).not.toBeNull();
+        if (r.mode === "peat-and-bagged") expect(r.shipSeason).toBeNull();
         seen.add(r.mode);
       }
     }
@@ -170,7 +250,7 @@ describe("edge cases — no dead months, one mode per day", () => {
     expect(modeOn(5, 5)).toBe("bareroot-in-window"); // last spring ship day
     expect(modeOn(5, 6)).toBe("peat-and-bagged"); // first leafed day
     expect(modeOn(8, 14)).toBe("peat-and-bagged"); // last leafed day
-    expect(modeOn(8, 15)).toBe("bareroot-in-window"); // ships now, charged in full (was preorder)
+    expect(modeOn(8, 15)).toBe("bareroot-in-window"); // charged in full, ships in the fall window (was preorder)
     expect(modeOn(10, 15)).toBe("bareroot-in-window"); // last day on/before cutover
     expect(modeOn(10, 16)).toBe("bareroot-preorder"); // first day after cutover → deposit
   });
@@ -203,13 +283,13 @@ describe("zone staggering — timing/season reads the zone; the charge does not"
   it("sold-out reserve names the later zone's fall season (its window has not opened yet)", () => {
     const r = resolveShippableMode(on(9, 20), STAGGERED, laterZone, { soldOut: true });
     expect(r.mode).toBe("bareroot-preorder");
-    expect(r.preorderSeason).toBe("fall");
+    expect(r.shipSeason).toBe("fall");
   });
 
   it("sold-out reserve names the earlier zone's in-window season", () => {
     const r = resolveShippableMode(on(9, 20), STAGGERED, 6, { soldOut: true });
     expect(r.mode).toBe("bareroot-preorder");
-    expect(r.preorderSeason).toBe("fall");
+    expect(r.shipSeason).toBe("fall");
   });
 });
 

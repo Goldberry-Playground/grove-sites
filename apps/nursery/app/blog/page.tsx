@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
@@ -7,12 +8,22 @@ import { tenantConfig } from "../../tenant.config";
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
 
+// GOL-2878 Phase 1. Title reuses the on-page heading; the self-canonical stops
+// the index treating this and the homepage as the same thing.
+export const metadata: Metadata = {
+  title: tenantConfig.copy.blogHeading,
+  alternates: { canonical: "/blog" },
+};
+
 export default async function BlogPage() {
   let posts: Post[] = [];
   let error: string | null = null;
 
   try {
-    posts = await ghost.posts.list({ limit: 10, include: "tags,authors" });
+    // `?? []` guards a 200 with an unexpected body, which would otherwise
+    // throw a 500 on `.length` instead of degrading to the empty state below
+    // (GOL-2756).
+    posts = (await ghost.posts.list({ limit: 10, include: "tags,authors" })) ?? [];
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load posts";
   }

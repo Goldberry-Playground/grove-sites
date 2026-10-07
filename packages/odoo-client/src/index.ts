@@ -30,6 +30,8 @@ export type {
   ApiShippingRatesResponse,
   ShippingZoneMap,
   ShippingBoxId,
+  PottedBoxId,
+  ShippingRatedBoxId,
   PackingMode,
   ShippingBoxRate,
   ShippingBoxRateTable,

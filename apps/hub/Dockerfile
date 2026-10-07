@@ -127,10 +127,13 @@ ENV HOSTNAME=0.0.0.0
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
-# Standalone server + static assets. The hub has no /public dir today, but
-# Next still generates a (possibly empty) static tree.
+# Standalone server + static assets + public/. Next's standalone output does
+# NOT include public/, so it must be copied beside server.js — without it every
+# /brand/* and /photos/* file 404s and next/image 400s on them (the /alliance
+# logos and hero photo were broken in prod until this was added, 2026-09-30).
 COPY --from=builder --chown=nextjs:nodejs /workspace/apps/hub/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /workspace/apps/hub/.next/static ./apps/hub/.next/static
+COPY --from=builder --chown=nextjs:nodejs /workspace/apps/hub/public ./apps/hub/public
 
 USER nextjs
 EXPOSE 3000

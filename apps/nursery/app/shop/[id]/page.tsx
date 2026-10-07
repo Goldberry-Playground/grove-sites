@@ -1,8 +1,11 @@
+import { cache } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
+import { buildPdpMetadata, notFoundMetadata } from "../../../lib/pdp-metadata";
 import { getMockProductById, mockProducts } from "../../../data/mock-products";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { inferCompanions, toCompanionInput } from "../../../lib/companions";
@@ -20,6 +23,86 @@ import { CompanionsStrip } from "./companions-strip";
 import { ZoneCheck } from "./zone-check";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Department tree, memoized per request: `generateMetadata` and the department
+ * page body both need it, and `force-dynamic` disables fetch dedupe (see
+ * `loadProduct` below for the same reasoning).
+ */
+const loadNav = cache(getCatalogNav);
+
+/**
+ * Metadata for a department segment (`/shop/<slug>`, GOL-2745). Resolves the
+ * slug with the same rules `departmentPage` uses, so a 404ing slug gets the
+ * not-found noindex and a real department gets its own title and canonical.
+ */
+async function departmentMetadata(slug: string): Promise<Metadata> {
+  const { nav } = await loadNav();
+  const dept = findDepartment(nav, slug);
+  if (!dept || dept.slug === ORCHARD_SLUG) return notFoundMetadata();
+  const canonicalPath = `/shop/${dept.slug}`;
+  return {
+    title: dept.name,
+    ...(dept.teaser ? { description: dept.teaser } : {}),
+    alternates: { canonical: canonicalPath },
+  };
+}
+
+function odooBaseUrl(): string {
+  return process.env.ODOO_URL ?? "http://localhost:8069";
+}
+
+/**
+ * Product detail — Odoo first, mock fallback (same seam the shop uses).
+ *
+ * `cache()`-wrapped because `generateMetadata` and the page component both
+ * need the product and Next runs them in the same request. Without it this
+ * route would make two full detail round-trips to the single Odoo droplet per
+ * page view: `dynamic = "force-dynamic"` sets `fetchCache: "force-no-store"`,
+ * so the client's own `next.revalidate` cannot dedupe them. React's per-request
+ * memoization does, and it also guarantees the title and the <h1> describe the
+ * same product even if the catalog changes mid-render.
+ */
+const loadProduct = cache(async (productId: number): Promise<Product | null> => {
+  try {
+    return await odoo.products.get(productId);
+  } catch {
+    return getMockProductById(productId);
+  }
+});
+
+/**
+ * Per-product title, description, canonical and share card (GOL-2878 Phase 1).
+ *
+ * Until this landed, all 21 published PDPs served `<title>At The Grove
+ * Nursery</title>` and one shared description, and the site emitted no `og:`
+ * tags at all — so every catalog link posted to email or social rendered as a
+ * bare URL with no preview (GOL-2875 §1b/§1c).
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const productId = Number(id);
+  // A non-numeric segment is a department page (GOL-2745), not a bad product
+  // id: it needs its own title and canonical, and it must NOT inherit the
+  // not-found noindex below.
+  if (Number.isNaN(productId)) return departmentMetadata(id);
+
+  const product = await loadProduct(productId);
+  if (!product) return notFoundMetadata();
+
+  return buildPdpMetadata({
+    product,
+    // Phase 1: the id form is the only form, so it is its own canonical. Phase 2
+    // introduces `/shop/<slug>` as canonical and 301s this path to it
+    // (GOL-2875 R1/R8) — swap this one argument then.
+    canonicalPath: `/shop/${product.id}`,
+    odooBase: odooBaseUrl(),
+  });
+}
 
 /**
  * `/shop/<segment>` — a product detail page, or a DEPARTMENT page (GOL-2745).
@@ -47,15 +130,9 @@ export default async function ShopSegmentPage({
   const productId = Number(id);
   if (Number.isNaN(productId)) return departmentPage(id, await searchParams);
 
-  const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
+  const odooBase = odooBaseUrl();
 
-  // Product detail — Odoo first, mock fallback (same seam the shop uses).
-  let product: Product | null = null;
-  try {
-    product = await odoo.products.get(productId);
-  } catch {
-    product = getMockProductById(productId);
-  }
+  const product = await loadProduct(productId);
   if (!product) notFound();
 
   // Catalog for companion inference — best-effort, never blocks the page.
@@ -71,9 +148,10 @@ export default async function ShopSegmentPage({
   //   • rates()    — legacy tier-keyed table (schema 1); null once the backend
   //                  is on Box Engine v2. Drives the potted/bareroot snapshot.
   //   • rateFeed() — schema-2 Box Engine v2 feed (box-keyed zones + packing
-  //                  catalog); null on the legacy backend. Drives bareroot's
-  //                  per-box estimate and carries the pickup-only truth for
-  //                  potted (no potted box by design). GOL-1114.
+  //                  catalog); null on the legacy backend. Drives the per-box
+  //                  estimate for BOTH tiers, and carries the pickup-only truth:
+  //                  potted reads as pickup-only only while the feed prices no
+  //                  potted box (GOL-1114, re-opened by GOL-2199 / #813).
   // Exactly one is non-null on a configured backend; both null → the client's
   // bundled snapshot. Best-effort and drift-safe — neither call ever blocks.
   //
@@ -183,12 +261,18 @@ export default async function ShopSegmentPage({
         fallbackPrice={product.price}
         saleOk={product.saleOk}
         preorderCapReached={product.preorderCapReached}
-        // Farm-pickup-only override (GOL-2587 P1 / GOL-2588). `complianceExempt`
-        // is deliberately NOT passed: the storefront's only per-state notice is
-        // the green-list gate, which the exemption does not widen (it lets a line
-        // ship anywhere ON the green list, never beyond it), so an exempt product
-        // renders identically. See the flag's doc in @grove/odoo-client.
+        // Farm-pickup-only override (GOL-2587 P1 / GOL-2588).
         pickupOnly={product.pickupOnly}
+        // Per-item plant-health carve-out inputs (GOL-2973). The green-list gate
+        // alone used to decide the estimator's copy, so a PDP cheerfully promised
+        // "We ship to Florida" for a chestnut the checkout carve-out gate refuses
+        // — advertise-then-reject. The estimator now needs BOTH the declared
+        // taxon the gate keys on and the exemption that makes the gate skip, so
+        // `complianceExempt` is threaded after all (GOL-2588 left it out when the
+        // only notice was the green list, which the exemption does not widen).
+        botanicalName={product.facts?.botanicalName ?? null}
+        complianceExempt={product.complianceExempt}
+        shipsAllGreenStates={product.shipsAllGreenStates}
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
         shippingZoneMap={shippingZoneMap}
@@ -201,9 +285,9 @@ export default async function ShopSegmentPage({
         zoneMax={product.facts?.zoneMax ?? null}
       />
 
-      <SpecBlock facts={product.facts} />
-
       <GrowingGuide html={guideHtml} />
+
+      <SpecBlock facts={product.facts} />
 
       <CompanionsStrip companions={companions} odooBase={odooBase} />
     </div>
@@ -222,7 +306,7 @@ async function departmentPage(
   slug: string,
   searchParams: Record<string, string | string[] | undefined>,
 ) {
-  const { nav } = await getCatalogNav();
+  const { nav } = await loadNav();
   const dept = findDepartment(nav, slug);
   // Orchard IS `/shop` — serving it here too would split its SEO across two
   // URLs for identical content.

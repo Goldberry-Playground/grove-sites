@@ -155,6 +155,11 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // shippable, and subject to the per-product carve-out.
     pickupOnly: raw.pickup_only ?? false,
     complianceExempt: raw.compliance_exempt ?? false,
+    // Third fulfillment flag (GOL-2988): the template is a phantom/Kit-BoM
+    // bundle, so checkout substitutes restricted components per destination and
+    // skips the carve-out gate. Same default-false reasoning — a build predating
+    // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
+    shipsAllGreenStates: raw.ships_all_green_states ?? false,
     // Department tree fields (GOL-2745). All three are left UNDEFINED when the
     // backend omits them so the UI can tell "no department / no offers yet"
     // apart from a real `false` — the deal badge and the conditional "On offer"
@@ -221,6 +226,11 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // shippable, and subject to the per-product carve-out.
     pickupOnly: raw.pickup_only ?? false,
     complianceExempt: raw.compliance_exempt ?? false,
+    // Third fulfillment flag (GOL-2988): the template is a phantom/Kit-BoM
+    // bundle, so checkout substitutes restricted components per destination and
+    // skips the carve-out gate. Same default-false reasoning — a build predating
+    // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
+    shipsAllGreenStates: raw.ships_all_green_states ?? false,
     featured: raw.grove_featured,
     variants: (raw.variants ?? [])
       .map(normalizeVariant)

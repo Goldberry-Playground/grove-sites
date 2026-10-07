@@ -8,6 +8,10 @@ import {
   estimateBoxFloor,
   estimateTierShipping,
   hasBoxFeed,
+  hasPottedRates,
+  estimatePottedShipping,
+  estimatePottedFloor,
+  estimateTierFloor,
   isPickupOnly,
   shipsTo,
   tierFor,
@@ -333,7 +337,9 @@ describe("estimateTierShipping (Format-card ⟷ estimator seam)", () => {
   });
 
   it("keeps potted on the legacy tier path (pure pricing seam, no box route)", () => {
-    // Potted is never routed through the box feed (no potted box by design).
+    // This feed carries no potted rate rows, so potted still falls through to
+    // the legacy tier-keyed snapshot. See the #813 block below for the feed
+    // generation that does price potted.
     // estimateTierShipping stays a pure pricing function; the pickup-only policy
     // (GOL-1114) is a separate gate — see isPickupOnly — so callers that render
     // a shippable potted row (legacy backend) still get its tier rate here.
@@ -346,6 +352,23 @@ describe("estimateTierShipping (Format-card ⟷ estimator seam)", () => {
   });
 });
 
+// The same schema-2 feed AFTER the GOL-2199 potted go-live: `zones` now carries
+// rated potted box rows (p24x10x4 / p24x10x6), mirroring the shape of the live
+// `data/shipping_rates.json`. Note `packing.boxes` is UNCHANGED — the backend's
+// `rate_feed()` builds it from BOXES only and never publishes POTTED_BOXES, so a
+// client sees potted RATES but no potted SPECS. That asymmetry is exactly why
+// the pickup-only gate reads `zones`, not `packing.boxes` (grove-sites#813).
+const SCHEMA2_POTTED_FEED: ShippingRateFeed = {
+  ...SCHEMA2_FEED,
+  zones: {
+    zone_1: { small: { base: 16 }, large: { base: 22 }, p24x10x4: { base: 20 }, p24x10x6: { base: 27 } },
+    zone_2: { small: { base: 22 }, large: { base: 36 }, p24x10x4: { base: 24 }, p24x10x6: { base: 31 } },
+    zone_3: { small: { base: 22 }, large: { base: 36 }, p24x10x4: { base: 26 }, p24x10x6: { base: 34 } },
+    zone_4: { small: { base: 47 }, large: { base: 54 }, p24x10x4: { base: 38 }, p24x10x6: { base: 49 } },
+    zone_5: { small: { base: 41 }, large: { base: 52 }, p24x10x4: { base: 26 }, p24x10x6: { base: 41 } },
+  },
+};
+
 describe("hasBoxFeed", () => {
   it("true for a well-formed schema-2 feed, false for null/empty", () => {
     expect(hasBoxFeed(SCHEMA2_FEED)).toBe(true);
@@ -354,13 +377,15 @@ describe("hasBoxFeed", () => {
   });
 });
 
-// GOL-1114 (ratified 2026-08-03): potted flips to farm-pickup-only exactly when
-// Box Engine v2 is live (its SHIPPABLE_TIERS drops potted + checkout blocks a
-// potted ship). Gating on the feed keeps the product page and checkout consistent
-// in BOTH backend generations — no "ships now" the checkout would block, and no
-// "pickup only" while the legacy backend still charges potted shipping.
-describe("isPickupOnly (potted = farm pickup only under Box Engine v2)", () => {
-  it("potted is pickup-only when the box feed is live", () => {
+// GOL-1114 (ratified 2026-08-03) flipped potted to farm-pickup-only, then
+// GOL-2199 (2026-09-08) put potted back on its own shipping engine. The
+// invariant across both is unchanged: the page and checkout must agree. The
+// signal that tracks checkout is a RATED POTTED ROW in the feed, because that is
+// the backend's own fail-safe condition (`pack_potted` -> None -> checkout
+// refuses the line). So a schema-2 feed that prices no potted box still reads
+// pickup-only, exactly as before.
+describe("isPickupOnly (potted, feed with NO potted rates)", () => {
+  it("potted is pickup-only when the box feed prices no potted box", () => {
     expect(isPickupOnly("potted", SCHEMA2_FEED)).toBe(true);
   });
   it("potted still ships on the legacy backend (no feed)", () => {
@@ -370,6 +395,77 @@ describe("isPickupOnly (potted = farm pickup only under Box Engine v2)", () => {
   it("bareroot is always shippable, never pickup-only", () => {
     expect(isPickupOnly("bareroot", SCHEMA2_FEED)).toBe(false);
     expect(isPickupOnly("bareroot", null)).toBe(false);
+  });
+});
+
+// grove-sites#813 / GOL-2757 — the potted go-live reaching the storefront. The
+// PDP told shoppers potted was "Farm pickup only" while the backend had priced
+// potted boxes and would ship them (SHIPPABLE_TIERS = {"bareroot","potted"}).
+describe("grove-sites#813 — potted ships once the feed prices a potted box", () => {
+  it("hasPottedRates distinguishes the two schema-2 generations", () => {
+    expect(hasPottedRates(SCHEMA2_POTTED_FEED)).toBe(true);
+    expect(hasPottedRates(SCHEMA2_FEED)).toBe(false); // schema-2, no potted rows
+    expect(hasPottedRates(null)).toBe(false);
+    expect(hasPottedRates(undefined)).toBe(false);
+  });
+
+  it("potted is NO LONGER pickup-only once the feed prices it", () => {
+    expect(isPickupOnly("potted", SCHEMA2_POTTED_FEED)).toBe(false);
+  });
+
+  it("the per-product override still outranks the potted rates (GOL-2588)", () => {
+    expect(isPickupOnly("potted", SCHEMA2_POTTED_FEED, true)).toBe(true);
+    expect(isPickupOnly("bareroot", SCHEMA2_POTTED_FEED, true)).toBe(true);
+  });
+
+  it("bareroot is untouched by the potted rows", () => {
+    expect(isPickupOnly("bareroot", SCHEMA2_POTTED_FEED)).toBe(false);
+    expect(estimateTierShipping("WV", "bareroot", { feed: SCHEMA2_POTTED_FEED })).toBe(16);
+  });
+
+  it("prices one potted unit off the cheapest rated potted box for the state's zone", () => {
+    // WV = zone_1 -> cheapest of p24x10x4 $20 / p24x10x6 $27
+    expect(estimatePottedShipping("WV", SCHEMA2_POTTED_FEED)).toBe(20);
+    // MN = zone_4 -> cheapest of $38 / $49
+    expect(estimatePottedShipping("MN", SCHEMA2_POTTED_FEED)).toBe(38);
+  });
+
+  it("returns null for a state outside the green list, never an invented rate", () => {
+    expect(estimatePottedShipping("CA", SCHEMA2_POTTED_FEED)).toBeNull();
+    expect(estimatePottedShipping(null, SCHEMA2_POTTED_FEED)).toBeNull();
+  });
+
+  it("routes potted through the box feed, NOT the per-tree legacy snapshot", () => {
+    // The legacy tier-keyed table says $32/tree for WV potted; the box engine
+    // charges $20 for a carton of up to five. Falling through would over-quote.
+    expect(estimateTierShipping("WV", "potted", { feed: SCHEMA2_POTTED_FEED })).toBe(20);
+    expect(estimateTierShipping("WV", "potted", { feed: SCHEMA2_FEED })).toBe(32);
+  });
+
+  it("the from-$X floor is per tier, so a potted card cannot quote the bareroot floor", () => {
+    expect(estimateTierFloor("bareroot", SCHEMA2_POTTED_FEED)).toBe(16); // zone_1 small
+    expect(estimateTierFloor("potted", SCHEMA2_POTTED_FEED)).toBe(20); // zone_1 p24x10x4
+    expect(estimatePottedFloor(SCHEMA2_POTTED_FEED)).toBe(20);
+  });
+
+  it("the tier floor can never exceed the state estimate it precedes", () => {
+    const floor = estimateTierFloor("potted", SCHEMA2_POTTED_FEED)!;
+    for (const st of Object.keys(ZONE_BY_STATE)) {
+      const est = estimatePottedShipping(st, SCHEMA2_POTTED_FEED);
+      if (est != null) expect(floor).toBeLessThanOrEqual(est);
+    }
+  });
+
+  it("a partially-rated feed still ships: one rated potted box is enough", () => {
+    const partial: ShippingRateFeed = {
+      ...SCHEMA2_FEED,
+      zones: { ...SCHEMA2_FEED.zones, zone_1: { small: { base: 16 }, p24x10x6: { base: 27 } } },
+    };
+    expect(hasPottedRates(partial)).toBe(true);
+    expect(isPickupOnly("potted", partial)).toBe(false);
+    expect(estimatePottedShipping("WV", partial)).toBe(27);
+    // a zone with no potted row of its own quotes nothing rather than guessing
+    expect(estimatePottedShipping("MN", partial)).toBeNull();
   });
 });
 
@@ -387,7 +483,7 @@ describe("isPickupOnly — per-product override (GOL-2588)", () => {
     expect(isPickupOnly("potted", null, true)).toBe(true);
   });
   it("leaves the potted rule untouched when the override is absent or false", () => {
-    expect(isPickupOnly("potted", SCHEMA2_FEED, false)).toBe(true); // potted rule still applies
+    expect(isPickupOnly("potted", SCHEMA2_FEED, false)).toBe(true); // no potted rates -> still pickup
     expect(isPickupOnly("bareroot", SCHEMA2_FEED, false)).toBe(false);
     expect(isPickupOnly("bareroot", SCHEMA2_FEED, null)).toBe(false);
     expect(isPickupOnly("bareroot", SCHEMA2_FEED, undefined)).toBe(false);
