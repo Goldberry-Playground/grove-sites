@@ -1161,6 +1161,10 @@ export interface CheckoutQuoteInput {
   items: OrderItemInput[];
   fulfillment?: "ship" | "pickup" | null;
   shipWave?: ShipWave | null;
+  /** Destination ZIP for a ship cart, once the shopper has typed one. The
+   *  backend validates the wave against this ZIP's USDA zone, so a closed wave
+   *  surfaces at the quote instead of at "Continue to payment" (GOL-3194). */
+  zip?: string | null;
 }
 
 /** Raw response from POST /grove/api/v1/checkout/quote (GOL-2233). */
