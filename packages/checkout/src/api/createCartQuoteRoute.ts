@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { OdooApiError, type OdooClient, type ShippingTier } from "@grove/odoo-client";
+import { OdooApiError, type OdooClient, type ShippingTier, type ShipWave } from "@grove/odoo-client";
 import { isOriginAllowed, rejectOrigin } from "./origins";
 import { requireJsonContentType } from "./contentType";
-import { sanitizeUpstreamError } from "./upstreamError";
+import { forwardCheckoutError, sanitizeUpstreamError } from "./upstreamError";
 
 /** One cart line, enriched with the live catalog facts a deposit rule needs. */
 export interface CartQuoteLine {
@@ -78,7 +78,11 @@ export function createCartQuoteRoute<Quote>(
       return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 });
     }
 
-    const { items, fulfillment } = body as { items?: unknown; fulfillment?: unknown };
+    const { items, fulfillment, shipWave } = body as {
+      items?: unknown;
+      fulfillment?: unknown;
+      shipWave?: unknown;
+    };
     if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) {
       return NextResponse.json(
         { error: `items must be a non-empty array of at most ${MAX_ITEMS} lines` },
@@ -107,6 +111,11 @@ export function createCartQuoteRoute<Quote>(
       return NextResponse.json({ error: 'fulfillment must be "ship" or "pickup"' }, { status: 400 });
     }
 
+    if (shipWave !== undefined && shipWave !== null && shipWave !== "fall" && shipWave !== "spring") {
+      return NextResponse.json({ error: 'shipWave must be "fall" or "spring"' }, { status: 400 });
+    }
+    const waveChoice: ShipWave | null = shipWave === "fall" || shipWave === "spring" ? shipWave : null;
+
     const fulfillmentChoice: CartQuoteFulfillment | null =
       fulfillment === "ship" || fulfillment === "pickup" ? fulfillment : null;
 
@@ -118,9 +127,16 @@ export function createCartQuoteRoute<Quote>(
         const quote = await odoo.checkout.quote({
           items: requested.map((r) => ({ variantId: r.variantId, quantity: r.quantity })),
           fulfillment: fulfillmentChoice,
+          shipWave: waveChoice ?? undefined,
         });
         return NextResponse.json(quote);
       } catch (e) {
+        // A 400 is a real answer the shopper must see and act on (mixed cart,
+        // closed wave, potted line out of season): relay it, never estimate past it.
+        if (e instanceof OdooApiError && e.status === 400) {
+          const forwarded = forwardCheckoutError(e);
+          if (forwarded) return forwarded;
+        }
         if (!(e instanceof OdooApiError && e.status === 404)) {
           console.warn("cart/quote: backend quote unavailable, using catalog estimate:", e);
         }

@@ -1044,6 +1044,8 @@ export interface PromoPreviewInput {
   fulfillment?: "ship" | "pickup" | null;
   /** The code the buyer typed; omit to preview only the automatic volume tier. */
   promoCode?: string;
+  /** Pre-order wave of the cart being previewed; omit for an immediate cart. */
+  shipWave?: ShipWave | null;
 }
 
 /** Raw response from POST /grove/api/v1/checkout/promo/preview. */

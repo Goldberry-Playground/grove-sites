@@ -12,6 +12,7 @@ import {
   type GrovePromoPreview,
 } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
+import { orderKind, orderWave } from "../cart-reducer";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -139,11 +140,18 @@ export function CheckoutPage({
   const fulfillment: GroveFulfillment = lockedToPickup ? "pickup" : chosenFulfillment;
   // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
   // from the storefront's `/api/cart/quote` when wired; null = charged in full.
-  const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
-    depositQuoteHref,
-    items,
-    fulfillment,
-  );
+  // One wave per order, never mixed with immediate items (the PDP prevents it;
+  // a stale localStorage cart can still hold a mix). `shipWave` is the cart's
+  // single wave, null for an immediate cart.
+  const kind = orderKind(items);
+  const shipWave = orderWave(items);
+  const mixedCart = hydrated && kind === "mixed";
+  const {
+    quote: depositQuote,
+    settled: depositSettled,
+    error: quoteError,
+  } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave);
+  const blocked = mixedCart || quoteError !== null;
   const dueToday = dueTodayFor(depositQuote);
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
@@ -166,6 +174,7 @@ export function CheckoutPage({
         items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
         fulfillment: mode,
         promoCode: code,
+        ...(shipWave ? { shipWave } : {}),
       }),
     }).catch(() => {
       throw new Error("We couldn't check that code. Check your connection and try again.");
@@ -204,6 +213,8 @@ export function CheckoutPage({
           // via sale_loyalty; an invalid/ineligible code fails the order with a
           // shopper-facing message shown in the form (GOL-2088).
           promoCode: order.promoCode,
+          // The pre-order wave (one per order); null for an immediate order.
+          shipWave,
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
           successUrl: `${origin}/checkout/success`,
           cancelUrl: `${origin}/checkout/cancel`,
@@ -267,8 +278,30 @@ export function CheckoutPage({
     );
   }
 
+  const orderTypeLine =
+    kind === "preorder"
+      ? `Pre-order · ${shipWave} wave · $10 deposit today, balance when ${
+          fulfillment === "pickup" ? "you pick up" : "your trees ship"
+        }`
+      : kind === "immediate"
+        ? "Ships now or ready for pickup · charged in full"
+        : null;
+  const blockingMessage = mixedCart
+    ? "Pre-orders check out on their own. Remove the trees that ship now, or check them out first."
+    : quoteError;
+
   return (
     <WithGroveNext>
+      {orderTypeLine && !mixedCart ? (
+        <p className="grove-checkout__order-type" data-testid="order-type">
+          {orderTypeLine}
+        </p>
+      ) : null}
+      {blockingMessage ? (
+        <p role="alert" className="grove-checkout__order-blocked">
+          {blockingMessage}
+        </p>
+      ) : null}
       <UICheckoutPage
         items={items}
         subtotal={subtotal}
@@ -302,6 +335,7 @@ export function CheckoutPage({
         trustItems={BRAND_TRUST[brand].checkout}
         dueToday={dueToday}
         onFulfillmentChange={setChosenFulfillment}
+        submitDisabled={blocked}
       />
     </WithGroveNext>
   );

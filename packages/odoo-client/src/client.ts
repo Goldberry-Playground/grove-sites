@@ -435,6 +435,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             body: JSON.stringify({
               fulfillment: input.fulfillment ?? null,
               promo_code: input.promoCode,
+              ship_wave: input.shipWave ?? null,
               items: input.items.map((i) => ({
                 variant_id: i.variantId,
                 quantity: i.quantity,

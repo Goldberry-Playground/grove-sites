@@ -174,3 +174,36 @@ describe("createCartQuoteRoute — catalog fallback", () => {
     expect(JSON.stringify(await res.json())).not.toContain("secret");
   });
 });
+
+describe("createCartQuoteRoute — pre-order waves", () => {
+  const items = [{ variantId: 196, templateId: 19, quantity: 1 }];
+
+  it("passes shipWave through to the backend quote", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async () => backendQuote);
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, fulfillment: "ship", shipWave: "spring" }));
+    expect(res.status).toBe(200);
+    expect(quote.mock.calls[0][0]).toMatchObject({ shipWave: "spring" });
+  });
+
+  it("rejects an invalid shipWave", async () => {
+    const { odoo } = fakeOdoo();
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, shipWave: "winter" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("relays a backend 400 (mixed cart / closed wave) instead of estimating past it", async () => {
+    const msg = "Pre-orders check out on their own. Remove the trees that ship now, or check them out first.";
+    const { odoo, get } = fakeOdoo(undefined, async () => {
+      throw new OdooApiError(400, "Odoo API error: 400", JSON.stringify({ error: msg }));
+    });
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve });
+    const res = await POST(postReq({ items, shipWave: "fall" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: msg });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+});

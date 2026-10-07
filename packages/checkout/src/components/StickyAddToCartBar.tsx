@@ -1,7 +1,10 @@
 "use client";
 
 import { StickyAddToCartBar as UIStickyAddToCartBar } from "@grove/ui-kit";
+import { useState } from "react";
+import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
+import { canAdd } from "../cart-reducer";
 
 type StickyAddToCartBarProps = {
   variantId: number;
@@ -26,6 +29,8 @@ type StickyAddToCartBarProps = {
    * the product. Defaults to shippable.
    */
   pickupOnly?: boolean;
+  /** Pre-order wave this add belongs to; omit for an immediate item. See AddToCartButton. */
+  wave?: ShipWave;
 };
 
 /**
@@ -44,12 +49,15 @@ export function StickyAddToCartBar({
   anchorSelector,
   quantity = 1,
   pickupOnly,
+  wave,
 }: StickyAddToCartBarProps) {
-  const { add, openDrawer, totalQuantity, hydrated } = useCart();
+  const { items, add, openDrawer, totalQuantity, hydrated } = useCart();
+  const [blocked, setBlocked] = useState<string | null>(null);
   // Never let a stray fractional/NaN quantity reach the cart from the bar.
   const addQuantity = Number.isInteger(quantity) && quantity >= 1 ? quantity : 1;
 
   return (
+    <>
     <UIStickyAddToCartBar
       name={name}
       price={price}
@@ -61,9 +69,21 @@ export function StickyAddToCartBar({
       // agree (both show 0 → no badge).
       cartQuantity={hydrated ? totalQuantity : 0}
       onAdd={() => {
-        add({ variantId, templateId, name, price, imageUrl, pickupOnly }, addQuantity);
+        const verdict = canAdd(items, { wave });
+        if (!verdict.ok) {
+          setBlocked(verdict.message);
+          return;
+        }
+        setBlocked(null);
+        add({ variantId, templateId, name, price, imageUrl, pickupOnly, wave }, addQuantity);
         openDrawer(variantId);
       }}
     />
+    {blocked ? (
+      <p role="status" className="grove-sticky-add__blocked">
+        {blocked}
+      </p>
+    ) : null}
+    </>
   );
 }
