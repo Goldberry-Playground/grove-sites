@@ -46,6 +46,9 @@ const VARIANTS: ViewVariant[] = [
   },
 ];
 
+// A potted-only listing with a Format axis (one Potted variant).
+const POTTED_ONLY: ViewVariant[] = [{ ...VARIANTS[1], id: 131 }];
+
 // Prod #91 PawPaw: one bareroot variant, no Format axis.
 const PAWPAW: ViewVariant[] = [
   {
@@ -78,7 +81,11 @@ const WHITE_OAK: ViewVariant[] = [
   },
 ];
 
-function renderPdp(variants: ViewVariant[] = VARIANTS, productId = 4) {
+function renderPdp(
+  variants: ViewVariant[] = VARIANTS,
+  productId = 4,
+  opts: { pickupOnly?: boolean } = {},
+) {
   return render(
     <CartProvider>
       <ProductView
@@ -90,9 +97,19 @@ function renderPdp(variants: ViewVariant[] = VARIANTS, productId = 4) {
         variants={variants}
         fallbackPrice={12}
         saleOk
+        pickupOnly={opts.pickupOnly}
       />
     </CartProvider>,
   );
+}
+
+function methodButton(name: RegExp) {
+  const group = screen.getByRole("group", { name: /how do you want it/i });
+  return within(group).getByRole("button", { name }) as HTMLButtonElement;
+}
+
+async function addToCart(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getAllByRole("button", { name: /add to cart/i })[0]);
 }
 
 function formatGroup() {
@@ -298,5 +315,50 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     }
     expect(screen.getByText("Potted trees are sold May 1 to Oct 15.")).toBeTruthy();
     expect(screen.getAllByText("Not available right now").length).toBeGreaterThan(0);
+  });
+
+  it("under Farm pickup, no Format card promises shipping", async () => {
+    const user = userEvent.setup();
+    renderPdp();
+    await user.click(methodButton(/farm pickup/i));
+    for (const card of within(formatGroup()).getAllByRole("button")) {
+      expect(card.textContent).not.toMatch(/ship/i);
+    }
+  });
+
+  it("after Oct 15, a potted-only listing cannot be shipped or carted", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12)));
+    renderPdp(POTTED_ONLY);
+    expect(methodButton(/shipped/i).disabled).toBe(true);
+    for (const b of screen.queryAllByRole("button", { name: /add to cart|pre-order for/i })) {
+      expect((b as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(cartLines()).toEqual([]);
+  });
+
+  it("after Oct 15, a potted listing with no Format axis cannot be shipped", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12)));
+    renderPdp(WHITE_OAK, 130);
+    expect(methodButton(/shipped/i).disabled).toBe(true);
+  });
+
+  it("a pickup-only potted tree is carted pickup-only in season", async () => {
+    const user = userEvent.setup();
+    renderPdp(POTTED_ONLY, 4, { pickupOnly: true });
+    expect(methodButton(/farm pickup/i).getAttribute("aria-pressed")).toBe("true");
+    await addToCart(user);
+    expect(cartLines().find((l) => l.variantId === 131)?.pickupOnly).toBe(true);
+  });
+
+  it("a pickup-only listing never offers Shipped, even in season", () => {
+    renderPdp(VARIANTS, 4, { pickupOnly: true });
+    expect(methodButton(/farm pickup/i).getAttribute("aria-pressed")).toBe("true");
+    expect(methodButton(/shipped/i).disabled).toBe(true);
+  });
+
+  it("a remembered Shipped preference does not override a pickup-only listing", () => {
+    localStorage.setItem("grove:fulfillment-pref", "ship");
+    renderPdp(VARIANTS, 4, { pickupOnly: true });
+    expect(methodButton(/farm pickup/i).getAttribute("aria-pressed")).toBe("true");
   });
 });

@@ -234,9 +234,9 @@ export function ProductView({
   // Farm pickup vs Shipped comes BEFORE Format (Josh 2026-10-07). In the potted
   // season the potted variant is the immediate buy ("Potted" picked up, "Peat &
   // bagged" shipped); the bareroot variant is the Fall/Spring pre-order card,
-  // offered from Sep 1 and all of the off season. SSR opens on "ship"; the mount
-  // effect below restores the remembered intent.
-  const [method, setMethod] = useState<FulfillmentMethod>("ship");
+  // offered from Sep 1 and all of the off season. Opens on "ship" when this
+  // product can ship today, else "pickup"; the mount effect below restores the
+  // remembered intent when that method is offered.
   const calendar = shippingFeed?.calendar ?? null;
   const pottedSeason = isPottedSeason(new Date(), calendar);
   const preorderSeason = isPreorderSeason(new Date());
@@ -253,12 +253,48 @@ export function ProductView({
       preorderSeason,
       pottedShips,
     });
+  // Can this product be bought by `m` for cultivar `c` today? A pickup-only
+  // template (GOL-2587) never ships. Tier presence comes from the VARIANTS, not
+  // the Format axis: prod lists formatless single-variant products (#91 PawPaw
+  // bareroot, #130 White Oak potted) that must pass the same season / pre-order
+  // gate as a paired listing. Without this, an empty Shipped view fell through
+  // `pickVariant` to the potted variant and carted it as shippable.
+  const formatlessTierOf = (c: string | null): ShippingTier | null =>
+    formatOptions(variants, c).length === 0 && variants.length > 0
+      ? tierFor({
+          shippingTier: pickVariant(variants, { cultivar: c })?.shippingTier ?? null,
+          format: null,
+        })
+      : null;
+  const methodOffered = (m: FulfillmentMethod, c: string | null): boolean => {
+    if (m === "ship" && pickupOnly) return false;
+    const lone = formatlessTierOf(c);
+    if (lone) {
+      return (
+        formatsForMethod(["formatless"], m, () => lone, {
+          pottedSeason,
+          preorderSeason,
+          pottedShips,
+        }).length > 0
+      );
+    }
+    return formatOptions(variants, c).length === 0 || formatsFor(m, c).length > 0;
+  };
+  const openingMethod = (c: string | null): FulfillmentMethod =>
+    methodOffered("ship", c) ? "ship" : "pickup";
+  const [method, setMethod] = useState<FulfillmentMethod>(() => openingMethod(cultivar));
   const formats = useMemo(
     () => formatsFor(method, cultivar),
     [variants, cultivar, method, pottedSeason, preorderSeason, pottedShips],
   );
   const [format, setFormat] = useState<string | null>(() =>
-    defaultFormat(variants, formatsFor("ship", cultivar), cultivar, isPurchasable, isInStock),
+    defaultFormat(
+      variants,
+      formatsFor(openingMethod(cultivar), cultivar),
+      cultivar,
+      isPurchasable,
+      isInStock,
+    ),
   );
   const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
   const [rootstock, setRootstock] = useState<string | null>(() =>
@@ -281,7 +317,9 @@ export function ProductView({
   // the neutral defaults; an explicit click always wins afterwards.
   useEffect(() => {
     const pref = readFulfillmentPref();
-    if (pref && pref !== method) chooseMethod(pref, { persist: false });
+    if (pref && pref !== method && methodOffered(pref, cultivar)) {
+      chooseMethod(pref, { persist: false });
+    }
     const zone = readUsdaZone();
     if (zone != null && waveZones(calendar).includes(zone)) setUsdaZone(zone);
   }, []);
@@ -297,31 +335,15 @@ export function ProductView({
   const wave: ShipWave | null = waves.some((w) => w.wave === chosenWave && w.open)
     ? chosenWave
     : firstOpenWave(waves);
-  // Tier presence comes from the VARIANTS, not the Format axis: prod lists
-  // formatless single-variant products (#91 PawPaw bareroot, #130 White Oak
-  // potted) that must pass the same season / pre-order gate as a paired listing.
   const axisFormats = formatOptions(variants, cultivar);
-  const formatlessTier: ShippingTier | null =
-    axisFormats.length === 0 && variants.length > 0
-      ? tierFor({
-          shippingTier: pickVariant(variants, { cultivar })?.shippingTier ?? null,
-          format: null,
-        })
-      : null;
+  const formatlessTier = formatlessTierOf(cultivar);
   const productTiers: ShippingTier[] = formatlessTier
     ? [formatlessTier]
     : axisFormats.map((f) => tierOfFormat(cultivar, f));
   const hasBareroot = productTiers.includes("bareroot");
   const hasPotted = productTiers.includes("potted");
   /** Does `m` offer anything to buy today (formatless products included)? */
-  const offeredFor = (m: FulfillmentMethod): boolean =>
-    formatlessTier
-      ? formatsForMethod(["formatless"], m, () => formatlessTier, {
-          pottedSeason,
-          preorderSeason,
-          pottedShips,
-        }).length > 0
-      : axisFormats.length === 0 || formatsFor(m, cultivar).length > 0;
+  const offeredFor = (m: FulfillmentMethod): boolean => methodOffered(m, cultivar);
   const formatlessOffered = formatlessTier != null && offeredFor(method);
 
   function chooseZone(next: number) {
@@ -444,10 +466,13 @@ export function ProductView({
 
   function chooseCultivar(next: string) {
     setCultivar(next);
+    // A cultivar that can't go by the current method moves to one it can.
+    const nextMethod = methodOffered(method, next) ? method : openingMethod(next);
+    setMethod(nextMethod);
     // Keep the current format if the new cultivar offers it, else re-pick its
     // first *purchasable* format so the switch never lands on a dead default
     // (GOL-1862) — same order-independent rule as the initial mount.
-    const nextFormats = formatsFor(method, next);
+    const nextFormats = formatsFor(nextMethod, next);
     const nextFormat =
       format && nextFormats.includes(format)
         ? format
@@ -501,9 +526,13 @@ export function ProductView({
     format,
   });
   const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed, pickupOnly);
-  // A potted tree chosen for Farm pickup must never ship as potted: flag the
-  // cart line pickupOnly so the GOL-2588 checkout lock forces pickup.
-  const cartPickupOnly = selectedPickupOnly || (method === "pickup" && selectedTier === "potted");
+  // A potted tree must never ship as potted: chosen for Farm pickup, or any time
+  // outside the potted season, flag the cart line pickupOnly so the GOL-2588
+  // checkout lock forces pickup. Independent of the method so a stale or
+  // wildcarded selection can't slip a shippable potted line into the cart.
+  const cartPickupOnly =
+    selectedPickupOnly ||
+    (selectedTier === "potted" && (method === "pickup" || !pottedSeason));
 
   // One buy-state decision drives the stock line, the CTA, and the sticky bar,
   // so the inline box and the mobile bar can never contradict each other
@@ -620,10 +649,17 @@ export function ProductView({
           )}
 
           <div className="mb-5">
-            <span className="block text-sm font-semibold text-foreground mb-2">
+            <span
+              id="pdp-method-label"
+              className="block text-sm font-semibold text-foreground mb-2"
+            >
               How do you want it?
             </span>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Fulfillment">
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-labelledby="pdp-method-label"
+            >
               {METHOD_OPTIONS.map(([m, label, sub]) => {
                 const unavailable = !offeredFor(m);
                 const isActive = method === m;
@@ -634,7 +670,7 @@ export function ProductView({
                     onClick={() => chooseMethod(m)}
                     aria-pressed={isActive}
                     disabled={unavailable}
-                    className={`flex-1 rounded border px-4 py-2 text-left text-sm transition ${
+                    className={`flex flex-1 flex-col justify-start rounded border px-4 py-2 text-left text-sm transition ${
                       isActive
                         ? "border-primary bg-primary/5"
                         : "border-primary/15 hover:border-primary/40"
@@ -775,8 +811,12 @@ export function ProductView({
                   } = tierFulfillment({
                     tier: fTier,
                     label: f,
-                    pickupOnly: fPickupOnly,
-                    pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
+                    // Under Farm pickup every card is collected at the farm, so
+                    // no card may carry a ship promise ("Ships now", GOL-1114).
+                    pickupOnly: fPickupOnly || method === "pickup",
+                    pickupFulfillment: fPickupOnly
+                      ? PICKUP_ONLY_FULFILLMENT
+                      : PICKUP_METHOD_FULFILLMENT,
                     hintFulfillment: fHint.fulfillment,
                     shipMode,
                   });
@@ -1037,13 +1077,16 @@ const STOCK_TONE_CLASS: Record<StockTone, string> = {
   "sold-out": "stock-line stock-line--out",
 };
 
-/** Friendly per-tier label for the shipping estimator rows. */
 /** Fulfillment method buttons, in display order (Josh 2026-10-07). */
 const METHOD_OPTIONS: ReadonlyArray<readonly [FulfillmentMethod, string, string]> = [
   ["pickup", "Farm pickup", "Free · Tue to Sat"],
   ["ship", "Shipped", "To 31 states and Washington, D.C."],
 ];
 
+/** Format-card fulfillment line when the shopper chose Farm pickup. */
+const PICKUP_METHOD_FULFILLMENT = "Pick up at the farm";
+
+/** Friendly per-tier label for the shipping estimator rows. */
 const TIER_LABEL: Record<ShippingTier, string> = {
   potted: "Potted",
   bareroot: "Bareroot",

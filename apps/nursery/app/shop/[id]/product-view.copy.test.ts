@@ -58,8 +58,8 @@ describe("product-view.tsx — pickup / shipped gate (2026-10-07 hotfix)", () =>
     expect(src).toContain("methodFormatLabel(");
   });
 
-  it("locks a pickup-chosen potted line to pickup in the cart", () => {
-    expect(src).toMatch(/method === "pickup" && selectedTier === "potted"/);
+  it("locks a potted line to pickup when chosen for pickup or out of season", () => {
+    expect(src).toMatch(/selectedTier === "potted" && \(method === "pickup" \|\| !pottedSeason\)/);
   });
 });
 
