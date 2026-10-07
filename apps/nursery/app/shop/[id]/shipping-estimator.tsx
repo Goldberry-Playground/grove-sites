@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
@@ -14,6 +14,11 @@ import {
   type RateTable,
   type ZoneMap,
 } from "../../../lib/shipping-estimate";
+import {
+  evaluateCompliance,
+  resolveCompliance,
+  resolveSubstitutes,
+} from "../../../lib/plant-compliance";
 
 const STORAGE_KEY = "grove:ship-state";
 
@@ -52,13 +57,45 @@ export interface ShippingEstimatorProps {
    *  the baked snapshot. Defaults to the snapshot so the component works
    *  standalone (e.g. in tests). */
   zoneMap?: ZoneMap;
+  /**
+   * Declared botanical name for this product (Odoo `grove_botanical_name`) —
+   * the taxon the plant-health carve-out gate is keyed on (GOL-2973). Null/""
+   * on a consult-built mix that deliberately declares none (templates 134/135),
+   * which is exactly what makes it `unconfirmed` into a regulated state rather
+   * than silently clear. Optional so older callers and tests are unaffected;
+   * absent behaves like an undeclared botanical.
+   */
+  botanicalName?: string | null;
+  /**
+   * Odoo `grove_compliance_exempt` (GOL-2587). `true` means checkout SKIPS the
+   * per-line carve-out gate for this product, so the notice must stay silent —
+   * warning about an order that sails through is its own kind of lie.
+   */
+  complianceExempt?: boolean;
+  /**
+   * `ships_all_green_states` (GOL-2988): this is a phantom/Kit-BoM substitution
+   * bundle, so checkout swaps out whatever the destination restricts and skips
+   * the carve-out gate. Suppresses the notice for the same reason
+   * `complianceExempt` does, and matters more: a bundle declares the CEILING of
+   * its palette (GOL-2972), so its botanical reads as restricted here while the
+   * order ships fine (GOL-3015).
+   */
+  shipsAllGreenStates?: boolean;
 }
 
 /**
  * "Estimate shipping to your state" (GOL-943). A native state selector that,
- * on selection, shows the per-box "from" estimate for each format this product
- * ships — or, for a state we don't reach yet, a plain-spoken "not there yet"
- * with a pickup + notify-me path (never a dead end, never a guessed charge).
+ * on selection, resolves the destination into exactly one of THREE states:
+ *
+ *   1. green + this item is cleared — the per-box "from" estimate per format;
+ *   2. green but this item is NOT cleared — the per-taxon plant-health
+ *      carve-out (GOL-2132) that checkout refuses the order on, so the panel
+ *      names the reason and shows NO rate (GOL-2973). Item-specific, not
+ *      geographic: "we ship to Florida, but not this chestnut";
+ *   3. not green — a plain-spoken "not there yet".
+ *
+ * Every branch carries a next action (pickup, a swap, a consult, notify-me), so
+ * none of them is a dead end, and none of them guesses a charge we won't honour.
  *
  * Box Engine v2 (GOL-1114/GOL-1208): shippable formats are priced PER PACKED
  * BOX and consolidate into as few boxes as possible, so the amount shown is a
@@ -82,6 +119,9 @@ export function ShippingEstimator({
   rates = ZONE_RATE_TABLE,
   feed,
   zoneMap = SNAPSHOT_ZONE_MAP,
+  botanicalName,
+  complianceExempt,
+  shipsAllGreenStates,
 }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
@@ -106,6 +146,27 @@ export function ShippingEstimator({
 
   const eligible = shipsTo(state, zoneMap);
   const stateName = state ? US_STATE_NAMES[state] : "";
+  // Second gate (GOL-2132 / GOL-2973). The green list says whether we reach the
+  // state at all; this says whether THIS item is cleared into it. Feed-first off
+  // the same `compliance` / `bundle_substitution` blocks checkout refuses with,
+  // snapshot as the fallback — so the PDP can never promise what checkout will
+  // reject. Pure + synchronous: no network call, so the panel still answers
+  // inside the Doherty threshold on `change`.
+  const compliance = useMemo(() => resolveCompliance(feed), [feed]);
+  const substitutes = useMemo(() => resolveSubstitutes(feed), [feed]);
+  const verdict = useMemo(
+    () =>
+      evaluateCompliance({
+        botanicalName,
+        complianceExempt,
+        shipsAllGreenStates,
+        state,
+        compliance,
+        substitutes,
+      }),
+    [botanicalName, complianceExempt, shipsAllGreenStates, state, compliance, substitutes],
+  );
+  const cleared = verdict.kind === "clear";
   // Live green list when the feed reached us, else the baked snapshot
   // (GOL-2292) — the interactive panel reflects the live backend, unlike the
   // static marketing pages that read the module-level snapshot. The wording is
@@ -145,16 +206,35 @@ export function ShippingEstimator({
       <div aria-live="polite" className="mt-3">
         {state === "" && (
           <p className="text-xs text-foreground/60">
-            We ship living trees to {shipTo.phrase} — pick yours to see your
+            We ship living trees to {shipTo.phrase}; pick yours to see your
             rate. Your trees ship together in as few boxes as possible, priced per box;
             your exact rate is confirmed at checkout.
           </p>
         )}
 
-        {state !== "" && eligible && (
+        {state !== "" && eligible && cleared && (
           <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-              <span aria-hidden="true" className="text-secondary">✓</span>
+            <p className="flex items-start gap-1.5 text-sm font-medium text-primary">
+              {/* Inline SVG, not U+2713: the three faces we load (Fraunces /
+                  Newsreader / IBM Plex Mono) cover no Dingbats, so the
+                  character fell through to whatever symbol font the device
+                  happened to have and painted as tofu on one that had none
+                  (GOL-3112). It also drops `text-secondary`, which measured
+                  2.41:1 against the panel: the same fill-value-used-as-a-
+                  foreground mistake `border-accent/70` made in GOL-3028.
+                  currentColor inherits the label ink instead, at 10.88:1. */}
+              <svg
+                aria-hidden="true"
+                className="mt-1 h-3 w-3 shrink-0"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M1.75 6.4 4.6 9.25 10.25 2.9" />
+              </svg>
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
@@ -211,10 +291,98 @@ export function ShippingEstimator({
           </div>
         )}
 
+        {/* Third eligibility state (GOL-2973): we DO ship to this state, but
+            this item is not cleared into it — the per-taxon plant-health
+            carve-out the checkout gate refuses the order on. Deliberately
+            distinct from the "not there yet" panel below: that one is about
+            geography, this one is about the item, so the heading names the item
+            rather than the state. No rate is rendered — quoting a "from $20"
+            for something we will refuse at checkout is the actual harm.
+
+            Colour-independence: three eligibility states, three icons AND three
+            different opening phrases ("We ship to …" / "Not cleared for …" /
+            "We can’t ship living trees to … yet"), so the panel reads correctly
+            in grayscale and under deuteranopia / protanopia / tritanopia. */}
+        {state !== "" && eligible && !cleared && (
+          <div className="rounded border border-accent/30 bg-accent/5 p-3">
+            <p className="flex items-start gap-1.5 text-sm font-medium text-foreground">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-accent/70 text-[0.6rem] font-bold leading-none text-accent"
+              >
+                !
+              </span>
+              {verdict.kind === "restricted"
+                ? `Not cleared for ${stateName}`
+                : `We can’t confirm this mix for ${stateName}`}
+            </p>
+            {verdict.kind === "restricted" ? (
+              <p className="mt-1.5 text-xs text-foreground/70">
+                We ship to {stateName}, but it restricts {verdict.taxonLabel} for
+                plant-health reasons, so this one can’t travel there.
+                {verdict.substitute
+                  ? ` We can swap in ${verdict.substitute.label} (${verdict.substitute.botanical}), which ${stateName} does allow. Ask us below and we’ll set it up, or pick this one up free at the farm.`
+                  : " You can still pick it up free at the farm, or ask us below and we’ll suggest something that clears."}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-foreground/70">
+                We build this mix with you, so its final plant list isn’t set yet,
+                and {stateName} restricts a few of the plants we’d normally include.
+                We can’t promise it’s cleared until we’ve built it together, so
+                reserve it with us below and we’ll confirm your list in the consult,
+                before anything ships. You can also pick it up free at the farm.
+              </p>
+            )}
+            <div className="mt-3">
+              {/* Same real capture path as the not-green branch below (POSTs to
+                  /api/newsletter/subscribe). The state and the blocked taxon ride
+                  along in `label`, so "which items are we turning away, and
+                  where?" is a measurable signal rather than a dead end.
+                  Forgiveness lens: this is a pre-emptive, recoverable notice with
+                  a named next action — never an error, never a wall. */}
+              <CaptureForm
+                brand="nursery"
+                source="notify-me"
+                label={
+                  verdict.kind === "restricted"
+                    ? `nursery-carveout-${state}-${verdict.taxonKey}`
+                    : `nursery-consult-mix-${state}`
+                }
+                interests={["nursery", "compliance-swap"]}
+                heading={
+                  verdict.kind === "restricted"
+                    ? `Ask us about shipping to ${stateName}`
+                    : `Start a consult for ${stateName}`
+                }
+                description={
+                  verdict.kind === "restricted"
+                    ? "Leave your email and we’ll come back with what we can ship to you."
+                    : "Leave your email and we’ll build your list with you, cleared for your state."
+                }
+                submitLabel="Ask us"
+                successMessage={`Got it. We’ll email you about ${stateName}, usually within a business day.`}
+                consentText="We’ll only email you about this request. Unsubscribe anytime."
+              />
+            </div>
+          </div>
+        )}
+
         {state !== "" && !eligible && (
           <div className="rounded border border-accent/30 bg-accent/5 p-3">
-            <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-              <span aria-hidden="true" className="text-accent">ⓘ</span>
+            <p className="flex items-start gap-1.5 text-sm font-medium text-foreground">
+              {/* An ASCII letter in a bordered circle, not U+24D8: Enclosed
+                  Alphanumerics is outside the loaded faces too, so the glyph
+                  tofu'd the same way (GOL-3112). This is the construction
+                  GOL-2973 introduced and GOL-3028 corrected to a full-opacity
+                  accent border: 3.26:1 against the panel tint, over the 3:1
+                  non-text guideline, where /70 measured 2.27:1. Decorative and
+                  aria-hidden: the wording carries the state, not the icon. */}
+              <span
+                aria-hidden="true"
+                className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-accent text-[0.6rem] font-bold leading-none text-accent"
+              >
+                i
+              </span>
               We can’t ship living trees to {stateName} yet
             </p>
             <p className="mt-1.5 text-xs text-foreground/70">
