@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ShipWave } from "@grove/odoo-client";
 import type { CartItem } from "../cart-reducer";
 
 /** The subset of a `/api/cart/quote` response the summaries render. */
 export interface CartDepositQuote {
   depositNow: boolean;
-  depositReason: "sold-out" | "off-season" | null;
+  depositReason: "sold-out" | "off-season" | "preorder" | null;
+  shipWave?: ShipWave | null;
   amountDueToday: number | null;
+  /** Set by the storefront quote route when the backend quote was unavailable
+   *  and this is its own catalog estimate (display only, never confirms a
+   *  pre-order deposit). Absent on a backend-confirmed quote. */
+  estimated?: boolean;
 }
 
 export type QuoteFulfillment = "ship" | "pickup";
@@ -34,6 +40,18 @@ export interface CartDepositQuoteState {
    * nothing until the cart is affirmatively a charged-in-full order.
    */
   settled: boolean;
+  /**
+   * The backend's shopper-facing refusal (a 400 from the quote: mixed cart,
+   * closed wave, potted line out of season), or null. The checkout form shows it
+   * and blocks submit, because the session would be refused for the same reason.
+   */
+  error: string | null;
+  /**
+   * True when the last quote attempt failed without a shopper-facing reason (a
+   * non-400 error, a malformed body, or a network failure), so the charge mode
+   * is unknown and will stay unknown until the cart or fulfillment changes.
+   */
+  failed: boolean;
 }
 
 /**
@@ -55,24 +73,31 @@ export function useCartDepositQuote(
   href: string | undefined,
   items: readonly CartItem[],
   fulfillment?: QuoteFulfillment,
+  shipWave?: ShipWave | null,
 ): CartDepositQuoteState {
   const [quote, setQuote] = useState<CartDepositQuote | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
+  const [failed, setFailed] = useState(false);
   // Serialize the inputs so the effect keys on cart CONTENT, not array identity.
   const key = JSON.stringify({
     items: items.map((i) => ({ variantId: i.variantId, templateId: i.templateId, quantity: i.quantity })),
     fulfillment: fulfillment ?? null,
+    shipWave: shipWave ?? null,
   });
 
   useEffect(() => {
     if (!href || items.length === 0) {
       // No charge rule to quote — a definite "no deposit", so callers may act.
       setQuote(null);
+      setError(null);
+      setFailed(false);
       setSettled(true);
       return;
     }
     // A fresh quote is in flight; hold any deposit-conditioned UI until it lands.
     setSettled(false);
+    setFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -82,23 +107,42 @@ export function useCartDepositQuote(
           body: JSON.stringify({
             items: items.map((i) => ({ variantId: i.variantId, templateId: i.templateId, quantity: i.quantity })),
             fulfillment: fulfillment ?? null,
+            // Omitted for an immediate cart (absent = no wave).
+            ...(shipWave ? { shipWave } : {}),
           }),
           signal: controller.signal,
         });
         if (!res.ok) {
           // Charge mode unknown — leave `settled` false so nudges stay closed.
           setQuote(null);
+          // A 400 carries the backend's shopper-facing reason; show it.
+          if (res.status === 400) {
+            try {
+              const body = (await res.json()) as { error?: unknown };
+              setError(typeof body.error === "string" && body.error ? body.error : null);
+            } catch {
+              setError(null);
+            }
+          } else {
+            setError(null);
+            setFailed(true);
+          }
           return;
         }
         const data: unknown = await res.json();
         if (isQuote(data)) {
           setQuote(data);
+          setError(null);
           setSettled(true);
         } else {
           setQuote(null);
+          setFailed(true);
         }
       } catch {
-        if (!controller.signal.aborted) setQuote(null);
+        if (!controller.signal.aborted) {
+          setQuote(null);
+          setFailed(true);
+        }
       }
     }, DEBOUNCE_MS);
     return () => {
@@ -109,5 +153,5 @@ export function useCartDepositQuote(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, key]);
 
-  return { quote, settled };
+  return { quote, settled, error, failed };
 }
