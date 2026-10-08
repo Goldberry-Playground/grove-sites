@@ -28,6 +28,12 @@ type AddToCartButtonProps = {
    */
   pickupOnly?: boolean;
   /**
+   * The line being added is a consult-built mix (GOL-3019). Stamped onto the cart
+   * line so the checkout form can disclose the per-state species constraint
+   * before the deposit is charged, without re-fetching the product (GOL-3028).
+   */
+  consultBuilt?: boolean;
+  /**
    * Pre-order wave this add belongs to; omit for an immediate item. A cart is
    * either immediate or a pre-order for one wave, so an add that would mix them
    * (or add a second wave) is refused and the reason is shown inline.
@@ -51,6 +57,7 @@ export function AddToCartButton({
   quantity,
   onQuantityChange,
   pickupOnly,
+  consultBuilt,
   wave,
 }: AddToCartButtonProps) {
   const { items, add, openDrawer } = useCart();
@@ -81,7 +88,10 @@ export function AddToCartButton({
           return false;
         }
         setBlocked(null);
-        add({ variantId, templateId, name, price, imageUrl, pickupOnly, wave }, quantity);
+        add(
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave },
+          quantity,
+        );
         trackAddToCart({ variantId, price, quantity });
         // Open the mini-cart to confirm the add — a clear visual of what landed
         // in the cart plus a one-click path to checkout.

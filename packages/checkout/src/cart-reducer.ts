@@ -28,6 +28,17 @@ export type CartItem = {
    */
   pickupOnly?: boolean;
   /**
+   * This line is a consult-built mix whose plant list is agreed with the customer
+   * after the deposit (Odoo `grove_consult_built`, GOL-3019). Carried on the line
+   * for the same reason as `pickupOnly`: the checkout form has no product payload
+   * to re-read, and it needs to disclose the per-state species constraint BEFORE
+   * the deposit is charged (GOL-3028).
+   *
+   * Optional: a cart persisted before this field existed simply has no flag, so
+   * checkout shows no notice for that line, exactly as before.
+   */
+  consultBuilt?: boolean;
+  /**
    * The pre-order wave this line belongs to. Absent = an immediate line (potted
    * pickup / peat & bagged shipped, charged in full). A cart is either all
    * immediate or a pre-order for exactly one wave; see {@link canAdd}.
@@ -125,6 +136,10 @@ export function validateCartItems(parsed: unknown): CartItem[] {
       // truthy string into "this cart is pickup-only".
       ((item as CartItem).pickupOnly === undefined ||
         typeof (item as CartItem).pickupOnly === "boolean") &&
+      // Same rule for the consult-built flag (GOL-3028): absent is fine, present
+      // but non-boolean means a tampered line, so drop it rather than coerce.
+      ((item as CartItem).consultBuilt === undefined ||
+        typeof (item as CartItem).consultBuilt === "boolean") &&
       // Same for the pre-order wave: absent is an immediate line; anything other
       // than the two known waves is a tampered line.
       ((item as CartItem).wave === undefined ||

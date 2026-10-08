@@ -17,10 +17,12 @@ import {
   type ZoneMap,
 } from "../../../lib/shipping-estimate";
 import {
+  consultMixOutlook,
   evaluateCompliance,
   resolveCompliance,
   resolveSubstitutes,
 } from "../../../lib/plant-compliance";
+import { ConsultCarveOutNotice } from "../../consult-carveout-notice";
 
 const STORAGE_KEY = "grove:ship-state";
 
@@ -83,18 +85,31 @@ export interface ShippingEstimatorProps {
    * order ships fine (GOL-3015).
    */
   shipsAllGreenStates?: boolean;
+  /**
+   * Odoo `grove_consult_built` (API `consult_built`, GOL-3019). `true` on a mix
+   * whose plant list is agreed in a consult after the deposit (templates
+   * 134/135). Checkout no longer refuses the deposit for a regulated
+   * destination, so the panel owes the shopper the honest constraint for that
+   * state BEFORE they pay rather than a flat "we can't confirm this"
+   * (GOL-3028). Optional: absent keeps the pre-GOL-3019 cautious branch.
+   */
+  consultBuilt?: boolean;
 }
 
 /**
  * "Estimate shipping to your state" (GOL-943). A native state selector that,
- * on selection, resolves the destination into exactly one of THREE states:
+ * on selection, resolves the destination into exactly one of FOUR states:
  *
  *   1. green + this item is cleared — the per-box "from" estimate per format;
  *   2. green but this item is NOT cleared — the per-taxon plant-health
  *      carve-out (GOL-2132) that checkout refuses the order on, so the panel
  *      names the reason and shows NO rate (GOL-2973). Item-specific, not
  *      geographic: "we ship to Florida, but not this chestnut";
- *   3. not green — a plain-spoken "not there yet".
+ *   3. green + a consult-built mix into a regulated state — checkout DOES take
+ *      the deposit now (GOL-3019), so the panel discloses which species this
+ *      state takes off the list and how many of the seventeen still clear, before
+ *      the shopper pays (GOL-3028). A narrowing, not a refusal;
+ *   4. not green — a plain-spoken "not there yet".
  *
  * Every branch carries a next action (pickup, a swap, a consult, notify-me), so
  * none of them is a dead end, and none of them guesses a charge we won't honour.
@@ -125,6 +140,7 @@ export function ShippingEstimator({
   botanicalName,
   complianceExempt,
   shipsAllGreenStates,
+  consultBuilt,
 }: ShippingEstimatorProps) {
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
@@ -163,11 +179,31 @@ export function ShippingEstimator({
         botanicalName,
         complianceExempt,
         shipsAllGreenStates,
+        consultBuilt,
         state,
         compliance,
         substitutes,
       }),
-    [botanicalName, complianceExempt, shipsAllGreenStates, state, compliance, substitutes],
+    [
+      botanicalName,
+      complianceExempt,
+      shipsAllGreenStates,
+      consultBuilt,
+      state,
+      compliance,
+      substitutes,
+    ],
+  );
+  // Palette outlook for the consult-constrained branch: how much of our
+  // food-forest palette this destination restricts, and therefore how many
+  // species clear. Derived from the same feed map as the verdict, so the count
+  // and the gate agree.
+  const outlook = useMemo(
+    () =>
+      verdict.kind === "consult-constrained"
+        ? consultMixOutlook(state, compliance)
+        : null,
+    [verdict, state, compliance],
   );
   const cleared = verdict.kind === "clear";
   // Live green list when the feed reached us, else the baked snapshot
@@ -323,18 +359,44 @@ export function ShippingEstimator({
             different opening phrases ("We ship to …" / "Not cleared for …" /
             "We can’t ship living trees to … yet"), so the panel reads correctly
             in grayscale and under deuteranopia / protanopia / tritanopia. */}
-        {state !== "" && eligible && !cleared && (
+        {/* FOURTH eligibility state (GOL-3028): a consult-built mix into a
+            regulated destination. Distinct from the two below because the
+            answer is no longer "we can't" — GOL-3019 defers the compliance
+            decision to mix time and records the excluded taxa on the order, so
+            the deposit goes through and the shopper is owed the constraint in
+            advance rather than a refusal. Honest and specific: the species this
+            state takes off the list, by name, and how many of the seventeen we
+            grow still clear. No rate: the mix is not built yet, so the box count
+            that prices it genuinely is not known, and the notice says so. Add to
+            Cart stays available, which is the whole point of the deferral. */}
+        {state !== "" && eligible && verdict.kind === "consult-constrained" && (
+          <ConsultCarveOutNotice
+            state={state}
+            compliance={compliance}
+            surface="pdp"
+            outlook={outlook ?? undefined}
+          />
+        )}
+
+        {state !== "" &&
+          eligible &&
+          (verdict.kind === "restricted" || verdict.kind === "unconfirmed") && (
           <div className="rounded border border-accent/30 bg-accent/5 p-3">
             <p className="flex items-start gap-1.5 text-sm font-medium text-foreground">
+              {/* Full-opacity accent border, not /70: measured 2.27:1 against the
+                  panel tint, under the 3:1 non-text UI guideline. Decorative and
+                  aria-hidden so it was never a conformance failure, but the fix
+                  is a single token and keeps both notice icons one family
+                  (GOL-3028). */}
               <span
                 aria-hidden="true"
-                className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-accent/70 text-[0.6rem] font-bold leading-none text-accent"
+                className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-accent text-[0.6rem] font-bold leading-none text-accent"
               >
                 !
               </span>
               {verdict.kind === "restricted"
                 ? `Not cleared for ${stateName}`
-                : `We can’t confirm this mix for ${stateName}`}
+                : `We can’t confirm this one for ${stateName}`}
             </p>
             {verdict.kind === "restricted" ? (
               <p className="mt-1.5 text-xs text-foreground/70">
@@ -346,11 +408,10 @@ export function ShippingEstimator({
               </p>
             ) : (
               <p className="mt-1.5 text-xs text-foreground/70">
-                We build this mix with you, so its final plant list isn’t set yet,
-                and {stateName} restricts a few of the plants we’d normally include.
-                We can’t promise it’s cleared until we’ve built it together, so
-                reserve it with us below and we’ll confirm your list in the consult,
-                before anything ships. You can also pick it up free at the farm.
+                {stateName} restricts certain plants for plant-health reasons, and we
+                haven’t confirmed where this one falls. We won’t promise a delivery we
+                can’t make, so ask us below and we’ll check it and come back to you.
+                You can also pick it up free at the farm.
               </p>
             )}
             <div className="mt-3">
@@ -366,18 +427,18 @@ export function ShippingEstimator({
                 label={
                   verdict.kind === "restricted"
                     ? `nursery-carveout-${state}-${verdict.taxonKey}`
-                    : `nursery-consult-mix-${state}`
+                    : `nursery-unconfirmed-${state}`
                 }
                 interests={["nursery", "compliance-swap"]}
                 heading={
                   verdict.kind === "restricted"
                     ? `Ask us about shipping to ${stateName}`
-                    : `Start a consult for ${stateName}`
+                    : `Ask us about ${stateName}`
                 }
                 description={
                   verdict.kind === "restricted"
                     ? "Leave your email and we’ll come back with what we can ship to you."
-                    : "Leave your email and we’ll build your list with you, cleared for your state."
+                    : "Leave your email and we’ll check this one for your state and come back to you."
                 }
                 submitLabel="Ask us"
                 successMessage={`Got it. We’ll email you about ${stateName}, usually within a business day.`}

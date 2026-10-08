@@ -29,6 +29,12 @@ type StickyAddToCartBarProps = {
    * the product. Defaults to shippable.
    */
   pickupOnly?: boolean;
+  /**
+   * The line being added is a consult-built mix (GOL-3019). Stamped onto the cart
+   * line so the checkout form can disclose the per-state species constraint
+   * before the deposit is charged, without re-fetching the product (GOL-3028).
+   */
+  consultBuilt?: boolean;
   /** Pre-order wave this add belongs to; omit for an immediate item. See AddToCartButton. */
   wave?: ShipWave;
 };
@@ -49,6 +55,7 @@ export function StickyAddToCartBar({
   anchorSelector,
   quantity = 1,
   pickupOnly,
+  consultBuilt,
   wave,
 }: StickyAddToCartBarProps) {
   const { items, add, openDrawer, totalQuantity, hydrated } = useCart();
@@ -78,7 +85,10 @@ export function StickyAddToCartBar({
           return;
         }
         setBlocked(null);
-        add({ variantId, templateId, name, price, imageUrl, pickupOnly, wave }, addQuantity);
+        add(
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave },
+          addQuantity,
+        );
         openDrawer(variantId);
       }}
     />

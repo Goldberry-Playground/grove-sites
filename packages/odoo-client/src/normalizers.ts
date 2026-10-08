@@ -149,10 +149,11 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // identical to a stock sell-out. Default false so mocks and pre-field
     // payloads stay uncapped.
     preorderCapReached: raw.preorder_cap_reached ?? false,
-    // Fulfillment flags from the GOL-2587 P1 hotfix, served on BOTH list and
-    // detail by `_fulfillment_flags`. Both default false so mocks and a
-    // grove_headless build that predates the fields behave exactly as before:
-    // shippable, and subject to the per-product carve-out.
+    // Fulfillment flags from `_fulfillment_flags`, served on BOTH list and detail
+    // (GOL-2587 P1; `consult_built` added by GOL-3019). All three default false so
+    // mocks and a grove_headless build that predates a field behave exactly as
+    // before: shippable, subject to the per-product carve-out, and not
+    // consult-built (so the deposit-time fail-safe copy still applies).
     pickupOnly: raw.pickup_only ?? false,
     complianceExempt: raw.compliance_exempt ?? false,
     // Third fulfillment flag (GOL-2988): the template is a phantom/Kit-BoM
@@ -160,6 +161,7 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // skips the carve-out gate. Same default-false reasoning — a build predating
     // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
     shipsAllGreenStates: raw.ships_all_green_states ?? false,
+    consultBuilt: raw.consult_built ?? false,
     // Department tree fields (GOL-2745). All three are left UNDEFINED when the
     // backend omits them so the UI can tell "no department / no offers yet"
     // apart from a real `false` — the deal badge and the conditional "On offer"
@@ -220,10 +222,11 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // Preorder cap crossed (GOL-2171): buy box flips to sold-out + restock even
     // for a preorder format. Default false so older payloads stay uncapped.
     preorderCapReached: raw.preorder_cap_reached ?? false,
-    // Fulfillment flags from the GOL-2587 P1 hotfix, served on BOTH list and
-    // detail by `_fulfillment_flags`. Both default false so mocks and a
-    // grove_headless build that predates the fields behave exactly as before:
-    // shippable, and subject to the per-product carve-out.
+    // Fulfillment flags from `_fulfillment_flags`, served on BOTH list and detail
+    // (GOL-2587 P1; `consult_built` added by GOL-3019). All three default false so
+    // mocks and a grove_headless build that predates a field behave exactly as
+    // before: shippable, subject to the per-product carve-out, and not
+    // consult-built (so the deposit-time fail-safe copy still applies).
     pickupOnly: raw.pickup_only ?? false,
     complianceExempt: raw.compliance_exempt ?? false,
     // Third fulfillment flag (GOL-2988): the template is a phantom/Kit-BoM
@@ -231,6 +234,7 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // skips the carve-out gate. Same default-false reasoning — a build predating
     // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
     shipsAllGreenStates: raw.ships_all_green_states ?? false,
+    consultBuilt: raw.consult_built ?? false,
     featured: raw.grove_featured,
     variants: (raw.variants ?? [])
       .map(normalizeVariant)

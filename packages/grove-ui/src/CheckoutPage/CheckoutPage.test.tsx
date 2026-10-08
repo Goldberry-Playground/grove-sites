@@ -338,3 +338,69 @@ describe("<CheckoutPage /> contact — phone is required (2026-09-30)", () => {
   });
 });
 
+
+/**
+ * GOL-3028: `shipStateNotice` is the kit's seam for a destination-specific
+ * disclosure under the address. Same rule as `trustItems` and `shipStatesNote` —
+ * the kit owns placement and the live-region announcement, the consumer owns the
+ * claim, so a surface that drops the prop cannot inherit another brand's
+ * plant-health promise.
+ */
+describe("<CheckoutPage /> kit — shipStateNotice seam (GOL-3028)", () => {
+  const SHIP_STATES = [
+    { code: "WV", name: "West Virginia" },
+    { code: "FL", name: "Florida" },
+  ];
+
+  function renderWithNotice(notice?: (state: string) => React.ReactNode) {
+    return render(
+      <CheckoutPage
+        items={items}
+        subtotal={10}
+        onPlaceOrder={() => {}}
+        shipStates={SHIP_STATES}
+        shipStateNotice={notice}
+      />,
+    );
+  }
+
+  it("renders nothing of its own when the prop is omitted", () => {
+    const { container } = renderWithNotice();
+    expect(container.querySelector(".grove-checkout__state-notice")).toBeNull();
+  });
+
+  it("asks for nothing until a state is picked — no state, no claim", () => {
+    // The select starts unset (GOL-1055), so there is no destination to disclose
+    // against and the consumer must not be called with "".
+    const seen: string[] = [];
+    renderWithNotice((state) => {
+      seen.push(state);
+      return <span>notice for {state}</span>;
+    });
+    expect(seen).toEqual([]);
+    expect(screen.queryByText(/notice for/)).toBeNull();
+  });
+
+  it("announces the notice in a polite live region, under the address", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const { container } = renderWithNotice((state) => <span>notice for {state}</span>);
+    await userEvent.selectOptions(screen.getByLabelText(/^State/i), "FL");
+    const slot = container.querySelector(".grove-checkout__state-notice");
+    expect(slot).toBeTruthy();
+    expect(slot?.getAttribute("aria-live")).toBe("polite");
+    expect(slot?.textContent).toBe("notice for FL");
+    // Placed inside the Shipping Address fieldset, next to the field that caused
+    // it (proximity) — not floated to the bottom of the form.
+    expect(slot?.closest("fieldset")?.textContent).toMatch(/Shipping Address/);
+  });
+
+  it("a consumer returning null leaves no stray region in the layout", async () => {
+    const userEvent = (await import("@testing-library/user-event")).default;
+    const { container } = renderWithNotice(() => null);
+    await userEvent.selectOptions(screen.getByLabelText(/^State/i), "WV");
+    // The region stays mounted (so the first real notice is announced) but is
+    // empty, and `.grove-checkout__state-notice:empty` collapses it.
+    const slot = container.querySelector(".grove-checkout__state-notice");
+    expect(slot?.childNodes.length).toBe(0);
+  });
+});

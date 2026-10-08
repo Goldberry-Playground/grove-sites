@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useRef, useState } from "react";
 import { trackBeginCheckout } from "@grove/analytics";
 import type { CheckoutSession, PromoPreview, ShipWave } from "@grove/odoo-client";
@@ -12,8 +13,8 @@ import {
   type GroveFulfillment,
   type GrovePromoPreview,
 } from "@grove/ui-kit";
+import { orderKind, orderWave, type CartItem } from "../cart-reducer";
 import { useCart } from "../cart-store";
-import { orderKind, orderWave } from "../cart-reducer";
 import {
   MIXED_CART_MESSAGE,
   PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
@@ -111,6 +112,7 @@ export function CheckoutPage({
   depositQuoteHref,
   promoPreviewHref,
   tiersHref,
+  shipStateNotice,
 }: {
   brand?: GroveBrand;
   depositQuoteHref?: string;
@@ -119,6 +121,21 @@ export function CheckoutPage({
   promoPreviewHref?: string;
   /** Storefront `/api/cart/tiers` route — enables the volume nudge line. */
   tiersHref?: string;
+  /**
+   * Destination-specific notice for the chosen ship-to state, rendered by the kit
+   * under the address (GOL-3028). Receives the state and the cart lines so a
+   * storefront can key it on a line flag — the nursery keys it on
+   * `consultBuilt` to disclose that a consult-built mix is constrained for that
+   * destination BEFORE the deposit is charged. Return `null` for nothing.
+   *
+   * The claim lives in the storefront, not here: only a brand knows its own
+   * plant-health carve-outs, and `@grove/checkout` is shared with storefronts
+   * that ship no living plants at all.
+   */
+  shipStateNotice?: (
+    state: string,
+    items: readonly CartItem[],
+  ) => React.ReactNode;
 } = {}) {
   const { items, hydrated, subtotal, setWave } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
@@ -406,6 +423,14 @@ export function CheckoutPage({
         trustItems={BRAND_TRUST[brand].checkout}
         dueToday={dueToday}
         onFulfillmentChange={setChosenFulfillment}
+        // Only ask for a notice once the cart is hydrated: an un-hydrated cart is
+        // [] and would read "no consult-built line" for a cart that is about to
+        // have one — the same trap `lockedToPickup` guards against above.
+        shipStateNotice={
+          shipStateNotice && hydrated
+            ? (state) => shipStateNotice(state, items)
+            : undefined
+        }
         onShippingZipChange={setShippingZip}
         submitDisabled={blocked}
         notice={notice}

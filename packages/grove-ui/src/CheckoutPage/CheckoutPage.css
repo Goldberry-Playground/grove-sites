@@ -71,6 +71,12 @@
   }
 }
 
+/* Notice slot (GOL-3028): the live region stays mounted so the first notice is
+   announced; `:empty` drops the stray grid gap when it renders nothing. */
+.grove-checkout__state-notice:empty {
+  display: none;
+}
+
 /* Fields */
 .grove-checkout__field {
   display: block;
@@ -166,23 +172,15 @@
   color: var(--grove-color-ink-a50);
 }
 
-/* Summary — card/title/total shared (CheckoutShared.css); lists local. */
-.grove-checkout__order-list,
-.grove-checkout__summary-list {
+/* Summary — card/title/total/list/row shared (CheckoutShared.css); order list local. */
+.grove-checkout__order-list {
   display: flex;
   flex-direction: column;
   gap: var(--grove-space-2);
   font-size: var(--grove-text-sm);
-}
-.grove-checkout__order-list {
   list-style: none;
   margin: 0 0 var(--grove-space-4);
   padding: 0;
-}
-.grove-checkout__order-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--grove-space-4);
 }
 .grove-checkout__order-name {
   flex: 1;
@@ -191,13 +189,8 @@
   color: var(--grove-color-ink-a50);
 }
 .grove-checkout__summary-list {
-  margin: 0;
   border-top: 1px solid var(--grove-color-line);
   padding-top: var(--grove-space-3);
-}
-.grove-checkout__summary-row {
-  display: flex;
-  justify-content: space-between;
 }
 
 /* Error — shared surface (CheckoutShared.css); checkout-only deltas. */

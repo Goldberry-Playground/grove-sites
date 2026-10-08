@@ -193,18 +193,6 @@
 }
 
 /* Summary — card/title/total shared (CheckoutShared.css); cart-specific below. */
-.grove-cart__summary-list {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--grove-space-2);
-  font-size: var(--grove-text-sm);
-}
-.grove-cart__summary-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--grove-space-4);
-}
 
 /* Checkout CTA — shared forest fill (CheckoutShared.css); cart renders an <a>. */
 .grove-cart__summary-cta {

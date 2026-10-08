@@ -145,6 +145,20 @@ export interface ApiProductListItem {
    * is also the catalog-wide truth while prod holds zero `mrp.bom` (GOL-2949).
    */
   ships_all_green_states?: boolean;
+  /**
+   * Consult-built SKU (Odoo `grove_consult_built`, grove-odoo-modules PR #315 /
+   * GOL-3019). `true` when the contents are agreed with the customer in a consult
+   * AFTER the deposit, so the template has nothing true to declare on its
+   * botanical field at checkout time (templates 134/135, the $400 / $200 food
+   * forests). Checkout no longer fail-safes these out of a regulated state: it
+   * takes the deposit and records the excluded taxa for the destination, deciding
+   * compliance at mix time. The storefront keys its carve-out notice on THIS flag
+   * rather than on the empty botanical, because an empty botanical also covers
+   * products nobody has declared yet, which still need the cautious treatment
+   * (GOL-3028). Emitted on both list and detail. Optional so mocks and a
+   * grove_headless build that predates the field behave as before.
+   */
+  consult_built?: boolean;
 }
 
 /** Paginated product list response. */
@@ -846,6 +860,15 @@ export interface Product {
    * (GOL-3015). Defaults to false in the normalizer.
    */
   shipsAllGreenStates?: boolean;
+  /**
+   * Consult-built SKU (Odoo `grove_consult_built`, GOL-3019). `true` when the
+   * plant list is agreed in a consult after the deposit (templates 134/135), so
+   * compliance for a regulated destination is decided at mix time rather than
+   * refused at deposit time. The PDP and checkout read it to disclose which
+   * species the destination takes off the list before the customer pays
+   * (GOL-3028). Defaults to false in the normalizer.
+   */
+  consultBuilt?: boolean;
   featured: boolean;
   variants: ProductVariant[];
   /**
