@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ShippingCalendar } from "@grove/odoo-client";
 import { CategoryBar } from "../category-bar";
+import { odoo } from "../../lib/clients";
 import {
-  GREEN_STATE_COUNT,
+  shipScope,
   US_STATE_NAMES,
   ZONE_BY_STATE,
 } from "../../lib/shipping-estimate";
+import {
+  formatWindow,
+  servedZoneSpan,
+  shipWindowEnvelope,
+} from "../../lib/fulfillment-mode";
+import { POTTED_SEASON_FALLBACK } from "../../lib/fulfillment-method";
 
 // At The Grove Nursery — Shipping & Warranty policy page (GOL-967).
 //
@@ -13,19 +21,61 @@ import {
 // policy` document on GOL-944 (rev "FINAL", Josh 2026-07-30). Do not alter the
 // terms, the state list, or any pricing language here.
 //
+// Ship WINDOW derived on GOL-2948 (CMO ratification, 2026-10-05). The
+// at-a-glance box and the shipping-season prose hardcoded "Feb - May", the one
+// figure on this page that was hand-written rather than read from the engine.
+// It was wrong in both directions against the live calendar feed: February
+// ships nothing in any zone, while the entire fall wave (November into early
+// December) and the first week of June were denied outright — on a page a
+// shopper reads while the storefront and the social queue are actively selling
+// fall planting. Both now render `shipWindowEnvelope()` over the feed's
+// `calendar` block, so a calendar edit is a data change here too. No terms,
+// prices or list entries altered.
+//
+// Served USDA-zone span derived on GOL-2957: the "Shipping season" prose
+// hardcoded "roughly USDA Zones 5-7", a three-zone band for a green list that
+// actually spans zones 3-10 (northern MN/ME through Florida and the Gulf). The
+// understatement ran in the harmful direction at the warm end — a Florida
+// shopper read "5-7" and reasonably concluded we don't serve them, while
+// checkout ships there. The span now renders `calendar.served_usda_range`
+// (backend-derived from the green-filtered PHZM matrix, grove-odoo-modules
+// GOL-2957), so a green-list change reshapes it with no copy edit; the clause
+// is omitted rather than guessed when the feed is degraded. No terms, prices or
+// list entries altered.
+//
+// Wording of the ship-scope figure corrected on GOL-2941 (CMO ratification,
+// 2026-10-05): the derived count is a *destination* count and includes D.C., a
+// federal district, so "N states" was factually wrong. `shipScope()` derives
+// "N states and Washington, D.C." from the same engine mirror — the number is
+// unchanged and still never drifts. No terms, prices or list entries altered.
+//
 // Geography + pricing are the system of record from the checkout shipping
 // engine (`grove_headless` shipping-zone matrix, GOL-15): no
 // HI/AK/territories/international, live per-address rate at checkout billed at
 // cost + handling, no free-ship threshold. The state count and the spelled-out
-// list are DERIVED from the engine mirror (`GREEN_STATE_COUNT` / `ZONE_BY_STATE`
+// list are DERIVED from the engine mirror (`shipScope()` / `ZONE_BY_STATE`
 // in lib/shipping-estimate) so this page can never drift from what checkout
 // actually ships — the class of bug that left "21" and "22" both on this page
 // before GOL-2128. The engine owns eligibility; this is the human-readable
 // mirror, updated only by a matching engine change.
 //
+// Edited 2026-10-08 per Josh: the two em dashes in the shipping-season prose
+// became a period and parentheses, and "there is no month we cannot get a tree
+// to you" was replaced. Potted / peat-and-bagged ships only inside the feed's
+// `leafed_window` (May 1 to Oct 15 in prod) and bareroot is always a pre-order
+// for a fall or spring wave (lib/fulfillment-method, lib/preorder-waves), so
+// the copy now reads "you can order any month; your tree ships in the next
+// open window for your zone". The aside note names the same leafed window. No
+// terms, prices or list entries altered. Otherwise the "do not alter" rule
+// above still stands.
+//
 // Built from the app's own design-system classes (.section, .section-header,
 // .section-tag, .section-lede, .with-sidebar, .field-notes) — no bespoke CSS.
 export const dynamic = "force-dynamic";
+
+// Ship-scope wording derived from the same engine mirror as the list below, so
+// the figure and its noun stay correct together (GOL-2941).
+const SHIP_SCOPE = shipScope();
 
 // Title is the LEFT side only — `app/layout.tsx` appends " | At The Grove
 // Nursery" via `title.template` (GOL-2878). Repeating the brand here renders it
@@ -33,7 +83,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Shipping & Warranty",
   alternates: { canonical: "/shipping-warranty" },
-  description: `How and where At The Grove Nursery ships live trees: ${GREEN_STATE_COUNT} U.S. states, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.`,
+  description: `How and where At The Grove Nursery ships live trees: ${SHIP_SCOPE.phraseUS}, live per-address rates at cost plus handling, dormant-season shipping, local farm pickup, and our arrive-alive limited warranty.`,
 };
 
 // Derived from the engine mirror (ZONE_BY_STATE → full names), Oxford-comma
@@ -45,7 +95,34 @@ const SHIP_STATE_NAMES = Object.keys(ZONE_BY_STATE)
   .sort((a, b) => a.localeCompare(b));
 const SHIP_STATES = `${SHIP_STATE_NAMES.slice(0, -1).join(", ")}, and ${SHIP_STATE_NAMES.at(-1)}.`;
 
-export default function ShippingWarrantyPage() {
+export default async function ShippingWarrantyPage() {
+  // Live per-USDA-zone ship calendar (GOL-1172/1177), the same feed + helpers
+  // the homepage Field Notes and the PDP buy box read, so the policy page can
+  // never state a season the buy box contradicts. Best-effort, exactly as on
+  // the homepage: a missing or degraded feed falls back to the baked
+  // backend-mirror snapshot inside `shipWindowEnvelope`, never to a literal.
+  let shippingCalendar: ShippingCalendar | null = null;
+  try {
+    shippingCalendar = (await odoo.shipping.rateFeed())?.calendar ?? null;
+  } catch {
+    shippingCalendar = null;
+  }
+  const windows = shipWindowEnvelope(shippingCalendar);
+  const fulfillmentDays = shippingCalendar?.fulfillment_days ?? [5, 10];
+  // The leafed-out (potted / peat-and-bagged) season, from the same feed the
+  // PDP format gate reads (`isPottedSeason`), so the policy page states the
+  // same immediate-ship window the buy box enforces (Josh 2026-10-08).
+  const leafedWindow =
+    shippingCalendar?.leafed_window ?? POTTED_SEASON_FALLBACK;
+  // GOL-2957: the served USDA hardiness span, derived from the same feed. The
+  // backend computes `[min, max]` across the green-filtered PHZM matrix, so
+  // adding or removing a green state reshapes it with no copy edit here. A
+  // degraded feed (absent/null/malformed) drops the parenthetical rather than
+  // asserting a possibly-stale band — the sentence still reads correctly
+  // without it, and `servedZoneSpan` validates the shape so a half-migrated
+  // feed can never render "USDA Zones –" (GOL-2967).
+  const servedZones = servedZoneSpan(shippingCalendar);
+
   return (
     <>
       <CategoryBar />
@@ -64,7 +141,7 @@ export default function ShippingWarrantyPage() {
         </div>
         <p className="section-lede" style={{ maxWidth: "62ch" }}>
           At the Grove Nursery ships live trees within the United States to the{" "}
-          <strong>{GREEN_STATE_COUNT} states</strong> currently on our shipping map. We are a
+          <strong>{SHIP_SCOPE.phrase}</strong> currently on our shipping map. We are a
           small West Virginia nursery and are expanding our shipping footprint
           deliberately over time — the list below reflects where we can ship
           today.
@@ -113,19 +190,39 @@ export default function ShippingWarrantyPage() {
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
             <strong>Snow or frost will not hurt a dormant tree.</strong> For our
-            shipping region (roughly USDA Zones 5–7 across the states we serve),
-            the goal is to get trees in the ground while there is still good
+            shipping region
+            {servedZones
+              ? ` (USDA Zones ${servedZones[0]}–${servedZones[1]} across the states we serve)`
+              : ""}
+            , the goal is to get trees in the ground while there is still good
             moisture in the soil, so roots establish months before bud break.
           </p>
+          <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
+            We ship dormant trees in two waves a year:{" "}
+            <strong>{formatWindow(windows.fall)}</strong> in the fall and{" "}
+            <strong>{formatWindow(windows.spring)}</strong> in the spring. Those
+            are the outside edges of the season. The exact weeks stagger by
+            USDA hardiness zone and depend on the weather and how quickly the
+            ground thaws in your region, so warmer zones ship earlier in spring
+            and later in fall. Your window is confirmed at checkout.
+          </p>
+          <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
+            While the trees are leafed out (
+            <strong>{formatWindow(leafedWindow)}</strong>), you can also order
+            a potted tree to ship right away. It ships as peat and bagged (a
+            leafed tree with its roots wrapped in damp peat) on our normal{" "}
+            {fulfillmentDays[0]} to {fulfillmentDays[1]} business day
+            timeline. Bareroot trees are sold as pre-orders: each one is
+            reserved for the next fall or spring wave and ships dormant in your
+            zone&apos;s window. You can order any month; your tree ships in the
+            next open window for your zone.
+          </p>
           <p style={{ maxWidth: "60ch", marginBottom: "1.5rem" }}>
-            We ship in late winter through spring, roughly{" "}
-            <strong>February through May</strong>, depending on the weather and
-            how quickly the ground thaws in your region. If your ground is still
-            frozen or your soil is too wet when your trees arrive, &ldquo;heel&rdquo;
-            the trees in — cover the roots with moist soil or sand in a shady
-            spot — until your ground thaws and drains. Let us know when you order
-            if your ground is frozen solid and we will hold your order for a
-            later ship date.
+            If your ground is still frozen or your soil is too wet when your
+            trees arrive, &ldquo;heel&rdquo; the trees in — cover the roots with
+            moist soil or sand in a shady spot — until your ground thaws and
+            drains. Let us know when you order if your ground is frozen solid
+            and we will hold your order for a later ship date.
           </p>
 
           <h2
@@ -232,17 +329,27 @@ export default function ShippingWarrantyPage() {
           <div className="field-notes-eyebrow">At a glance</div>
           <h3>The short version.</h3>
           <p>
-            Live trees, shipped dormant to {GREEN_STATE_COUNT} states, priced live at checkout at
+            Live trees, shipped dormant to {SHIP_SCOPE.phrase}, priced live at checkout at
             cost plus handling — with an arrive-alive guarantee.
           </p>
           <ul>
             <li>
               <span>Ships to</span>
-              <strong>{GREEN_STATE_COUNT} U.S. states</strong>
+              <strong>{SHIP_SCOPE.shortPhrase}</strong>
             </li>
             <li>
-              <span>Ship window</span>
-              <strong>Feb – May</strong>
+              <span>Fall shipping</span>
+              <strong>{formatWindow(windows.fall)}</strong>
+            </li>
+            <li>
+              <span>Spring shipping</span>
+              <strong>{formatWindow(windows.spring)}</strong>
+              <small>
+                Staggered by USDA zone, weather permitting. From{" "}
+                {formatWindow(leafedWindow)}, potted trees ship as peat and
+                bagged in {`${fulfillmentDays[0]}–${fulfillmentDays[1]}`}{" "}
+                business days.
+              </small>
             </li>
             <li>
               <span>Shipping cost</span>
@@ -262,3 +369,4 @@ export default function ShippingWarrantyPage() {
     </>
   );
 }
+

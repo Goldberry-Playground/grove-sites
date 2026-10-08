@@ -13,6 +13,7 @@ export { VendorCard, type VendorCardProps } from "./VendorCard";
 export { BuyAtVendorForm, type BuyAtVendorFormProps } from "./BuyAtVendorForm";
 export {
   CaptureForm,
+  isPlausibleEmail,
   type CaptureFormProps,
   type CaptureBrand,
   type CaptureSource,

@@ -174,7 +174,7 @@ function inWindow(d: number, window: [MonthDay, MonthDay]): boolean {
  *  before the backend would actually ship (GOL-1313 finding 2 — the old Sep 15 /
  *  Jan 1 defaults claimed shipping through hard-freeze January). Never hardcode a
  *  season in a component; read the zone's calendar. */
-const DEFAULT_WINDOWS: ShippingCalendarZone = {
+export const DEFAULT_WINDOWS: ShippingCalendarZone = {
   fall: [
     [11, 2],
     [12, 12],
@@ -523,4 +523,114 @@ export function zoneShipNote(
     label: `Ships ${formatMonthDay(win[0])} – ${formatMonthDay(win[1])}`,
     note: deadline ? `Order by ${formatMonthDay(deadline)}` : null,
   };
+}
+
+// ── Ship-window envelope for zone-agnostic copy (GOL-2948) ───────────────────
+
+/** The two dormant ship waves, collapsed across every zone the engine serves,
+ *  plus which data the figure came from. `source: "snapshot"` means the live
+ *  feed did not reach the surface and the baked {@link DEFAULT_WINDOWS} mirror
+ *  was used — still a real window, never a literal typed into copy. */
+export interface ShipWindowEnvelope {
+  fall: [MonthDay, MonthDay];
+  spring: [MonthDay, MonthDay];
+  source: "feed" | "snapshot";
+}
+
+/** Widest `[start, end]` across a list of per-zone windows: earliest start,
+ *  latest end. All four windows are within-year, so `ord` ordering is enough. */
+function widest(windows: [MonthDay, MonthDay][]): [MonthDay, MonthDay] {
+  return windows.reduce((acc, w) => [
+    ord(w[0]) < ord(acc[0]) ? w[0] : acc[0],
+    ord(w[1]) > ord(acc[1]) ? w[1] : acc[1],
+  ]);
+}
+
+/**
+ * Collapse the per-USDA-zone calendar into ONE fall window and ONE spring
+ * window for a surface that cannot know the shopper's zone — the policy page's
+ * at-a-glance box and its shipping-season prose (GOL-2948).
+ *
+ * This is a UNION, not the conservative aggregate {@link resolveShippableMode}
+ * uses, and the difference is deliberate: that function answers "what will MY
+ * order do", where over-promising is a broken promise, so it takes the
+ * narrowest honest answer. This one answers "when does the nursery ship", a
+ * question about the whole calendar, where narrowing would hide real ship dates
+ * from the shoppers in the zones at either end (zone 7 opens spring six weeks
+ * before zone 2; zones 8-10 ship into December and from March 1). Copy built on
+ * this must therefore say the windows stagger by zone — the per-zone answer is
+ * `zoneShipNote` / checkout.
+ *
+ * Why derived at all: the box used to hardcode "Feb - May", which matched no
+ * zone in the feed. February ships nothing anywhere; June 1-6 ships to zones
+ * 2-6; November and early December are the entire fall wave the storefront was
+ * actively promoting while this box denied it. A calendar edit is a data change
+ * (see the ownership note at the top of this module), so the only safe figure
+ * is one read out of the calendar.
+ *
+ * Degrades to the backend-mirror {@link DEFAULT_WINDOWS} when no calendar
+ * reaches the page, or when one arrives with no zones — the same fallback the
+ * resolver uses, so a feedless policy page and a feedless buy box agree.
+ */
+export function shipWindowEnvelope(
+  calendar?: ShippingCalendar | null,
+): ShipWindowEnvelope {
+  const zones = Object.values(calendar?.zones ?? {}).filter(
+    (z): z is ShippingCalendarZone => Boolean(z?.fall && z?.spring),
+  );
+  if (zones.length === 0) {
+    return {
+      fall: DEFAULT_WINDOWS.fall,
+      spring: DEFAULT_WINDOWS.spring,
+      source: "snapshot",
+    };
+  }
+  return {
+    fall: widest(zones.map((z) => z.fall)),
+    spring: widest(zones.map((z) => z.spring)),
+    source: "feed",
+  };
+}
+
+/** "Nov 2 - Nov 13" for a window, matching {@link zoneShipNote}'s separator so
+ *  the policy page and the homepage zone rows read as one system. */
+export function formatWindow(window: [MonthDay, MonthDay]): string {
+  return `${formatMonthDay(window[0])} – ${formatMonthDay(window[1])}`;
+}
+
+/** Every month number a window touches, inclusive. Lets a test assert that no
+ *  month appears in customer copy that the engine ships nothing in (GOL-2948) —
+ *  the invariant the hardcoded "Feb - May" broke. */
+export function monthsCovered(window: [MonthDay, MonthDay]): number[] {
+  const months: number[] = [];
+  for (let m = window[0][0]; m <= window[1][0]; m += 1) months.push(m);
+  return months;
+}
+
+/** The served USDA hardiness span `[min, max]` off the feed's `calendar`
+ *  block, or `null` when there isn't an honest one to state (GOL-2967).
+ *
+ *  The backend derives `served_usda_range` from the green-filtered PHZM matrix
+ *  (grove-odoo-modules GOL-2957), so adding or removing a green state reshapes
+ *  the span with no copy edit on `/shipping-warranty`. This is the DESTINATION
+ *  hardiness span — not the `zone_1..zone_5` carrier distance bands, and not
+ *  the wider set of `calendar.zones` the calendar is merely configured for.
+ *
+ *  The rate feed is untrusted JSON at runtime (the page is `force-dynamic`), so
+ *  the shape is validated rather than cast: a degraded feed omits the key, but
+ *  an older or half-migrated one could send `[null, null]`, a one-element list,
+ *  or strings. Every one of those must return `null` so the policy page drops
+ *  its parenthetical instead of printing "USDA Zones –" at a shopper. Unlike
+ *  {@link shipWindowEnvelope} there is deliberately NO snapshot fallback: a
+ *  zone band is a claim about who we serve, and a stale claim here is the
+ *  GOL-2957 defect (a Florida shopper told "5-7" concludes we skip them). */
+export function servedZoneSpan(
+  calendar?: ShippingCalendar | null,
+): [number, number] | null {
+  const span: unknown = calendar?.served_usda_range;
+  if (!Array.isArray(span) || span.length !== 2) return null;
+  const [min, max] = span;
+  if (!Number.isInteger(min) || !Number.isInteger(max)) return null;
+  if ((min as number) > (max as number)) return null;
+  return [min as number, max as number];
 }

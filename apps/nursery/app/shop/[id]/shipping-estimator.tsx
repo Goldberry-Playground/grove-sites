@@ -5,6 +5,7 @@ import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
   GREEN_STATE_COUNT,
+  shipScope,
   US_STATE_NAMES,
   ZONE_RATE_TABLE,
   SNAPSHOT_ZONE_MAP,
@@ -202,10 +203,14 @@ export function ShippingEstimator({
     [verdict, state, compliance],
   );
   const cleared = verdict.kind === "clear";
-  // Live green-state count when the feed reached us, else the baked snapshot
-  // count (GOL-2292) — the interactive panel reflects the live backend, unlike
-  // the static marketing pages that keep the module-level GREEN_STATE_COUNT.
-  const greenCount = zoneMap.greenStates.length || GREEN_STATE_COUNT;
+  // Live green list when the feed reached us, else the baked snapshot
+  // (GOL-2292) — the interactive panel reflects the live backend, unlike the
+  // static marketing pages that read the module-level snapshot. The wording is
+  // derived, not written: the list includes D.C., which is not a state, so the
+  // count alone must never be captioned "states" (GOL-2941).
+  const shipTo = shipScope(
+    zoneMap.greenStates.length ? zoneMap.greenStates : undefined,
+  );
 
   return (
     <section
@@ -237,7 +242,7 @@ export function ShippingEstimator({
       <div aria-live="polite" className="mt-3">
         {state === "" && (
           <p className="text-xs text-foreground/60">
-            We ship living trees to {greenCount} states — pick yours to see your
+            We ship living trees to {shipTo.phrase}; pick yours to see your
             rate. Your trees ship together in as few boxes as possible, priced per box;
             your exact rate is confirmed at checkout.
           </p>

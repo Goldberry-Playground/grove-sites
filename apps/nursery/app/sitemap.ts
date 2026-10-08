@@ -43,6 +43,7 @@ const STATIC_ROUTES: ReadonlyArray<{
 }> = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" },
   { path: "/shop", priority: 0.9, changeFrequency: "daily" },
+  { path: "/shop/guilds", priority: 0.7, changeFrequency: "weekly" },
   { path: "/blog", priority: 0.6, changeFrequency: "weekly" },
   { path: "/wholesale", priority: 0.5, changeFrequency: "monthly" },
   { path: "/shipping-warranty", priority: 0.3, changeFrequency: "monthly" },
