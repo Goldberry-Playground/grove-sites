@@ -49,6 +49,15 @@
      (GOL-953). Registered here (not just the :root alias below) so Tailwind emits
      a real `text-ink-soft` utility. */
   --color-ink-soft: var(--grove-color-ink-soft);
+  /* Affirm / caution status foregrounds (GOL-2734). Aliases for the SAME
+     AA-safe parchment inks the stock line already uses (--stock-in / --stock-reserve,
+     GOL-678/682) — registered here so status copy outside the stock line (the PDP
+     zone check's fit / out-of-range verdicts) has a real `text-affirm` /
+     `text-caution` utility instead of reaching for Tailwind's text-green-700 /
+     text-amber-700, which measure 3.93:1 on --paper-deep and fail WCAG AA. Colour
+     is never the only signal: every use pairs them with a glyph and words. */
+  --color-affirm: var(--stock-in);
+  --color-caution: var(--stock-reserve);
 
   --font-sans: var(--grove-font-body);
   --font-display: var(--grove-font-display);

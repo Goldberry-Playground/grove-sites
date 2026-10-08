@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
+  GrowingFacts,
   ShipWave,
   ShippingTier,
   ShippingRateTable,
@@ -67,6 +68,9 @@ import {
   resolveSubstitutes,
 } from "../../../lib/plant-compliance";
 import { PolicyLink } from "./policy-link";
+import { ZoneCheck } from "./zone-check";
+import { AtAGlance, PlantTwoHint } from "./at-a-glance";
+import { PLANT_TWO_QUANTITY } from "../../../lib/plant-two";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
 export interface ViewImage {
@@ -144,6 +148,14 @@ export interface ProductViewProps {
    */
   shippingZoneMap?: ShippingZoneMap | null;
   /**
+   * Growing facts for the right-column "At a glance" card, the zone check and
+   * the "plant two" hint (GOL-2734). The full `SpecBlock` table below the grid
+   * reads the SAME facts — this component renders the decision subset, it is not
+   * a second source. Absent on list-only products / older API payloads, in which
+   * case the whole at-a-glance stack collapses.
+   */
+  facts?: GrowingFacts;
+  /**
    * Declared botanical name (Odoo `grove_botanical_name`, surfaced as
    * `facts.botanical_name`) — the taxon the per-product plant-health carve-out
    * gate is keyed on (GOL-2132). Threaded through so the estimator and the
@@ -190,6 +202,7 @@ export function ProductView({
   shippingRates,
   shippingFeed,
   shippingZoneMap,
+  facts,
   botanicalName,
   complianceExempt,
   shipsAllGreenStates,
@@ -1057,6 +1070,30 @@ export function ProductView({
               : `Ships to ${shipScope().phrase}, priced live at checkout. `}
             <PolicyLink /> for full shipping and warranty terms.
           </p>
+
+          {/* ── "At a glance" stack (GOL-2734) ─────────────────────────────
+              The three decision aids sit at the FOOT OF THE BUY COLUMN: on
+              desktop that fills the dead space the taller gallery used to leave
+              beside it, and on phones (grid collapses to one column) the same
+              DOM stacks straight after Add-to-cart in decision order. ONE render
+              each — there is no md:-hidden mobile duplicate anywhere on this
+              page. ZoneCheck moved up from below the description; the full
+              `SpecBlock` table still renders lower down with every row. */}
+          <ZoneCheck zoneMin={facts?.zoneMin ?? null} zoneMax={facts?.zoneMax ?? null} />
+
+          <AtAGlance facts={facts} />
+
+          {/* The hint's only action is "Set quantity to 2", so it renders only
+              while the CTA can actually add: never beside a sold-out, coming-soon,
+              out-of-season or no-open-wave buy box (same `ctaDisabled` that
+              locks AddToCartButton and the sticky bar). */}
+          {!ctaDisabled && (
+            <PlantTwoHint
+              pollination={facts?.pollination}
+              quantity={quantity}
+              onPlantTwo={() => setQuantity(PLANT_TWO_QUANTITY)}
+            />
+          )}
         </div>
       </div>
 
