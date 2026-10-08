@@ -112,8 +112,10 @@ export function PreorderCard({
                   {w.open && <RadioDot active={isActive} small />}
                   {WAVE_NAME[method][w.wave]}
                 </span>
-                <span className="block text-ink-soft">{waveWindowLabel(w)}</span>
-                <span className="block text-ink-soft">
+                <span className={`block text-ink-soft ${w.open ? "pl-[1.125rem]" : ""}`}>
+                  {waveWindowLabel(w)}
+                </span>
+                <span className={`block text-ink-soft ${w.open ? "pl-[1.125rem]" : ""}`}>
                   {w.open ? waveOrderByLabel(w) : waveClosedLabel(w)}
                 </span>
               </button>

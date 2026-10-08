@@ -21,7 +21,11 @@ export function subOptionClass(active: boolean): string {
     : "border-primary/20 bg-transparent hover:border-primary/50";
 }
 
-/** Radio indicator: an empty ring when unselected, a filled dot when selected. */
+/**
+ * Radio indicator: an empty ring when unselected, a filled dot when selected.
+ * The empty ring is the unselected state's only cue, so it holds 3:1 against
+ * parchment (WCAG 1.4.11): primary at 60% = 3.34:1, where 40% was 2.13:1.
+ */
 export function RadioDot({ active, small = false }: { active: boolean; small?: boolean }) {
   const outer = small ? "h-3 w-3" : "h-4 w-4";
   const inner = small ? "h-1.5 w-1.5" : "h-2 w-2";
@@ -29,7 +33,7 @@ export function RadioDot({ active, small = false }: { active: boolean; small?: b
     <span
       aria-hidden="true"
       className={`inline-flex ${outer} shrink-0 items-center justify-center rounded-full border ${
-        active ? "border-primary" : "border-primary/40"
+        active ? "border-primary" : "border-primary/60"
       }`}
     >
       {active && <span className={`${inner} rounded-full bg-primary`} />}
