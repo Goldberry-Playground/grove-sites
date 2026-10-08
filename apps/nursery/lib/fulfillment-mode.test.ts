@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ShippingCalendar } from "@grove/odoo-client";
+import { DEFAULT_WAVE_ZONES, preorderWaves } from "./preorder-waves";
 import {
   resolveShippableMode,
   monthDayOf,
@@ -634,13 +635,26 @@ describe("shipWindowEnvelope", () => {
     }
   });
 
-  it("the baked snapshot agrees with the live feed's envelope", () => {
+  it("the baked snapshot agrees with the bundled WAVE_SCHEDULE mirror", () => {
     // Keeps the degraded policy page and the live one telling the same story.
-    // If the backend re-schedules a wave, this fails and the mirror gets bumped
-    // (same contract as the DEFAULT_WINDOWS note above).
-    const live = shipWindowEnvelope(PROD_CAL);
-    expect(live.fall).toEqual(DEFAULT_WINDOWS.fall);
-    expect(live.spring).toEqual(DEFAULT_WINDOWS.spring);
+    // DEFAULT_WINDOWS mirrors the backend's `WAVE_SCHEDULE` union, which the
+    // fall/spring pre-order waves hotfix (#1024, gom #326) re-scheduled: every
+    // spring wave now ends Apr 15. PROD_CAL above is the 2026-10-05 feed, read
+    // before that schedule shipped, so it stays a derivation fixture only; the
+    // agreement check runs against `preorder-waves.ts`'s bundled schedule (the
+    // same WAVE_SCHEDULE port). If the backend re-schedules a wave, this fails
+    // and the mirror gets bumped.
+    const zones: ShippingCalendar["zones"] = {};
+    for (const zone of DEFAULT_WAVE_ZONES) {
+      const waves = preorderWaves(zone, new Date(Date.UTC(2026, 8, 2)));
+      const fall = waves.find((w) => w.wave === "fall")!;
+      const spring = waves.find((w) => w.wave === "spring")!;
+      zones[String(zone)] = { fall: fall.ship_window, spring: spring.ship_window };
+    }
+    const bundled = shipWindowEnvelope({ ...PROD_CAL, zones });
+    expect(bundled.source).toBe("feed");
+    expect(bundled.fall).toEqual(DEFAULT_WINDOWS.fall);
+    expect(bundled.spring).toEqual(DEFAULT_WINDOWS.spring);
   });
 
   it("skips a malformed zone instead of throwing", () => {
