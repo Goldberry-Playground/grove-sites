@@ -116,3 +116,66 @@ describe("<AddToCartButton /> — feedback state machine", () => {
     }
   });
 });
+
+describe("<AddToCartButton /> — one wave per order, no mixing", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  function seed(wave?: "fall" | "spring") {
+    window.localStorage.setItem(
+      "grove-cart-v1",
+      JSON.stringify([
+        { variantId: 9, templateId: 9, name: "Pear", price: 10, imageUrl: "/x.jpg", quantity: 1, ...(wave ? { wave } : {}) },
+      ]),
+    );
+  }
+  const cartLines = () => JSON.parse(window.localStorage.getItem("grove-cart-v1") ?? "[]");
+
+  it("adds a pre-order line with its wave", async () => {
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} wave="fall" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(cartLines()[0].wave).toBe("fall");
+  });
+
+  it("refuses a pre-order into an immediate cart and says why", async () => {
+    seed();
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} wave="fall" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Pre-orders check out on their own. Check out or clear your cart first.",
+    );
+    expect(cartLines()).toHaveLength(1);
+  });
+
+  it("shows the refusal above the add-to-cart button", async () => {
+    seed();
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} wave="fall" />);
+    const button = screen.getByRole("button", { name: /add to cart/i });
+    await user.click(button);
+    const alert = screen.getByRole("alert");
+    // DOCUMENT_POSITION_FOLLOWING: the button comes after the alert in the DOM.
+    expect(alert.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(alert.className).toContain("grove-add-to-cart__blocked");
+  });
+
+  it("refuses a second wave", async () => {
+    seed("fall");
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} wave="spring" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(screen.getByRole("alert").textContent).toMatch(/Your cart is a fall pre-order/);
+    expect(cartLines()).toHaveLength(1);
+  });
+
+  it("does not flash 'Added' on a refused add", async () => {
+    seed();
+    const user = userEvent.setup();
+    renderWithCart(<AddToCartButton {...baseProps} wave="fall" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(screen.queryByText(/added/i)).toBeNull();
+  });
+});

@@ -32,7 +32,7 @@ test.describe("checkout — ship-to green list mirror", () => {
   test(`checkout State select offers exactly the ${GREEN_STATE_COUNT} shippable states`, async ({
     page,
   }) => {
-    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
+    const product = await findProductByCta(page, ["Add to cart", "Pre-order for $10"]);
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, product.buyLabel);
     await page.goto("/checkout");

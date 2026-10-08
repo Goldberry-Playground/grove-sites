@@ -6,10 +6,37 @@
 # grove-odoo-modules #141 sat unmergeable ~6.5h this way and was force-merged by
 # hand — exactly the escape hatch branch-protection tightening is meant to stop.
 #
-# CRITICAL DESIGN: this detector runs on `schedule` + `workflow_dispatch`, NOT
-# `pull_request`. A pull_request-triggered detector would have been dropped
-# alongside the CI run it is meant to catch. It is a cheap, API-only sweep — it
-# never checks out or runs PR code.
+# CRITICAL DESIGN: this detector is never triggered by the PR it is inspecting.
+# A `pull_request`-triggered detector would have been dropped alongside the CI
+# run it is meant to catch. It is a cheap, API-only sweep — it never checks out
+# or runs PR code.
+#
+# CADENCE (GOL-3132): `schedule` alone is NOT a cadence. GitHub makes no
+# delivery guarantee for cron and throttles it hard — measured 2026-10-06 over
+# 7 days of history on `main`, this workflow's `3,23,43 * * * *` (72/day) was
+# delivered ~5 times/day, and `prod-deploy-drift`'s `*/30` (48/day) and
+# `preview-sweep`'s `0 */6` (4/day) ALSO landed at ~5/day. The uniform rate
+# across three different crons is account-level throttling, not a config fault.
+# A wedged PR therefore went undetected for hours, and the self-heal leg below
+# left stale `ci-failure` issues open long after the PR recovered — each one
+# mirrored to Paperclip, waking an agent for a condition that had already fixed
+# itself (GOL-3126 / issue #994: minted 02:41Z, PR healed 06:07Z by a
+# force-push, issue still open at 06:15Z).
+#
+# So `workflow_run` on `CI` is added as an event heartbeat, and `schedule` is
+# kept as the floor. This does NOT weaken the invariant above, because the
+# sweep is REPO-WIDE, not PR-scoped: every run iterates every open non-draft PR
+# on the protected branch. The trigger and the subject are decoupled — a PR
+# whose own CI trigger was dropped gets swept when some OTHER PR's (or main's)
+# CI completes. `CI` fires on `pull_request`, `merge_group` and `push: main`
+# (47 runs in the 24 h before this change), so the effective cadence becomes
+# "minutes after any repo activity" instead of "whenever cron feels like it".
+# Cost is nil: this repo is public, so Actions minutes on standard runners are
+# free, and a sweep is ~25 s of API calls with no checkout.
+#
+# ⚠️ A `workflow_run` leg only exists once this file is on the DEFAULT branch,
+# so it cannot be exercised from a PR — verify after merge with
+# `gh run list --workflow missing-checks-sweep.yml --json event,createdAt`.
 #
 # Logic lives once in the shared action; this file only wires the schedule.
 #   Shared action: Goldberry-Playground/grove-sites/.github/actions/ci-failure-router@main
@@ -23,7 +50,15 @@ name: Missing required-check sweep
 
 on:
   schedule:
+    # The declared floor, not the real cadence — see CADENCE above (GOL-3132).
     - cron: "3,23,43 * * * *" # every 20 min (offset to avoid the top-of-hour herd)
+  workflow_run:
+    # Event heartbeat. `CI` is the repo's highest-frequency workflow
+    # (`pull_request` + `merge_group` + `push: main`); its conclusion is
+    # irrelevant here, we only want the tick. Repo-wide sweep, so this is NOT
+    # the inspected PR's own event — see CRITICAL DESIGN above.
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
     inputs:
       grace-minutes:

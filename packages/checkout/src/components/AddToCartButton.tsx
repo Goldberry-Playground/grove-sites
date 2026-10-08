@@ -2,7 +2,10 @@
 
 import { trackAddToCart } from "@grove/analytics";
 import { AddToCartButton as UIAddToCartButton } from "@grove/ui-kit";
+import { useEffect, useState } from "react";
+import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
+import { canAdd } from "../cart-reducer";
 
 type AddToCartButtonProps = {
   variantId: number;
@@ -24,6 +27,12 @@ type AddToCartButtonProps = {
    * the product. Defaults to shippable.
    */
   pickupOnly?: boolean;
+  /**
+   * Pre-order wave this add belongs to; omit for an immediate item. A cart is
+   * either immediate or a pre-order for one wave, so an add that would mix them
+   * (or add a second wave) is refused and the reason is shown inline.
+   */
+  wave?: ShipWave;
 };
 
 /**
@@ -42,22 +51,43 @@ export function AddToCartButton({
   quantity,
   onQuantityChange,
   pickupOnly,
+  wave,
 }: AddToCartButtonProps) {
-  const { add, openDrawer } = useCart();
+  const { items, add, openDrawer } = useCart();
+  const [blocked, setBlocked] = useState<string | null>(null);
+  // The refusal is stale once the shopper clears the cart or checks out.
+  useEffect(() => {
+    if (items.length === 0) setBlocked(null);
+  }, [items.length]);
 
   return (
+    <>
+    {/* Refusal sits ABOVE the button, styled as an error (Josh 2026-10-07):
+        the shopper reads why nothing was added before reaching for the CTA. */}
+    {blocked ? (
+      <p role="alert" className="grove-add-to-cart__blocked">
+        {blocked}
+      </p>
+    ) : null}
     <UIAddToCartButton
       disabled={disabled}
       idleLabel={idleLabel}
       quantity={quantity}
       onQuantityChange={onQuantityChange}
       onAddToCart={(quantity) => {
-        add({ variantId, templateId, name, price, imageUrl, pickupOnly }, quantity);
+        const verdict = canAdd(items, { wave });
+        if (!verdict.ok) {
+          setBlocked(verdict.message);
+          return false;
+        }
+        setBlocked(null);
+        add({ variantId, templateId, name, price, imageUrl, pickupOnly, wave }, quantity);
         trackAddToCart({ variantId, price, quantity });
         // Open the mini-cart to confirm the add — a clear visual of what landed
         // in the cart plus a one-click path to checkout.
         openDrawer(variantId);
       }}
     />
+    </>
   );
 }
