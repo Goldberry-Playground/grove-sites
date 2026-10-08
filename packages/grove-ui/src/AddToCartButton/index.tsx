@@ -11,7 +11,8 @@ export interface AddToCartButtonProps {
    * this to its cart store (add + open mini-cart + analytics) — the button owns
    * none of that, only the quantity stepper and the "Added!" flash.
    */
-  onAddToCart: (quantity: number) => void;
+  /** Return `false` when the add was refused: the "Added" feedback is then skipped. */
+  onAddToCart: (quantity: number) => void | false;
   /** Idle button label. */
   idleLabel?: string;
   /** Confirmation label shown briefly after an add. */
@@ -107,7 +108,7 @@ export function AddToCartButton({
   }
 
   function handleAddToCart() {
-    onAddToCart(quantity);
+    if (onAddToCart(quantity) === false) return;
     setFeedback("added");
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     feedbackTimer.current = setTimeout(() => setFeedback("idle"), 1800);

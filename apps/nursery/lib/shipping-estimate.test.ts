@@ -12,6 +12,7 @@ import {
   estimatePottedShipping,
   estimatePottedFloor,
   estimateTierFloor,
+  handlingFee,
   isPickupOnly,
   shipsTo,
   tierFor,
@@ -603,5 +604,44 @@ describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
         ),
     );
     expect(undeclared).toEqual([]);
+  });
+});
+
+// GOL-2923: the backend moved the flat S&H fee out of every rate cell (cells are
+// raw carrier cost) and publishes it once as `shipping_handling_fee`. An estimate
+// built from a cell must add it once, or the PDP under-quotes checkout by exactly
+// that fee. A backend that predates GOL-2923 omits the field and its cells already
+// include handling, so the estimate must stay unchanged there.
+describe("shipping_handling_fee (GOL-2923): estimates add the per-order fee once", () => {
+  const WITH_FEE: ShippingRateFeed = { ...SCHEMA2_FEED, shipping_handling_fee: 5 };
+
+  it("handlingFee is the published fee, and 0 when absent or malformed", () => {
+    expect(handlingFee(WITH_FEE)).toBe(5);
+    expect(handlingFee(SCHEMA2_FEED)).toBe(0);
+    expect(handlingFee(null)).toBe(0);
+    expect(handlingFee({ ...SCHEMA2_FEED, shipping_handling_fee: -3 })).toBe(0);
+    expect(handlingFee({ ...SCHEMA2_FEED, shipping_handling_fee: Number.NaN })).toBe(0);
+  });
+
+  it("per-state estimate = cheapest carrier cell + the fee, once", () => {
+    expect(estimateBoxShipping("WV", SCHEMA2_FEED)).toBe(22); // legacy cell, no fee field
+    expect(estimateBoxShipping("WV", WITH_FEE)).toBe(27);
+    expect(estimateBoxShipping("ME", WITH_FEE)).toBe(46);
+  });
+
+  it("the stateless floor carries the fee and still never exceeds a state estimate", () => {
+    expect(estimateBoxFloor(WITH_FEE)).toBe(27);
+    for (const state of Object.keys(ZONE_BY_STATE)) {
+      const est = estimateBoxShipping(state, WITH_FEE);
+      if (est != null) expect(estimateBoxFloor(WITH_FEE)!).toBeLessThanOrEqual(est);
+    }
+  });
+
+  it("potted estimates add it too, and the tier seam routes through it", () => {
+    const pottedWithFee: ShippingRateFeed = { ...SCHEMA2_POTTED_FEED, shipping_handling_fee: 5 };
+    expect(estimatePottedShipping("WV", pottedWithFee)).toBe(25);
+    expect(estimatePottedFloor(pottedWithFee)).toBe(25);
+    expect(estimateTierShipping("WV", "bareroot", { feed: WITH_FEE })).toBe(27);
+    expect(estimateTierFloor("bareroot", WITH_FEE)).toBe(27);
   });
 });

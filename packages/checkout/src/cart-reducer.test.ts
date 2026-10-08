@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   addItem,
+  canAdd,
+  orderKind,
+  orderWave,
   cartStorageKey,
   removeItem,
   setItemQuantity,
@@ -252,5 +255,70 @@ describe("addItem — carries the pickup-only flag onto the new line (GOL-2588)"
     expect(second).toHaveLength(1);
     expect(second[0].quantity).toBe(2);
     expect(second[0].pickupOnly).toBe(true);
+  });
+});
+
+describe("pre-order waves", () => {
+  const base = { templateId: 1, name: "Tree", price: 10, imageUrl: "/x.jpg" };
+  const fall = (variantId: number, quantity = 1): CartItem => ({ ...base, variantId, quantity, wave: "fall" });
+  const spring = (variantId: number, quantity = 1): CartItem => ({ ...base, variantId, quantity, wave: "spring" });
+  const now = (variantId: number, quantity = 1): CartItem => ({ ...base, variantId, quantity });
+
+  it("addItem carries the wave onto a new line", () => {
+    const items = addItem([], { ...base, variantId: 1, wave: "fall" });
+    expect(items[0].wave).toBe("fall");
+  });
+
+  it("addItem on an existing variant with a different wave replaces the wave and sums quantity", () => {
+    const items = addItem([fall(1, 2)], { ...base, variantId: 1, wave: "spring" }, 3);
+    expect(items).toHaveLength(1);
+    expect(items[0].wave).toBe("spring");
+    expect(items[0].quantity).toBe(5);
+  });
+
+  it("validateCartItems drops a line with an invalid wave and keeps valid / absent ones", () => {
+    const bad = { ...fall(2), wave: "winter" };
+    const kept = validateCartItems([fall(1), now(3), bad]);
+    expect(kept.map((i) => i.variantId)).toEqual([1, 3]);
+  });
+
+  it("orderKind classifies the cart", () => {
+    expect(orderKind([])).toBe("empty");
+    expect(orderKind([now(1), now(2)])).toBe("immediate");
+    expect(orderKind([fall(1), fall(2)])).toBe("preorder");
+    expect(orderKind([fall(1), spring(2)])).toBe("mixed");
+    expect(orderKind([fall(1), now(2)])).toBe("mixed");
+  });
+
+  it("orderWave returns the single wave, or null", () => {
+    expect(orderWave([])).toBeNull();
+    expect(orderWave([now(1)])).toBeNull();
+    expect(orderWave([fall(1), fall(2)])).toBe("fall");
+    expect(orderWave([fall(1), spring(2)])).toBeNull();
+  });
+
+  it("canAdd allows into an empty cart and same-kind carts", () => {
+    expect(canAdd([], {})).toEqual({ ok: true });
+    expect(canAdd([], { wave: "fall" })).toEqual({ ok: true });
+    expect(canAdd([now(1)], {})).toEqual({ ok: true });
+    expect(canAdd([fall(1)], { wave: "fall" })).toEqual({ ok: true });
+  });
+
+  it("canAdd refuses mixing pre-orders with immediate items, both ways", () => {
+    const msg = "Pre-orders check out on their own. Check out or clear your cart first.";
+    expect(canAdd([now(1)], { wave: "fall" })).toEqual({ ok: false, reason: "mixed", message: msg });
+    expect(canAdd([fall(1)], {})).toEqual({ ok: false, reason: "mixed", message: msg });
+  });
+
+  it("canAdd refuses a second wave", () => {
+    expect(canAdd([fall(1)], { wave: "spring" })).toEqual({
+      ok: false,
+      reason: "wave",
+      message: "Your cart is a fall pre-order. One wave per order: check out or clear your cart first.",
+    });
+  });
+
+  it("canAdd refuses switching a single-wave cart to the other wave", () => {
+    expect(canAdd([spring(1)], { wave: "fall" }).ok).toBe(false);
   });
 });

@@ -334,6 +334,20 @@ export const DEFAULT_LENGTH_CLASS = 20;
 const DEFAULT_MODE: PackingMode = "leafed";
 
 /**
+ * The flat shipping-and-handling fee an order pays ONCE on top of its carrier
+ * cost (GOL-2923). A backend that publishes `shipping_handling_fee` serves
+ * carrier-only `zones` cells, so a feed-built estimate must add the fee or it
+ * under-quotes by exactly that amount. A backend that predates GOL-2923 omits the
+ * field and its cells already include handling, so absent (or malformed) is 0 and
+ * the estimate is unchanged. The fee is per ORDER: a single-unit "from $X" floor
+ * adds it once, and the backend adds it once at checkout however many boxes pack.
+ */
+export function handlingFee(feed: ShippingRateFeed | null | undefined): number {
+  const fee = feed?.shipping_handling_fee;
+  return typeof fee === "number" && Number.isFinite(fee) && fee > 0 ? fee : 0;
+}
+
+/**
  * Cheapest bareroot shipping for ONE tree to `state` under Box Engine v2, in
  * whole dollars, or `null` when unshippable (state outside the green list, no
  * box long enough, or no rate configured). Faithful client mirror of
@@ -368,7 +382,7 @@ export function estimateBoxShipping(
     if (typeof rate !== "number") continue; // no rate configured for this box
     if (cheapest == null || rate < cheapest) cheapest = rate;
   }
-  return cheapest == null ? null : Math.round(cheapest);
+  return cheapest == null ? null : Math.round(cheapest + handlingFee(feed));
 }
 
 /**
@@ -403,7 +417,7 @@ export function estimateBoxFloor(
       if (cheapest == null || rate < cheapest) cheapest = rate;
     }
   }
-  return cheapest == null ? null : Math.round(cheapest);
+  return cheapest == null ? null : Math.round(cheapest + handlingFee(feed));
 }
 
 /**
@@ -502,7 +516,8 @@ export function estimatePottedShipping(
   if (!zone) return null;
   const rates = feed.zones[zone];
   if (!rates) return null;
-  return cheapestPotted(rates);
+  const carrier = cheapestPotted(rates);
+  return carrier == null ? null : Math.round(carrier + handlingFee(feed));
 }
 
 /**
@@ -520,7 +535,7 @@ export function estimatePottedFloor(feed: ShippingRateFeed): number | null {
     const c = cheapestPotted(rates);
     if (c != null && (cheapest == null || c < cheapest)) cheapest = c;
   }
-  return cheapest;
+  return cheapest == null ? null : Math.round(cheapest + handlingFee(feed));
 }
 
 /** Cheapest rated potted box within one zone's rate row, or `null`. */

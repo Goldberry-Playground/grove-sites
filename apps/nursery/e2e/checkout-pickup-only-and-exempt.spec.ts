@@ -3,7 +3,10 @@ import {
   addCurrentProductToCart,
   expectOnReview,
   fillCheckoutForm,
+  findPairedProduct,
   findProductByCtaOrNull,
+  fulfillmentToggle,
+  pottedSeasonToday,
   submitAndCaptureSession,
   uniqueBuyerEmail,
 } from "./helpers";
@@ -38,7 +41,7 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
   test("an exempt bundle with an Ohio address reaches Review & pay", async ({ page }) => {
     // Any shippable buy CTA: a bundle can be in stock or reservable, but it must
     // not be pickup-only (that is the other test's subject and a different gate).
-    const product = await findProductByCtaOrNull(page, ["Add to Cart", "Reserve"], {
+    const product = await findProductByCtaOrNull(page, ["Add to cart", "Pre-order for $10"], {
       nameMatch: /remembrance grove/i,
     });
     test.skip(
@@ -118,5 +121,35 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
       `a pickup order for ${product.name} must be accepted; server said: ${errorBody ?? "(no body)"}`,
     ).toBe(200);
     await expectOnReview(page);
+  });
+
+  test("a potted tree chosen for Farm pickup locks checkout to pickup", async ({ page }) => {
+    // Pickup-chosen potted lines are pickupOnly (2026-10-07 gate). The backend
+    // validates the potted season on its real clock, so guard on the real date.
+    test.skip(
+      !pottedSeasonToday(),
+      "real date is outside the potted season (May 1 to Oct 15); potted is not sellable",
+    );
+    const { product, scanned, listings } = await findPairedProduct(page, { needPotted: true });
+    test.skip(
+      product === null,
+      `none of the ${scanned} scanned PDPs (of ${listings} listings) had both a potted format and the Bareroot pre-order card`,
+    );
+    if (!product) return;
+
+    await page.goto(product.href);
+    await fulfillmentToggle(page, "pickup").click();
+    await page.getByRole("button", { name: /^Potted/ }).first().click();
+    const anchor = page.locator("[data-add-to-cart-anchor]").first();
+    await anchor.getByRole("button", { name: "Add to cart", exact: true }).first().click();
+    await expect(
+      anchor.getByRole("button", { name: "Added!", exact: true }).first(),
+    ).toBeVisible({ timeout: 5_000 });
+
+    await page.goto("/checkout");
+    const form = page.locator("form.grove-checkout__grid");
+    await expect(form).toBeVisible();
+    await expect(form.locator('input[name="fulfillment"][value="ship"]')).toHaveCount(0);
+    await expect(form.locator('input[name="fulfillment"][value="pickup"]')).toBeChecked();
   });
 });
