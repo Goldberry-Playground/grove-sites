@@ -2045,10 +2045,20 @@
   display: block;
   margin-bottom: 1.2rem;
 }
+/* Drawn, not typed: this was U+25D0 CIRCLE WITH LEFT HALF BLACK, which none of
+   the loaded faces (Fraunces / Newsreader / IBM Plex Mono) cover, so it painted
+   an empty box on a client with no symbol font (GOL-2797). Same ring + half
+   fill geometry as the nursery .pano-eyebrow mark (GOL-3117). */
 .about-eyebrow::before {
-  content: "◐";
+  content: "";
+  display: inline-block;
+  vertical-align: -0.1em;
+  width: 0.85em;
+  height: 0.85em;
   margin-right: 0.6rem;
-  color: var(--grove-color-gold);
+  border: 1.25px solid var(--grove-color-gold);
+  border-radius: 50%;
+  background-image: linear-gradient(to right, var(--grove-color-gold) 50%, transparent 50%);
 }
 
 .shop-subheader {
@@ -2207,9 +2217,19 @@
   background: var(--grove-color-gold);
   border-color: var(--grove-color-gold);
 }
+/* Drawn, not typed: was U+25D0, uncovered by every loaded face (GOL-2797).
+   currentColor keeps it the plum-deep ink of the "here" pill, as the glyph was;
+   the right margin replaces the two typed spaces that followed it. */
 .sibling-strip .here::before {
-  content: '◐  ';
-  letter-spacing: 0;
+  content: '';
+  display: inline-block;
+  vertical-align: -0.1em;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.6em;
+  border: 1.25px solid currentColor;
+  border-radius: 50%;
+  background-image: linear-gradient(to right, currentColor 50%, transparent 50%);
 }
 
 /* Mobile-only toggle button — hidden on desktop, shown at <=720px. */
