@@ -529,10 +529,15 @@ function normalizeNavNode(
   // An unrecognized status fails CLOSED to `hidden` (GOL-2745): a department
   // whose lifecycle the storefront can't read must not be advertised on the tab
   // row, because it may not be ready to be seen at all.
+  // A collection (Guilds) carries no lifecycle on the live backend, so an
+  // ABSENT status there means "live"; a present-but-unknown one still fails
+  // closed.
   const status = typeof raw.status === "string" && DEPT_STATUSES.has(raw.status)
     ? (raw.status as DepartmentStatus)
-    : "hidden";
-  const categories: CatalogNavCategory[] = (raw.children ?? []).map((c) => ({
+    : raw.status == null && kind === "collection"
+      ? "live"
+      : "hidden";
+  const categories: CatalogNavCategory[] = (raw.categories ?? raw.children ?? []).map((c) => ({
     slug: c.slug,
     name: c.name,
     count: typeof c.count === "number" ? c.count : 0,
@@ -547,17 +552,22 @@ function normalizeNavNode(
     comingList: normalizeComingList(raw.coming_list),
     categories,
     count:
-      typeof raw.count === "number"
-        ? raw.count
-        : categories.reduce((sum, c) => sum + c.count, 0),
+      typeof raw.product_count === "number"
+        ? raw.product_count
+        : typeof raw.count === "number"
+          ? raw.count
+          : categories.reduce((sum, c) => sum + c.count, 0),
   };
 }
 
-/** Normalize `GET /catalog/nav`. Guilds is the first `collection` the backend
- *  returns; anything else in `collections` is ignored until a second one has a
- *  page to land on. */
+/** Normalize `GET /catalog/nav`. The live backend sends Guilds as a top-level
+ *  `guilds` node; the draft shape sent it as the first of `collections` (any
+ *  further collection is ignored until it has a page to land on). */
 export function normalizeCatalogNav(raw: ApiCatalogNavResponse): CatalogNav {
   const departments = (raw.departments ?? []).map((d) => normalizeNavNode(d, "department"));
-  const collections = (raw.collections ?? []).map((c) => normalizeNavNode(c, "collection"));
-  return { departments, guilds: collections[0] ?? null };
+  const guildsRaw = raw.guilds ?? raw.collections?.[0] ?? null;
+  return {
+    departments,
+    guilds: guildsRaw ? normalizeNavNode(guildsRaw, "collection") : null,
+  };
 }

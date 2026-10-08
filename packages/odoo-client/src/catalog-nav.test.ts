@@ -154,6 +154,37 @@ describe("normalizeCatalogNav", () => {
     expect(nav.guilds?.count).toBe(5);
   });
 
+  it("reads the live gom#299 shape (`categories`, `product_count`, top-level `guilds`)", () => {
+    // Trimmed from prod GET /grove/api/v1/catalog/nav, 2026-10-08.
+    const nav = normalizeCatalogNav({
+      departments: [
+        {
+          slug: "orchard-food-forest",
+          name: "Orchard & food forest",
+          kind: "department",
+          status: "live",
+          teaser: "",
+          facets: ["zone", "layer", "sun", "uses", "on_offer", "ships"],
+          coming_list: [],
+          categories: [
+            { slug: "fruit-trees", name: "Fruit Trees", count: 10 },
+            { slug: "fruiting-vines", name: "Fruiting Vines", count: 0 },
+          ],
+          product_count: 17,
+        },
+      ],
+      guilds: { slug: "guilds", name: "Guilds", kind: "collection", teaser: "", product_count: 6 },
+    });
+
+    const [dept] = nav.departments;
+    expect(dept.categories.map((c) => c.count)).toEqual([10, 0]);
+    expect(dept.count).toBe(17);
+    expect(dept.teaser).toBeNull();
+    // No status on the collection means live, not fail-closed hidden.
+    expect(nav.guilds?.status).toBe("live");
+    expect(nav.guilds?.count).toBe(6);
+  });
+
   it("returns an empty tree for a backend that predates the route", () => {
     const nav = normalizeCatalogNav({});
     expect(nav.departments).toEqual([]);

@@ -27,7 +27,7 @@ function product(over: Partial<Product> & { id: number; name: string }): Product
 }
 
 const ORCHARD: CatalogNavNode = {
-  slug: "orchard",
+  slug: "orchard-food-forest",
   name: "Orchard & food forest",
   kind: "department",
   status: "live",
@@ -104,11 +104,11 @@ describe("groupSearchResults", () => {
     const pear = product({
       id: 1,
       name: "Pear",
-      department: { id: 1, name: "Orchard & food forest", slug: "orchard" },
+      department: { id: 1, name: "Orchard & food forest", slug: "orchard-food-forest" },
     });
     const groups = groupSearchResults([pear], NAV, "pear");
 
-    expect(groups.map((g) => g.slug)).toEqual(["orchard"]);
+    expect(groups.map((g) => g.slug)).toEqual(["orchard-food-forest"]);
     expect(groups[0].products).toEqual([pear]);
   });
 
@@ -118,7 +118,7 @@ describe("groupSearchResults", () => {
     const bundle = product({
       id: 2,
       name: "Heirloom Fruit Package",
-      department: { id: 1, name: "Orchard & food forest", slug: "orchard" },
+      department: { id: 1, name: "Orchard & food forest", slug: "orchard-food-forest" },
       categories: [{ id: 6, name: "Guilds", slug: "guilds" }],
     });
     const groups = groupSearchResults([bundle], NAV, "heirloom");
@@ -131,7 +131,7 @@ describe("groupSearchResults", () => {
     const pear = product({
       id: 1,
       name: "Pear tree",
-      department: { id: 1, name: "Orchard & food forest", slug: "orchard" },
+      department: { id: 1, name: "Orchard & food forest", slug: "orchard-food-forest" },
     });
     const bundle = product({
       id: 2,
@@ -144,7 +144,7 @@ describe("groupSearchResults", () => {
     };
 
     expect(groupSearchResults([pear, bundle], nav, "pear").map((g) => g.slug)).toEqual([
-      "orchard",
+      "orchard-food-forest",
       "forest-farming",
       "guilds",
     ]);
@@ -172,7 +172,7 @@ describe("groupSearchResults", () => {
     // would just be noise.
     const p = product({ id: 4, name: "Fig" });
     const groups = groupSearchResults([p], NAV, "fig");
-    expect(groups.map((g) => g.slug)).toEqual(["orchard"]);
+    expect(groups.map((g) => g.slug)).toEqual(["orchard-food-forest"]);
   });
 });
 

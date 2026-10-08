@@ -39,32 +39,32 @@ const NAV = (departments: CatalogNavNode[], guilds: CatalogNavNode | null = null
 
 describe("visibleDepartments", () => {
   it("shows a live department that has products", () => {
-    const nav = NAV([dept({ slug: "orchard", count: 12 }), dept({ slug: "myco", count: 3 })]);
-    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard", "myco"]);
+    const nav = NAV([dept({ slug: "orchard-food-forest", count: 12 }), dept({ slug: "myco", count: 3 })]);
+    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard-food-forest", "myco"]);
   });
 
   it("hides a live department with zero products", () => {
     // Spec rule: live AND >=1 published product. A live-but-empty tab is a dead
     // end the shopper spends a tap discovering.
-    const nav = NAV([dept({ slug: "orchard", count: 12 }), dept({ slug: "myco", count: 0 })]);
-    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard"]);
+    const nav = NAV([dept({ slug: "orchard-food-forest", count: 12 }), dept({ slug: "myco", count: 0 })]);
+    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard-food-forest"]);
   });
 
   it("shows a coming-soon department even with zero products", () => {
     // The whole point of a teaser: no products, still visible.
     const nav = NAV([
-      dept({ slug: "orchard", count: 12 }),
+      dept({ slug: "orchard-food-forest", count: 12 }),
       dept({ slug: "forest-farming", status: "coming_soon", count: 0 }),
     ]);
-    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard", "forest-farming"]);
+    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard-food-forest", "forest-farming"]);
   });
 
   it("never shows a hidden department", () => {
     const nav = NAV([
-      dept({ slug: "orchard", count: 12 }),
+      dept({ slug: "orchard-food-forest", count: 12 }),
       dept({ slug: "retired", status: "hidden", count: 40 }),
     ]);
-    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard"]);
+    expect(visibleDepartments(nav).map((d) => d.slug)).toEqual(["orchard-food-forest"]);
   });
 
   it("keeps Orchard on the bar at a zero count", () => {
@@ -119,7 +119,7 @@ describe("showsFacet", () => {
   it("falls back to the orchard set when a department declares none", () => {
     // A backend without `grove_facets` must not silently strip the shop's
     // existing filters.
-    const bare = dept({ slug: "orchard" });
+    const bare = dept({ slug: "orchard-food-forest" });
     expect(showsFacet(bare, "zone")).toBe(true);
     expect(showsFacet(bare, "layer")).toBe(true);
     expect(showsFacet(bare, "sun")).toBe(true);

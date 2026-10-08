@@ -692,14 +692,21 @@ export interface ApiCatalogNavNode {
   /** Odoo `grove_coming_list` is a Text field, one `Name | detail` per line; an
    *  already-parsed array is accepted too. */
   coming_list?: string | (string | { name?: string; detail?: string })[] | false | null;
+  /** Child categories. The live backend (gom#299) serializes `categories`;
+   *  `children` is the pre-landing draft name, still accepted. */
+  categories?: { slug: string; name: string; count?: number | null }[] | null;
   children?: { slug: string; name: string; count?: number | null }[] | null;
+  /** Published products across the node. Live backend: `product_count`. */
+  product_count?: number | null;
   count?: number | null;
 }
 
 /** Wire shape of `GET /grove/api/v1/catalog/nav`. */
 export interface ApiCatalogNavResponse {
   departments?: ApiCatalogNavNode[] | null;
-  /** The backend serializes collections as a list; Guilds is the only one today. */
+  /** The live backend serializes Guilds as its own top-level node. */
+  guilds?: ApiCatalogNavNode | null;
+  /** Pre-landing draft shape: collections as a list, Guilds first. Accepted. */
   collections?: ApiCatalogNavNode[] | null;
 }
 

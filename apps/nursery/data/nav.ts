@@ -25,7 +25,7 @@ import type { CatalogNav, CatalogNavNode } from "@grove/odoo-client";
  */
 
 /** `/shop` is the Orchard department — the one live department in Train #3. */
-export const ORCHARD_SLUG = "orchard";
+export const ORCHARD_SLUG = "orchard-food-forest";
 
 /** The Guilds collection's slug (`/shop/guilds`). */
 export const GUILDS_SLUG = "guilds";
