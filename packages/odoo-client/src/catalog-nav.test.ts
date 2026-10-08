@@ -185,6 +185,13 @@ describe("normalizeCatalogNav", () => {
     expect(nav.guilds?.count).toBe(6);
   });
 
+  it("drops a Guilds node whose status is unreadable", () => {
+    const nav = normalizeCatalogNav({
+      guilds: { slug: "guilds", name: "Guilds", status: "draft" },
+    });
+    expect(nav.guilds).toBeNull();
+  });
+
   it("returns an empty tree for a backend that predates the route", () => {
     const nav = normalizeCatalogNav({});
     expect(nav.departments).toEqual([]);

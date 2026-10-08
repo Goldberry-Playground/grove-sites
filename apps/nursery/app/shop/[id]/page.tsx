@@ -41,10 +41,17 @@ async function departmentMetadata(slug: string): Promise<Metadata> {
   const dept = findDepartment(nav, slug);
   if (!dept || dept.slug === ORCHARD_SLUG) return notFoundMetadata();
   const canonicalPath = `/shop/${dept.slug}`;
+  // A coming-soon page earns indexing through its authored teaser and "What's
+  // coming" list. Until Odoo carries either, the page is a heading, a
+  // placeholder line and a waitlist form: thin content that should not be
+  // indexed. It becomes indexable on its own once the copy lands in Odoo.
+  const thinTeaser =
+    dept.status === "coming_soon" && !dept.teaser && dept.comingList.length === 0;
   return {
     title: dept.name,
     ...(dept.teaser ? { description: dept.teaser } : {}),
     alternates: { canonical: canonicalPath },
+    ...(thinTeaser ? { robots: { index: false, follow: true } } : {}),
   };
 }
 

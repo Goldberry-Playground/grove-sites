@@ -119,7 +119,7 @@ export function CaptureForm({
   hubOptInLabel = "Also send me news from Gathering at the Grove — the community behind the farm.",
   consentText = "We'll only email you what you signed up for. Unsubscribe anytime.",
   endpoint = "/api/newsletter/subscribe",
-  invalidEmailMessage = "That email doesn't look right — mind checking it?",
+  invalidEmailMessage = "That email doesn't look right. Mind checking it?",
   layout = "stacked",
   className = "",
   onResult,
@@ -205,7 +205,7 @@ export function CaptureForm({
       // (GOL-1881).
       let reason = "Something went wrong on our end — mind trying that again?";
       if (res.status === 400) {
-        reason = "That email doesn't look right — mind checking it?";
+        reason = "That email doesn't look right. Mind checking it?";
       } else if (res.status >= 500) {
         reason = "Signups aren't open just yet — please check back soon.";
       }

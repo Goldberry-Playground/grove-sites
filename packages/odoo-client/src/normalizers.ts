@@ -566,8 +566,8 @@ function normalizeNavNode(
 export function normalizeCatalogNav(raw: ApiCatalogNavResponse): CatalogNav {
   const departments = (raw.departments ?? []).map((d) => normalizeNavNode(d, "department"));
   const guildsRaw = raw.guilds ?? raw.collections?.[0] ?? null;
-  return {
-    departments,
-    guilds: guildsRaw ? normalizeNavNode(guildsRaw, "collection") : null,
-  };
+  const guilds = guildsRaw ? normalizeNavNode(guildsRaw, "collection") : null;
+  // A Guilds node whose status fails closed is not advertised: DepartmentNav
+  // and the search grouping only test `nav.guilds` for presence.
+  return { departments, guilds: guilds && guilds.status !== "hidden" ? guilds : null };
 }

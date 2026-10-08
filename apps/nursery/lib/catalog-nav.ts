@@ -1,6 +1,6 @@
 import type { CatalogNav } from "@grove/odoo-client";
 import { odoo } from "./clients";
-import { mockCatalogNav } from "../data/nav";
+import { fallbackCatalogNav, mockCatalogNav } from "../data/nav";
 
 /**
  * Catalog-nav seam for the shop surfaces (GOL-2745).
@@ -22,9 +22,10 @@ export interface CatalogNavResult {
 
 /**
  * Fetch the department tree. Never throws: a backend that predates
- * `/catalog/nav` (every backend until Ada's grove_headless PR lands) and a
- * dead Odoo both fall back to the mock tree, so the storefront ships the
- * departments ahead of the data.
+ * `/catalog/nav` and a dead Odoo both fall back. In production the fallback is
+ * the Orchard + Guilds tree only, so an Odoo hiccup can never paint the mock's
+ * placeholder coming-soon departments and unapproved copy on the live shop.
+ * Local dev keeps the full mock IA for screenshots and review.
  */
 export async function getCatalogNav(): Promise<CatalogNavResult> {
   try {
@@ -36,7 +37,10 @@ export async function getCatalogNav(): Promise<CatalogNavResult> {
   } catch {
     // Route absent / Odoo unreachable — fall through to the mock tree.
   }
-  return { nav: mockCatalogNav, usingMockNav: true };
+  return {
+    nav: process.env.NODE_ENV === "production" ? fallbackCatalogNav : mockCatalogNav,
+    usingMockNav: true,
+  };
 }
 
 // NOTE: the pure department rules live in `./departments` and are imported

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
@@ -6,6 +7,13 @@ import { getCatalogNav } from "../../../lib/catalog-nav";
 import { GUILDS_SLUG, isGuildProduct, guildPurpose } from "../../../lib/departments";
 import { DepartmentNav } from "../../department-nav";
 import { GuildCard } from "./guild-card";
+
+// Own title + canonical: without this the page inherits the site default and
+// every `?`-suffixed variant would be a separate indexable URL (GOL-2878).
+export const metadata: Metadata = {
+  title: "Guilds",
+  alternates: { canonical: "/shop/guilds" },
+};
 
 interface GuildsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

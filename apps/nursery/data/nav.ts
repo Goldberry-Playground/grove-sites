@@ -24,7 +24,15 @@ import type { CatalogNav, CatalogNavNode } from "@grove/odoo-client";
  * them.
  */
 
-/** `/shop` is the Orchard department — the one live department in Train #3. */
+/**
+ * `/shop` is the Orchard department, the one live department in Train #3.
+ *
+ * Must equal the department's `grove_slug` in Odoo. The grove_headless
+ * migration (grove-odoo-modules#299) backfilled it as `slugify("Orchard & food
+ * forest")`, and prod `/catalog/nav` serves `orchard-food-forest`. A mismatch
+ * here silently drops the Orchard tab (it is the only department matched by
+ * slug) and leaves `/shop` with no active tab.
+ */
 export const ORCHARD_SLUG = "orchard-food-forest";
 
 /** The Guilds collection's slug (`/shop/guilds`). */
@@ -140,8 +148,22 @@ const GUILDS: CatalogNavNode = {
   count: 0,
 };
 
-/** The spec's information architecture, in tab order. */
+/** The spec's information architecture, in tab order. LOCAL DEV ONLY: its
+ *  coming-soon departments and copy are placeholders (see the header). */
 export const mockCatalogNav: CatalogNav = {
   departments: [ORCHARD, MYCOFORESTRY, FOREST_FARMING, SEED_AND_SCION],
   guilds: GUILDS,
+};
+
+/**
+ * The production fallback when `/catalog/nav` fails: Orchard and Guilds only.
+ *
+ * Both exist today independent of the department tree (`/shop` and the
+ * collection category), so this never advertises a department or a "What's
+ * coming" promise that Odoo has not published. With one department and the
+ * Guilds link the bar still renders, so the shopper keeps a way to Guilds.
+ */
+export const fallbackCatalogNav: CatalogNav = {
+  departments: [{ ...ORCHARD, teaser: null }],
+  guilds: { ...GUILDS, teaser: null },
 };
