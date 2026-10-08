@@ -23,9 +23,23 @@ name: Prod Deploy Drift Check
 # DigitalOcean/GHCR APIs -- so there is no pwn-request path here. Keep it that
 # way: do not interpolate event payload fields into a run: block in this file.
 #
+# GOL-3138 — the alarm is no longer inline here. From 2026-10-03 to 2026-10-05
+# this workflow posted 14 consecutive "prod frontend drift" alarms to Discord
+# ops while all four prod apps were serving exactly their pinned build. The real
+# condition was a dead DIGITALOCEAN_TOKEN (`HTTP Error 401: Unauthorized`): the
+# checker returned non-zero WITHOUT writing a report, and the inline bash had
+# only one embed, so a monitoring outage was dressed up as a prod incident and
+# nobody rotated the credential for 2.6 days. scripts/prod-drift-alarm.py now
+# owns that decision — it tells a MONITOR problem apart from a PROD problem,
+# words the embed accordingly, and suppresses a re-post of an UNCHANGED state
+# inside RENOTIFY_HOURS. The run still goes red on every firing; suppression
+# silences Discord only, never CI. Behaviour is gated by
+# scripts/ci/prod-drift-alarm.test.mjs in the `CI scripts` job.
+#
 # Secrets (ADR-0001, resolved at run time from 1Password via the CI SA):
 #   DIGITALOCEAN_TOKEN       op://Grove Prod/odoocker/DIGITALOCEAN_TOKEN
 #   DISCORD_OPS_WEBHOOK_URL  op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+#   CREDENTIAL_EXPIRES       op://Grove Prod/odoocker/expires  (GOL-3140)
 # GHCR digests are read with the workflow's GITHUB_TOKEN (packages: read).
 
 on:
@@ -46,10 +60,16 @@ on:
   # as DRIFT, so raising the firing rate would have raised the FALSE-ALARM rate
   # into Discord ops. The checker now classifies a fresh in-flight rollout onto
   # the pinned digest as ROLLING_OUT (exit 0) and only alarms once it is wedged
-  # past ROLLOUT_GRACE_MINUTES.
+  # past ROLLOUT_GRACE_MINUTES. Alarm VOLUME is bounded by the GOL-3138 dedupe
+  # in scripts/prod-drift-alarm.py (an unchanged state re-posts at most once
+  # per RENOTIFY_HOURS), not by how often this fires.
   push:
     branches: [main]
 
+  # `Docker — Frontends` also runs on pull_request; a PR build cannot change
+  # what prod serves, so those completions are filtered out by the job-level
+  # `if:` below (not by `branches: [main]` here, which would also drop the
+  # tag-push runs of `Release — deploy Goldberry`, whose head_branch is the tag).
   workflow_run:
     workflows:
       - Docker — Frontends
@@ -61,6 +81,9 @@ on:
 permissions:
   contents: read
   packages: read
+  # Read the PREVIOUS run's drift-report artifact, which is where the alarm
+  # dedupe state lives (no new bucket, credential or blast radius). Read-only.
+  actions: read
 
 concurrency:
   group: prod-deploy-drift
@@ -69,6 +92,9 @@ concurrency:
 jobs:
   drift:
     name: Check prod frontends serve their pinned build
+    # Skip workflow_run firings that came from a pull_request build (see `on:`).
+    # An expression comparison only; no payload value reaches a run: block.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -121,55 +147,109 @@ jobs:
         run: |
           python3 scripts/prod-deploy-drift-check.py
 
+      # Dedupe state for the alarm. `drift-report` is produced by this workflow
+      # only, the API returns artifacts newest-first, and our own upload happens
+      # AFTER the alarm step below — so the newest non-expired hit is the
+      # previous run's report. Best-effort: if this fails, the alarm has no prior
+      # state and fails OPEN (posts), because a duplicate alarm beats a missed one.
+      - name: Fetch previous drift report (alarm dedupe state)
+        if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=drift-report&per_page=5" \
+            --jq '[.artifacts[] | select(.expired == false)][0].archive_download_url // empty')"
+          if [ -z "$url" ]; then
+            echo "No previous drift-report artifact — the alarm will fail open and post."
+            exit 0
+          fi
+          gh api "$url" > prior.zip
+          unzip -o -q prior.zip -d prior-report
+          mv prior-report/drift-report.json prior-drift-report.json
+          echo "Dedupe state: $(jq -c '.alarm // {}' prior-drift-report.json)"
+
+      # Classify, word and (de-duplicate) the alarm. Exits non-zero whenever
+      # anything is wrong, so the run goes red on EVERY firing regardless of
+      # whether this particular firing posted to Discord.
       - name: Alarm + fail on drift
         if: steps.creds.outputs.run == 'true' && steps.secrets.outcome == 'success'
         env:
           DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
           CHECK_OUTCOME: ${{ steps.check.outcome }}
+          # Repo-controlled context only — no event payload is interpolated here
+          # (see the security note at the top of this file).
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRIFT_REPORT_FILE: drift-report.json
+          PRIOR_REPORT_FILE: prior-drift-report.json
+          # Re-state an unchanged problem once a day. Raise the firing rate
+          # freely (GOL-3135 step 4) — this, not the cron, bounds alarm volume.
+          RENOTIFY_HOURS: "24"
         run: |
-          set -euo pipefail
-          if [ "$CHECK_OUTCOME" = "success" ]; then
-            echo "All prod frontends serve their pinned build. No drift."
-            exit 0
-          fi
+          python3 scripts/prod-drift-alarm.py
 
-          # Drift (or an app-level error). Build one Discord field per bad app.
-          echo "::error::Prod deploy drift detected — see report below and Discord."
-          FIELDS='[]'
-          if [ -f drift-report.json ]; then
-            # ROLLING_OUT is informational (a healthy in-flight rollout,
-            # GOL-3135) and never why the run went red -- excluded so an alarm
-            # for a genuinely drifted app does not also list a fine one.
-            FIELDS="$(jq -c '[.apps[] | select(.status != "OK" and .status != "SKIPPED" and .status != "ROLLING_OUT")
-              | {name: .app, value: "\(.status): \(.detail // "serving \(.serving) != pin \(.intended)")", inline: false}]' drift-report.json)"
-          fi
-          [ "$FIELDS" = "[]" ] && FIELDS='[{"name":"drift","value":"See workflow logs","inline":false}]'
+      # GOL-3140 — warn BEFORE the credential dies, not 2.6 days after.
+      #
+      # DO PATs now default to a 90-day expiry and DO exposes no endpoint to
+      # introspect your own PAT, so the expiry can only be RECORDED and watched.
+      # The `odoocker` item already carries an `expires` DATE field, so this is
+      # one secret reference and no new schedule or credential.
+      #
+      # Loaded in its OWN step, deliberately: folding `expires` into the
+      # load-secrets step above would mean a problem reading a calendar date
+      # could fail that step, and every drift step is gated on
+      # `steps.secrets.outcome == 'success'` — i.e. a bad date could blind prod
+      # monitoring, which is the exact failure GOL-3138 exists to stop. Here the
+      # worst case is a missing warning. `export-env: false` keeps the value in
+      # this step's (masked) outputs instead of $GITHUB_ENV.
+      #
+      # `op read` on an EMPTY 1Password field exits 0 with empty output
+      # (verified against the live item), so this reference is safe TODAY while
+      # the field is still blank — the script is inert until a human fills it in.
+      # A MISSING field would exit 1, which is why the pre-existing `expires`
+      # field is reused rather than a new one being requested.
+      - name: Load recorded credential expiry
+        id: expiry
+        if: always() && steps.creds.outputs.run == 'true'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v5
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          CREDENTIAL_EXPIRES: op://Grove Prod/odoocker/expires
+        with:
+          export-env: false
 
-          if [ -n "${DISCORD_OPS_WEBHOOK_URL:-}" ]; then
-            PAYLOAD=$(jq -n \
-              --argjson fields "$FIELDS" \
-              --arg run_url "$RUN_URL" \
-              '{
-                username: "🚨 Grove Prod Deploy",
-                embeds: [{
-                  title: "🚨 Prod frontend drift — serving build != pinned build",
-                  description: "One or more prod apps are not serving the image their pinned tag points to. Redeploy with scripts/lib/do-app-redeploy.sh (one create-deployment; never two back-to-back — GOL-1607).",
-                  color: 15158332,
-                  fields: $fields,
-                  footer: { text: "Workflow run: \($run_url)" }
-                }]
-              }')
-            curl -fsS -X POST -H "Content-Type: application/json" \
-              -d "$PAYLOAD" "$DISCORD_OPS_WEBHOOK_URL" \
-              || echo "::warning::Discord webhook failed — drift still detected, see logs"
-          else
-            echo "::warning::No Discord webhook — drift detected but not alarmed"
-          fi
+      # Always runs: the alarm step above exits non-zero on any problem, and a
+      # rotation reminder must not be skipped just because today's run is red —
+      # a dead credential is precisely when you most want to be told to rotate.
+      # The script itself always exits 0; an approaching expiry is a chore, not
+      # an incident, and red is reserved for "prod is drifted" / "the check is
+      # blind". Behaviour is gated by
+      # scripts/ci/prod-credential-expiry-warn.test.mjs in the `CI scripts` job.
+      - name: Warn on approaching credential expiry
+        if: always() && steps.creds.outputs.run == 'true'
+        env:
+          CREDENTIAL_EXPIRES: ${{ steps.expiry.outputs.CREDENTIAL_EXPIRES }}
+          CREDENTIAL_LABEL: DIGITALOCEAN_TOKEN
+          CREDENTIAL_REF: op://Grove Prod/odoocker/expires
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # Shares the drift-report artifact with the drift alarm (no new
+          # bucket). Merges its own block in; never overwrites `alarm`.
+          STATE_FILE: drift-report.json
+          PRIOR_STATE_FILE: prior-drift-report.json
+          WARN_DAYS: "14"
+          URGENT_DAYS: "3"
+        run: |
+          python3 scripts/prod-credential-expiry-warn.py
 
-          # Fail loudly: the run goes red so the drift is impossible to miss.
-          exit 1
-
+      # Runs last on purpose: the alarm step rewrites the report with its
+      # `alarm` block, and THAT is what the next run reads as dedupe state.
+      # The checker now writes a report on every exit path (GOL-3138), so a
+      # failed run is no longer a hole in this artifact chain — the absence of
+      # this artifact on the 14 red runs is what made that streak undiagnosable.
       - name: Upload drift report
         if: always() && steps.creds.outputs.run == 'true'
         uses: actions/upload-artifact@v7

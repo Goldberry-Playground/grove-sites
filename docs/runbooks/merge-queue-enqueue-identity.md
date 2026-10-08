@@ -64,6 +64,21 @@ Check first that no auto-merge is armed (closing disarms it) and that no human i
 mid-review. The previously-parked runs flip `action_required` -> `failure` as
 superseded; that is expected bookkeeping, not new breakage.
 
+> ⛔ **Precondition: the PR must not be CONFLICTING** (GOL-3151). A
+> `pull_request` workflow checks out `refs/pull/N/merge`, and GitHub publishes no
+> merge ref for a PR whose head conflicts with its base — so on a `dirty` PR
+> close/reopen re-fires the event exactly as described above and then every job
+> dies at the checkout step, turning *missing* contexts into **red** ones (and
+> dismissing any `agent-review/*` sign-off with the head move where
+> `dismiss_stale_reviews_on_push` is on). Confirm with
+> `gh pr view <PR> --repo "$REPO" --json mergeable,mergeStateStatus` first; a
+> `null` `mergeable` means GitHub has not finished computing it, so re-read
+> rather than assuming it is fine. If it is conflicting, rebase — or re-author
+> onto current `main` when the base was rewritten underneath, e.g. by a parent's
+> squash-merge — and push. The push is a `synchronize` event *and* a conflict
+> resolution, which is what the re-fire actually needs. The
+> `missing-checks-sweep` enforces the same precondition automatically.
+
 Approving the parked runs from the Actions tab is only a **half fix**: a re-run
 keeps the run's `actor` as `github-actions[bot]` (only `triggering_actor` becomes
 the approver), so every event chained off that run stays suppressed — including

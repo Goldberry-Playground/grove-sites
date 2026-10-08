@@ -6,13 +6,27 @@ name: e2e-nursery
 # This runs against a *deployed* nursery instance (normally a per-PR preview
 # droplet from preview-up.yml), not a Playwright-bundled dev server.
 #
-# It is deliberately MANUAL (workflow_dispatch) and NOT a required check:
-#   - it needs a live preview + QA Odoo backend, and
-#   - the Stripe-session specs need TEST keys on the QA droplet (GOL-899,
-#     currently blocked) — without them /api/checkout/session 503s.
-# Making it required would block every unrelated PR. Once GOL-899 lands, wire
-# this to `workflow_run` after a successful preview-up and read the nursery URL
-# from the `preview-urls` artifact (see apps/nursery/e2e/README.md).
+# It is deliberately MANUAL (workflow_dispatch) and NOT a required check: it needs
+# a live deployed target (a preview droplet, or the QA nursery during a release-
+# train window) plus a reachable QA Odoo backend, so making it required would
+# block every unrelated PR.
+#
+# GOL-899 LANDED: the QA droplet carries Stripe TEST keys and sessions mint as
+# cs_test_, so the @stripe specs RUN BY DEFAULT (see the skip_stripe input below
+# and apps/nursery/e2e/README.md). Set skip_stripe=true only for a target that
+# genuinely lacks test keys. Earlier revisions of this header called GOL-899
+# "currently blocked" — that is stale and contradicted the input default three
+# lines down.
+#
+# Follow-up still open: wire this to `workflow_run` after a successful preview-up
+# and read the nursery URL from the `preview-urls` artifact
+# (see apps/nursery/e2e/README.md).
+#
+# RELEASE TRAIN: this workflow is the LAST pre-promote step. Re-dispatch it on
+# `main` after the final merge AND after the QA `-u` module soak, then READ THE
+# SKIP LIST in the Playwright report — a green run with the promo / WV-tax /
+# Stripe-Tax specs skipped is not a pass. See odoocker
+# docs/RUNBOOK-release-train.md.
 ###############################################################################
 
 on:
@@ -89,7 +103,7 @@ jobs:
           E2E_NURSERY_BASE_URL: ${{ inputs.base_url }}
         run: |
           if [ "${{ inputs.skip_stripe }}" = "true" ]; then
-            echo "Skipping @stripe specs (GOL-899 blocked)."
+            echo "Skipping @stripe specs (skip_stripe=true; target has no Stripe TEST keys)."
             pnpm --filter @grove/nursery run test:e2e:no-stripe
           else
             pnpm --filter @grove/nursery run test:e2e
