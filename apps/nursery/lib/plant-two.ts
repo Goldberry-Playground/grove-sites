@@ -19,9 +19,15 @@
  *      ("Self-fertile, but a second variety increases set"). The hint is for
  *      "you will get no fruit alone", not "you could get more" — overstating it
  *      would push a second tree the buyer does not need.
- *   4. an explicit partner requirement ("needs a second variety", "plant 2+
+ *   4. an explicitly NEGATED requirement ("a second variety is not required",
+ *      "no second variety is necessary", "pollinator unnecessary") → NOT
+ *      needed. Checked BEFORE (5) because PARTNER_REQUIRED's bare "second
+ *      variety" noun pattern matches the noun phrase inside the negation and
+ *      would otherwise read it backwards, pushing a tree the listing just
+ *      ruled out.
+ *   5. an explicit partner requirement ("needs a second variety", "plant 2+
  *      trees", "cross-pollination required", "dioecious") → needed.
- *   5. anything else → NOT needed. Unrecognised prose fails closed: no hint.
+ *   6. anything else → NOT needed. Unrecognised prose fails closed: no hint.
  *
  * Adding a phrasing means adding a pattern here plus a test case, not
  * loosening the rule into a fuzzy keyword scan.
@@ -33,6 +39,7 @@ export type PlantTwoReason =
   | "not-applicable"
   | "self-negated"
   | "self-fertile"
+  | "requirement-negated"
   | "partner-required"
   | "unrecognised";
 
@@ -83,6 +90,18 @@ const SELF_SUFFICIENT = [
   /\b(does ?n't|does not|do ?n't|do not|won't|will not|never) (needs?|requires?)\b/,
 ];
 
+/**
+ * A requirement that has been explicitly negated ("a second variety is not
+ * required", "no second variety is necessary", "pollinator unnecessary") → no
+ * partner. Checked BEFORE PARTNER_REQUIRED, whose bare "second variety" noun
+ * pattern would otherwise read the negation backwards.
+ */
+const REQUIREMENT_NEGATED = [
+  /\b(not|never) (needed|required|necessary)\b/,
+  /\bun(needed|necessary|required)\b/,
+  /\bno (pollinator|pollinizer|partner|second (tree|variety|cultivar|plant)|other (tree|variety|cultivar)) (is |are )?(needed|required|necessary)\b/,
+];
+
 /** An explicit requirement for a second plant → partner needed. */
 const PARTNER_REQUIRED = [
   // "needs / requires / must have a second (variety|cultivar|tree|plant|...)"
@@ -118,6 +137,7 @@ export function plantTwoVerdict(pollination: string | null | undefined): PlantTw
   if (anyMatch(NOT_APPLICABLE, text)) return { needsPartner: false, reason: "not-applicable" };
   if (anyMatch(SELF_NEGATED, text)) return { needsPartner: true, reason: "self-negated" };
   if (anyMatch(SELF_SUFFICIENT, text)) return { needsPartner: false, reason: "self-fertile" };
+  if (anyMatch(REQUIREMENT_NEGATED, text)) return { needsPartner: false, reason: "requirement-negated" };
   if (anyMatch(PARTNER_REQUIRED, text)) return { needsPartner: true, reason: "partner-required" };
   return { needsPartner: false, reason: "unrecognised" };
 }

@@ -96,6 +96,13 @@ describe("plantTwoVerdict", () => {
       "No second variety required",
       "Doesn't need a pollinator",
       "Does not require a second variety",
+      // An explicitly negated requirement must not be read backwards by the bare
+      // "second variety" noun pattern in PARTNER_REQUIRED (GOL-3239).
+      "A second variety is not required",
+      "A second variety is not needed",
+      "No second variety is necessary",
+      "Second variety unnecessary",
+      "Male and female plants not needed",
     ]) {
       expect(needsPollinationPartner(s), s).toBe(false);
     }
