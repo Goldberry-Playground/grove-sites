@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { CartProvider } from "@grove/checkout";
 import type { GrowingFacts } from "@grove/odoo-client";
 import { ProductView, type ViewVariant } from "./product-view";
@@ -92,5 +92,30 @@ describe("ProductView: plant-two hint follows the buy state", () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12))); // Oct 16
     renderPdp(POTTED);
     expect(plantTwo()).toBeNull();
+  });
+});
+
+describe("ProductView: plant-two action keeps keyboard focus (GOL-2741)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 7, 12)));
+  });
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("stays mounted and focused, goes inert, and reports the new state", () => {
+    renderPdp(POTTED);
+    const button = plantTwo()!;
+    button.focus();
+    fireEvent.click(button);
+
+    const after = screen.getByRole("button", { name: /^Quantity set to 2$/ });
+    expect(after).toBe(button); // same node: never unmounted
+    expect(document.activeElement).toBe(button);
+    expect(after.getAttribute("aria-disabled")).toBe("true");
+    expect(plantTwo()).toBeNull();
+    expect(screen.getByRole("status").textContent).toMatch(/enough for a pair/);
   });
 });
