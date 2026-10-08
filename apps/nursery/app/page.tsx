@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import Image from "next/image";
 import { assetPath } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
@@ -122,9 +123,11 @@ export default async function HomePage() {
               shipped at the right week.
             </h1>
             <div className="pano-cta">
-              <Link href="/shop" className="btn">Shop the catalog &rarr;</Link>
+              <Link href="/shop" className="btn">
+                Shop the catalog <GlyphIcon name="arrow-right" />
+              </Link>
               <Link href="#lead-sellers" className="btn btn-outline">
-                See this season&apos;s sellers &darr;
+                See this season&apos;s sellers <GlyphIcon name="arrow-down" />
               </Link>
             </div>
           </div>
@@ -199,7 +202,9 @@ export default async function HomePage() {
             <option value="bush">Bush</option>
           </select>
         </div>
-        <button type="submit">Browse →</button>
+        <button type="submit">
+          Browse <GlyphIcon name="arrow-right" />
+        </button>
       </form>
 
       <FeaturedLeadSellers products={products} total={total} />
@@ -304,7 +309,7 @@ export default async function HomePage() {
               on-page #notify CTA; route this to the catalog instead. A
               dedicated planting-plan request form is a follow-up. */}
           <Link href="/shop" className="btn" style={{ marginTop: "1rem" }}>
-            Browse the catalog &rarr;
+            Browse the catalog <GlyphIcon name="arrow-right" />
           </Link>
         </div>
       </section>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ShippingCalendar } from "@grove/odoo-client";
+import { GlyphIcon } from "@grove/ui-kit";
 import { CategoryBar } from "../category-bar";
 import { odoo } from "../../lib/clients";
 import {
@@ -136,7 +137,7 @@ export default async function ShippingWarrantyPage() {
             </h1>
           </div>
           <Link href="/shop" className="btn">
-            Browse the catalog &rarr;
+            Browse the catalog <GlyphIcon name="arrow-right" />
           </Link>
         </div>
         <p className="section-lede" style={{ maxWidth: "62ch" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, FormEvent } from "react";
+import { GlyphIcon } from "../GlyphIcon";
 
 export interface BuyAtVendorFormProps {
   /** Product id POSTed into the vendor cart (hidden field). */
@@ -56,7 +57,7 @@ export function BuyAtVendorForm({
         data-testid="hidden-referrer"
       />
       <button type="submit" className="btn-buy" style={buttonStyle}>
-        Buy from {vendorName} →
+        Buy from {vendorName} <GlyphIcon name="arrow-right" />
       </button>
     </form>
   );

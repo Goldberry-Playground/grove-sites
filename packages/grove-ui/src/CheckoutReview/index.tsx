@@ -1,4 +1,6 @@
 import { Button } from "../Button";
+import { GlyphIcon } from "../GlyphIcon";
+import { TrustIcon } from "../TrustIcon";
 
 export interface CheckoutReviewLine {
   /** Stable key — the product-variant id. */
@@ -219,7 +221,7 @@ export function CheckoutReview({
           <div className="grove-review__amount grove-review__amount--today">
             <div className="grove-review__amount-label">
               <span aria-hidden="true" className="grove-review__amount-icon">
-                ●
+                <GlyphIcon name="dot" />
               </span>
               Due today <span className="grove-review__amount-tag">deposit</span>
             </div>
@@ -230,7 +232,7 @@ export function CheckoutReview({
           <div className="grove-review__amount grove-review__amount--later">
             <div className="grove-review__amount-label">
               <span aria-hidden="true" className="grove-review__amount-icon">
-                ◷
+                <GlyphIcon name="clock" />
               </span>
               Due when it ships
             </div>
@@ -259,7 +261,7 @@ export function CheckoutReview({
       {error && (
         <p role="alert" className="grove-review__error">
           <span aria-hidden="true" className="grove-review__error-icon">
-            ⚠
+            <GlyphIcon name="warning" />
           </span>
           {error}
         </p>
@@ -273,11 +275,16 @@ export function CheckoutReview({
       >
         {redirecting
           ? "Redirecting to secure checkout…"
-          : `Pay ${formatPrice(amountDueToday, currency)} with card →`}
+          : (
+            <>
+              {`Pay ${formatPrice(amountDueToday, currency)} with card`}{" "}
+              <GlyphIcon name="arrow-right" />
+            </>
+          )}
       </button>
 
       <p className="grove-review__reassure">
-        <span aria-hidden="true">✦</span> Card details are entered on Stripe&apos;s
+        <TrustIcon name="sparkle" /> Card details are entered on Stripe&apos;s
         secure page — we never see or store your card number.
       </p>
 
@@ -287,7 +294,7 @@ export function CheckoutReview({
         disabled={redirecting}
         className="grove-review__back"
       >
-        ← Edit contact or shipping
+        <GlyphIcon name="arrow-left" /> Edit contact or shipping
       </button>
     </div>
   );
