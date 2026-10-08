@@ -17,8 +17,8 @@ import { useRef, useState } from "react";
  * move: the fit/miss verdicts use the AA-safe `text-affirm` / `text-caution`
  * parchment foregrounds — NOT Tailwind `text-green-700` / `text-amber-700`,
  * which measure 3.93:1 on --paper-deep and fail AA — and each verdict leads with
- * its own inline-SVG mark plus wording that states the answer ("Yes —" /
- * "Outside its range —"), so fit never rides on colour alone (WCAG 1.4.1). The
+ * its own inline-SVG mark plus wording that states the answer ("Yes," /
+ * "Outside its range."), so fit never rides on colour alone (WCAG 1.4.1). The
  * input clears the 44px tap target (GOL-2440) and keeps the tokenized global
  * :focus-visible ring (no `outline-none`).
  */

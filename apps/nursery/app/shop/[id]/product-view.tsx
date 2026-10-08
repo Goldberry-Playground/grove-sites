@@ -1072,11 +1072,17 @@ export function ProductView({
 
           <AtAGlance facts={facts} />
 
-          <PlantTwoHint
-            pollination={facts?.pollination}
-            quantity={quantity}
-            onPlantTwo={() => setQuantity(PLANT_TWO_QUANTITY)}
-          />
+          {/* The hint's only action is "Set quantity to 2", so it renders only
+              while the CTA can actually add: never beside a sold-out, coming-soon,
+              out-of-season or no-open-wave buy box (same `ctaDisabled` that
+              locks AddToCartButton and the sticky bar). */}
+          {!ctaDisabled && (
+            <PlantTwoHint
+              pollination={facts?.pollination}
+              quantity={quantity}
+              onPlantTwo={() => setQuantity(PLANT_TWO_QUANTITY)}
+            />
+          )}
         </div>
       </div>
 
