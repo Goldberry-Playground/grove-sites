@@ -8,6 +8,7 @@ import {
   waveOrderByLabel,
   waveWindowLabel,
 } from "../../../lib/preorder-waves";
+import { RadioDot, optionCardClass, subOptionClass } from "./option-card";
 
 export interface PreorderCardProps {
   method: FulfillmentMethod;
@@ -47,6 +48,9 @@ export function PreorderCard({
 }: PreorderCardProps) {
   const anyOpen = waves.some((w) => w.open);
   const chosen = waves.find((w) => w.wave === wave && w.open) ?? null;
+  // A wave only reads as chosen while this card is the selected Format, so a
+  // sibling card (Peat & bagged) and a wave chip are never both "selected".
+  const activeWave = selected ? chosen : null;
   const needsZone = method === "ship" && zone == null;
   const greyed = !needsZone && !anyOpen;
   // Pickup reads exactly "$10 deposit today · pick up, we will call you to
@@ -61,9 +65,9 @@ export function PreorderCard({
   return (
     <div
       data-preorder-card
-      className={`w-full rounded border px-4 py-3 text-sm transition ${
-        selected ? "border-primary bg-primary/5" : "border-primary/15"
-      } ${greyed ? "opacity-60" : ""}`}
+      className={`w-full rounded border px-4 py-3 text-sm transition ${optionCardClass(selected)} ${
+        greyed ? "opacity-60" : ""
+      }`}
     >
       <button
         type="button"
@@ -72,12 +76,13 @@ export function PreorderCard({
         className="block w-full text-left"
       >
         <span className="flex items-center gap-1.5 font-medium text-foreground">
+          <RadioDot active={selected} />
           Bareroot pre-order
           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
             Pre-order
           </span>
         </span>
-        <span className="block text-xs text-ink-soft">{subline}</span>
+        <span className="block pl-[1.375rem] text-xs text-ink-soft">{subline}</span>
       </button>
 
       {needsZone ? (
@@ -87,7 +92,7 @@ export function PreorderCard({
       ) : (
         <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Pre-order wave">
           {waves.map((w) => {
-            const isActive = chosen?.wave === w.wave;
+            const isActive = activeWave?.wave === w.wave;
             return (
               <button
                 key={w.wave}
@@ -100,16 +105,17 @@ export function PreorderCard({
                 className={`rounded border px-3 py-2 text-left text-xs transition ${
                   !w.open
                     ? "cursor-not-allowed border-dashed border-primary/20 opacity-60"
-                    : isActive
-                      ? "border-primary bg-primary/5"
-                      : "border-primary/15 hover:border-primary/40"
+                    : subOptionClass(isActive)
                 }`}
               >
-                <span className="block font-medium text-foreground">
+                <span className="flex items-center gap-1.5 font-medium text-foreground">
+                  {w.open && <RadioDot active={isActive} small />}
                   {WAVE_NAME[method][w.wave]}
                 </span>
-                <span className="block text-ink-soft">{waveWindowLabel(w)}</span>
-                <span className="block text-ink-soft">
+                <span className={`block text-ink-soft ${w.open ? "pl-[1.125rem]" : ""}`}>
+                  {waveWindowLabel(w)}
+                </span>
+                <span className={`block text-ink-soft ${w.open ? "pl-[1.125rem]" : ""}`}>
                   {w.open ? waveOrderByLabel(w) : waveClosedLabel(w)}
                 </span>
               </button>
@@ -118,13 +124,14 @@ export function PreorderCard({
         </div>
       )}
 
-      {chosen && (
+      {activeWave && (
         <p className="mt-2 text-xs text-ink-soft">
           Pre-order with a flat $10 deposit.{" "}
           {method === "pickup"
-            ? `${WAVE_NAME.pickup[chosen.wave]} approx`
-            : `Zone ${zone} ${chosen.wave} wave ships approx`}{" "}
-          {formatMonthDay(chosen.ship_window[0])} to {formatMonthDay(chosen.ship_window[1])}.
+            ? `${WAVE_NAME.pickup[activeWave.wave]} approx`
+            : `Zone ${zone} ${activeWave.wave} wave ships approx`}{" "}
+          {formatMonthDay(activeWave.ship_window[0])} to{" "}
+          {formatMonthDay(activeWave.ship_window[1])}.
           Dates are approximate and weather permitting.
         </p>
       )}

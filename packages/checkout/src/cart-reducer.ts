@@ -84,6 +84,16 @@ export function setItemQuantity(
 }
 
 /**
+ * Move a pre-order to another wave: rewrites EVERY waved line's `wave` (one
+ * wave per order, so a pre-order moves as a whole). Immediate lines carry no
+ * wave and are left alone; an immediate cart therefore comes back unchanged.
+ * Used by checkout's "Switch this order to the spring wave" (GOL-3194).
+ */
+export function setOrderWave(items: readonly CartItem[], wave: ShipWave): CartItem[] {
+  return items.map((i) => (i.wave === undefined || i.wave === wave ? i : { ...i, wave }));
+}
+
+/**
  * Remove a line by variantId. No-op if the line doesn't exist.
  */
 export function removeItem(

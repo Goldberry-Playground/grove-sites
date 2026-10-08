@@ -331,3 +331,51 @@
   flex-shrink: 0;
   margin-top: 0.1rem;
 }
+
+/* ── Order notices under the checkout title (GOL-3194): the order type, a
+   refusal that blocks submit (icon + text, never color alone), and its fix. */
+.grove-checkout__notice {
+  display: grid;
+  gap: var(--grove-space-3);
+  justify-items: start;
+  margin: 0 0 var(--grove-space-6);
+}
+.grove-checkout__order-type {
+  margin: 0;
+  font-size: var(--grove-text-sm);
+  font-weight: var(--grove-font-weight-semibold);
+  color: var(--grove-color-ink);
+}
+.grove-checkout__order-type:focus {
+  outline: none;
+}
+.grove-checkout__order-blocked {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.5rem var(--grove-space-3);
+  border: 1px solid var(--grove-color-error-solid);
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-error-surface);
+  color: var(--grove-color-error-fg);
+  font-size: var(--grove-text-sm);
+}
+.grove-checkout__order-blocked::before {
+  content: "⚠" / "";
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.grove-checkout__wave-switch {
+  display: grid;
+  gap: var(--grove-space-2);
+  justify-items: start;
+}
+.grove-checkout__wave-switch-button {
+  min-height: 2.75rem; /* 44px touch target */
+}
+.grove-checkout__wave-switch-note {
+  margin: 0;
+  font-size: var(--grove-text-xs);
+  color: var(--grove-color-ink-a70);
+}

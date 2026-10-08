@@ -72,6 +72,20 @@ function estimatedWaveQuote(shipWave: ShipWave): EstimatedWaveQuote {
   };
 }
 
+/** A US ZIP: five digits, optionally ZIP+4. Only the first five reach the backend. */
+const ZIP_RE = /^\d{5}(?:-\d{4})?$/;
+
+/**
+ * The quote route's answer when the backend refuses the cart's wave for this
+ * destination (GOL-3194). `alternateWave` is set only when the backend has
+ * CONFIRMED the other wave would quote for the same cart and ZIP, so the
+ * storefront can offer a one-tap switch without parsing the refusal copy.
+ */
+export interface WaveRefusal {
+  error: string;
+  alternateWave?: ShipWave;
+}
+
 const MAX_ITEMS = 50;
 const MAX_QUANTITY = 9999;
 
@@ -108,10 +122,11 @@ export function createCartQuoteRoute<Quote>(
       return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 });
     }
 
-    const { items, fulfillment, shipWave } = body as {
+    const { items, fulfillment, shipWave, zip } = body as {
       items?: unknown;
       fulfillment?: unknown;
       shipWave?: unknown;
+      zip?: unknown;
     };
     if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) {
       return NextResponse.json(
@@ -146,8 +161,16 @@ export function createCartQuoteRoute<Quote>(
     }
     const waveChoice: ShipWave | null = shipWave === "fall" || shipWave === "spring" ? shipWave : null;
 
+    if (zip !== undefined && zip !== null && (typeof zip !== "string" || !ZIP_RE.test(zip.trim()))) {
+      return NextResponse.json({ error: "zip must be a 5-digit US ZIP code" }, { status: 400 });
+    }
+
     const fulfillmentChoice: CartQuoteFulfillment | null =
       fulfillment === "ship" || fulfillment === "pickup" ? fulfillment : null;
+    // The destination ZIP only means something for a shipped order: a pickup
+    // wave is judged against the farm's own zone, whatever the shopper typed.
+    const destinationZip =
+      typeof zip === "string" && fulfillmentChoice !== "pickup" ? zip.trim().slice(0, 5) : undefined;
 
     // Backend first: the authoritative answer, straight from the predicate the
     // checkout session charges by. A 404 means the modules pin predates the
@@ -158,6 +181,7 @@ export function createCartQuoteRoute<Quote>(
           items: requested.map((r) => ({ variantId: r.variantId, quantity: r.quantity })),
           fulfillment: fulfillmentChoice,
           shipWave: waveChoice ?? undefined,
+          ...(destinationZip ? { zip: destinationZip } : {}),
         });
         return NextResponse.json(quote);
       } catch (e) {
@@ -165,7 +189,29 @@ export function createCartQuoteRoute<Quote>(
         // closed wave, potted line out of season): relay it, never estimate past it.
         if (e instanceof OdooApiError && e.status === 400) {
           const forwarded = forwardCheckoutError(e);
-          if (forwarded) return forwarded;
+          if (forwarded) {
+            // A refused FALL pre-order may still go out in spring (the backend's
+            // own copy says "Choose spring."). Ask the backend whether the same
+            // cart quotes as spring for the same destination; only a confirmed
+            // yes earns the switch, so we never offer a wave that is shut too.
+            if (waveChoice === "fall") {
+              try {
+                await odoo.checkout.quote({
+                  items: requested.map((r) => ({ variantId: r.variantId, quantity: r.quantity })),
+                  fulfillment: fulfillmentChoice,
+                  shipWave: "spring",
+                  ...(destinationZip ? { zip: destinationZip } : {}),
+                });
+                const { error } = (await forwarded.json()) as { error: string };
+                return NextResponse.json({ error, alternateWave: "spring" } satisfies WaveRefusal, {
+                  status: 400,
+                });
+              } catch {
+                // Spring refused (or the probe failed): relay the fall refusal as-is.
+              }
+            }
+            return forwarded;
+          }
         }
         if (!(e instanceof OdooApiError && e.status === 404)) {
           console.warn("cart/quote: backend quote unavailable, using catalog estimate:", e);

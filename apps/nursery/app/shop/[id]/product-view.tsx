@@ -61,6 +61,7 @@ import {
   writeUsdaZone,
 } from "../../../lib/preorder-waves";
 import { PreorderCard } from "./preorder-card";
+import { RadioDot, optionCardClass } from "./option-card";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import {
   evaluateCompliance,
@@ -709,13 +710,14 @@ export function ProductView({
                     aria-pressed={isActive}
                     disabled={unavailable}
                     className={`flex flex-1 flex-col justify-start rounded border px-4 py-2 text-left text-sm transition ${
-                      isActive
-                        ? "border-primary bg-primary/5"
-                        : "border-primary/15 hover:border-primary/40"
+                      optionCardClass(isActive)
                     } ${unavailable ? "opacity-60" : ""}`}
                   >
-                    <span className="block font-medium text-foreground">{label}</span>
-                    <span className="block text-xs text-ink-soft">
+                    <span className="flex items-center gap-1.5 font-medium text-foreground">
+                      <RadioDot active={isActive} />
+                      {label}
+                    </span>
+                    <span className="block pl-[1.375rem] text-xs text-ink-soft">
                       {unavailable ? "Not available right now" : sub}
                     </span>
                   </button>
@@ -766,7 +768,7 @@ export function ProductView({
                   />
                 )}
                 {formatlessOffered && formatlessTier === "potted" && (
-                  <div className="rounded border border-primary bg-primary/5 px-4 py-2 text-left text-sm">
+                  <div className={`rounded border px-4 py-2 text-left text-sm ${optionCardClass(true)}`}>
                     <span className="block font-medium text-foreground">
                       {pickupOnly ? "Potted" : methodFormatLabel(method, "potted", "Potted")}
                     </span>
@@ -872,12 +874,11 @@ export function ProductView({
                       onClick={() => chooseFormat(f)}
                       aria-pressed={isActive}
                       className={`rounded border px-4 py-2 text-left text-sm transition ${
-                        isActive
-                          ? "border-primary bg-primary/5"
-                          : "border-primary/15 hover:border-primary/40"
+                        optionCardClass(isActive)
                       }`}
                     >
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
+                        <RadioDot active={isActive} />
                         {methodFormatLabel(method, fTier, fLabel)}
                         {fBadge && (
                           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
@@ -885,7 +886,7 @@ export function ProductView({
                           </span>
                         )}
                       </span>
-                      <span className="block text-xs text-ink-soft">
+                      <span className="block pl-[1.375rem] text-xs text-ink-soft">
                         {[
                           fVariant ? `$${fVariant.price.toFixed(2)}` : null,
                           fFulfillment,
@@ -923,9 +924,7 @@ export function ProductView({
                       onClick={() => chooseRootstock(r)}
                       aria-pressed={isActive}
                       className={`flex items-center gap-2 rounded border px-4 py-2 text-left text-sm transition ${
-                        isActive
-                          ? "border-primary bg-primary/5"
-                          : "border-primary/15 hover:border-primary/40"
+                        optionCardClass(isActive)
                       }`}
                     >
                       <RootstockGlyph kind={kind} />

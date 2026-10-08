@@ -1,5 +1,6 @@
 "use client";
 
+import type { ShipWave } from "@grove/odoo-client";
 import {
   createContext,
   useCallback,
@@ -14,6 +15,7 @@ import {
   cartStorageKey,
   removeItem,
   setItemQuantity,
+  setOrderWave,
   subtotal as calculateSubtotal,
   totalQuantity as calculateTotalQuantity,
   validateCartItems,
@@ -36,6 +38,8 @@ type CartContextValue = {
   add: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   setQuantity: (variantId: number, quantity: number) => void;
   remove: (variantId: number) => void;
+  /** Move the whole pre-order to another wave (one wave per order). */
+  setWave: (wave: ShipWave) => void;
   clear: () => void;
   totalQuantity: number;
   subtotal: number;
@@ -95,6 +99,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((current) => removeItem(current, variantId));
   }, []);
 
+  const setWave = useCallback((wave: ShipWave) => {
+    setItems((current) => setOrderWave(current, wave));
+  }, []);
+
   const clear = useCallback(() => setItems([]), []);
 
   const openDrawer = useCallback((justAddedVariantId?: number) => {
@@ -120,6 +128,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       add,
       setQuantity,
       remove,
+      setWave,
       clear,
       totalQuantity,
       subtotal,
@@ -128,7 +137,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       lastAddedVariantId,
     }),
-    [items, hydrated, add, setQuantity, remove, clear, totalQuantity, subtotal,
+    [items, hydrated, add, setQuantity, remove, setWave, clear, totalQuantity, subtotal,
      drawerOpen, openDrawer, closeDrawer, lastAddedVariantId]
   );
 

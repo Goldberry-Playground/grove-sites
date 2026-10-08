@@ -247,3 +247,72 @@ describe("createCartQuoteRoute — pre-order waves", () => {
     expect("estimated" in body).toBe(false);
   });
 });
+
+describe("createCartQuoteRoute — destination ZIP and closed waves (GOL-3194)", () => {
+  const items = [{ variantId: 196, templateId: 19, quantity: 1 }];
+  const closedFall = "The fall pre-order for zone 3 closed on Nov 12. Choose spring.";
+  const refuse = (msg: string) => new OdooApiError(400, "Odoo API error: 400", JSON.stringify({ error: msg }));
+  const springQuote = { ...backendQuote, depositReason: "preorder" as const, shipWave: "spring" as const };
+
+  it("passes the shopper's ZIP to the backend quote for a shipped cart", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async () => backendQuote);
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, fulfillment: "ship", shipWave: "fall", zip: "55401-1234" }));
+    expect(res.status).toBe(200);
+    expect(quote.mock.calls[0][0]).toMatchObject({ shipWave: "fall", zip: "55401" });
+  });
+
+  it("does not send a ZIP for farm pickup (the farm's own zone decides)", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async () => backendQuote);
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    await POST(postReq({ items, fulfillment: "pickup", shipWave: "fall", zip: "55401" }));
+    expect("zip" in (quote.mock.calls[0][0] as object)).toBe(false);
+  });
+
+  it("rejects a malformed ZIP before touching Odoo", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async () => backendQuote);
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    for (const zip of ["5540", "abcde", 55401, "55401-12"]) {
+      expect((await POST(postReq({ items, fulfillment: "ship", zip }))).status).toBe(400);
+    }
+    expect(quote).not.toHaveBeenCalled();
+  });
+
+  it("offers spring when the fall wave is closed for the ZIP and spring quotes", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async (input) => {
+      if ((input as { shipWave?: string }).shipWave === "fall") throw refuse(closedFall);
+      return springQuote;
+    });
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, fulfillment: "ship", shipWave: "fall", zip: "55401" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: closedFall, alternateWave: "spring" });
+    // The spring probe asks about the SAME cart and destination.
+    expect(quote.mock.calls[1][0]).toMatchObject({ shipWave: "spring", zip: "55401", fulfillment: "ship" });
+  });
+
+  it("offers no switch when spring is closed too: the fall refusal is relayed as-is", async () => {
+    const { odoo } = fakeOdoo(undefined, async (input) => {
+      throw refuse(
+        (input as { shipWave?: string }).shipWave === "fall"
+          ? closedFall
+          : "The spring pre-order for zone 3 closed on May 31.",
+      );
+    });
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, fulfillment: "ship", shipWave: "fall", zip: "55401" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: closedFall });
+  });
+
+  it("never probes another wave for a refused spring cart", async () => {
+    const msg = "The spring pre-order for zone 3 closed on May 31.";
+    const { odoo, quote } = fakeOdoo(undefined, async () => {
+      throw refuse(msg);
+    });
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, fulfillment: "ship", shipWave: "spring", zip: "55401" }));
+    expect(await res.json()).toEqual({ error: msg });
+    expect(quote).toHaveBeenCalledTimes(1);
+  });
+});

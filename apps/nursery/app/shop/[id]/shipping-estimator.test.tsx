@@ -2,7 +2,9 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ShippingRateFeed } from "@grove/odoo-client";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
+import { ZONE_BY_STATE } from "../../../lib/shipping-estimate";
 
 /**
  * The estimator's four eligibility states (GOL-2973, extended by GOL-3028).
@@ -255,5 +257,62 @@ describe("ShippingEstimator — eligibility branches", () => {
     // promise being absent, not about the punctuation around it.
     expect(container.textContent).toMatch(/pick yours to see your rate/i);
     expect(container.textContent).not.toMatch(/Not cleared/);
+  });
+});
+
+// GOL-3188: the per-unit quote now includes the once-per-order S&H fee
+// (GOL-2923). The panel says so in words so a shopper adding a second tree
+// knows the fee doesn't repeat.
+function feedWith(fee?: number): ShippingRateFeed {
+  return {
+    schema: 2,
+    zones: { zone_1: { small: { base: 16 }, large: { base: 22 } } },
+    zone_by_state: { ...ZONE_BY_STATE },
+    green_states: Object.keys(ZONE_BY_STATE),
+    packing: {
+      boxes: {
+        small: { length: 24, width: 6, height: 4, capacity: { dormant: 5, leafed: 5 } },
+        large: { length: 24, width: 9, height: 6, capacity: { dormant: 10, leafed: 10 } },
+      },
+      length_classes: [16, 20],
+      modes: ["dormant", "leafed"],
+    },
+    calendar: {
+      preorder_open: { fall: [8, 15], spring: [11, 1] },
+      leafed_window: [[5, 6], [8, 14]],
+      fulfillment_days: [5, 10],
+      zones: {},
+    },
+    ...(fee === undefined ? {} : { shipping_handling_fee: fee }),
+  } as ShippingRateFeed;
+}
+
+describe("ShippingEstimator — once-per-order handling fee (GOL-3188)", () => {
+  it("folds the fee into the quote and says it is charged once per order", () => {
+    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith(5) });
+    expect(panel.textContent).toMatch(/from \$21/); // small 16 + $5
+    expect(panel.textContent).toMatch(/Includes our \$5 handling fee, charged once per order\./);
+    expect(panel.textContent).toMatch(/exact rate is confirmed at checkout/);
+  });
+
+  it("a fractional fee shows in cents and the quote rounds up, never down", () => {
+    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith(4.25) });
+    expect(panel.textContent).toMatch(/from \$21/); // 16 + 4.25 = 20.25: up to $21, never down to $20
+    expect(panel.textContent).toMatch(/Includes our \$4\.25 handling fee, charged once per order\./);
+  });
+
+  it("a pre-GOL-2923 feed (no fee field) quotes the cell and adds no fee line", () => {
+    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith() });
+    expect(panel.textContent).toMatch(/from \$16/);
+    expect(panel.textContent).not.toMatch(/handling fee/);
+  });
+
+  it("no fee line when nothing on the panel is quoted (pickup only)", () => {
+    const panel = at("WV", {
+      botanicalName: "Castanea spp.",
+      feed: feedWith(5),
+      tiers: [{ ...TIERS[0], pickupOnly: true }],
+    });
+    expect(panel.textContent).not.toMatch(/handling fee/);
   });
 });

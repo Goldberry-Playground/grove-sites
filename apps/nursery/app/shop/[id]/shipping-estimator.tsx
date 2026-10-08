@@ -10,6 +10,8 @@ import {
   ZONE_RATE_TABLE,
   SNAPSHOT_ZONE_MAP,
   estimateTierShipping,
+  handlingFee,
+  hasBoxFeed,
   shipsTo,
   type RateTable,
   type ZoneMap,
@@ -123,7 +125,8 @@ export interface ShippingEstimatorProps {
  * Accessibility: the select is labelled; the result region is aria-live; every
  * eligibility state pairs an icon *and* words (colour is never the only signal —
  * colour-blind / grayscale safe). Primary copy clears WCAG AA on the parchment
- * surface; the muted "· timing" / "from" / disclaimer suffixes use the house
+ * surface — including the default-state sentence (`text-ink-soft`, GOL-3236);
+ * the muted "· timing" / "from" / disclaimer suffixes use the house
  * `text-foreground/55`–`/60` convention (~3–4:1), tracked for the app-wide
  * muted-token sweep — they're supporting text, never the sole carrier of meaning.
  */
@@ -211,6 +214,16 @@ export function ShippingEstimator({
   const shipTo = shipScope(
     zoneMap.greenStates.length ? zoneMap.greenStates : undefined,
   );
+  // The once-per-order S&H fee (GOL-2923) is folded into every box-feed quote
+  // below, because each quote prices a one-unit order. Say so in words: a
+  // shopper adding a second tree should know the $5 doesn't repeat, which is
+  // the part a per-unit "from $X" can't carry on its own (GOL-3188). Zero on a
+  // feed predating GOL-2923, whose cells still carry handling, so no line.
+  const fee = hasBoxFeed(feed) ? handlingFee(feed) : 0;
+  const handlingLabel = Number.isInteger(fee)
+    ? `$${fee}`
+    : `$${fee.toFixed(2)}`;
+  const anyQuoted = tiers.some((t) => !t.pickupOnly);
 
   return (
     <section
@@ -241,7 +254,7 @@ export function ShippingEstimator({
       {/* aria-live so screen readers announce the estimate when the state changes. */}
       <div aria-live="polite" className="mt-3">
         {state === "" && (
-          <p className="text-xs text-foreground/60">
+          <p className="text-xs text-ink-soft">
             We ship living trees to {shipTo.phrase}; pick yours to see your
             rate. Your trees ship together in as few boxes as possible, priced per box;
             your exact rate is confirmed at checkout.
@@ -320,9 +333,16 @@ export function ShippingEstimator({
                 );
               })}
             </ul>
-            <p className="mt-2 text-xs text-foreground/55">
+            {/* `text-ink-soft`, not `text-foreground/55`: the line now carries
+                the handling fee (pricing, not decoration), and /55 measured
+                3.48:1 on this panel at 12px, under the 4.5:1 AA floor. */}
+            <p className="mt-2 text-xs text-ink-soft">
               Estimated UPS Ground, priced per box. Your trees ship together in as few
-              boxes as possible. Your exact rate is confirmed at checkout.
+              boxes as possible.
+              {fee > 0 && anyQuoted && (
+                <> Includes our {handlingLabel} handling fee, charged once per order.</>
+              )}{" "}
+              Your exact rate is confirmed at checkout.
             </p>
           </div>
         )}

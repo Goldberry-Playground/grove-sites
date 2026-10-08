@@ -9,6 +9,8 @@ import { TierNudge } from "../TierNudge";
 import { useGroveImage, useGroveLink } from "../link-context";
 import { clampQuantity } from "../quantity";
 import type { GroveTrustItem } from "../trust-items";
+import { GlyphIcon } from "../GlyphIcon";
+import { TrustIcon } from "../TrustIcon";
 
 export interface CartPageProps {
   /** Cart lines. */
@@ -140,7 +142,7 @@ export function CartPage({
             </div>
           </div>
           <Link href={checkoutHref} className="grove-cart__banner-cta">
-            Checkout Now →
+            Checkout Now <GlyphIcon name="arrow-right" />
           </Link>
         </div>
       </div>
@@ -152,7 +154,7 @@ export function CartPage({
           <div className="grove-cart__trust-inner">
             {trustItems.map((t, i) => (
               <span key={i} className="grove-cart__trust-item">
-                <span aria-hidden="true">{t.icon}</span> {t.text}
+                <TrustIcon name={t.icon} /> {t.text}
               </span>
             ))}
           </div>
@@ -163,7 +165,7 @@ export function CartPage({
         <div className="grove-cart__head">
           <h1 className="grove-cart__title">Your Cart</h1>
           <Link href={shopHref} className="grove-cart__keep-link">
-            ← Keep shopping
+            <GlyphIcon name="arrow-left" /> Keep shopping
           </Link>
         </div>
 
@@ -238,7 +240,7 @@ export function CartPage({
             )}
 
             <Link href={checkoutHref} className="grove-cart__summary-cta">
-              Proceed to Checkout →
+              Proceed to Checkout <GlyphIcon name="arrow-right" />
             </Link>
 
             {!dueToday && (
@@ -298,6 +300,9 @@ function CartLineQuantity({
         aria-label={`Decrease quantity of ${name}`}
         disabled={quantity <= 1}
       >
+        {/* `&minus;` (U+2212) is correct and safe here: a cmap read of all
+            three loaded faces shows every one of them carries it, so unlike the
+            arrows above this is not a fallback risk (GOL-3123). */}
         &minus;
       </button>
       <input

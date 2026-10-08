@@ -20,6 +20,23 @@ export type QuoteFulfillment = "ship" | "pickup";
 
 const DEBOUNCE_MS = 250;
 
+/**
+ * Shown when the quote refuses the cart (400) without a usable shopper-facing
+ * reason. The session would be refused too, so the form blocks submit; this
+ * says so instead of leaving a disabled button with no explanation.
+ */
+export const QUOTE_REFUSED_FALLBACK = "We couldn't confirm this order. Please review your cart and try again.";
+
+/**
+ * The 5-digit ZIP to quote with, or null while the field is empty or still
+ * being typed. Keying the quote on this (not the raw field) means a shopper
+ * typing "2", "26", "266"... re-quotes once, when the ZIP is complete.
+ */
+export function quotableZip(raw: string | null | undefined): string | null {
+  const m = /^(\d{5})(?:-\d{4})?$/.exec((raw ?? "").trim());
+  return m ? m[1] : null;
+}
+
 function isQuote(value: unknown): value is CartDepositQuote {
   if (!value || typeof value !== "object") return false;
   const q = value as Record<string, unknown>;
@@ -31,8 +48,13 @@ export interface CartDepositQuoteState {
   /** The quote, or null while loading, on failure, or when no rule applies. */
   quote: CartDepositQuote | null;
   /**
-   * True once the cart's charge mode is known for certain: a successful quote
-   * landed, or there is no charge rule to quote (no `href`, empty cart). False
+   * True once the cart's charge mode is known for certain FOR THE CURRENT
+   * INPUTS: a successful quote landed for exactly these lines, fulfillment, wave
+   * and ZIP, or there is no charge rule to quote (no `href`, empty cart). It
+   * drops to false on the same render the inputs change (a newly completed ZIP,
+   * a wave switch), so the last confirmed quote, which persists for display
+   * until the next one lands, never reads as confirmed for inputs it was not
+   * quoted on. False
    * while a quote is in flight and — deliberately — if the quote *fails*, since
    * a failed quote leaves the charge mode unknown. Callers that must not make a
    * promise on an unknown cart (the discount nudge: a deposit cart earns no
@@ -52,6 +74,13 @@ export interface CartDepositQuoteState {
    * is unknown and will stay unknown until the cart or fulfillment changes.
    */
   failed: boolean;
+  /**
+   * The wave the backend confirmed WOULD quote for this cart and destination
+   * when it refused the cart's own wave (a fall pre-order past its zone's
+   * order-by: GOL-3194). Set only alongside `error`; null otherwise. The
+   * checkout offers it as a one-tap switch.
+   */
+  alternateWave: ShipWave | null;
 }
 
 /**
@@ -74,16 +103,25 @@ export function useCartDepositQuote(
   items: readonly CartItem[],
   fulfillment?: QuoteFulfillment,
   shipWave?: ShipWave | null,
+  /** The destination ZIP as typed (ship only; ignored for pickup). Sent once
+   *  it is a complete ZIP so a closed wave surfaces before submit (GOL-3194). */
+  zip?: string | null,
 ): CartDepositQuoteState {
   const [quote, setQuote] = useState<CartDepositQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [settled, setSettled] = useState(false);
+  const [alternateWave, setAlternateWave] = useState<ShipWave | null>(null);
+  // The input key the last definite answer was for; `settled` is derived from it
+  // so a pending re-quote reads unsettled immediately, not one effect later.
+  const [settledKey, setSettledKey] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  // A pickup wave is judged on the farm's zone, so the ZIP only keys a ship quote.
+  const destinationZip = fulfillment === "pickup" ? null : quotableZip(zip);
   // Serialize the inputs so the effect keys on cart CONTENT, not array identity.
   const key = JSON.stringify({
     items: items.map((i) => ({ variantId: i.variantId, templateId: i.templateId, quantity: i.quantity })),
     fulfillment: fulfillment ?? null,
     shipWave: shipWave ?? null,
+    zip: destinationZip,
   });
 
   useEffect(() => {
@@ -91,12 +129,13 @@ export function useCartDepositQuote(
       // No charge rule to quote — a definite "no deposit", so callers may act.
       setQuote(null);
       setError(null);
+      setAlternateWave(null);
       setFailed(false);
-      setSettled(true);
+      setSettledKey(key);
       return;
     }
     // A fresh quote is in flight; hold any deposit-conditioned UI until it lands.
-    setSettled(false);
+    setSettledKey(null);
     setFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -109,6 +148,7 @@ export function useCartDepositQuote(
             fulfillment: fulfillment ?? null,
             // Omitted for an immediate cart (absent = no wave).
             ...(shipWave ? { shipWave } : {}),
+            ...(destinationZip ? { zip: destinationZip } : {}),
           }),
           signal: controller.signal,
         });
@@ -118,22 +158,31 @@ export function useCartDepositQuote(
           // A 400 carries the backend's shopper-facing reason; show it.
           if (res.status === 400) {
             try {
-              const body = (await res.json()) as { error?: unknown };
-              setError(typeof body.error === "string" && body.error ? body.error : null);
+              const body = (await res.json()) as { error?: unknown; alternateWave?: unknown };
+              const message = typeof body.error === "string" && body.error ? body.error : null;
+              setError(message ?? QUOTE_REFUSED_FALLBACK);
+              setAlternateWave(
+                message && (body.alternateWave === "fall" || body.alternateWave === "spring") && body.alternateWave !== shipWave
+                  ? body.alternateWave
+                  : null,
+              );
             } catch {
-              setError(null);
+              setError(QUOTE_REFUSED_FALLBACK);
+              setAlternateWave(null);
             }
           } else {
             setError(null);
+            setAlternateWave(null);
             setFailed(true);
           }
           return;
         }
         const data: unknown = await res.json();
+        setAlternateWave(null);
         if (isQuote(data)) {
           setQuote(data);
           setError(null);
-          setSettled(true);
+          setSettledKey(key);
         } else {
           setQuote(null);
           setFailed(true);
@@ -141,6 +190,7 @@ export function useCartDepositQuote(
       } catch {
         if (!controller.signal.aborted) {
           setQuote(null);
+          setAlternateWave(null);
           setFailed(true);
         }
       }
@@ -149,9 +199,9 @@ export function useCartDepositQuote(
       clearTimeout(timer);
       controller.abort();
     };
-    // `key` captures items + fulfillment by value.
+    // `key` captures items + fulfillment + wave + ZIP by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, key]);
 
-  return { quote, settled, error, failed };
+  return { quote, settled: settledKey === key, error, failed, alternateWave };
 }
