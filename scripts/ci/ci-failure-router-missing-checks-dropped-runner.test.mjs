@@ -119,6 +119,9 @@ const run = (id, { status = "completed", conclusion = "failure", name = "CI", cr
  * @param closeThrows status code the close/reopen should throw, or null
  * @param runsThrow   status code `listWorkflowRunsForRepo` should throw, or null
  * @param env         extra env overrides (self-heal / budget / gap)
+ * @param mergeability what `pulls.get` reports (GOL-3151). Default: mergeable.
+ *                     `blocked` is the real `mergeable_state` of a PR wedged on
+ *                     a missing required context.
  */
 async function runSweep({
   runs = [],
@@ -128,6 +131,7 @@ async function runSweep({
   user = BOT_USER,
   closeThrows = null,
   runsThrow = null,
+  mergeability = { mergeable: true, mergeable_state: "blocked" },
   env = {},
 } = {}) {
   const calls = {
@@ -171,6 +175,11 @@ async function runSweep({
             throw e;
           }
         },
+        // GOL-3151: every case here asserts behaviour on a MERGEABLE PR, which
+        // is what makes the conflicting cases in
+        // ci-failure-router-missing-checks-mergeability.test.mjs a contrast
+        // rather than a coincidence.
+        get: async () => ({ data: mergeability }),
       },
       checks: {
         listForRef: async () => ({
@@ -215,6 +224,7 @@ async function runSweep({
     SELF_HEAL: "true",
     REFIRE_BUDGET: "3",
     REFIRE_GAP_MINUTES: "30",
+    MERGEABILITY_POLL_MS: "0",
     ...env,
   };
   const prev = {};

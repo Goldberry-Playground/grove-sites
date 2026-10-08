@@ -17,8 +17,8 @@ import {
 test.describe("checkout — missing-state guard", () => {
   test("required state select blocks submit and fires no session request", async ({ page }) => {
     // Pure client-side guard: any product in the cart reaches the form, so fall
-    // back to a bareroot Reserve item when QA has no in-stock product (GOL-1149).
-    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
+    // back to a bareroot pre-order when QA has no in-stock product (GOL-1149).
+    const product = await findProductByCta(page, ["Add to cart", "Pre-order for $10"]);
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, product.buyLabel);
 

@@ -2,6 +2,8 @@
 // be unit-tested without a DOM — and so all three storefronts share one
 // implementation. Any change to cart semantics happens here once.
 
+import type { ShipWave } from "@grove/odoo-client";
+
 export type CartItem = {
   /** product.product id — the actual SKU/variant. Used as the unique line key. */
   variantId: number;
@@ -36,6 +38,12 @@ export type CartItem = {
    * checkout shows no notice for that line, exactly as before.
    */
   consultBuilt?: boolean;
+  /**
+   * The pre-order wave this line belongs to. Absent = an immediate line (potted
+   * pickup / peat & bagged shipped, charged in full). A cart is either all
+   * immediate or a pre-order for exactly one wave; see {@link canAdd}.
+   */
+  wave?: ShipWave;
 };
 
 /**
@@ -53,7 +61,7 @@ export function addItem(
   if (existing) {
     return items.map((i) =>
       i.variantId === newItem.variantId
-        ? { ...i, quantity: i.quantity + quantity }
+        ? { ...i, quantity: i.quantity + quantity, wave: newItem.wave }
         : i,
     );
   }
@@ -121,7 +129,12 @@ export function validateCartItems(parsed: unknown): CartItem[] {
       // Same rule for the consult-built flag (GOL-3028): absent is fine, present
       // but non-boolean means a tampered line, so drop it rather than coerce.
       ((item as CartItem).consultBuilt === undefined ||
-        typeof (item as CartItem).consultBuilt === "boolean"),
+        typeof (item as CartItem).consultBuilt === "boolean") &&
+      // Same for the pre-order wave: absent is an immediate line; anything other
+      // than the two known waves is a tampered line.
+      ((item as CartItem).wave === undefined ||
+        (item as CartItem).wave === "fall" ||
+        (item as CartItem).wave === "spring"),
   );
 }
 
@@ -132,4 +145,57 @@ export function validateCartItems(parsed: unknown): CartItem[] {
  */
 export function cartStorageKey(tenantId: string | undefined): string {
   return `${tenantId ?? "grove"}-cart-v1`;
+}
+
+export type OrderKind = "empty" | "immediate" | "preorder" | "mixed";
+
+/**
+ * What kind of order this cart is. A cart is EITHER immediate (no line has a
+ * wave) OR a pre-order for exactly one wave (every line has the same wave).
+ * Anything else, such as a stale localStorage cart, is "mixed" and cannot check
+ * out.
+ */
+export function orderKind(items: readonly CartItem[]): OrderKind {
+  if (items.length === 0) return "empty";
+  const waved = items.filter((i) => i.wave !== undefined);
+  if (waved.length === 0) return "immediate";
+  if (waved.length < items.length) return "mixed";
+  return new Set(waved.map((i) => i.wave)).size === 1 ? "preorder" : "mixed";
+}
+
+/** The cart's single pre-order wave, or null (immediate, empty or mixed). */
+export function orderWave(items: readonly CartItem[]): ShipWave | null {
+  return orderKind(items) === "preorder" ? (items[0].wave ?? null) : null;
+}
+
+export type CanAdd =
+  | { ok: true }
+  | { ok: false; reason: "mixed" | "wave"; message: string };
+
+/**
+ * May a line with this `wave` (undefined = immediate) join the cart? Prevents
+ * mixing pre-orders with immediate items and a second wave in one order.
+ */
+export function canAdd(
+  items: readonly CartItem[],
+  incoming: { wave?: ShipWave },
+): CanAdd {
+  const kind = orderKind(items);
+  if (kind === "empty") return { ok: true };
+  const incomingKind = incoming.wave ? "preorder" : "immediate";
+  if (kind === "mixed" || kind !== incomingKind) {
+    return {
+      ok: false,
+      reason: "mixed",
+      message: "Pre-orders check out on their own. Check out or clear your cart first.",
+    };
+  }
+  if (kind === "preorder" && orderWave(items) !== incoming.wave) {
+    return {
+      ok: false,
+      reason: "wave",
+      message: `Your cart is a ${orderWave(items)} pre-order. One wave per order: check out or clear your cart first.`,
+    };
+  }
+  return { ok: true };
 }

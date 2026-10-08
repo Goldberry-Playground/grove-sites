@@ -1,7 +1,10 @@
 "use client";
 
 import { StickyAddToCartBar as UIStickyAddToCartBar } from "@grove/ui-kit";
+import { useEffect, useState } from "react";
+import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
+import { canAdd } from "../cart-reducer";
 
 type StickyAddToCartBarProps = {
   variantId: number;
@@ -32,6 +35,8 @@ type StickyAddToCartBarProps = {
    * before the deposit is charged, without re-fetching the product (GOL-3028).
    */
   consultBuilt?: boolean;
+  /** Pre-order wave this add belongs to; omit for an immediate item. See AddToCartButton. */
+  wave?: ShipWave;
 };
 
 /**
@@ -51,12 +56,18 @@ export function StickyAddToCartBar({
   quantity = 1,
   pickupOnly,
   consultBuilt,
+  wave,
 }: StickyAddToCartBarProps) {
-  const { add, openDrawer, totalQuantity, hydrated } = useCart();
+  const { items, add, openDrawer, totalQuantity, hydrated } = useCart();
+  const [blocked, setBlocked] = useState<string | null>(null);
+  useEffect(() => {
+    if (items.length === 0) setBlocked(null);
+  }, [items.length]);
   // Never let a stray fractional/NaN quantity reach the cart from the bar.
   const addQuantity = Number.isInteger(quantity) && quantity >= 1 ? quantity : 1;
 
   return (
+    <>
     <UIStickyAddToCartBar
       name={name}
       price={price}
@@ -68,12 +79,24 @@ export function StickyAddToCartBar({
       // agree (both show 0 → no badge).
       cartQuantity={hydrated ? totalQuantity : 0}
       onAdd={() => {
+        const verdict = canAdd(items, { wave });
+        if (!verdict.ok) {
+          setBlocked(verdict.message);
+          return;
+        }
+        setBlocked(null);
         add(
-          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt },
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave },
           addQuantity,
         );
         openDrawer(variantId);
       }}
     />
+    {blocked ? (
+      <p role="status" className="grove-sticky-add__blocked">
+        {blocked}
+      </p>
+    ) : null}
+    </>
   );
 }

@@ -28,9 +28,9 @@ test.describe("checkout — declined card", { tag: "@stripe" }, () => {
     // cutover (after it every order deposits). The deposit-session decline path
     // is a follow-up once the deposit happy path is established.
     test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-    const product = await findProductByCta(page, "Add to Cart");
+    const product = await findProductByCta(page, "Add to cart");
     await page.goto(product.href);
-    await addCurrentProductToCart(page, 1, "Add to Cart");
+    await addCurrentProductToCart(page, 1, "Add to cart");
 
     await page.goto("/checkout");
     await fillCheckoutForm(page, { state: "WV" });
