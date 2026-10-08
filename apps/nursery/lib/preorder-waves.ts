@@ -135,6 +135,49 @@ export function preorderWaves(
   return computeWaves(date, z, fallBy, springBy);
 }
 
+/**
+ * Farm-pickup fall wave (Josh 2026-10-07): a fixed farm schedule, not the farm
+ * zone's ship calendar. Pickup Oct 20 to Oct 31, order by Oct 15 (inclusive).
+ * Mirrors `PICKUP_FALL_WAVE` in grove_headless shipping_calendar.py.
+ */
+export const PICKUP_FALL_WAVE: { ship_window: [MonthDay, MonthDay]; order_by: MonthDay } = {
+  ship_window: [
+    [10, 20],
+    [10, 31],
+  ],
+  order_by: [10, 15],
+};
+
+/**
+ * Fall then spring FARM PICKUP pre-order waves on `date`. The feed's
+ * `calendar.pickup_waves` wins; else fall is {@link PICKUP_FALL_WAVE} (opens
+ * Sep 1, closes after Oct 15) and spring is the farm zone's spring wave.
+ * Shipped waves are unaffected (use {@link preorderWaves}).
+ */
+export function pickupWaves(
+  date: Date,
+  calendar?: ShippingCalendar | null,
+  farmZone: number = FARM_ZONE,
+): PreorderWave[] {
+  const fromFeed = calendar?.pickup_waves;
+  if (fromFeed && fromFeed.length > 0) return fromFeed;
+  const spring = preorderWaves(farmZone, date, calendar).find((w) => w.wave === "spring");
+  const t = ord(monthDayOf(date));
+  const sepOn = t >= ord(PREORDER_WAVES_OPEN);
+  const open = sepOn && t <= ord(PICKUP_FALL_WAVE.order_by);
+  const fall: PreorderWave = {
+    wave: "fall",
+    ship_window: [
+      [...PICKUP_FALL_WAVE.ship_window[0]] as MonthDay,
+      [...PICKUP_FALL_WAVE.ship_window[1]] as MonthDay,
+    ],
+    order_by: [...PICKUP_FALL_WAVE.order_by] as MonthDay,
+    open,
+    reason: open ? null : sepOn ? "deadline_passed" : "opens_sep_1",
+  };
+  return spring ? [fall, spring] : [fall];
+}
+
 /** The first open wave (fall before spring), or null when none is open. */
 export function firstOpenWave(waves: readonly PreorderWave[]): ShipWave | null {
   return waves.find((w) => w.open)?.wave ?? null;

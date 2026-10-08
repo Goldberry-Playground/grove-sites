@@ -119,6 +119,9 @@ const run = (id, { status = "completed", conclusion = "failure", name = "CI", cr
  * @param closeThrows status code the close/reopen should throw, or null
  * @param runsThrow   status code `listWorkflowRunsForRepo` should throw, or null
  * @param env         extra env overrides (self-heal / budget / gap)
+ * @param refireToken when set, passed as REFIRE_TOKEN and a stub `getOctokit`
+ *                    records which token the close/reopen client was built
+ *                    from (GOL-3031: the App identity, not GITHUB_TOKEN).
  * @param mergeability what `pulls.get` reports (GOL-3151). Default: mergeable.
  *                     `blocked` is the real `mergeable_state` of a PR wedged on
  *                     a missing required context.
@@ -133,10 +136,12 @@ async function runSweep({
   runsThrow = null,
   mergeability = { mergeable: true, mergeable_state: "blocked" },
   env = {},
+  refireToken = null,
 } = {}) {
   const calls = {
     created: [], comments: [], updated: [], prUpdates: [],
     notices: [], warnings: [], infos: [], jobReads: [],
+    refireUpdates: [], octokitTokens: [],
   };
   const github = {
     paginate: async (fn, args) => fn(args),
@@ -227,6 +232,30 @@ async function runSweep({
     MERGEABILITY_POLL_MS: "0",
     ...env,
   };
+  if (refireToken) vars.REFIRE_TOKEN = refireToken;
+  // actions/github-script injects `getOctokit`; the runner resolves the free
+  // identifier from globalThis. Undefined unless a case asks for it, so a
+  // REFIRE_TOKEN-less run that reached for it would throw.
+  const prevGetOctokit = globalThis.getOctokit;
+  globalThis.getOctokit = refireToken
+    ? (token) => {
+      calls.octokitTokens.push(token);
+      return {
+        rest: {
+          pulls: {
+            update: async (a) => {
+              calls.refireUpdates.push(a);
+              if (closeThrows) {
+                const e = new Error("Resource not accessible by integration");
+                e.status = closeThrows;
+                throw e;
+              }
+            },
+          },
+        },
+      };
+    }
+    : undefined;
   const prev = {};
   for (const [k, v] of Object.entries(vars)) { prev[k] = process.env[k]; process.env[k] = v; }
   try {
@@ -235,6 +264,7 @@ async function runSweep({
     for (const [k, v] of Object.entries(prev)) {
       if (v === undefined) delete process.env[k]; else process.env[k] = v;
     }
+    globalThis.getOctokit = prevGetOctokit;
   }
   return calls;
 }
@@ -570,6 +600,48 @@ console.log("missing-checks control-plane-drop classifier + self-heal (GOL-3031)
       calls.infos.some((m) => m.includes("cannot list workflow runs")),
       "did not log the degraded read",
     );
+  });
+}
+
+// ── Case 14: refire-token → close/reopen runs under the App identity ──────
+// GitHub creates no workflow runs for events triggered by the ambient
+// GITHUB_TOKEN, so a close/reopen made with `github` re-fires nothing while
+// still disarming auto-merge and spending the budget. With a refire-token the
+// PR mutation must go through the App client and ONLY through it; issue
+// minting stays on `github`.
+{
+  const calls = await runSweep({
+    runs: [run(37366000014)],
+    jobsByRun: { 37366000014: [okJob(LINT), droppedJob(UNIT), droppedJob(ODOO)] },
+    refireToken: "ghs_app_installation_stub",
+  });
+  onlyIssue(calls);
+  check("refire-token → close+reopen goes out under the App token, not GITHUB_TOKEN", () => {
+    assert(
+      calls.octokitTokens.length === 1 && calls.octokitTokens[0] === "ghs_app_installation_stub",
+      `getOctokit built from ${JSON.stringify(calls.octokitTokens)}`,
+    );
+    noPrMutation(calls); // nothing on the ambient client
+    assert(calls.refireUpdates.length === 2, `expected 2 App-client PR updates, got ${calls.refireUpdates.length}`);
+    assert(calls.refireUpdates[0].state === "closed", "first App call is not a close");
+    assert(calls.refireUpdates[1].state === "open", "second App call is not a reopen");
+  });
+}
+
+// ── Case 15: refire-token without PR write → names the App permission ─────
+{
+  const calls = await runSweep({
+    runs: [run(37366000015)],
+    jobsByRun: { 37366000015: [okJob(LINT), droppedJob(UNIT), droppedJob(ODOO)] },
+    refireToken: "ghs_app_installation_stub",
+    closeThrows: 403,
+  });
+  onlyIssue(calls);
+  check("refire-token 403 → blames the App installation, not the workflow permissions", () => {
+    const said = calls.comments.map((c) => c.body).join("\n");
+    assert(said.includes("FAILED"), "did not report the failure on the issue");
+    assert(said.includes("Pull requests: Read and write"), `did not name the App permission: ${said.slice(0, 300)}`);
+    assert(!said.includes("grants `permissions: pull-requests: read`"), "blamed the workflow permissions block");
   });
 }
 

@@ -32,6 +32,8 @@ import type {
   NewsletterSubscribeInput,
   NewsletterSubscribeResult,
   ApiNewsletterSubscribeResponse,
+  CatalogNav,
+  ApiCatalogNavResponse,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -44,6 +46,7 @@ import {
   normalizePromoPreview,
   normalizePromotionTiers,
   normalizeZone,
+  normalizeCatalogNav,
 } from "./normalizers";
 
 /** Thrown when the grove_headless API returns a non-2xx status. Carries the
@@ -156,6 +159,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         if (params?.zone) searchParams.set("zone", String(params.zone));
         if (params?.layer) searchParams.set("layer", params.layer);
         if (params?.sun) searchParams.set("sun", params.sun);
+        if (params?.dept) searchParams.set("dept", params.dept);
         if (params?.limit) searchParams.set("limit", String(params.limit));
         if (params?.offset) searchParams.set("offset", String(params.offset));
 
@@ -206,6 +210,22 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           `/grove/api/v1/products/${raw.results[0].id}`,
         );
         return normalizeProductDetail(detail);
+      },
+    },
+
+    catalog: {
+      async nav(): Promise<CatalogNav> {
+        // Same cache posture as the product list (GOL-1319): the nav is read on
+        // every shop page, and the tree changes when marketing restructures
+        // departments — a handful of times a year. The publish webhook's
+        // revalidate flushes it alongside the catalog, so 30s is the safety net
+        // for a missed delivery, not the fast path.
+        const raw = await api<ApiCatalogNavResponse>(
+          config,
+          "/grove/api/v1/catalog/nav",
+          { next: { revalidate: 30 } },
+        );
+        return normalizeCatalogNav(raw);
       },
     },
 

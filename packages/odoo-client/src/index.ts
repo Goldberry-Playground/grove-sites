@@ -47,7 +47,17 @@ export type {
   NewsletterSubscribeInput,
   NewsletterSubscribeResult,
   ApiNewsletterSubscribeResponse,
+  DepartmentStatus,
+  CatalogNodeKind,
+  CatalogFacet,
+  ComingSoonItem,
+  CatalogNavCategory,
+  CatalogNavNode,
+  CatalogNav,
+  ApiCatalogNavNode,
+  ApiCatalogNavResponse,
 } from "./types";
+export { CATALOG_FACETS } from "./types";
 export { createOdooClient, OdooApiError } from "./client";
 export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
 export type { OdooImageSize } from "./images";
