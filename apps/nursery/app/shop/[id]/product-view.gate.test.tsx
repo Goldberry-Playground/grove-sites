@@ -182,6 +182,27 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     expect(localStorage.getItem("grove:usda-zone")).toBe("8");
   });
 
+  it("with Peat & bagged selected, no wave reads as chosen; picking a wave moves the selection", async () => {
+    const user = userEvent.setup();
+    renderPdp();
+    await user.selectOptions(screen.getByLabelText("Your USDA zone"), "8");
+    const group = within(formatGroup());
+    const peat = group.getByRole("button", { name: /peat & bagged/i });
+    await user.click(peat);
+    expect(peat.getAttribute("aria-pressed")).toBe("true");
+    const fall = group.getByRole("button", { name: /fall wave/i });
+    const spring = group.getByRole("button", { name: /spring wave/i });
+    expect(fall.getAttribute("aria-pressed")).toBe("false");
+    expect(spring.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByText(/pre-order with a flat \$10 deposit/i)).toBeNull();
+    await user.click(fall);
+    expect(peat.getAttribute("aria-pressed")).toBe("false");
+    expect(group.getByRole("button", { name: /bareroot pre-order/i }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(fall.getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("Oct 7 Farm pickup: Potted + Bareroot pre-order, without a ship quote", async () => {
     const user = userEvent.setup();
     renderPdp();
