@@ -204,6 +204,12 @@ describe("ShippingEstimator — once-per-order handling fee (GOL-3188)", () => {
     expect(panel.textContent).toMatch(/exact rate is confirmed at checkout/);
   });
 
+  it("a fractional fee shows in cents and the quote rounds up, never down", () => {
+    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith(4.25) });
+    expect(panel.textContent).toMatch(/from \$21/); // 16 + 4.25 = 20.25: up to $21, never down to $20
+    expect(panel.textContent).toMatch(/Includes our \$4\.25 handling fee, charged once per order\./);
+  });
+
   it("a pre-GOL-2923 feed (no fee field) quotes the cell and adds no fee line", () => {
     const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith() });
     expect(panel.textContent).toMatch(/from \$16/);

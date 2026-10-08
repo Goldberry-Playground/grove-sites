@@ -34,7 +34,17 @@ import type {
   PromoPreview,
   PromotionTier,
   ZoneLookupResult,
+  ApiCatalogNavNode,
+  ApiCatalogNavResponse,
+  CatalogNav,
+  CatalogNavNode,
+  CatalogNavCategory,
+  CatalogNodeKind,
+  CatalogFacet,
+  DepartmentStatus,
+  ComingSoonItem,
 } from "./types";
+import { CATALOG_FACETS } from "./types";
 
 /** Odoo Selection/Char fields serialize "" when unset — collapse to null so
  * the UI can `??`-fall-back uniformly instead of testing for empty strings. */
@@ -150,6 +160,15 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // skips the carve-out gate. Same default-false reasoning — a build predating
     // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
     shipsAllGreenStates: raw.ships_all_green_states ?? false,
+    // Department tree fields (GOL-2745). All three are left UNDEFINED when the
+    // backend omits them so the UI can tell "no department / no offers yet"
+    // apart from a real `false` — the deal badge and the conditional "On offer"
+    // facet both branch on that distinction.
+    department: raw.department
+      ? { id: raw.department.id ?? 0, slug: raw.department.slug, name: raw.department.name }
+      : null,
+    onOffer: raw.on_offer,
+    qualifiesForVolume: raw.qualifies_for_volume,
     featured: raw.grove_featured,
     variants: [],
   };
@@ -430,4 +449,125 @@ export function normalizeOrderDetail(raw: ApiOrderDetail): OrderDetail {
     amountTotal: raw.amount_total,
     currency: raw.currency.name,
   };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Catalog navigation (GOL-2745).
+
+   Odoo stores the two list-ish fields as free text — `grove_facets` is a Char
+   comma-list and `grove_coming_list` is a Text field with one `Name | detail`
+   per line — so parsing them is this layer's job, not the component's. Both
+   also accept an already-structured array, so a later grove_headless build can
+   serialize them properly without a lockstep storefront release.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const FACET_ALLOWLIST: ReadonlySet<string> = new Set(CATALOG_FACETS);
+
+/** Parse `grove_facets` into allowlisted facet keys, preserving Odoo's order
+ *  and dropping duplicates. An unknown key is dropped rather than rendered —
+ *  a typo in Odoo must never paint a filter control the storefront can't run. */
+function normalizeFacets(raw: ApiCatalogNavNode["facets"]): CatalogFacet[] {
+  const parts = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(",")
+      : [];
+  const out: CatalogFacet[] = [];
+  for (const part of parts) {
+    const key = String(part).trim().toLowerCase();
+    if (FACET_ALLOWLIST.has(key) && !out.includes(key as CatalogFacet)) {
+      out.push(key as CatalogFacet);
+    }
+  }
+  return out;
+}
+
+/** Parse one `Name | detail` line. A line with no pipe is all name, which is
+ *  the common case for a short list ("Ramps"). */
+function parseComingLine(line: string): ComingSoonItem | null {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return null;
+  const pipe = trimmed.indexOf("|");
+  if (pipe === -1) return { name: trimmed, detail: "" };
+  return {
+    name: trimmed.slice(0, pipe).trim(),
+    detail: trimmed.slice(pipe + 1).trim(),
+  };
+}
+
+/** Parse `grove_coming_list` (newline-delimited text, or a structured array). */
+function normalizeComingList(raw: ApiCatalogNavNode["coming_list"]): ComingSoonItem[] {
+  if (typeof raw === "string") {
+    return raw.split(/\r?\n/).map(parseComingLine).filter((i): i is ComingSoonItem => i !== null);
+  }
+  if (Array.isArray(raw)) {
+    const out: ComingSoonItem[] = [];
+    for (const entry of raw) {
+      if (typeof entry === "string") {
+        const parsed = parseComingLine(entry);
+        if (parsed) out.push(parsed);
+      } else if (entry && typeof entry === "object") {
+        const name = String(entry.name ?? "").trim();
+        if (name) out.push({ name, detail: String(entry.detail ?? "").trim() });
+      }
+    }
+    return out;
+  }
+  return [];
+}
+
+const NODE_KINDS: ReadonlySet<string> = new Set(["department", "category", "collection"]);
+const DEPT_STATUSES: ReadonlySet<string> = new Set(["live", "coming_soon", "hidden"]);
+
+function normalizeNavNode(
+  raw: ApiCatalogNavNode,
+  fallbackKind: CatalogNodeKind,
+): CatalogNavNode {
+  const kind = typeof raw.kind === "string" && NODE_KINDS.has(raw.kind)
+    ? (raw.kind as CatalogNodeKind)
+    : fallbackKind;
+  // An unrecognized status fails CLOSED to `hidden` (GOL-2745): a department
+  // whose lifecycle the storefront can't read must not be advertised on the tab
+  // row, because it may not be ready to be seen at all.
+  // A collection (Guilds) carries no lifecycle on the live backend, so an
+  // ABSENT status there means "live"; a present-but-unknown one still fails
+  // closed.
+  const status = typeof raw.status === "string" && DEPT_STATUSES.has(raw.status)
+    ? (raw.status as DepartmentStatus)
+    : raw.status == null && kind === "collection"
+      ? "live"
+      : "hidden";
+  const categories: CatalogNavCategory[] = (raw.categories ?? raw.children ?? []).map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    count: typeof c.count === "number" ? c.count : 0,
+  }));
+  return {
+    slug: raw.slug,
+    name: raw.name,
+    kind,
+    status,
+    teaser: emptyToNull(typeof raw.teaser === "string" ? raw.teaser.trim() : null),
+    facets: normalizeFacets(raw.facets),
+    comingList: normalizeComingList(raw.coming_list),
+    categories,
+    count:
+      typeof raw.product_count === "number"
+        ? raw.product_count
+        : typeof raw.count === "number"
+          ? raw.count
+          : categories.reduce((sum, c) => sum + c.count, 0),
+  };
+}
+
+/** Normalize `GET /catalog/nav`. The live backend sends Guilds as a top-level
+ *  `guilds` node; the draft shape sent it as the first of `collections` (any
+ *  further collection is ignored until it has a page to land on). */
+export function normalizeCatalogNav(raw: ApiCatalogNavResponse): CatalogNav {
+  const departments = (raw.departments ?? []).map((d) => normalizeNavNode(d, "department"));
+  const guildsRaw = raw.guilds ?? raw.collections?.[0] ?? null;
+  const guilds = guildsRaw ? normalizeNavNode(guildsRaw, "collection") : null;
+  // A Guilds node whose status fails closed is not advertised: DepartmentNav
+  // and the search grouping only test `nav.guilds` for presence.
+  return { departments, guilds: guilds && guilds.status !== "hidden" ? guilds : null };
 }

@@ -64,6 +64,13 @@ export interface ApiProductListItem {
   cultivar_count?: number;
   /** Lowest variant list price — the "from $X" card price (catalog API v1). */
   price_min: number;
+  /** Owning department derived from category ancestry (GOL-2745). Absent on a
+   *  grove_headless build that predates the department tree. */
+  department?: { id?: number; slug: string; name: string } | null;
+  /** On offer right now (GOL-2745) — gates the conditional "On offer" facet. */
+  on_offer?: boolean;
+  /** Counts toward the automatic volume-discount tiers (GOL-2745 deal badge). */
+  qualifies_for_volume?: boolean;
   /**
    * Purchasability flag (grove-odoo-modules GOL-760). `false` on a published-
    * but-not-for-sale "coming soon" placeholder — the product still appears in
@@ -471,10 +478,25 @@ export interface ShippingCalendar {
    * in effect (GOL-1177) — the frontend renders it as a banner. `null` / absent
    * when there is no active hold. */
   weather_hold_note?: string | null;
+  /** `[min, max]` USDA plant-hardiness-zone span the green list actually covers,
+   * derived by the backend from the green-filtered PHZM matrix
+   * (grove-odoo-modules `shipping_calendar.served_usda_range`, GOL-2957). Lets a
+   * zone-agnostic surface (the `/shipping-warranty` "Shipping season" copy)
+   * state the served span honestly with no hand-typed literal — a green-list
+   * change reshapes the matrix and reshapes this with no copy edit. `null` (or
+   * absent) when the backend matrix is unavailable: render a fallback, never a
+   * bogus pair. NOT the `zone_1..zone_5` distance bands in
+   * {@link ShippingRateFeed.zones} and NOT the wider set of configured `zones`
+   * keys below (which span every zone the calendar is configured for). */
+  served_usda_range?: [number, number] | null;
   zones: Record<string, ShippingCalendarZone>;
   /** Per-USDA-zone server-resolved fulfillment, keyed like `zones`. Optional:
    * older backends omit it. */
   resolved?: Record<string, ShippingCalendarResolvedZone>;
+  /** Farm-pickup pre-order waves (Josh 2026-10-07): fall is a fixed farm
+   * schedule (pickup Oct 20 to Oct 31, order by Oct 15), spring follows the
+   * farm zone. Optional: older backends omit it. */
+  pickup_waves?: PreorderWave[];
 }
 
 /** The single shippable mode a client resolves a `(date, usdaZone)` to against
@@ -588,6 +610,119 @@ export interface ProductCategory {
   id: number;
   name: string;
   slug: string;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Catalog navigation — departments, their categories, and the Guilds
+   collection (GOL-2745, spec `2026-09-30-nursery-shop-departments-design.md`).
+
+   Odoo is the source of truth for the department tree: adding Forest farming
+   or flipping Mycoforestry from `coming_soon` to `live` is a data change, not
+   a storefront deploy. The storefront reads this tree from
+   `GET /grove/api/v1/catalog/nav` and keeps a mock fallback for local dev.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** Lifecycle of a department tab. `hidden` never renders. */
+export type DepartmentStatus = "live" | "coming_soon" | "hidden";
+
+/** What a node in the catalog tree *is* (Odoo `grove_node_kind`). */
+export type CatalogNodeKind = "department" | "category" | "collection";
+
+/**
+ * Facets a department may expose, from the spec's allowlist. Unknown values
+ * coming off the wire are dropped by the normalizer rather than rendered, so a
+ * typo in Odoo can never paint a dead filter control.
+ */
+export const CATALOG_FACETS = [
+  "zone",
+  "layer",
+  "sun",
+  "uses",
+  "on_offer",
+  "host_tree",
+  "fungus",
+  "shade_level",
+  "years_to_harvest",
+  "form",
+  "species",
+  "ships",
+] as const;
+export type CatalogFacet = (typeof CATALOG_FACETS)[number];
+
+/** One "What's coming" line on a coming-soon teaser (`grove_coming_list`). */
+export interface ComingSoonItem {
+  /** The plant/product name, e.g. "Goldenseal". */
+  name: string;
+  /** Short qualifier after the pipe, e.g. "roots and rhizomes". Empty when the
+   *  Odoo line carried no `| detail` half. */
+  detail: string;
+}
+
+/** A category inside a department (a `?cat=<slug>` pill), with its live count. */
+export interface CatalogNavCategory {
+  slug: string;
+  name: string;
+  /** Published products filed under this category. 0 is meaningful — the pill
+   *  renders as a coming-soon nav item rather than a `· 0` dead end. */
+  count: number;
+}
+
+/** A department root or the Guilds collection. */
+export interface CatalogNavNode {
+  /** Stable URL slug (Odoo `grove_slug`) — `/shop/<slug>`. NEVER derived from
+   *  the display name at render time: renaming a department in Odoo must not
+   *  change its URL. */
+  slug: string;
+  name: string;
+  kind: CatalogNodeKind;
+  status: DepartmentStatus;
+  /** Intro / coming-soon blurb (`grove_teaser`); null when unset. */
+  teaser: string | null;
+  /** Facets this department shows, already filtered to the allowlist. */
+  facets: CatalogFacet[];
+  /** "What's coming" lines, empty for live departments. */
+  comingList: ComingSoonItem[];
+  categories: CatalogNavCategory[];
+  /** Published products across the whole department. */
+  count: number;
+}
+
+/** The full nav tree: ordered departments plus the Guilds collection. */
+export interface CatalogNav {
+  departments: CatalogNavNode[];
+  /** The Guilds collection, or null on a backend that predates it. */
+  guilds: CatalogNavNode | null;
+}
+
+/** Wire shape of one node in `GET /catalog/nav`. */
+export interface ApiCatalogNavNode {
+  slug: string;
+  name: string;
+  kind?: string | null;
+  status?: string | null;
+  teaser?: string | false | null;
+  /** Odoo `grove_facets` is a Char comma-list; a future build may serialize an
+   *  array. Both are accepted. */
+  facets?: string | string[] | false | null;
+  /** Odoo `grove_coming_list` is a Text field, one `Name | detail` per line; an
+   *  already-parsed array is accepted too. */
+  coming_list?: string | (string | { name?: string; detail?: string })[] | false | null;
+  /** Child categories. The live backend (gom#299) serializes `categories`;
+   *  `children` is the pre-landing draft name, still accepted. */
+  categories?: { slug: string; name: string; count?: number | null }[] | null;
+  children?: { slug: string; name: string; count?: number | null }[] | null;
+  /** Published products across the node. Live backend: `product_count`. */
+  product_count?: number | null;
+  count?: number | null;
+}
+
+/** Wire shape of `GET /grove/api/v1/catalog/nav`. */
+export interface ApiCatalogNavResponse {
+  departments?: ApiCatalogNavNode[] | null;
+  /** The live backend serializes Guilds as its own top-level node. */
+  guilds?: ApiCatalogNavNode | null;
+  /** Pre-landing draft shape: collections as a list, Guilds first. Accepted. */
+  collections?: ApiCatalogNavNode[] | null;
 }
 
 export interface Product {
@@ -729,6 +864,31 @@ export interface Product {
    * falls back to `variantCount` there).
    */
   cultivarCount?: number;
+  /**
+   * Owning department, derived server-side from the product's category
+   * ancestry (GOL-2745). Drives the `dept=` filter, the department a search hit
+   * is grouped under, and the department label on a Guild card's "From:" line.
+   * Undefined on mocks and on a grove_headless build that predates the
+   * department tree — callers must treat that as "unknown department", never as
+   * a specific one.
+   */
+  department?: ProductCategory | null;
+  /**
+   * On offer right now (GOL-2745). Drives the conditional "On offer" facet,
+   * which renders ONLY when at least one product in the current view carries
+   * this — the spec's rule against a dead filter between promotions. Undefined
+   * means "the backend doesn't report offers yet", which the UI reads as not on
+   * offer (facet stays hidden), never as a guess.
+   */
+  onOffer?: boolean;
+  /**
+   * Whether this product's units count toward the automatic volume-discount
+   * tiers (GOL-2431/2432 loyalty program). Drives the "N+ save" deal badge on
+   * the card: the badge renders only when the program has tiers AND this is not
+   * explicitly `false`. Undefined = the backend doesn't distinguish yet, and
+   * today every published item is a qualifying plant.
+   */
+  qualifiesForVolume?: boolean;
   /** Growing-facts block (detail endpoint). Undefined on list items/mocks. */
   facts?: GrowingFacts;
   /** Ordered gallery (detail endpoint). Undefined on list items/mocks. */
@@ -1172,11 +1332,23 @@ export interface OdooClient {
       /** Sun-requirement facet (`grove_sun`): full | partial | shade.
        * Filtered server-side (catalog API v1). */
       sun?: string;
+      /** Department slug (GOL-2745) — narrows to one department's products
+       *  server-side, the department-scoped twin of `cat`. */
+      dept?: string;
       limit?: number;
       offset?: number;
     }): Promise<ProductListResult>;
     get(id: number): Promise<Product>;
     getBySlug(slug: string): Promise<Product | null>;
+  };
+  catalog: {
+    /**
+     * The department tree + Guilds collection (GOL-2745). Odoo owns the shape,
+     * so launching a product family is a data change rather than a deploy.
+     * Throws `OdooApiError` on a backend that predates the route — callers keep
+     * a mock fallback the way `/shop` does for the product list.
+     */
+    nav(): Promise<CatalogNav>;
   };
   /** Resolve a US ZIP to its USDA hardiness zone. Returns null for a ZIP the
    * USDA matrix doesn't cover (the endpoint 404s) or a malformed ZIP. */
@@ -1243,3 +1415,4 @@ export interface OdooClient {
     subscribe(input: NewsletterSubscribeInput): Promise<NewsletterSubscribeResult>;
   };
 }
+

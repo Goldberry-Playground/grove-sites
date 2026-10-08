@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ShippingCalendar } from "@grove/odoo-client";
+import { DEFAULT_WAVE_ZONES, preorderWaves } from "./preorder-waves";
 import {
   resolveShippableMode,
   monthDayOf,
@@ -12,6 +13,11 @@ import {
   DEPOSIT_CUTOVER,
   depositByDate,
   zoneShipNote,
+  shipWindowEnvelope,
+  formatWindow,
+  monthsCovered,
+  servedZoneSpan,
+  DEFAULT_WINDOWS,
   type ShippableMode,
 } from "./fulfillment-mode";
 
@@ -503,5 +509,223 @@ describe("zoneShipNote — homepage Field Notes row", () => {
 
   it("unknown zone: no invented dates", () => {
     expect(zoneShipNote(on(9, 23), Z, 9)).toEqual({ label: "Confirmed at checkout", note: null });
+  });
+});
+
+// ── Ship-window envelope for zone-agnostic copy (GOL-2948) ───────────────────
+//
+// VERBATIM mirror of the `calendar` block of the live prod feed
+// (GET https://odoo.gatheringatthegrove.com/grove/api/v1/shipping/rates, read
+// 2026-10-05), transcribed from the response rather than hand-typed. The whole
+// point of GOL-2948 is that the policy page's ship window was hand-written and
+// matched no zone in this data, so the fixture has to be the real thing.
+const PROD_CAL: ShippingCalendar = {
+  // GOL-2957: `[min, max]` USDA hardiness span the green list covers, derived
+  // backend-side from the green-filtered PHZM matrix. Pinned to [3, 10] by
+  // grove_headless's own `test_served_usda_range_is_derived_green_list_span`,
+  // so this mirrors the serializer contract rather than a hand-picked band.
+  served_usda_range: [3, 10],
+  preorder_open: { fall: [10, 16], spring: [11, 1] },
+  leafed_window: [[5, 1], [10, 15]],
+  fulfillment_days: [5, 10],
+  approximate: true,
+  weather_hold_note: null,
+  zones: {
+    "2": {
+      fall: [[11, 2], [11, 13]],
+      spring: [[4, 19], [6, 6]],
+      fall_order_deadline: [11, 12],
+      spring_order_deadline: [5, 31],
+    },
+    "3": {
+      fall: [[11, 2], [11, 13]],
+      spring: [[4, 19], [6, 6]],
+      fall_order_deadline: [11, 12],
+      spring_order_deadline: [5, 31],
+    },
+    "4": {
+      fall: [[11, 2], [11, 19]],
+      spring: [[4, 19], [6, 6]],
+      fall_order_deadline: [11, 16],
+      spring_order_deadline: [5, 31],
+    },
+    "5": {
+      fall: [[11, 2], [11, 19]],
+      spring: [[4, 12], [6, 6]],
+      fall_order_deadline: [11, 16],
+      spring_order_deadline: [5, 31],
+    },
+    "6": {
+      fall: [[11, 9], [11, 26]],
+      spring: [[4, 5], [6, 6]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [5, 31],
+    },
+    "7": {
+      fall: [[11, 9], [11, 26]],
+      spring: [[3, 16], [5, 24]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [5, 17],
+    },
+    "8": {
+      fall: [[11, 9], [12, 12]],
+      spring: [[3, 1], [4, 30]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [4, 16],
+    },
+    "9": {
+      fall: [[11, 9], [12, 12]],
+      spring: [[3, 1], [4, 30]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [4, 16],
+    },
+    "10": {
+      fall: [[11, 9], [12, 12]],
+      spring: [[3, 1], [4, 30]],
+      fall_order_deadline: [11, 21],
+      spring_order_deadline: [4, 16],
+    },
+  },
+};
+
+describe("shipWindowEnvelope", () => {
+  it("unions every served zone, not just the temperate middle", () => {
+    const env = shipWindowEnvelope(PROD_CAL);
+    expect(env.source).toBe("feed");
+    // Earliest fall start is zones 2-5 (Nov 2); latest fall end is zones 8-10
+    // (Dec 12). Earliest spring start is zones 8-10 (Mar 1); latest spring end
+    // is zones 2-6 (Jun 6). Dropping the warm zones would hide real ship dates
+    // from the green states in them (FL, LA, coastal GA/AL/MS/SC).
+    expect(formatWindow(env.fall)).toBe("Nov 2 – Dec 12");
+    expect(formatWindow(env.spring)).toBe("Mar 1 – Jun 6");
+  });
+
+  it("names no month the engine ships nothing in", () => {
+    const env = shipWindowEnvelope(PROD_CAL);
+    const shown = [...monthsCovered(env.fall), ...monthsCovered(env.spring)];
+    const shippable = new Set(
+      Object.values(PROD_CAL.zones).flatMap((z) => [
+        ...monthsCovered(z.fall),
+        ...monthsCovered(z.spring),
+      ]),
+    );
+    for (const month of shown) expect(shippable.has(month)).toBe(true);
+    // The specific regression: the old literal said "Feb - May". February is
+    // not in any zone's window, and November/December/June were all missing.
+    expect(shown).not.toContain(2);
+    expect(shown).toEqual(expect.arrayContaining([11, 12, 3, 6]));
+  });
+
+  it("is derived, not baked: a narrower calendar narrows the copy", () => {
+    const onlyWarm: ShippingCalendar = {
+      ...PROD_CAL,
+      zones: { "7": PROD_CAL.zones["7"] },
+    };
+    const env = shipWindowEnvelope(onlyWarm);
+    expect(formatWindow(env.fall)).toBe("Nov 9 – Nov 26");
+    expect(formatWindow(env.spring)).toBe("Mar 16 – May 24");
+  });
+
+  it("degrades to the baked backend mirror, never to a literal", () => {
+    for (const degraded of [null, undefined, { ...PROD_CAL, zones: {} }]) {
+      const env = shipWindowEnvelope(degraded as ShippingCalendar | null);
+      expect(env.source).toBe("snapshot");
+      expect(env.fall).toEqual(DEFAULT_WINDOWS.fall);
+      expect(env.spring).toEqual(DEFAULT_WINDOWS.spring);
+    }
+  });
+
+  it("the baked snapshot agrees with the bundled WAVE_SCHEDULE mirror", () => {
+    // Keeps the degraded policy page and the live one telling the same story.
+    // DEFAULT_WINDOWS mirrors the backend's `WAVE_SCHEDULE` union, which the
+    // fall/spring pre-order waves hotfix (#1024, gom #326) re-scheduled: every
+    // spring wave now ends Apr 15. PROD_CAL above is the 2026-10-05 feed, read
+    // before that schedule shipped, so it stays a derivation fixture only; the
+    // agreement check runs against `preorder-waves.ts`'s bundled schedule (the
+    // same WAVE_SCHEDULE port). If the backend re-schedules a wave, this fails
+    // and the mirror gets bumped.
+    const zones: ShippingCalendar["zones"] = {};
+    for (const zone of DEFAULT_WAVE_ZONES) {
+      const waves = preorderWaves(zone, new Date(Date.UTC(2026, 8, 2)));
+      const fall = waves.find((w) => w.wave === "fall")!;
+      const spring = waves.find((w) => w.wave === "spring")!;
+      zones[String(zone)] = { fall: fall.ship_window, spring: spring.ship_window };
+    }
+    const bundled = shipWindowEnvelope({ ...PROD_CAL, zones });
+    expect(bundled.source).toBe("feed");
+    expect(bundled.fall).toEqual(DEFAULT_WINDOWS.fall);
+    expect(bundled.spring).toEqual(DEFAULT_WINDOWS.spring);
+  });
+
+  it("skips a malformed zone instead of throwing", () => {
+    const partial = {
+      ...PROD_CAL,
+      zones: { "5": PROD_CAL.zones["5"], "6": {} as never },
+    };
+    expect(formatWindow(shipWindowEnvelope(partial).fall)).toBe("Nov 2 – Nov 19");
+  });
+});
+
+describe("servedZoneSpan — GOL-2967 served USDA hardiness span", () => {
+  it("reads the derived span off the feed", () => {
+    // The page prints these two numbers and nothing else, so a green-list
+    // change (which reshapes the backend matrix) reshapes the copy.
+    expect(servedZoneSpan(PROD_CAL)).toEqual([3, 10]);
+  });
+
+  it("is derived, not a band baked into the frontend", () => {
+    // Proves AC2 the only way a unit test can: feed a DIFFERENT span and the
+    // output follows it. If anyone re-hardcodes "5-7" (or 3-10) here, this
+    // fails. Narrower AND wider, so a clamp would not sneak through either.
+    expect(servedZoneSpan({ ...PROD_CAL, served_usda_range: [5, 7] })).toEqual([
+      5, 7,
+    ]);
+    expect(servedZoneSpan({ ...PROD_CAL, served_usda_range: [2, 11] })).toEqual([
+      2, 11,
+    ]);
+    expect(servedZoneSpan({ ...PROD_CAL, served_usda_range: [6, 6] })).toEqual([
+      6, 6,
+    ]);
+  });
+
+  it("returns null for a degraded or pre-GOL-2957 feed", () => {
+    // Prod runs a grove_headless without the key until GOL-3014 deploys, and
+    // the page is force-dynamic — so this is the LIVE branch today, not an
+    // edge case. The policy page drops the parenthetical; it must never fall
+    // back to a literal band the way the ship window falls back to a snapshot.
+    const { served_usda_range: _omitted, ...withoutKey } = PROD_CAL;
+    expect(servedZoneSpan(withoutKey as ShippingCalendar)).toBeNull();
+    expect(servedZoneSpan(null)).toBeNull();
+    expect(servedZoneSpan(undefined)).toBeNull();
+    expect(
+      servedZoneSpan({ ...PROD_CAL, served_usda_range: null }),
+    ).toBeNull();
+  });
+
+  it("refuses a malformed span instead of rendering half a range", () => {
+    // The feed is untrusted JSON at runtime. Each of these would otherwise
+    // print something like "USDA Zones –" or "USDA Zones 3–undefined" on a
+    // board-approved policy page.
+    for (const bad of [
+      [null, null],
+      [3],
+      [],
+      [3, 10, 11],
+      ["3", "10"],
+      [3, null],
+      [3.5, 10],
+      [NaN, 10],
+      [10, 3],
+      3,
+      "3-10",
+      {},
+    ]) {
+      expect(
+        servedZoneSpan({
+          ...PROD_CAL,
+          served_usda_range: bad as never,
+        }),
+      ).toBeNull();
+    }
   });
 });

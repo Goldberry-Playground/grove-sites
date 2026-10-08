@@ -130,6 +130,18 @@ inputs:
       so in the minted issue.
     required: false
     default: "true"
+  refire-token:
+    description: >-
+      GOL-3031. Token used ONLY for the self-heal close+reopen; every other call
+      keeps `github-token`. GitHub does not create workflow runs for events
+      triggered by the ambient GITHUB_TOKEN, so a close+reopen made with it
+      re-fires nothing — it only disarms auto-merge and spends the budget. Pass
+      a GitHub App installation token (actions/create-github-app-token, scoped
+      to `pull-requests: write`) here. Empty falls back to `github-token`, which
+      is only useful if that token is itself a non-GITHUB_TOKEN identity; a
+      caller without an App identity should set `self-heal: "false"`.
+    required: false
+    default: ""
   refire-budget:
     description: >-
       Maximum automatic close/reopen re-fires per head SHA (GOL-3031). Counted in
@@ -180,6 +192,7 @@ runs:
         PR_MERGED: ${{ inputs.pr-merged }}
         GRACE_MINUTES: ${{ inputs.grace-minutes }}
         SELF_HEAL: ${{ inputs.self-heal }}
+        REFIRE_TOKEN: ${{ inputs.refire-token }}
         REFIRE_BUDGET: ${{ inputs.refire-budget }}
         REFIRE_GAP_MINUTES: ${{ inputs.refire-gap-minutes }}
         MERGEABILITY_POLL_TRIES: ${{ inputs.mergeability-poll-tries }}
@@ -190,7 +203,7 @@ runs:
           const {
             MODE, RUN_ID, WF_NAME, HEAD_BRANCH, HEAD_SHA, RUN_URL, RUN_EVENT,
             RUN_ATTEMPT, RUN_STARTED_AT, GONE_BRANCH, TRIGGER, PR_MERGED,
-            GRACE_MINUTES, SELF_HEAL, REFIRE_BUDGET, REFIRE_GAP_MINUTES,
+            GRACE_MINUTES, SELF_HEAL, REFIRE_TOKEN, REFIRE_BUDGET, REFIRE_GAP_MINUTES,
             MERGEABILITY_POLL_TRIES, MERGEABILITY_POLL_MS,
           } = process.env;
           const { owner, repo } = context.repo;
@@ -1472,11 +1485,17 @@ runs:
               // review on this SHA survive. NEVER pass --delete-branch anywhere
               // near this path: GOL-1658 deleted the head ref before the merge
               // queue completed and silently closed the PR unmerged.
+              //
+              // The close/reopen goes out under `refire-token` when the caller
+              // passed one (the agent App): a reopen made with the ambient
+              // GITHUB_TOKEN creates no workflow runs, so it would re-fire
+              // nothing. Issue reads/writes stay on `github` either way.
               try {
-                await github.rest.pulls.update({
+                const refireClient = REFIRE_TOKEN ? getOctokit(REFIRE_TOKEN) : github;
+                await refireClient.rest.pulls.update({
                   owner, repo, pull_number: pr.number, state: "closed",
                 });
-                await github.rest.pulls.update({
+                await refireClient.rest.pulls.update({
                   owner, repo, pull_number: pr.number, state: "open",
                 });
                 core.notice(`PR #${pr.number}: re-fired CI on ${sha.slice(0, 7)} via close+reopen (attempt ${nextLedger.refires}/${refireBudget}) — control-plane drop of [${droppedRequired.join(", ")}].`);
@@ -1498,13 +1517,18 @@ runs:
                 // and say which permission is missing, rather than failing the
                 // whole sweep for every other PR.
                 const degraded = e.status === 403 || e.status === 404;
-                core.warning(`PR #${pr.number}: automatic re-fire failed (${e.status} ${e.message}). ${degraded ? "The calling workflow needs `permissions: pull-requests: write`." : ""}`);
+                const wall = REFIRE_TOKEN
+                  ? "The `refire-token` identity (the agent App installation) needs **Pull requests: Read and write** on this repo."
+                  : "The calling workflow needs `permissions: pull-requests: write`.";
+                core.warning(`PR #${pr.number}: automatic re-fire failed (${e.status} ${e.message}). ${degraded ? wall : ""}`);
                 await github.rest.issues.createComment({
                   owner, repo, issue_number: issueNumber,
                   body: [
                     `⚠️ Automatic re-fire of head \`${sha}\` FAILED: \`${e.status} ${e.message}\`.`,
                     "",
-                    degraded
+                    degraded && REFIRE_TOKEN
+                      ? "This is almost certainly a permission wall, not a logic fault: the `refire-token` identity (the agent App installation) lacks **Pull requests: Read and write** on this repo. Until that is granted this sweep is alert-only — run the close/reopen command above by hand."
+                      : degraded
                       ? "This is almost certainly a permission wall, not a logic fault: the calling workflow grants `permissions: pull-requests: read`, and close/reopen needs **`pull-requests: write`**. Until that is granted this sweep is alert-only — run the close/reopen command above by hand."
                       : "Run the close/reopen command above by hand.",
                     "",

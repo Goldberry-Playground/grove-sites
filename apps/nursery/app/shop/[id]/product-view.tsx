@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
+  GrowingFacts,
   ShipWave,
   ShippingTier,
   ShippingRateTable,
@@ -26,7 +27,7 @@ import {
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateTierShipping,
-  GREEN_STATE_COUNT,
+  shipScope,
   hasBoxFeed,
   estimateTierFloor,
   isPickupOnly,
@@ -53,6 +54,7 @@ import {
   farmZoneOf,
   firstOpenWave,
   isPreorderSeason,
+  pickupWaves,
   preorderWaves,
   readUsdaZone,
   waveZones,
@@ -66,6 +68,9 @@ import {
   resolveSubstitutes,
 } from "../../../lib/plant-compliance";
 import { PolicyLink } from "./policy-link";
+import { ZoneCheck } from "./zone-check";
+import { AtAGlance, PlantTwoHint } from "./at-a-glance";
+import { PLANT_TWO_QUANTITY } from "../../../lib/plant-two";
 
 /** Serializable gallery image (URLs pre-resolved to absolute on the server). */
 export interface ViewImage {
@@ -143,6 +148,14 @@ export interface ProductViewProps {
    */
   shippingZoneMap?: ShippingZoneMap | null;
   /**
+   * Growing facts for the right-column "At a glance" card, the zone check and
+   * the "plant two" hint (GOL-2734). The full `SpecBlock` table below the grid
+   * reads the SAME facts — this component renders the decision subset, it is not
+   * a second source. Absent on list-only products / older API payloads, in which
+   * case the whole at-a-glance stack collapses.
+   */
+  facts?: GrowingFacts;
+  /**
    * Declared botanical name (Odoo `grove_botanical_name`, surfaced as
    * `facts.botanical_name`) — the taxon the per-product plant-health carve-out
    * gate is keyed on (GOL-2132). Threaded through so the estimator and the
@@ -189,6 +202,7 @@ export function ProductView({
   shippingRates,
   shippingFeed,
   shippingZoneMap,
+  facts,
   botanicalName,
   complianceExempt,
   shipsAllGreenStates,
@@ -326,10 +340,18 @@ export function ProductView({
 
   const zoneOptions = useMemo(() => waveZones(calendar), [calendar]);
   // A pickup-only template never ships, so its pre-order resolves for the farm.
-  const waveZone = method === "pickup" || pickupOnly ? farmZoneOf(shippingFeed) : usdaZone;
+  // Farm pickup runs on the fixed farm schedule (fall pickup Oct 20 to Oct 31,
+  // order by Oct 15; spring on the farm zone), Josh 2026-10-07.
+  const isPickupWave = method === "pickup" || Boolean(pickupOnly);
+  const waveZone = isPickupWave ? farmZoneOf(shippingFeed) : usdaZone;
   const waves = useMemo(
-    () => (waveZone != null ? preorderWaves(waveZone, new Date(), calendar) : []),
-    [waveZone, calendar],
+    () =>
+      isPickupWave
+        ? pickupWaves(new Date(), calendar, waveZone ?? undefined)
+        : waveZone != null
+          ? preorderWaves(waveZone, new Date(), calendar)
+          : [],
+    [isPickupWave, waveZone, calendar],
   );
   // The chosen wave while it is open for this zone, else the first open one.
   const wave: ShipWave | null = waves.some((w) => w.wave === chosenWave && w.open)
@@ -1037,15 +1059,41 @@ export function ProductView({
           <p className="mt-4 text-xs text-ink-soft">
             Free local pickup Tue–Sat, 10am–7pm. Can’t make those hours? Call us after ordering.
           </p>
-          {/* A pickup-only product must not advertise a 32-state ship promise it
-              cannot keep (GOL-2588); the policy link stays, since the warranty
-              terms still apply to a picked-up tree. */}
+          {/* A pickup-only product must not advertise a whole-footprint ship
+              promise it cannot keep (GOL-2588); the policy link stays, since the
+              warranty terms still apply to a picked-up tree. The footprint
+              wording is derived — D.C. is in the green list and is not a state
+              (GOL-2941). */}
           <p className="mt-1 text-xs text-ink-soft">
             {pickupOnly
               ? "Farm pickup only, not shipped. "
-              : `Ships to ${GREEN_STATE_COUNT} states, priced live at checkout. `}
+              : `Ships to ${shipScope().phrase}, priced live at checkout. `}
             <PolicyLink /> for full shipping and warranty terms.
           </p>
+
+          {/* ── "At a glance" stack (GOL-2734) ─────────────────────────────
+              The three decision aids sit at the FOOT OF THE BUY COLUMN: on
+              desktop that fills the dead space the taller gallery used to leave
+              beside it, and on phones (grid collapses to one column) the same
+              DOM stacks straight after Add-to-cart in decision order. ONE render
+              each — there is no md:-hidden mobile duplicate anywhere on this
+              page. ZoneCheck moved up from below the description; the full
+              `SpecBlock` table still renders lower down with every row. */}
+          <ZoneCheck zoneMin={facts?.zoneMin ?? null} zoneMax={facts?.zoneMax ?? null} />
+
+          <AtAGlance facts={facts} />
+
+          {/* The hint's only action is "Set quantity to 2", so it renders only
+              while the CTA can actually add: never beside a sold-out, coming-soon,
+              out-of-season or no-open-wave buy box (same `ctaDisabled` that
+              locks AddToCartButton and the sticky bar). */}
+          {!ctaDisabled && (
+            <PlantTwoHint
+              pollination={facts?.pollination}
+              quantity={quantity}
+              onPlantTwo={() => setQuantity(PLANT_TWO_QUANTITY)}
+            />
+          )}
         </div>
       </div>
 
