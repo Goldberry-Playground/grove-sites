@@ -72,9 +72,9 @@ export interface ConsultCarveOutNoticeProps {
  *
  * ── Why it is reassuring, not alarming ──────────────────────────────────────
  * The constraint is narrow and the number says so: Florida takes three of
- * fourteen species off the list, Indiana / Ohio / Wisconsin take one. A full
+ * seventeen species off the list, Indiana / Ohio / Wisconsin take one. A full
  * 100-tree food forest is genuinely deliverable in all four. So the notice leads
- * with what the shopper DOES get ("11 of our 14 food-forest species"), then
+ * with what the shopper DOES get ("14 of our 17 food-forest species"), then
  * names the exclusions plainly. Leading with the loss would overstate it.
  *
  * The denominator is deliberately scoped to the MIX, not to the nursery
