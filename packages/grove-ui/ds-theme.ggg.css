@@ -1509,10 +1509,22 @@
   color: var(--grove-color-error-fg);
   font-size: var(--grove-text-sm);
 }
+/* Drawn, not typed: this was U+26A0 WARNING SIGN, which none of the loaded
+   faces (Fraunces / Newsreader / IBM Plex Mono) cover, so it painted an empty
+   box on a client with no symbol font (GOL-2797; the mark arrived on the
+   order-blocked banner with GOL-3194). A mask (not background-image) so the
+   triangle keeps the banner's error-fg currentColor, and the same 12x12
+   outline geometry as <GlyphIcon name="warning" />. Decorative: the alert
+   message carries the meaning (the `/ ""` alt was already empty). */
 .grove-checkout__order-blocked::before {
-  content: "⚠" / "";
+  content: "";
   flex-shrink: 0;
-  font-weight: 700;
+  width: 1em;
+  height: 1em;
+  margin-top: 0.1em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 1.15 11.3 10.4H0.7Z'/%3E%3Cpath d='M6 4.9v2.1'/%3E%3Cpath d='M6 8.75h0.01' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 1.15 11.3 10.4H0.7Z'/%3E%3Cpath d='M6 4.9v2.1'/%3E%3Cpath d='M6 8.75h0.01' stroke-width='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 .grove-checkout__wave-switch {
   display: grid;
