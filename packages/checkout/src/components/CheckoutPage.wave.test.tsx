@@ -4,6 +4,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CheckoutPage } from "./CheckoutPage";
 import { CartProvider } from "../cart-store";
+import { QUOTE_REFUSED_FALLBACK } from "../hooks/useCartDepositQuote";
 
 vi.mock("@grove/analytics", () => ({ trackBeginCheckout: vi.fn() }));
 
@@ -108,6 +109,8 @@ describe("<CheckoutPage /> — pre-order wave", () => {
     await user.type(screen.getByLabelText(/City/), "Bluefield");
     await user.type(screen.getByLabelText(/ZIP/), "24701");
     await user.selectOptions(screen.getByLabelText(/State/), "WV");
+    // Submit waits for the quote of the completed ZIP (no stale-quote submit).
+    await waitFor(() => expect(submits()[1].disabled).toBe(false));
     fireEvent.click(submits()[1]);
     await waitFor(() => expect(spy.mock.calls.some((c) => String(c[0]).includes("/api/checkout/session"))).toBe(true));
     const call = spy.mock.calls.find((c) => String(c[0]).includes("/api/checkout/session"))!;
@@ -190,5 +193,150 @@ describe("<CheckoutPage /> — pre-order wave", () => {
       expect((await screen.findByRole("alert")).textContent).toBe(UNCONFIRMED);
       expect(submits().every((b) => b.disabled)).toBe(true);
     });
+  });
+
+  describe("zone mismatch: the destination ZIP closes the wave (GOL-3194)", () => {
+    const CLOSED_FALL = "The fall pre-order for zone 3 closed on Nov 12. Choose spring.";
+    const quoteBodies = (spy: { mock: { calls: unknown[][] } }) =>
+      spy.mock.calls
+        .filter((c) => String(c[0]).includes("/api/cart/quote"))
+        .map((c) => JSON.parse(String((c[1] as RequestInit).body)) as Record<string, unknown>);
+
+    /** A backend that refuses fall for ZIP 55401 (zone 3, past Nov 12) and
+     *  confirms spring; `springOpen: false` refuses spring as well. */
+    function zoneBackend({ springOpen = true } = {}) {
+      return vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String((init as RequestInit).body)) as { shipWave?: string; zip?: string };
+        if (body.zip === "55401" && body.shipWave === "fall") {
+          return jsonResponse(
+            springOpen ? { error: CLOSED_FALL, alternateWave: "spring" } : { error: CLOSED_FALL },
+            400,
+          );
+        }
+        if (body.zip === "55401" && body.shipWave === "spring" && !springOpen) {
+          return jsonResponse({ error: "The spring pre-order for zone 3 closed on May 31." }, 400);
+        }
+        return jsonResponse({ depositNow: true, depositReason: "preorder", shipWave: body.shipWave, amountDueToday: 10 });
+      });
+    }
+
+    function renderCheckout() {
+      render(
+        <CartProvider>
+          <CheckoutPage depositQuoteHref="/api/cart/quote" />
+        </CartProvider>,
+      );
+    }
+
+    it("re-quotes with the ZIP once it is complete, not on every keystroke", async () => {
+      seed([line(1, "fall")]);
+      const spy = zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await waitFor(() => expect(quoteBodies(spy)).toHaveLength(1));
+      expect("zip" in quoteBodies(spy)[0]).toBe(false);
+      await user.type(screen.getByLabelText(/ZIP/), "2470");
+      await new Promise((r) => setTimeout(r, 400));
+      expect(quoteBodies(spy)).toHaveLength(1);
+      await user.type(screen.getByLabelText(/ZIP/), "1");
+      await waitFor(() => expect(quoteBodies(spy).at(-1)).toMatchObject({ shipWave: "fall", zip: "24701" }));
+    });
+
+    it("surfaces the closed wave as soon as the ZIP is known and switches the order to spring", async () => {
+      seed([line(1, "fall"), line(2, "fall")]);
+      const spy = zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await screen.findByLabelText(/Full name/);
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+
+      await user.type(screen.getByLabelText(/ZIP/), "55401");
+      expect((await screen.findByRole("alert")).textContent).toBe(CLOSED_FALL);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+
+      await user.click(await screen.findByRole("button", { name: "Switch this order to the spring wave" }));
+
+      // Every line moved to spring (one wave per order), and the quote re-ran on it.
+      await waitFor(() =>
+        expect(JSON.parse(window.localStorage.getItem("grove-cart-v1")!).map((l: { wave: string }) => l.wave)).toEqual([
+          "spring",
+          "spring",
+        ]),
+      );
+      await waitFor(() => expect(quoteBodies(spy).at(-1)).toMatchObject({ shipWave: "spring", zip: "55401" }));
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(screen.queryByRole("button", { name: /Switch this order/ })).toBeNull();
+      const orderType = screen.getByTestId("order-type");
+      expect(orderType.textContent).toBe("Pre-order · spring wave · $10 deposit today, balance when your trees ship");
+      expect(document.activeElement).toBe(orderType);
+      expect(submits().every((b) => !b.disabled)).toBe(true);
+    });
+
+    it("shows the reason and keeps submit blocked when spring is closed too (no switch offered)", async () => {
+      seed([line(1, "fall")]);
+      zoneBackend({ springOpen: false });
+      renderCheckout();
+      const user = userEvent.setup();
+      await user.type(await screen.findByLabelText(/ZIP/), "55401");
+      expect((await screen.findByRole("alert")).textContent).toBe(CLOSED_FALL);
+      expect(screen.queryByRole("button", { name: /Switch this order/ })).toBeNull();
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+
+    it("does not send the ZIP for farm pickup", async () => {
+      seed([line(1, "fall")]);
+      const spy = zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await user.type(await screen.findByLabelText(/ZIP/), "55401");
+      await waitFor(() => expect(quoteBodies(spy).at(-1)).toMatchObject({ zip: "55401" }));
+      await user.click(screen.getByRole("radio", { name: /pick/i }));
+      await waitFor(() => expect(quoteBodies(spy).at(-1)).toMatchObject({ fulfillment: "pickup" }));
+      expect("zip" in quoteBodies(spy).at(-1)!).toBe(false);
+    });
+
+    it("blocks submit while the ZIP's quote is pending, so the ZIP-less quote can't carry a submit", async () => {
+      seed([line(1, "fall")]);
+      const spy = zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await screen.findByLabelText(/Full name/);
+      // The ZIP-less quote confirms fall: submit opens.
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      await user.type(screen.getByLabelText(/ZIP/), "55401");
+      // Same tick as the ZIP completing: the debounced re-quote has not even
+      // been sent, and the stale fall confirmation must not count.
+      expect(quoteBodies(spy).some((b) => b.zip === "55401")).toBe(false);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+      // Then the ZIP's own answer lands: fall is closed there.
+      expect((await screen.findByRole("alert")).textContent).toBe(CLOSED_FALL);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+
+    it("reopens submit once the ZIP's quote confirms the wave", async () => {
+      seed([line(1, "fall")]);
+      zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await screen.findByLabelText(/Full name/);
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      await user.type(screen.getByLabelText(/ZIP/), "24701");
+      expect(submits().every((b) => b.disabled)).toBe(true);
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
+  it("says why when a 400 quote refusal carries no usable reason", async () => {
+    seed([line(1, "fall")]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ error: { code: "closed" } }, 400));
+    render(
+      <CartProvider>
+        <CheckoutPage depositQuoteHref="/api/cart/quote" />
+      </CartProvider>,
+    );
+    await screen.findByLabelText(/Full name/);
+    expect((await screen.findByRole("alert")).textContent).toBe(QUOTE_REFUSED_FALLBACK);
+    expect(submits().every((b) => b.disabled)).toBe(true);
   });
 });

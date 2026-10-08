@@ -44,4 +44,12 @@ describe("ship_wave pass-through", () => {
     await c.checkout.quote({ items: [{ variantId: 1, quantity: 1 }] }).catch(() => undefined);
     expect(lastBody().ship_wave).toBeNull();
   });
+
+  it("checkout.quote posts the destination ZIP as shipping.zip only once known (GOL-3194)", async () => {
+    const c = createOdooClient(config);
+    await c.checkout.quote({ items: [{ variantId: 1, quantity: 1 }], shipWave: "fall", zip: "55401" }).catch(() => undefined);
+    expect(lastBody().shipping).toEqual({ zip: "55401" });
+    await c.checkout.quote({ items: [{ variantId: 1, quantity: 1 }], shipWave: "fall" }).catch(() => undefined);
+    expect("shipping" in lastBody()).toBe(false);
+  });
 });
