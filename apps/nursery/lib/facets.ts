@@ -46,6 +46,13 @@ export interface FacetParams {
   /** Free-text catalog search (`?q=`) — matched client-side against product
    *  name + category name. `null` when absent/blank so it never narrows. */
   q: string | null;
+  /**
+   * "On offer" (`?offer=1`) — GOL-2745. Applied client-side against each
+   * product's `onOffer`. The CONTROL for this facet only renders when at least
+   * one product in view is actually on offer (spec decision 5), so between
+   * promotions there is no filter that always returns nothing.
+   */
+  offer: boolean;
 }
 
 type RawParam = string | string[] | undefined;
@@ -76,6 +83,7 @@ export function parseFacetParams(sp: Record<string, RawParam>): FacetParams {
       rawLayer !== null && (LAYER_OPTIONS as readonly string[]).includes(rawLayer) ? rawLayer : null,
     sun: rawSun !== null && (SUN_OPTIONS as readonly string[]).includes(rawSun) ? rawSun : null,
     q: rawQ.length > 0 ? rawQ : null,
+    offer: firstString(sp.offer) === "1",
   };
 }
 
@@ -133,7 +141,15 @@ export function shopHref(
     layer: string | null;
     sun: string | null;
     q: string | null;
+    offer: boolean;
   }> = {},
+  /**
+   * Base path the query string hangs off. Defaults to `/shop` (the Orchard
+   * department) so every existing caller is unchanged; a department page passes
+   * its own `/shop/<dept>` so a pill click stays inside that department
+   * instead of silently dumping the shopper back into the orchard (GOL-2745).
+   */
+  basePath = "/shop",
 ): string {
   const merged: FacetParams = { ...current, ...patch };
   const sp = new URLSearchParams();
@@ -143,8 +159,9 @@ export function shopHref(
   if (merged.layer) sp.set("layer", merged.layer);
   if (merged.sun) sp.set("sun", merged.sun);
   if (merged.q) sp.set("q", merged.q);
+  if (merged.offer) sp.set("offer", "1");
   const qs = sp.toString();
-  return qs ? `/shop?${qs}` : "/shop";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 export interface FacetOption {

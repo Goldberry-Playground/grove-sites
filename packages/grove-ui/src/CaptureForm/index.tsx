@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { Button } from "../Button";
 
 /** Brands a visitor can opt into — mirrors `@grove/newsletter` `Brand`. */
@@ -53,8 +53,29 @@ export interface CaptureFormProps {
   /** Visual density. `inline` is a single-row footer variant. */
   layout?: "stacked" | "inline";
   className?: string;
+  /**
+   * Message shown inline when the typed email isn't a plausible address, before
+   * anything is sent. Overridable because the ask differs by surface (a
+   * waitlist wants "Enter an email address like you@example.com"); the default
+   * matches the tone of the server-side 400 copy.
+   */
+  invalidEmailMessage?: string;
   /** Fires after each submit attempt — for analytics/tests. */
   onResult?: (result: { ok: boolean; error?: string }) => void;
+}
+
+/**
+ * Plausible-address check, deliberately permissive (GOL-2745).
+ *
+ * This exists to catch the typo the visitor can still fix — a missing `@`, a
+ * trailing comma, `you@example` with no dot — NOT to adjudicate RFC 5322. Ghost
+ * is the authority on deliverability and the BFF re-validates; a regex that
+ * tries to be clever here only ever rejects somebody's real, valid address.
+ */
+export function isPlausibleEmail(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || /\s/.test(trimmed)) return false;
+  return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(trimmed);
 }
 
 type Status = "idle" | "submitting" | "success" | "error";
@@ -98,13 +119,19 @@ export function CaptureForm({
   hubOptInLabel = "Also send me news from Gathering at the Grove — the community behind the farm.",
   consentText = "We'll only email you what you signed up for. Unsubscribe anytime.",
   endpoint = "/api/newsletter/subscribe",
+  invalidEmailMessage = "That email doesn't look right. Mind checking it?",
   layout = "stacked",
   className = "",
   onResult,
 }: CaptureFormProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string>("");
+  // Tracked separately from `status`: it's what wires aria-invalid on the FIELD,
+  // where a server-side error (5xx, network) is about the request, not the value.
+  const [invalidEmail, setInvalidEmail] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
   const emailId = useId();
+  const errorId = useId();
   const nameId = useId();
   const hubId = useId();
 
@@ -124,6 +151,22 @@ export function CaptureForm({
     }
 
     const email = String(data.get("email") ?? "").trim();
+
+    // Validate inline BEFORE the round-trip (GOL-2745). The form is `noValidate`
+    // so the browser's own bubble never fires; without this a typo cost a full
+    // network round-trip to come back as a 400, well past the 400ms the visitor
+    // reads as "instant". Focus moves to the field so a keyboard or screen-
+    // reader user lands on the thing to fix, not on a message about it.
+    if (!isPlausibleEmail(email)) {
+      setStatus("error");
+      setError(invalidEmailMessage);
+      setInvalidEmail(true);
+      emailRef.current?.focus();
+      onResult?.({ ok: false, error: invalidEmailMessage });
+      return;
+    }
+    setInvalidEmail(false);
+
     const name = collectName ? String(data.get("name") ?? "").trim() : undefined;
     const wantsHub = hubOptIn && data.get("hubOptIn") === "on";
 
@@ -162,7 +205,7 @@ export function CaptureForm({
       // (GOL-1881).
       let reason = "Something went wrong on our end — mind trying that again?";
       if (res.status === 400) {
-        reason = "That email doesn't look right — mind checking it?";
+        reason = "That email doesn't look right. Mind checking it?";
       } else if (res.status >= 500) {
         reason = "Signups aren't open just yet — please check back soon.";
       }
@@ -223,6 +266,7 @@ export function CaptureForm({
           </label>
           <input
             id={emailId}
+            ref={emailRef}
             name="email"
             type="email"
             required
@@ -230,6 +274,21 @@ export function CaptureForm({
             inputMode="email"
             placeholder="you@example.com"
             className="grove-capture__input"
+            aria-invalid={invalidEmail || undefined}
+            // Associates the message below with the field, so a screen reader
+            // reads the reason when focus lands here — the <p role="alert"> on
+            // its own announces once and is then orphaned from the input.
+            aria-describedby={status === "error" ? errorId : undefined}
+            // Clear the inline error as soon as the visitor starts fixing it;
+            // leaving a stale "that's wrong" under a corrected field is the
+            // forgiveness failure that makes inline validation feel hostile.
+            onInput={() => {
+              if (invalidEmail) {
+                setInvalidEmail(false);
+                setStatus("idle");
+                setError("");
+              }
+            }}
           />
         </div>
 
@@ -260,6 +319,7 @@ export function CaptureForm({
       <p className="grove-capture__consent">{consentText}</p>
 
       <p
+        id={errorId}
         className="grove-capture__error"
         role="alert"
         aria-live="assertive"

@@ -10,6 +10,11 @@ import { getMockProductById, mockProducts } from "../../../data/mock-products";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { inferCompanions, toCompanionInput } from "../../../lib/companions";
 import { stripVariantCode } from "../../../lib/variant-select";
+import { getCatalogNav } from "../../../lib/catalog-nav";
+import { findDepartment, ORCHARD_SLUG } from "../../../lib/departments";
+import { DepartmentNav } from "../../department-nav";
+import { DepartmentTeaser } from "../department-teaser";
+import { ShopBrowse } from "../shop-browse";
 import { ProductView, type ViewImage, type ViewVariant } from "./product-view";
 import { SpecBlock } from "./spec-block";
 import { ProductDescription } from "./product-description";
@@ -17,6 +22,37 @@ import { GrowingGuide } from "./growing-guide";
 import { CompanionsStrip } from "./companions-strip";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Department tree, memoized per request: `generateMetadata` and the department
+ * page body both need it, and `force-dynamic` disables fetch dedupe (see
+ * `loadProduct` below for the same reasoning).
+ */
+const loadNav = cache(getCatalogNav);
+
+/**
+ * Metadata for a department segment (`/shop/<slug>`, GOL-2745). Resolves the
+ * slug with the same rules `departmentPage` uses, so a 404ing slug gets the
+ * not-found noindex and a real department gets its own title and canonical.
+ */
+async function departmentMetadata(slug: string): Promise<Metadata> {
+  const { nav } = await loadNav();
+  const dept = findDepartment(nav, slug);
+  if (!dept || dept.slug === ORCHARD_SLUG) return notFoundMetadata();
+  const canonicalPath = `/shop/${dept.slug}`;
+  // A coming-soon page earns indexing through its authored teaser and "What's
+  // coming" list. Until Odoo carries either, the page is a heading, a
+  // placeholder line and a waitlist form: thin content that should not be
+  // indexed. It becomes indexable on its own once the copy lands in Odoo.
+  const thinTeaser =
+    dept.status === "coming_soon" && !dept.teaser && dept.comingList.length === 0;
+  return {
+    title: dept.name,
+    ...(dept.teaser ? { description: dept.teaser } : {}),
+    alternates: { canonical: canonicalPath },
+    ...(thinTeaser ? { robots: { index: false, follow: true } } : {}),
+  };
+}
 
 function odooBaseUrl(): string {
   return process.env.ODOO_URL ?? "http://localhost:8069";
@@ -56,7 +92,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const productId = Number(id);
-  if (Number.isNaN(productId)) return notFoundMetadata();
+  // A non-numeric segment is a department page (GOL-2745), not a bad product
+  // id: it needs its own title and canonical, and it must NOT inherit the
+  // not-found noindex below.
+  if (Number.isNaN(productId)) return departmentMetadata(id);
 
   const product = await loadProduct(productId);
   if (!product) return notFoundMetadata();
@@ -71,14 +110,31 @@ export async function generateMetadata({
   });
 }
 
-export default async function ProductDetailPage({
+/**
+ * `/shop/<segment>` — a product detail page, or a DEPARTMENT page (GOL-2745).
+ *
+ * Both live on this one dynamic segment on purpose. Next.js allows only one
+ * dynamic slug name per route level, so a sibling `app/shop/[dept]` cannot
+ * coexist with this `[id]` — and hard-coding a folder per department would make
+ * launching a product family a code deploy, which is exactly what the spec's
+ * decision 6 rules out. Departments come from Odoo, so their routes have to be
+ * resolved from data too.
+ *
+ * The discrimination is total, not a guess: a product segment is the numeric
+ * `product.template` id, and a department slug never is. Numeric → product;
+ * anything else → look it up in the nav tree and 404 if it isn't a department.
+ * (`/shop/guilds` is a real static route and wins over this segment outright.)
+ */
+export default async function ShopSegmentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
   const productId = Number(id);
-  if (Number.isNaN(productId)) notFound();
+  if (Number.isNaN(productId)) return departmentPage(id, await searchParams);
 
   const odooBase = odooBaseUrl();
 
@@ -246,5 +302,43 @@ export default async function ProductDetailPage({
 
       <CompanionsStrip companions={companions} odooBase={odooBase} />
     </div>
+  );
+}
+
+/**
+ * Render a department page for a non-numeric `/shop/<slug>` segment.
+ *
+ * A `live` department renders the same browse body `/shop` does (grid, pills,
+ * facets limited to that department); a `coming_soon` one renders the teaser +
+ * waitlist. An unknown or `hidden` slug 404s, so a retired department doesn't
+ * leave a soft-404 page collecting search traffic.
+ */
+async function departmentPage(
+  slug: string,
+  searchParams: Record<string, string | string[] | undefined>,
+) {
+  const { nav } = await loadNav();
+  const dept = findDepartment(nav, slug);
+  // Orchard IS `/shop` — serving it here too would split its SEO across two
+  // URLs for identical content.
+  if (!dept || dept.slug === ORCHARD_SLUG) notFound();
+
+  return (
+    <>
+      <DepartmentNav nav={nav} activeSlug={dept.slug} />
+      {dept.status === "coming_soon" ? (
+        <section className="section">
+          <div className="section-header">
+            <h1>{dept.name}</h1>
+            {/* Text, not a colour — the "not yet" state has to survive
+                greyscale and every CVD type (spec § Responsive a11y). */}
+            <span className="section-tag">Coming soon</span>
+          </div>
+          <DepartmentTeaser dept={dept} />
+        </section>
+      ) : (
+        <ShopBrowse dept={dept} nav={nav} searchParams={searchParams} />
+      )}
+    </>
   );
 }
