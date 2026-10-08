@@ -114,7 +114,9 @@ export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
  *  explicitly, so a green-list expansion can never silently restore the
  *  "D.C. is a state" error this map exists to fix (GOL-2941). */
 export const NON_STATE_GREEN_DESTINATIONS: Record<string, string> = {
-  DC: "Washington, D.C.",
+  // U+00A0 keeps "D.C." on the same line as "Washington": a wrap at the comma
+  // orphans it and reads as Washington *state*, which is not green (GOL-3236).
+  DC: "Washington,\u00A0D.C.",
   // If the green list ever gains a territory, add it here *and* to
   // NON_STATE_SHORT_NAMES — the drift test in shipping-estimate.test.ts fails
   // on any non-state USPS code in ZONE_BY_STATE that is missing from this map.
