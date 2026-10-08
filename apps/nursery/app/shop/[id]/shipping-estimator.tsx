@@ -108,7 +108,8 @@ export interface ShippingEstimatorProps {
  * Accessibility: the select is labelled; the result region is aria-live; every
  * eligibility state pairs an icon *and* words (colour is never the only signal —
  * colour-blind / grayscale safe). Primary copy clears WCAG AA on the parchment
- * surface; the muted "· timing" / "from" / disclaimer suffixes use the house
+ * surface — including the default-state sentence (`text-ink-soft`, GOL-3236);
+ * the muted "· timing" / "from" / disclaimer suffixes use the house
  * `text-foreground/55`–`/60` convention (~3–4:1), tracked for the app-wide
  * muted-token sweep — they're supporting text, never the sole carrier of meaning.
  */
@@ -205,7 +206,7 @@ export function ShippingEstimator({
       {/* aria-live so screen readers announce the estimate when the state changes. */}
       <div aria-live="polite" className="mt-3">
         {state === "" && (
-          <p className="text-xs text-foreground/60">
+          <p className="text-xs text-ink-soft">
             We ship living trees to {shipTo.phrase}; pick yours to see your
             rate. Your trees ship together in as few boxes as possible, priced per box;
             your exact rate is confirmed at checkout.
