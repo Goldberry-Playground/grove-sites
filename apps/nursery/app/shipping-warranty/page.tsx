@@ -13,6 +13,7 @@ import {
   servedZoneSpan,
   shipWindowEnvelope,
 } from "../../lib/fulfillment-mode";
+import { POTTED_SEASON_FALLBACK } from "../../lib/fulfillment-method";
 
 // At The Grove Nursery — Shipping & Warranty policy page (GOL-967).
 //
@@ -58,6 +59,16 @@ import {
 // before GOL-2128. The engine owns eligibility; this is the human-readable
 // mirror, updated only by a matching engine change.
 //
+// Edited 2026-10-08 per Josh: the two em dashes in the shipping-season prose
+// became a period and parentheses, and "there is no month we cannot get a tree
+// to you" was replaced. Potted / peat-and-bagged ships only inside the feed's
+// `leafed_window` (May 1 to Oct 15 in prod) and bareroot is always a pre-order
+// for a fall or spring wave (lib/fulfillment-method, lib/preorder-waves), so
+// the copy now reads "you can order any month; your tree ships in the next
+// open window for your zone". The aside note names the same leafed window. No
+// terms, prices or list entries altered. Otherwise the "do not alter" rule
+// above still stands.
+//
 // Built from the app's own design-system classes (.section, .section-header,
 // .section-tag, .section-lede, .with-sidebar, .field-notes) — no bespoke CSS.
 export const dynamic = "force-dynamic";
@@ -98,6 +109,11 @@ export default async function ShippingWarrantyPage() {
   }
   const windows = shipWindowEnvelope(shippingCalendar);
   const fulfillmentDays = shippingCalendar?.fulfillment_days ?? [5, 10];
+  // The leafed-out (potted / peat-and-bagged) season, from the same feed the
+  // PDP format gate reads (`isPottedSeason`), so the policy page states the
+  // same immediate-ship window the buy box enforces (Josh 2026-10-08).
+  const leafedWindow =
+    shippingCalendar?.leafed_window ?? POTTED_SEASON_FALLBACK;
   // GOL-2957: the served USDA hardiness span, derived from the same feed. The
   // backend computes `[min, max]` across the green-filtered PHZM matrix, so
   // adding or removing a green state reshapes it with no copy edit here. A
@@ -185,19 +201,21 @@ export default async function ShippingWarrantyPage() {
             We ship dormant trees in two waves a year:{" "}
             <strong>{formatWindow(windows.fall)}</strong> in the fall and{" "}
             <strong>{formatWindow(windows.spring)}</strong> in the spring. Those
-            are the outside edges of the season — the exact weeks stagger by
+            are the outside edges of the season. The exact weeks stagger by
             USDA hardiness zone and depend on the weather and how quickly the
             ground thaws in your region, so warmer zones ship earlier in spring
             and later in fall. Your window is confirmed at checkout.
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "0.75rem" }}>
-            An order placed outside those waves, while the trees are leafed out,
-            ships as peat and bagged — a leafed tree with its roots wrapped in
-            damp peat — on our normal {fulfillmentDays[0]} to{" "}
-            {fulfillmentDays[1]} business day timeline. Once the next dormant
-            wave opens, orders are reserved instead and ship dormant in your
-            zone&apos;s window. Either way there is no month we cannot get a
-            tree to you; what changes is the form it arrives in and when.
+            While the trees are leafed out (
+            <strong>{formatWindow(leafedWindow)}</strong>), you can also order
+            a potted tree to ship right away. It ships as peat and bagged (a
+            leafed tree with its roots wrapped in damp peat) on our normal{" "}
+            {fulfillmentDays[0]} to {fulfillmentDays[1]} business day
+            timeline. Bareroot trees are sold as pre-orders: each one is
+            reserved for the next fall or spring wave and ships dormant in your
+            zone&apos;s window. You can order any month; your tree ships in the
+            next open window for your zone.
           </p>
           <p style={{ maxWidth: "60ch", marginBottom: "1.5rem" }}>
             If your ground is still frozen or your soil is too wet when your
@@ -327,10 +345,10 @@ export default async function ShippingWarrantyPage() {
               <span>Spring shipping</span>
               <strong>{formatWindow(windows.spring)}</strong>
               <small>
-                Staggered by USDA zone, weather permitting. Leafed-out months
-                ship as peat and bagged in{" "}
-                {`${fulfillmentDays[0]}–${fulfillmentDays[1]}`} business
-                days.
+                Staggered by USDA zone, weather permitting. From{" "}
+                {formatWindow(leafedWindow)}, potted trees ship as peat and
+                bagged in {`${fulfillmentDays[0]}–${fulfillmentDays[1]}`}{" "}
+                business days.
               </small>
             </li>
             <li>
