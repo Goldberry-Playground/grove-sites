@@ -231,3 +231,39 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+
+  # GOL-3166: lint the shell scripts under scripts/ — the gap that let the
+  # SC2097/SC2098 bug in scripts/ci/merge-queue-arm-automerge.sh (GOL-3150,
+  # fixed by #1013) ship. odoocker has had this job since its 2026-06-29 CI
+  # audit; grove-sites did not, so the same class of defect was invisible here
+  # even though this is where the merge-queue scripts are authored.
+  #
+  # Hosted in ci.yml rather than actionlint.yml: actionlint.yml is path-filtered
+  # to `.github/workflows/**`, so a shellcheck job there would never fire on the
+  # `scripts/**` PRs it exists to catch. ci.yml runs on every PR, on merge_group,
+  # and on push to main, which is what "green on main" needs.
+  #
+  # Measured 2026-10-06 against ShellCheck 0.11.0 over all 8 shell scripts under
+  # scripts/ with exactly this config: the only warning-level finding in the tree
+  # was the one #1013 fixes, so this job is green on its first run. severity
+  # stays at `warning` — 3 style/info-level findings remain; dial up to `style`
+  # only after those are cleaned.
+  #
+  # Deliberately NOT promoted to a required check: promotion of the guard
+  # /hardening layer is parked on GOL-1953 / GOL-2015 (declared == live in
+  # .github/required-checks.json by design). Do not add this context there.
+  shellcheck:
+    name: shellcheck (scripts/)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # v2.0.0
+        env:
+          # SC1091: "not following sourced file" — scripts/lib/*.sh is sourced at
+          # runtime from paths CI does not resolve. Same exclusion as odoocker.
+          SHELLCHECK_OPTS: -e SC1091
+        with:
+          scandir: ./scripts
+          severity: warning

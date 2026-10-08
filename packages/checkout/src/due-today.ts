@@ -12,6 +12,15 @@ import type { CartDepositQuote } from "./hooks/useCartDepositQuote";
  */
 export function dueTodayFor(quote: CartDepositQuote | null): GroveDueToday | null {
   if (!quote?.depositNow || quote.amountDueToday == null) return null;
+  if (quote.depositReason === "preorder") {
+    const wave = quote.shipWave ? `${quote.shipWave} wave ` : "";
+    return {
+      amount: quote.amountDueToday,
+      label: "Due today (pre-order deposit)",
+      note: `This is a ${wave}pre-order. You pay one flat $10 deposit today, no matter how many trees are in the order, and we charge the balance for trees, shipping and tax when your trees ship or you pick them up.`,
+      eyebrow: "pre-order",
+    };
+  }
   const lead =
     quote.depositReason === "sold-out"
       ? "A tree in your cart is sold out for now, so your whole order is a reservation."

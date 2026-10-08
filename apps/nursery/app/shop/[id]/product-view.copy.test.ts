@@ -41,3 +41,62 @@ describe("product-view.tsx — customer-facing copy honours the no-em-dash rule 
     ).toEqual([]);
   });
 });
+
+describe("product-view.tsx — pickup / shipped gate (2026-10-07 hotfix)", () => {
+  const src = stripComments(readFileSync(SOURCE, "utf8"));
+
+  it("renders the method selector before Format", () => {
+    expect(src).toContain("How do you want it?");
+    expect(src).toContain("Farm pickup");
+    expect(src).toContain("Shipped");
+    expect(src.indexOf("How do you want it?")).toBeLessThan(src.indexOf(">Format<"));
+  });
+
+  it("filters formats through formatsForMethod and relabels by method", () => {
+    expect(src).toContain("preorderSeason");
+    expect(src).toContain("formatsForMethod(");
+    expect(src).toContain("methodFormatLabel(");
+  });
+
+  it("locks a potted line to pickup when chosen for pickup or out of season", () => {
+    expect(src).toMatch(/selectedTier === "potted" && \(method === "pickup" \|\| !pottedSeason\)/);
+  });
+});
+
+describe("preorder-card.tsx: wave card copy (2026-10-07 waves hotfix)", () => {
+  const card = stripComments(readFileSync(path.join(__dirname, "preorder-card.tsx"), "utf8"));
+  const lib = readFileSync(path.join(__dirname, "../../../lib/preorder-waves.ts"), "utf8");
+
+  it("renders no em dash", () => {
+    expect(card).not.toContain("\u2014");
+  });
+
+  it("uses the mockup v4 strings", () => {
+    for (const text of [
+      "Bareroot pre-order",
+      "Pre-order",
+      "$10 deposit today",
+      "balance when it ships",
+      "$10 deposit today · pick up, we will call you to schedule",
+      "Fall wave",
+      "Spring wave",
+      "Fall pickup",
+      "Spring pickup",
+      "Pre-order with a flat $10 deposit.",
+      "Dates are approximate and weather permitting.",
+      "Pre-orders check out on their own, one wave per order.",
+    ]) {
+      expect(card).toContain(text);
+    }
+    for (const text of ["Approx ", "Order by ", "Order-by passed", "Opens Sep 1"]) {
+      expect(lib).toContain(text);
+    }
+  });
+
+  it("the PDP CTA reads Pre-order for $10 and passes the wave", () => {
+    const src = stripComments(readFileSync(SOURCE, "utf8"));
+    expect(src).toContain('"Pre-order for $10"');
+    expect(src).toContain("Your USDA zone");
+    expect(src).toMatch(/wave=\{cartWave\}/);
+  });
+});

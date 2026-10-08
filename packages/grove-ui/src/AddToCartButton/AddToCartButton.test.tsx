@@ -72,3 +72,19 @@ describe("<AddToCartButton /> kit — typed quantity input", () => {
     expect(onQuantityChange).toHaveBeenCalledWith(4);
   });
 });
+
+describe("<AddToCartButton /> kit — refused add", () => {
+  it("shows no 'Added' feedback when onAddToCart returns false", async () => {
+    const user = userEvent.setup();
+    render(<AddToCartButton onAddToCart={() => false} idleLabel="Add to Cart" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(screen.queryByText(/added/i)).toBeNull();
+  });
+
+  it("still shows 'Added' when onAddToCart returns nothing", async () => {
+    const user = userEvent.setup();
+    render(<AddToCartButton onAddToCart={() => {}} idleLabel="Add to Cart" />);
+    await user.click(screen.getByRole("button", { name: /add to cart/i }));
+    expect(screen.getByText(/added/i)).toBeTruthy();
+  });
+});

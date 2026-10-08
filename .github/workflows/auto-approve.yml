@@ -351,11 +351,23 @@ jobs:
           echo "agent-review/* is success on $HEAD_SHA; proceeding to approve + merge."
           fi
 
-          # Don't stack duplicate approvals on re-runs.
-          ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews" \
-            -q '[.[] | select(.user.login=="github-actions[bot]" and .state=="APPROVED")] | length')
+          # Don't stack duplicate approvals on re-runs -- but only an approval
+          # bound to the CURRENT head counts. `main`'s ruleset sets
+          # `dismiss_stale_reviews_on_push: true`, so a head move VOIDS the prior
+          # approval for branch protection while REST `/pulls/{n}/reviews` can
+          # keep reporting it `state: "APPROVED"` (its `commit_id` still points at
+          # the old head, and GitHub only rewrites the row to DISMISSED for an
+          # EXPLICIT dismissal). A state-only guard therefore matched a voided
+          # review, logged "already approved" and skipped re-approving: the PR sat
+          # at `REVIEW_REQUIRED` with every required check green, out of the merge
+          # queue, with no red signal anywhere, and no later run could recover it.
+          # Compare `commit_id` to the head SHA so the guard means "approved on
+          # THIS head" (GOL-3066; same stuck shape as GOL-2134).
+          HEAD_SHA="${HEAD_SHA:-$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q '.headRefOid')}"
+          ALREADY=$(gh api "repos/$REPO/pulls/$PR/reviews?per_page=100" \
+            -q "[.[] | select(.user.login==\"github-actions[bot]\" and .state==\"APPROVED\" and .commit_id==\"$HEAD_SHA\")] | length")
           if [ "${ALREADY:-0}" -gt 0 ]; then
-            echo "PR #$PR already approved by github-actions[bot]."
+            echo "PR #$PR already approved by github-actions[bot] on $HEAD_SHA."
           else
             gh pr review "$PR" --repo "$REPO" --approve --body \
               "Auto-approved by github-actions[bot]: required CI checks passed (for agent PRs, the agent-review/* sign-off is also success on the head SHA). This identity is distinct from the PR author, so it satisfies branch protection's review requirement without self-approval. Functional required status checks (and protected-paths for protected files) still gate the actual merge. (GOL-122 / GOL-276 / GOL-1734 / GOL-1854)"

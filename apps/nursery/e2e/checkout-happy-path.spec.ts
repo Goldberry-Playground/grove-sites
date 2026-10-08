@@ -32,9 +32,9 @@ test.describe("checkout — happy path", { tag: "@stripe" }, () => {
     // Full-charge flow only exists BEFORE the GOL-2233 season cutover; after it
     // every order takes the flat $10 deposit (checkout-deposit-happy-path covers).
     test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-    const product = await findProductByCta(page, "Add to Cart");
+    const product = await findProductByCta(page, "Add to cart");
     await page.goto(product.href);
-    await addCurrentProductToCart(page, 2, "Add to Cart");
+    await addCurrentProductToCart(page, 2, "Add to cart");
 
     await page.goto("/checkout");
     await fillCheckoutForm(page, { state: "WV" });

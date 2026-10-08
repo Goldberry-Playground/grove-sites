@@ -22,9 +22,9 @@ import {
 test.describe("checkout — unsupported ship-to state", () => {
   test("server rejects an off-green-list state with a surfaced 400", async ({ page }) => {
     // Only need *a* product in the cart to reach the checkout form + state gate
-    // (we never complete payment), so fall back to a bareroot Reserve item when
-    // QA has no in-stock "Add to Cart" product yet (GOL-1149).
-    const product = await findProductByCta(page, ["Add to Cart", "Reserve"]);
+    // (we never complete payment), so fall back to a bareroot pre-order when
+    // QA has no in-stock "Add to cart" product yet (GOL-1149).
+    const product = await findProductByCta(page, ["Add to cart", "Pre-order for $10"]);
     await page.goto(product.href);
     await addCurrentProductToCart(page, 1, product.buyLabel);
 

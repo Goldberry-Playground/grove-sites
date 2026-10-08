@@ -416,6 +416,7 @@ export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQ
   return {
     depositNow: raw.deposit_now,
     depositReason: raw.deposit_reason ?? null,
+    shipWave: raw.ship_wave ?? null,
     depositAmount: raw.deposit_amount,
     amountDueToday: raw.amount_due_today ?? null,
     afterCutover: raw.after_cutover,

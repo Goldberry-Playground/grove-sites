@@ -4,12 +4,14 @@
 
 > **Consolidated 2026-08-20** with odoocker PR #522 (`docs/RUNBOOK-storefront-release.md`,
 > GOL-1325) — that doc and this one were written independently to solve the same
-> problem. This is now the single canonical procedure. Once
+> problem. This is now the single canonical procedure.
 > [odoocker#522](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/522)
-> merges, #522 **will be** reduced to an Option-A-specific appendix that points back
-> here — **that reduction has not landed yet; #522 is still open as the full
-> runbook.** If you find a second copy of the deploy steps anywhere else, it's stale
-> — this file plus `scripts/lib/do-app-redeploy.sh` are the only source of truth.
+> **merged 2026-08-23**, and the reduction **has landed**: odoocker's
+> `docs/RUNBOOK-storefront-release.md` on `main` is now a short
+> *"Option A appendix"* that points back here and carries only the pin-bump step,
+> which lives in odoocker's Terraform rather than this repo. If you find a second
+> copy of the deploy steps anywhere else, it's stale — this file plus
+> `scripts/lib/do-app-redeploy.sh` are the only source of truth.
 
 ## The shape of prod frontends
 
@@ -27,6 +29,16 @@ QA counterparts pull from the same per-tenant GHCR repos. Under Option A, QA
 tracks `latest` and prod is pinned to a reviewed SHA — QA's current build is the
 image the *next* prod promotion will pull, not necessarily what prod is serving
 right now.
+
+> ⚠️ **QA does not run continuously any more.** Since the biweekly **release
+> train** (odoocker `docs/RUNBOOK-release-train.md`, EPIC GOL-2324) the whole QA
+> env — including the four `*.qa.gatheringatthegrove.com` App Platform apps —
+> exists **only inside a ~3-day train window** (Mon up / Wed promote / Thu
+> teardown) and the apps are **destroyed** on teardown, not parked. Between trains
+> the `*.qa.*` hostnames resolve to nothing running, so **any step below that
+> compares prod against QA only works inside a train window.** Outside one, verify
+> prod against the GHCR digest instead (see the drift alarm) rather than against a
+> QA URL.
 
 ## Two hard lessons (GOL-1607) — read before touching a prod app
 
@@ -87,7 +99,7 @@ fingerprint before declaring success:
 fp() { curl -s --max-time 20 "$1/" \
   | grep -oE 'static/chunks/webpack-[a-f0-9]+\.js' | head -1; }
 
-fp https://georgeggg.com                     # AFTER (prod)
+fp https://woodworkingeorge.com              # AFTER (prod)
 fp https://ggg.qa.gatheringatthegrove.com    # QA == the build a redeploy just pulled
 ```
 
@@ -102,7 +114,7 @@ the sorted `/_next/static/chunks/*.js` set.
 Then smoke the public route:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' --max-time 20 https://georgeggg.com   # expect 200
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 20 https://woodworkingeorge.com   # expect 200
 ```
 
 ## Promoting a new build (Option A — GOL-1304)
@@ -125,18 +137,16 @@ flow:
 point of pinning. Promotion is deliberate: a human decides *when*, even once the
 mechanics are automated end-to-end (see Automated promotion, below).
 
-## Automated promotion — one-click, human-gated (planned — lands with odoocker#541)
+## Automated promotion — one-click, human-gated (LIVE)
 
-> ⚠️ **Not yet available.** The workflow below is **not on odoocker `main`** — it's
-> still in open PR
-> [odoocker#541](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/541).
-> Until that merges, promote using the **manual** steps 1–4 above; do **not**
-> `workflow_dispatch` `promote-storefronts.yml` (it isn't there to run). This
-> section describes the planned one-click flow so the manual steps and the
-> automation stay in sync.
+> ✅ **This is the normal path now.** `promote-storefronts.yml` landed on odoocker
+> `main` with [odoocker#541](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/541),
+> **merged 2026-08-24**. **Dispatch it** — the manual steps 1–4 above are the
+> fallback for when the workflow itself is unavailable, not the default. (An
+> earlier revision of this section said "not yet available, do not dispatch". That
+> was true for about 24 hours in August and wrong for every day since.)
 
-Once [odoocker#541](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/541)
-lands, `.github/workflows/promote-storefronts.yml` (odoocker-goldberrygrove) will run
+`.github/workflows/promote-storefronts.yml` (odoocker-goldberrygrove) runs
 steps 1–4 above end-to-end from `workflow_dispatch`, so promoting no longer requires
 running `terraform`/`doctl` by hand. It still requires one explicit human action:
 the job runs under the `production` GitHub Environment, which pauses for a
@@ -145,6 +155,18 @@ proposed SHA in the run summary, click Approve — the rest (pin bump, targeted
 apply, four single-fire redeploys, fingerprint verification, Discord notify) runs
 unattended. See that workflow's header comment for the full design and its
 required secrets.
+
+**On `target_sha`:** leaving it **blank** does **not** mean "grove-sites `main`
+HEAD". Since
+[odoocker#821](https://github.com/Goldberry-Playground/odoocker-goldberrygrove/pull/821)
+(merged 2026-10-01) a blank input resolves to the **newest grove-sites `main`
+commit whose `docker.yml` ("Docker — Frontends") run succeeded**, and the workflow
+verifies all four `ghcr.io/goldberry-playground/grove-*:<sha>` tags exist **before**
+the production gate. That fixes the earlier failure mode where a blank input
+resolved to a CI-only `main` HEAD that `docker.yml`'s path filter never built, so
+the gate was approved against images that did not exist. Pass an explicit SHA when
+you want a specific build; leave it blank when you want "the newest thing that
+actually built".
 
 ## The alarm — `.github/workflows/prod-deploy-drift.yml`
 

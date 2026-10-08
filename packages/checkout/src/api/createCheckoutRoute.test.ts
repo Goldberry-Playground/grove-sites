@@ -417,3 +417,28 @@ describe("createCheckoutRoute payload validation", () => {
     expect((await res.json()).error).toContain("31-state region");
   });
 });
+
+describe("createCheckoutRoute shipWave validation", () => {
+  it("passes a valid shipWave through to the order", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+    const res = await handler(postReq(validPayload({ shipWave: "spring" })));
+    expect(res.status).toBe(200);
+    expect(odoo.orders.create).toHaveBeenCalledWith(expect.objectContaining({ shipWave: "spring" }));
+  });
+
+  it("accepts an absent or null shipWave", async () => {
+    const handler = createCheckoutRoute(makeOdoo(), { allowedOrigins: ALLOWED });
+    expect((await handler(postReq(validPayload()))).status).toBe(200);
+    expect((await handler(postReq(validPayload({ shipWave: null })))).status).toBe(200);
+  });
+
+  it("rejects an unknown shipWave", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutRoute(odoo, { allowedOrigins: ALLOWED });
+    const res = await handler(postReq(validPayload({ shipWave: "winter" })));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('shipWave must be "fall" or "spring"');
+    expect(odoo.orders.create).not.toHaveBeenCalled();
+  });
+});

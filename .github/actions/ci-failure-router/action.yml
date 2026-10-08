@@ -31,7 +31,13 @@
 #                   AFTER the head commit (`automatic_base_change_succeeded`,
 #                   e.g. a stacked PR whose parent merged) leaves the same empty
 #                   head — the branch-filtered workflows were correctly skipped
-#                   at push time and no event ever re-fires them. This sweep is deliberately driven by `schedule` /
+#                   at push time and no event ever re-fires them.
+#                   GOL-2838 adds another cause: the producing job EXISTS but is
+#                   queued behind a held `concurrency` group (a run merely
+#                   *waiting* on an Environment approval holds one), so it never
+#                   gets a runner and an `if: always()` aggregate gate that
+#                   `needs:` it never starts. That one must NOT be close/reopened
+#                   — the fresh run queues behind the same holder. This sweep is deliberately driven by `schedule` /
 #                   `workflow_dispatch`, NOT `pull_request`, so it cannot be
 #                   dropped by the same event class it detects. It reads the
 #                   declared required contexts from `.github/required-checks.json`
@@ -1060,6 +1066,93 @@ runs:
               // bot approval, so the PR then sits at REVIEW_REQUIRED, all-green
               // and silent. Close/reopen re-parents the chain and fixes both.
 
+              // GOL-2838 cause (e): the required context's producer job EXISTS
+              // but is queued behind a held `concurrency` group, so it never
+              // gets a runner and an `if: always()` aggregate gate that
+              // `needs:` it never starts either — again publishing nothing. The
+              // discriminator against a dropped trigger is API-observable: a run
+              // on this head is still live and owns a job with no runner and no
+              // steps. Naming it matters because close/reopen is WRONG here —
+              // the fresh run queues behind the very same holder and the only
+              // effect is churn (the concurrency trap of GOL-2310). Reuses the
+              // `runsOnSha` read above; costs extra API calls only for a PR
+              // that is already flagged AND has a live run on its head.
+              const queued = [];   // [{ run, jobName }] on THIS head, awaiting a runner
+              const holders = [];  // live runs elsewhere that can own the group
+              const parkedOn = new Map(); // holder run id -> [{ env, reviewers }]
+              const LIVE = new Set(["queued", "pending", "waiting", "in_progress", "requested"]);
+              if (!gated.length && !droppedRequired.length) {
+                try {
+                  // A job with `runner_name == null` and zero steps has been
+                  // created but never dispatched: either queued on concurrency
+                  // or scheduler-dropped. Only inspect runs that are still live.
+                  for (const run of runsOnSha.filter((r) => LIVE.has(r.status))) {
+                    const jobsResp = await github.rest.actions.listJobsForWorkflowRun({
+                      owner, repo, run_id: run.id, per_page: 100,
+                    });
+                    for (const j of jobsResp.data.jobs || []) {
+                      if (LIVE.has(j.status) && !j.runner_name && !(j.steps || []).length) {
+                        queued.push({ run, jobName: j.name });
+                      }
+                    }
+                  }
+
+                  if (queued.length) {
+                    // Candidate group holders: any live run that is NOT on this
+                    // head. `waiting` is the pathological one — it means the run
+                    // is parked on an Environment approval, which holds its
+                    // concurrency group for as long as the human takes.
+                    const seen = new Set();
+                    for (const st of ["waiting", "in_progress", "queued", "pending"]) {
+                      const r = await github.rest.actions.listWorkflowRunsForRepo({
+                        owner, repo, status: st, per_page: 50,
+                      });
+                      for (const run of r.data.workflow_runs || []) {
+                        if (run.head_sha === sha || seen.has(run.id)) continue;
+                        seen.add(run.id);
+                        holders.push(run);
+                      }
+                    }
+                    // Name the environment + reviewers for the parked ones: that
+                    // is the whole actionable payload (who must approve/cancel).
+                    for (const run of holders.filter((r) => r.status === "waiting")) {
+                      try {
+                        const pd = await github.rest.actions.getPendingDeploymentsForRun({
+                          owner, repo, run_id: run.id,
+                        });
+                        const envs = (pd.data || []).map((d) => ({
+                          env: d.environment?.name,
+                          reviewers: (d.reviewers || [])
+                            .map((x) => x.reviewer?.login || x.reviewer?.name)
+                            .filter(Boolean),
+                        })).filter((d) => d.env);
+                        if (envs.length) parkedOn.set(run.id, envs);
+                      } catch (e) {
+                        // `actions: read` is not granted (403) or the API is
+                        // unhappy: lose the environment/approver detail, keep the
+                        // holder link and the do-not-close/reopen verdict.
+                        core.info(`Cannot read pending deployments for run ${run.id} (${e.status}).`);
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Jobs/runs unreadable — fall back to the other causes'
+                  // wording rather than dropping the issue.
+                  core.info(`PR #${pr.number}: cannot inspect live runs for ${sha.slice(0, 7)} (${e.status}); reporting without lock-queue detection.`);
+                }
+              }
+              // An `action_required` park is the stronger signal: if BOTH are
+              // present, report the gate (the queued job is downstream of it).
+              const lockQueued = !gated.length && !droppedRequired.length && queued.length > 0;
+              const holderLine = (r) => {
+                const envs = (parkedOn.get(r.id) || [])
+                  .map((d) => `\`${d.env}\`${d.reviewers.length ? ` (approver: ${d.reviewers.map((x) => `\`${x}\``).join(", ")})` : ""}`)
+                  .join(", ");
+                return `- [${r.name}](${r.html_url}) — \`${r.status}\`, started ${r.created_at}` +
+                  (envs ? `, parked on environment ${envs}` : "") +
+                  `, triggered by \`${r.triggering_actor?.login || r.actor?.login || "unknown"}\``;
+              };
+
               // Cause (c): the PR's BASE was retargeted after this head was
               // pushed (GOL-2850). A `pull_request` workflow filtered by
               // `branches: [main]` is matched against the base AT EVENT TIME,
@@ -1075,7 +1168,7 @@ runs:
               // "dropped trigger" sends triage hunting a phantom GitHub fault
               // instead of recognising the stacked-PR class.
               let retargetedAt = null;
-              if (!gated.length && !droppedRequired.length) {
+              if (!gated.length && !droppedRequired.length && !lockQueued) {
                 try {
                   const events = await github.paginate(
                     github.rest.issues.listEventsForTimeline,
@@ -1121,6 +1214,18 @@ runs:
                     "",
                     `_Precedent: the 2026-10-05 Actions incident (\`degraded_performance\` from 19:11:58Z) landed two of grove-odoo-modules #310's five required contexts in exactly this state. Running \`ci.yml\`'s literal command at that SHA gave \`693 passed\` (GOL-2988 / GOL-3031)._`,
                   ].filter(Boolean).join("\n")
+                : lockQueued
+                ? [
+                    `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but publish nothing because the job that produces them **exists and is waiting for a runner** — not because the trigger was dropped. This is a **queued job, not a missing run.**`,
+                    `**Job(s) awaiting a runner on this head:** ${queued.map((q) => `\`${q.jobName}\` ([${q.run.name}](${q.run.html_url}))`).join(", ")}`,
+                    holders.length
+                      ? [
+                          `**Live run(s) that can be holding the \`concurrency\` group** (a run does not have to be *executing* to hold one — a run parked on an Environment approval holds it for as long as the reviewer takes):`,
+                          "",
+                          ...holders.map(holderLine),
+                        ].join("\n")
+                      : "No other live run was found repo-wide, so nothing appears to hold a `concurrency` group — this is more likely a GitHub scheduler drop (see GOL-2310).",
+                  ].join("\n\n")
                 : gated.length
                 ? [
                     `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but publish no check-run and no commit status, because **${gated.length} workflow run(s) on this head are parked at \`action_required\`** — held for a maintainer's "Approve and run". This is an **approval gate, not a dropped trigger**.`,
@@ -1140,6 +1245,7 @@ runs:
                   ].join("\n")
                 : `These contexts are **required** by branch protection (\`.github/required-checks.json\`, branch \`${baseBranch}\`) but have **no check-run and no commit status of any state** on the head SHA, and no workflow run on this head is awaiting approval. That is a dropped trigger, not a slow run — the PR will hang at "Expected — waiting for status" until it is cleared.`;
 
+              const parked = holders.filter((r) => r.status === "waiting");
               // GOL-3151. On a CONFLICTING PR, close/reopen is not a weaker
               // fix — it is an actively harmful one, because there is no
               // `refs/pull/N/merge` for the re-fired `pull_request` jobs to
@@ -1163,6 +1269,20 @@ runs:
                     "",
                     `_Mergeability read: \`mergeable_state=${merge.state}\`. The diagnosis above is unchanged and still correct — only the remedy differs (GOL-3151 / GOL-3149)._`,
                   ].join("\n")
+                : lockQueued
+                ? [
+                  "**Remediation — do NOT close and reopen this PR.**",
+                  "The job is queued, so close/reopen does not regenerate anything that is missing: it cancels this run and files a *fresh* one that queues behind the very same holder. The only effect is churn (the concurrency trap of GOL-2310).",
+                  parked.length
+                    ? [
+                        "Clear the holder instead. A run parked on an Environment approval blocks its whole `concurrency` group indefinitely, so a named reviewer must either **approve** it (which runs the gated work — for a production apply that is a real deploy, so treat it as one) or **cancel/reject** it. Cancelling needs `actions: write`, so it is a maintainer action, not an agent one:",
+                        "```bash",
+                        ...parked.map((r) => `gh run cancel ${r.id} --repo ${owner}/${repo}  # ${r.name}`),
+                        "```",
+                        "The queued job starts on its own the moment the group is released — no PR action needed.",
+                      ].join("\n")
+                    : "Wait for the listed live run(s) to finish; the queued job starts on its own when the group is released. If nothing is holding the group and the job has sat with no runner for well past a normal run of that job, it is a GitHub scheduler drop — see GOL-2310, which needs `actions:write` (`gh run cancel <id> && gh run rerun <id>`) and is a maintainer action.",
+                ].join("\n\n")
                 : [
                     droppedRequired.length
                       ? "**Remediation** — re-fire CI on the **unchanged** head SHA by closing and reopening the PR. There is nothing to fix in the code; the same commit just needs a runner. (`POST /actions/runs/{id}/rerun` would be the obvious lever, but the agent App installation token has no `actions: write` — it 403s — so close/reopen is the only re-trigger available for an unchanged SHA, and it works because `pull_request` default types include `reopened`):"
@@ -1338,7 +1458,7 @@ runs:
                 ].join("\n");
                 const { data: issue } = await github.rest.issues.create({
                   owner, repo,
-                  title: `${droppedRequired.length ? "Control-plane drop (no runner) on" : gated.length ? "Approval-gated required check on" : retargetedAt ? "Retarget-skipped required check on" : "Missing required check on"} PR #${pr.number}: ${missing.join(", ")}`,
+                  title: `${droppedRequired.length ? "Control-plane drop (no runner) on" : lockQueued ? "Lock-queued required check on" : gated.length ? "Approval-gated required check on" : retargetedAt ? "Retarget-skipped required check on" : "Missing required check on"} PR #${pr.number}: ${missing.join(", ")}`,
                   body, labels: ["ci-failure"],
                 });
                 issueNumber = issue.number;

@@ -375,6 +375,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
               payment_method: input.paymentMethod,
               fulfillment: input.fulfillment,
               promo_code: input.promoCode,
+              ship_wave: input.shipWave,
               items: input.items.map((i) => ({
                 variant_id: i.variantId,
                 quantity: i.quantity,
@@ -411,6 +412,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
               payment_method: input.paymentMethod,
               fulfillment: input.fulfillment,
               promo_code: input.promoCode,
+              ship_wave: input.shipWave,
               success_url: input.successUrl,
               cancel_url: input.cancelUrl,
               items: input.items.map((i) => ({
@@ -431,6 +433,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             method: "POST",
             body: JSON.stringify({
               fulfillment: input.fulfillment ?? null,
+              ship_wave: input.shipWave ?? null,
               items: input.items.map((i) => ({
                 variant_id: i.variantId,
                 quantity: i.quantity,
@@ -452,6 +455,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             body: JSON.stringify({
               fulfillment: input.fulfillment ?? null,
               promo_code: input.promoCode,
+              ship_wave: input.shipWave ?? null,
               items: input.items.map((i) => ({
                 variant_id: i.variantId,
                 quantity: i.quantity,
