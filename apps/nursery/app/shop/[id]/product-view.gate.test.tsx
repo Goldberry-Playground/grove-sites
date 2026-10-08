@@ -269,6 +269,46 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     expect(cartLines().find((l) => l.variantId === 92)?.wave).toBe("spring");
   });
 
+  it("Oct 7 Farm pickup: Fall pickup Oct 20 to Oct 31, order by Oct 15", async () => {
+    const user = userEvent.setup();
+    renderPdp();
+    await user.click(screen.getByRole("button", { name: /farm pickup/i }));
+    const group = within(formatGroup());
+    const fall = group.getByRole("button", { name: /fall pickup/i });
+    expect(fall.getAttribute("aria-disabled")).toBe("false");
+    expect(fall.textContent).toContain("Fall pickup");
+    expect(fall.textContent).toContain("Approx Oct 20 to Oct 31");
+    expect(fall.textContent).toContain("Order by Oct 15");
+    expect(fall.textContent).not.toContain("\u2014");
+  });
+
+  it("Oct 16 Farm pickup: fall greyed with Order-by passed, spring selectable", async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12)));
+    const user = userEvent.setup();
+    renderPdp();
+    await user.click(screen.getByRole("button", { name: /farm pickup/i }));
+    const group = within(formatGroup());
+    const fall = group.getByRole("button", { name: /fall pickup/i });
+    expect(fall.getAttribute("aria-disabled")).toBe("true");
+    expect(fall.textContent).toContain("Approx Oct 20 to Oct 31");
+    expect(fall.textContent).toContain("Order-by passed");
+    const spring = group.getByRole("button", { name: /spring pickup/i });
+    expect(spring.getAttribute("aria-disabled")).toBe("false");
+    await user.click(fall);
+    expect(spring.getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getAllByRole("button", { name: /pre-order for \$10/i })[0]);
+    expect(cartLines().find((l) => l.variantId === 92)?.wave).toBe("spring");
+  });
+
+  it("Oct 16 Shipped zone 6: fall wave still open (shipped unaffected)", () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 9, 16, 12)));
+    localStorage.setItem("grove:usda-zone", "6");
+    renderPdp();
+    const fall = within(formatGroup()).getByRole("button", { name: /fall wave/i });
+    expect(fall.getAttribute("aria-disabled")).toBe("false");
+    expect(fall.textContent).toContain("Order by Nov 21");
+  });
+
   it("Aug 31: no pre-order card yet", () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 7, 31, 12)));
     renderPdp();

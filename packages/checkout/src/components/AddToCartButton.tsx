@@ -62,6 +62,13 @@ export function AddToCartButton({
 
   return (
     <>
+    {/* Refusal sits ABOVE the button, styled as an error (Josh 2026-10-07):
+        the shopper reads why nothing was added before reaching for the CTA. */}
+    {blocked ? (
+      <p role="alert" className="grove-add-to-cart__blocked">
+        {blocked}
+      </p>
+    ) : null}
     <UIAddToCartButton
       disabled={disabled}
       idleLabel={idleLabel}
@@ -81,11 +88,6 @@ export function AddToCartButton({
         openDrawer(variantId);
       }}
     />
-    {blocked ? (
-      <p role="status" className="grove-add-to-cart__blocked">
-        {blocked}
-      </p>
-    ) : null}
     </>
   );
 }

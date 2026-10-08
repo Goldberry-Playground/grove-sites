@@ -482,6 +482,10 @@ export interface ShippingCalendar {
   /** Per-USDA-zone server-resolved fulfillment, keyed like `zones`. Optional:
    * older backends omit it. */
   resolved?: Record<string, ShippingCalendarResolvedZone>;
+  /** Farm-pickup pre-order waves (Josh 2026-10-07): fall is a fixed farm
+   * schedule (pickup Oct 20 to Oct 31, order by Oct 15), spring follows the
+   * farm zone. Optional: older backends omit it. */
+  pickup_waves?: PreorderWave[];
 }
 
 /** The single shippable mode a client resolves a `(date, usdaZone)` to against
