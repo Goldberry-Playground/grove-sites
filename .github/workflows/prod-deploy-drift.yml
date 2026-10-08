@@ -14,6 +14,15 @@ name: Prod Deploy Drift Check
 # The redeploy that FIXES a drift is scripts/lib/do-app-redeploy.sh, wired into
 # the pin/promote flow (rides along with the GOL-1304 pinning PR).
 #
+# Security note on the event triggers: `workflow_run` and `push: main` both run
+# in DEFAULT-BRANCH context with full access to the secrets below, which is why
+# they are used here instead of `pull_request` (a fork PR run gets no secrets
+# and this check cannot work without them). No step consumes any field of
+# `github.event.workflow_run.*` or any other attacker-controllable payload
+# value -- the job reads only `secrets.*`, repo-controlled file paths and the
+# DigitalOcean/GHCR APIs -- so there is no pwn-request path here. Keep it that
+# way: do not interpolate event payload fields into a run: block in this file.
+#
 # GOL-3138 — the alarm is no longer inline here. From 2026-10-03 to 2026-10-05
 # this workflow posted 14 consecutive "prod frontend drift" alarms to Discord
 # ops while all four prod apps were serving exactly their pinned build. The real
@@ -34,10 +43,39 @@ name: Prod Deploy Drift Check
 # GHCR digests are read with the workflow's GITHUB_TOKEN (packages: read).
 
 on:
+  # GOL-3132: GitHub throttles `schedule` to ~5 firings/day on this account
+  # NO MATTER what the cron says -- measured across three workflows whose crons
+  # declared 72, 48 and 4 firings/day, all of which delivered ~5. So the
+  # `*/30` below is really a ~4-hourly check, and the 30-minute bound in its
+  # comment was never true. `schedule` is kept as the FLOOR (it is the only
+  # trigger that fires when the repo is completely quiet); the event triggers
+  # below are what actually give this check its cadence.
   schedule:
-    # Every 30 minutes. A stale prod frontend is a revenue/brand problem during
-    # launch season; 30 min bounds how long it can hide.
+    # Nominally every 30 minutes; see above -- expect ~5/day from this leg.
     - cron: "*/30 * * * *"
+
+  # Drift is CREATED by a deploy, so deploy-adjacent events are the useful
+  # heartbeat. Prerequisite (GOL-3135) was teaching the checker about in-flight
+  # rollouts: before that, `serving != pinned` during a healthy rollout counted
+  # as DRIFT, so raising the firing rate would have raised the FALSE-ALARM rate
+  # into Discord ops. The checker now classifies a fresh in-flight rollout onto
+  # the pinned digest as ROLLING_OUT (exit 0) and only alarms once it is wedged
+  # past ROLLOUT_GRACE_MINUTES. Alarm VOLUME is bounded by the GOL-3138 dedupe
+  # in scripts/prod-drift-alarm.py (an unchanged state re-posts at most once
+  # per RENOTIFY_HOURS), not by how often this fires.
+  push:
+    branches: [main]
+
+  # `Docker — Frontends` also runs on pull_request; a PR build cannot change
+  # what prod serves, so those completions are filtered out by the job-level
+  # `if:` below (not by `branches: [main]` here, which would also drop the
+  # tag-push runs of `Release — deploy Goldberry`, whose head_branch is the tag).
+  workflow_run:
+    workflows:
+      - Docker — Frontends
+      - Release — deploy Goldberry
+    types: [completed]
+
   workflow_dispatch: {}
 
 permissions:
@@ -54,6 +92,9 @@ concurrency:
 jobs:
   drift:
     name: Check prod frontends serve their pinned build
+    # Skip workflow_run firings that came from a pull_request build (see `on:`).
+    # An expression comparison only; no payload value reaches a run: block.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

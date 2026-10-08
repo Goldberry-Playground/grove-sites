@@ -15,7 +15,6 @@ import { SpecBlock } from "./spec-block";
 import { ProductDescription } from "./product-description";
 import { GrowingGuide } from "./growing-guide";
 import { CompanionsStrip } from "./companions-strip";
-import { ZoneCheck } from "./zone-check";
 
 export const dynamic = "force-dynamic";
 
@@ -227,14 +226,19 @@ export default async function ProductDetailPage({
         shippingRates={shippingRates}
         shippingFeed={shippingFeed}
         shippingZoneMap={shippingZoneMap}
+        // GOL-2734: the buy column owns the decision aids — the zone check, the
+        // six-fact "At a glance" card and the "plant two" hint all render inside
+        // ProductView, under the shipping line. ZoneCheck used to render here,
+        // below the description; it is MOVED, not copied (one render per
+        // component), so it must not be reinstated on this page.
+        facts={product.facts}
       />
 
+      {/* Below the grid, in reading order once the buy decision is made:
+          description → growing guide → the FULL spec table (every row, unchanged)
+          → companions. The spec table now follows the guide so the glance card
+          above and the exhaustive table aren't stacked back to back. */}
       <ProductDescription html={product.description} />
-
-      <ZoneCheck
-        zoneMin={product.facts?.zoneMin ?? null}
-        zoneMax={product.facts?.zoneMax ?? null}
-      />
 
       <GrowingGuide html={guideHtml} />
 

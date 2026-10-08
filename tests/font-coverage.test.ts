@@ -90,9 +90,11 @@ describe("zone-check.tsx states its answer in tokens and shapes, not raw colour"
   it("gives the hardy and not-hardy answers distinct shapes", () => {
     // The yes/no result must not ride on hue alone (WCAG 1.4.1) — it has to
     // survive greyscale and all three CVD simulations. The check path is the
-    // GOL-3112 geometry; the barred circle is the out-of-range mark.
-    expect(src).toContain('d="M1.75 6.4 4.6 9.25 10.25 2.9"');
-    expect(src).toContain('d="M3.5 6h5"');
+    // #883 (GOL-2734) landed the marks: a filled check for in-range and a
+    // warning triangle for out-of-range, each its own aria-hidden SVG.
+    expect(src).toContain('d="M6.2 12.4 2 8.2l1.5-1.5 2.7 2.7 6.3-6.3L14 4.6l-7.8 7.8Z"');
+    expect(src).toContain('d="M8 1.3 15.3 14H.7L8 1.3Z');
+    expect(src).toMatch(/<CheckMark \/>[\s\S]*<CautionMark \/>/);
   });
 
   it("keeps every decorative mark out of the announced sentence", () => {
