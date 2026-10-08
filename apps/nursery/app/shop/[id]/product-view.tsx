@@ -54,6 +54,7 @@ import {
   farmZoneOf,
   firstOpenWave,
   isPreorderSeason,
+  pickupWaves,
   preorderWaves,
   readUsdaZone,
   waveZones,
@@ -339,10 +340,18 @@ export function ProductView({
 
   const zoneOptions = useMemo(() => waveZones(calendar), [calendar]);
   // A pickup-only template never ships, so its pre-order resolves for the farm.
-  const waveZone = method === "pickup" || pickupOnly ? farmZoneOf(shippingFeed) : usdaZone;
+  // Farm pickup runs on the fixed farm schedule (fall pickup Oct 20 to Oct 31,
+  // order by Oct 15; spring on the farm zone), Josh 2026-10-07.
+  const isPickupWave = method === "pickup" || Boolean(pickupOnly);
+  const waveZone = isPickupWave ? farmZoneOf(shippingFeed) : usdaZone;
   const waves = useMemo(
-    () => (waveZone != null ? preorderWaves(waveZone, new Date(), calendar) : []),
-    [waveZone, calendar],
+    () =>
+      isPickupWave
+        ? pickupWaves(new Date(), calendar, waveZone ?? undefined)
+        : waveZone != null
+          ? preorderWaves(waveZone, new Date(), calendar)
+          : [],
+    [isPickupWave, waveZone, calendar],
   );
   // The chosen wave while it is open for this zone, else the first open one.
   const wave: ShipWave | null = waves.some((w) => w.wave === chosenWave && w.open)

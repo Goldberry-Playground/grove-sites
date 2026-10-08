@@ -83,7 +83,7 @@ export function StickyAddToCartBar({
       }}
     />
     {blocked ? (
-      <p role="status" className="grove-sticky-add__blocked">
+      <p role="alert" className="grove-sticky-add__blocked">
         {blocked}
       </p>
     ) : null}
