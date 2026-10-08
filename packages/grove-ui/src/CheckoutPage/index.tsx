@@ -8,6 +8,7 @@ import {
 } from "../cart-contract";
 import { useGroveLink } from "../link-context";
 import type { GroveTrustItem } from "../trust-items";
+import { TrustIcon } from "../TrustIcon";
 
 export interface GroveCheckoutContact {
   name: string;
@@ -538,7 +539,7 @@ export function CheckoutPage({
           <div className="grove-checkout__trust-inner">
             {trustItems.map((t, i) => (
               <span key={i} className="grove-checkout__trust-item">
-                <span aria-hidden="true">{t.icon}</span> {t.text}
+                <TrustIcon name={t.icon} /> {t.text}
               </span>
             ))}
           </div>
