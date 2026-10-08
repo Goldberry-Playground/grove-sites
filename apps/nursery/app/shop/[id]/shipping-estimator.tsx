@@ -468,7 +468,7 @@ export function ShippingEstimator({
             </p>
             <p className="mt-1.5 text-xs text-foreground/70">
               We’re expanding our nursery certifications state by state. You can still
-              pick your trees up free at the farm — or leave your email below and we’ll
+              pick your trees up free at the farm, or leave your email below and we’ll
               tell you the moment {stateName} opens up.
             </p>
             <div className="mt-3">
@@ -482,7 +482,7 @@ export function ShippingEstimator({
                 label={`nursery-ship-request-${state}`}
                 interests={["nursery", "ship-request"]}
                 heading={`Notify me when you ship to ${stateName}`}
-                description="One email when we open your state — nothing else."
+                description="One email when we open your state. Nothing else."
                 submitLabel="Notify me"
                 successMessage={`You’re on the list. We’ll email you the moment ${stateName} opens up.`}
                 consentText="We’ll only email you about shipping to your state. Unsubscribe anytime."
