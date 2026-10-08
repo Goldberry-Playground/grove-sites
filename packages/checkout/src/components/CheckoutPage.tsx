@@ -343,7 +343,10 @@ export function CheckoutPage({
         tierNudge={nudge?.message ?? null}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
-        submitLabel="Continue to payment →"
+        // No arrow in this string: the CTA draws its own (GOL-3123). A typed
+        // U+2192 here is what actually shipped to all three storefronts, since
+        // this override, not grove-ui's default, is the label on screen.
+        submitLabel="Continue to payment"
         submitPendingLabel="Starting secure checkout…"
         reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
         trustItems={BRAND_TRUST[brand].checkout}

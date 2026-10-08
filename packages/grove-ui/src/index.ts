@@ -45,6 +45,7 @@ export { StickyAddToCartBar, type StickyAddToCartBarProps } from "./StickyAddToC
 export { MiniCartDrawer, type MiniCartDrawerProps } from "./MiniCartDrawer";
 export { type GroveTrustItem, type GroveTrustIconName } from "./trust-items";
 export { TrustIcon, type TrustIconProps } from "./TrustIcon";
+export { GlyphIcon, type GlyphIconProps, type GroveGlyphIconName } from "./GlyphIcon";
 export { CartPage, type CartPageProps } from "./CartPage";
 export {
   CheckoutPage,

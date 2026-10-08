@@ -8,6 +8,7 @@ import {
 } from "../cart-contract";
 import { useGroveLink } from "../link-context";
 import type { GroveTrustItem } from "../trust-items";
+import { GlyphIcon } from "../GlyphIcon";
 import { TrustIcon } from "../TrustIcon";
 
 export interface GroveCheckoutContact {
@@ -120,6 +121,14 @@ export interface CheckoutPageProps {
    *  as the order's `paymentMethod`. */
   hidePaymentMethods?: boolean;
   /** Primary submit label (banner + summary button). */
+  /**
+   * Primary CTA copy. The forward arrow is NOT part of this string — the button
+   * draws it (`<GlyphIcon name="arrow-right">`), because a `→` typed into a
+   * label here paints an empty box on a client with no symbol font, and every
+   * call site was free to retype it. The shared `@grove/checkout` wrapper did
+   * exactly that, so fixing only this default would have changed nothing that
+   * ships (GOL-3123).
+   */
   submitLabel?: string;
   /** Primary submit label while submitting. */
   submitPendingLabel?: string;
@@ -296,7 +305,7 @@ export function CheckoutPage({
   onPlaceOrder,
   paymentMethods = DEFAULT_PAYMENT_METHODS,
   hidePaymentMethods = false,
-  submitLabel = "Place Order →",
+  submitLabel = "Place Order",
   submitPendingLabel = "Placing Order…",
   paymentNote,
   reassure,
@@ -529,7 +538,13 @@ export function CheckoutPage({
             disabled={submitting || submitDisabled}
             className="grove-checkout__banner-cta"
           >
-            {submitting ? submitPendingLabel : submitLabel}
+            {submitting ? (
+              submitPendingLabel
+            ) : (
+              <>
+                {submitLabel} <GlyphIcon name="arrow-right" />
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -605,7 +620,7 @@ export function CheckoutPage({
                     className="grove-checkout__error grove-checkout__field--span2"
                   >
                     <span aria-hidden="true" className="grove-checkout__error-icon">
-                      ⚠
+                      <GlyphIcon name="warning" />
                     </span>
                     {error}
                   </p>
@@ -801,6 +816,12 @@ export function CheckoutPage({
                       <span className="grove-checkout__summary-detail">{promo.label}</span>
                     )}
                   </dt>
+                  {/* U+2212, deliberately, and deliberately NOT drawn like the
+                      marks above: this sign is part of the number, so it has to
+                      stay a real character — selectable, copyable, and announced
+                      with the amount. GOL-3123 checked the premise that it was
+                      tofu and it was not: a cmap read of Fraunces, Newsreader
+                      and IBM Plex Mono shows all three carry U+2212. */}
                   <dd>−{formatPrice(discount)}</dd>
                 </div>
               )}
@@ -916,7 +937,7 @@ export function CheckoutPage({
                     className="grove-checkout__error grove-checkout__promo-error"
                   >
                     <span aria-hidden="true" className="grove-checkout__error-icon">
-                      ⚠
+                      <GlyphIcon name="warning" />
                     </span>
                     {promoError}
                   </p>
@@ -937,14 +958,20 @@ export function CheckoutPage({
             {error && !phoneInvalid && (
               <p role="alert" className="grove-checkout__error">
                 <span aria-hidden="true" className="grove-checkout__error-icon">
-                  ⚠
+                  <GlyphIcon name="warning" />
                 </span>
                 {error}
               </p>
             )}
 
             <button type="submit" disabled={submitting || submitDisabled} className="grove-checkout__submit">
-              {submitting ? submitPendingLabel : submitLabel}
+              {submitting ? (
+                submitPendingLabel
+              ) : (
+                <>
+                  {submitLabel} <GlyphIcon name="arrow-right" />
+                </>
+              )}
             </button>
 
             <p className="grove-checkout__reassure">

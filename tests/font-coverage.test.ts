@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { uncoveredGlyphs, explain, stripComments, KNOWN_TOFU, hex } from "./font-coverage";
+import {
+  uncoveredGlyphs,
+  characterRefOffenders,
+  explain,
+  stripComments,
+  KNOWN_TOFU,
+  hex,
+} from "./font-coverage";
 
 /**
  * Repo-wide guard for the GOL-3112 / GOL-3117 defect: a decorative glyph typed
@@ -30,29 +37,36 @@ const AUDITED = [
   "packages/checkout/src/brand-trust.ts",
   "packages/checkout/src/components/createCheckoutSuccessPage.tsx",
   "packages/grove-ui/src/TrustIcon.tsx",
+  // GOL-3123 — the shared cart and checkout, plus the wrapper that supplies the
+  // CTA label that actually ships and the icon module the three of them draw.
+  "packages/grove-ui/src/CartPage/index.tsx",
+  "packages/grove-ui/src/CheckoutPage/index.tsx",
+  "packages/checkout/src/components/CheckoutPage.tsx",
+  "packages/grove-ui/src/GlyphIcon.tsx",
 ] as const;
 
 /**
- * NOT yet listed, and deliberately so: `grove-ui/src/CartPage/index.tsx` and
- * `grove-ui/src/CheckoutPage/index.tsx`. Adding the trust-strip render call here
- * surfaced eight more uncovered characters in those two files, all of them
- * outside this ticket's four surfaces and all on checkout, which GOL-3117 says
- * wants its own review:
+ * Still NOT listed, and deliberately so. GOL-3123 swept the shared cart and
+ * checkout packages plus all three storefront route trees with the corrected
+ * coverage table and the new reference scan: 49 uncovered marks remain across
+ * 25 files outside its two, tracked on their own follow-up rather than claimed
+ * here. Listing a file here is a claim that someone rendered it in a
+ * symbol-font-less stack; none of these have been.
  *
- *   CheckoutPage  L177 U+2192 →  "Place Order →"            (primary CTA copy)
- *                 L478 U+26A0 ⚠  validation summary
- *                 L665 U+2212 −  "−{formatPrice(discount)}" (money line!)
- *                 L780 U+26A0 ⚠  payment error
- *                 L798 U+26A0 ⚠  payment error
- *   CartPage      L121 U+2192 →  "Checkout Now →"           (primary CTA copy)
- *                 L143 U+2190 ←  "← Keep shopping"
- *                 L218 U+2192 →  "Proceed to Checkout →"    (primary CTA copy)
+ *   grove-ui/CheckoutReview/index.tsx   ● ◷ ⚠ → ✦ ←  (6 — the order review
+ *                                      step, and `●`/`◷`/`✦` are the very
+ *                                      marks GOL-3117 fixed in its sibling)
+ *   grove-ui/MiniCartDrawer, BuyAtVendorForm, VendorCard        →  (1 each)
+ *   grove-ui/SiblingStrip/{index.tsx,SiblingStrip.css}          ▾ ◐
+ *   grove-ui/ShopSubHeader/ShopSubHeader.css                    ◐
+ *   checkout/components/CheckoutCancelPage.tsx                  ↩
+ *   apps/goldberry                       → x17, ← x4            (worst offender)
+ *   apps/ggg                             → x4, ⌂, &larr;
+ *   apps/nursery                         → x1, &rarr; x5, &darr;
  *
- * The minus sign is the sharp one: a tofu'd U+2212 makes a discount line read as
- * a positive charge. The arrows sit inside button copy, so removing them is a
- * CTA design call rather than a swap. Tracked separately — see the child issue
- * on GOL-3117. Listing these files before they are fixed would be a false claim
- * that they were audited.
+ * Deliberately NOT on that list, having been checked rather than assumed: the
+ * cart stepper's `&minus;`, the ggg homepage's seven `№`, and the nursery PDP's
+ * two `›`. All three codepoints are carried by all three faces.
  */
 
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
@@ -178,5 +192,66 @@ describe("the known-tofu list is self-consistent", () => {
   it("every character in KNOWN_TOFU really is above Latin-1", () => {
     for (const [char, label] of KNOWN_TOFU)
       expect(char.codePointAt(0)!, `${hex(char.codePointAt(0)!)} ${label}`).toBeGreaterThan(0xff);
+  });
+});
+
+describe("the cart and checkout draw their marks instead of typing them", () => {
+  const cart = stripComments(read("packages/grove-ui/src/CartPage/index.tsx"));
+  const checkout = stripComments(read("packages/grove-ui/src/CheckoutPage/index.tsx"));
+  const wrapper = stripComments(read("packages/checkout/src/components/CheckoutPage.tsx"));
+  const glyphIcon = read("packages/grove-ui/src/GlyphIcon.tsx");
+
+  it("sees a character reference as the character it paints", () => {
+    // The hole: an entity is ASCII in the source, so the literal-character scan
+    // never sees it. Eight `&rarr;`/`&larr;`/`&darr;` sit in the app routes.
+    const hidden = characterRefOffenders("<a>Browse the catalog &rarr;</a>");
+    expect(hidden).toHaveLength(1);
+    expect(hidden[0].cp).toBe(0x2192);
+    expect(hidden[0].ref).toBe("&rarr;");
+    // Numeric references resolve too, decimal and hex alike.
+    expect(characterRefOffenders("&#8594; &#x2190;").map((o) => o.cp)).toEqual([0x2192, 0x2190]);
+    // ...and it does not cry wolf over references the faces do cover. `&minus;`
+    // is here on purpose: all three carry U+2212 (see COVERED_ABOVE_LATIN1).
+    expect(characterRefOffenders("Wesley&rsquo;s &mdash; &amp; &hellip; &minus;")).toEqual([]);
+    // A comment may name one while explaining the fix.
+    expect(characterRefOffenders("/* this was &rarr; */")).toEqual([]);
+  });
+
+  it("leaves the stepper signs alone, because all three faces carry them", () => {
+    // GOL-3123 opened believing `&minus;` here was tofu. The cmap read says it
+    // is not, so this is the one site the ticket named that must NOT change —
+    // a drawn mark would be aria-hidden and strictly worse than a real sign.
+    expect(cart).toContain("&minus;");
+    expect(cart).not.toContain('GlyphIcon name="minus"');
+  });
+
+  it("keeps the forward arrow out of the CTA label string", () => {
+    // A `string` prop holding `→` is retypable at every call site, and the
+    // `@grove/checkout` wrapper did retype it — so the default was never what
+    // shipped. The button owns the arrow now; the label is words only.
+    expect(checkout).toContain('submitLabel = "Place Order"');
+    expect(checkout).toContain('{submitLabel} <GlyphIcon name="arrow-right" />');
+    expect(wrapper).toContain('submitLabel="Continue to payment"');
+    for (const src of [cart, checkout, wrapper]) expect(uncoveredGlyphs(src)).toEqual([]);
+  });
+
+  it("keeps the discount sign a real character, because it is part of the number", () => {
+    // The arrows and warnings on these surfaces became geometry. This one must
+    // not: a drawn minus is aria-hidden, so the amount would be announced and
+    // copied without its sign — and U+2212 needs no rescue, every loaded face
+    // carries it. Both halves of that matter, so assert both.
+    expect(checkout).toContain("<dd>\u2212{formatPrice(discount)}</dd>");
+    expect(uncoveredGlyphs("\u2212")).toEqual([]);
+  });
+
+  it("never lets a mark be the only thing saying what state it is", () => {
+    // The three warning marks sit on error states. Each is aria-hidden with the
+    // message text beside it, so the mark is never the signal (WCAG 1.4.1).
+    const warnings = [...checkout.matchAll(/<GlyphIcon name="warning" \/>/g)];
+    expect(warnings).toHaveLength(3);
+    for (const m of checkout.matchAll(/<span([^>]*)className="grove-checkout__error-icon"/g))
+      expect(m[1]).toContain('aria-hidden="true"');
+    expect(glyphIcon).toContain('aria-hidden="true"');
+    expect(uncoveredGlyphs(glyphIcon)).toEqual([]);
   });
 });
