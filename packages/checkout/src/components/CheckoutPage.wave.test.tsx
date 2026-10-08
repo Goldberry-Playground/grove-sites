@@ -4,6 +4,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CheckoutPage } from "./CheckoutPage";
 import { CartProvider } from "../cart-store";
+import { QUOTE_REFUSED_FALLBACK } from "../hooks/useCartDepositQuote";
 
 vi.mock("@grove/analytics", () => ({ trackBeginCheckout: vi.fn() }));
 
@@ -108,6 +109,8 @@ describe("<CheckoutPage /> — pre-order wave", () => {
     await user.type(screen.getByLabelText(/City/), "Bluefield");
     await user.type(screen.getByLabelText(/ZIP/), "24701");
     await user.selectOptions(screen.getByLabelText(/State/), "WV");
+    // Submit waits for the quote of the completed ZIP (no stale-quote submit).
+    await waitFor(() => expect(submits()[1].disabled).toBe(false));
     fireEvent.click(submits()[1]);
     await waitFor(() => expect(spy.mock.calls.some((c) => String(c[0]).includes("/api/checkout/session"))).toBe(true));
     const call = spy.mock.calls.find((c) => String(c[0]).includes("/api/checkout/session"))!;
@@ -291,5 +294,49 @@ describe("<CheckoutPage /> — pre-order wave", () => {
       await waitFor(() => expect(quoteBodies(spy).at(-1)).toMatchObject({ fulfillment: "pickup" }));
       expect("zip" in quoteBodies(spy).at(-1)!).toBe(false);
     });
+
+    it("blocks submit while the ZIP's quote is pending, so the ZIP-less quote can't carry a submit", async () => {
+      seed([line(1, "fall")]);
+      const spy = zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await screen.findByLabelText(/Full name/);
+      // The ZIP-less quote confirms fall: submit opens.
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      await user.type(screen.getByLabelText(/ZIP/), "55401");
+      // Same tick as the ZIP completing: the debounced re-quote has not even
+      // been sent, and the stale fall confirmation must not count.
+      expect(quoteBodies(spy).some((b) => b.zip === "55401")).toBe(false);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+      // Then the ZIP's own answer lands: fall is closed there.
+      expect((await screen.findByRole("alert")).textContent).toBe(CLOSED_FALL);
+      expect(submits().every((b) => b.disabled)).toBe(true);
+    });
+
+    it("reopens submit once the ZIP's quote confirms the wave", async () => {
+      seed([line(1, "fall")]);
+      zoneBackend();
+      renderCheckout();
+      const user = userEvent.setup();
+      await screen.findByLabelText(/Full name/);
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      await user.type(screen.getByLabelText(/ZIP/), "24701");
+      expect(submits().every((b) => b.disabled)).toBe(true);
+      await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
+  it("says why when a 400 quote refusal carries no usable reason", async () => {
+    seed([line(1, "fall")]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ error: { code: "closed" } }, 400));
+    render(
+      <CartProvider>
+        <CheckoutPage depositQuoteHref="/api/cart/quote" />
+      </CartProvider>,
+    );
+    await screen.findByLabelText(/Full name/);
+    expect((await screen.findByRole("alert")).textContent).toBe(QUOTE_REFUSED_FALLBACK);
+    expect(submits().every((b) => b.disabled)).toBe(true);
   });
 });

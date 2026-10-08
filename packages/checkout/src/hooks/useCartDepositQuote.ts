@@ -21,6 +21,13 @@ export type QuoteFulfillment = "ship" | "pickup";
 const DEBOUNCE_MS = 250;
 
 /**
+ * Shown when the quote refuses the cart (400) without a usable shopper-facing
+ * reason. The session would be refused too, so the form blocks submit; this
+ * says so instead of leaving a disabled button with no explanation.
+ */
+export const QUOTE_REFUSED_FALLBACK = "We couldn't confirm this order. Please review your cart and try again.";
+
+/**
  * The 5-digit ZIP to quote with, or null while the field is empty or still
  * being typed. Keying the quote on this (not the raw field) means a shopper
  * typing "2", "26", "266"... re-quotes once, when the ZIP is complete.
@@ -41,8 +48,13 @@ export interface CartDepositQuoteState {
   /** The quote, or null while loading, on failure, or when no rule applies. */
   quote: CartDepositQuote | null;
   /**
-   * True once the cart's charge mode is known for certain: a successful quote
-   * landed, or there is no charge rule to quote (no `href`, empty cart). False
+   * True once the cart's charge mode is known for certain FOR THE CURRENT
+   * INPUTS: a successful quote landed for exactly these lines, fulfillment, wave
+   * and ZIP, or there is no charge rule to quote (no `href`, empty cart). It
+   * drops to false on the same render the inputs change (a newly completed ZIP,
+   * a wave switch), so the last confirmed quote, which persists for display
+   * until the next one lands, never reads as confirmed for inputs it was not
+   * quoted on. False
    * while a quote is in flight and — deliberately — if the quote *fails*, since
    * a failed quote leaves the charge mode unknown. Callers that must not make a
    * promise on an unknown cart (the discount nudge: a deposit cart earns no
@@ -98,7 +110,9 @@ export function useCartDepositQuote(
   const [quote, setQuote] = useState<CartDepositQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [alternateWave, setAlternateWave] = useState<ShipWave | null>(null);
-  const [settled, setSettled] = useState(false);
+  // The input key the last definite answer was for; `settled` is derived from it
+  // so a pending re-quote reads unsettled immediately, not one effect later.
+  const [settledKey, setSettledKey] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   // A pickup wave is judged on the farm's zone, so the ZIP only keys a ship quote.
   const destinationZip = fulfillment === "pickup" ? null : quotableZip(zip);
@@ -117,11 +131,11 @@ export function useCartDepositQuote(
       setError(null);
       setAlternateWave(null);
       setFailed(false);
-      setSettled(true);
+      setSettledKey(key);
       return;
     }
     // A fresh quote is in flight; hold any deposit-conditioned UI until it lands.
-    setSettled(false);
+    setSettledKey(null);
     setFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -146,14 +160,14 @@ export function useCartDepositQuote(
             try {
               const body = (await res.json()) as { error?: unknown; alternateWave?: unknown };
               const message = typeof body.error === "string" && body.error ? body.error : null;
-              setError(message);
+              setError(message ?? QUOTE_REFUSED_FALLBACK);
               setAlternateWave(
                 message && (body.alternateWave === "fall" || body.alternateWave === "spring") && body.alternateWave !== shipWave
                   ? body.alternateWave
                   : null,
               );
             } catch {
-              setError(null);
+              setError(QUOTE_REFUSED_FALLBACK);
               setAlternateWave(null);
             }
           } else {
@@ -168,7 +182,7 @@ export function useCartDepositQuote(
         if (isQuote(data)) {
           setQuote(data);
           setError(null);
-          setSettled(true);
+          setSettledKey(key);
         } else {
           setQuote(null);
           setFailed(true);
@@ -189,5 +203,5 @@ export function useCartDepositQuote(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, key]);
 
-  return { quote, settled, error, failed, alternateWave };
+  return { quote, settled: settledKey === key, error, failed, alternateWave };
 }

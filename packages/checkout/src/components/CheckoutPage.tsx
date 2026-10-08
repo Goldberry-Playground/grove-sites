@@ -188,7 +188,12 @@ export function CheckoutPage({
   const preorderUnconfirmed =
     preorderCart && quoteError === null && !preorderDepositConfirmed(depositQuote, shipWave);
   const showPreorderUnconfirmed = preorderUnconfirmed && (depositSettled || quoteFailed);
-  const blocked = mixedCart || quoteError !== null || preorderUnconfirmed;
+  // The last confirmed quote persists until the next one lands, so a shopper who
+  // completes the ZIP and submits inside the debounce would otherwise submit on
+  // the ZIP-less quote and meet the closed-wave refusal at the session instead
+  // of here (GOL-3194). A pre-order waits for the quote of its current inputs.
+  const preorderQuotePending = preorderCart && !depositSettled;
+  const blocked = mixedCart || quoteError !== null || preorderUnconfirmed || preorderQuotePending;
   const dueToday = dueTodayFor(depositQuote);
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
