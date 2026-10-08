@@ -168,19 +168,27 @@ export function PlantTwoHint({
           </span>
         </span>
       </p>
-      {!satisfied && (
-        <button
-          type="button"
-          onClick={onPlantTwo}
-          className="mt-3 inline-flex min-h-11 items-center rounded border border-primary/30 bg-white/70 px-4 text-sm font-semibold text-primary transition hover:border-primary hover:bg-white"
-        >
-          {/* One template literal, not `to {PLANT_TWO_QUANTITY}`: JSX would split
-              that into two text nodes and SSR would emit `to <!-- -->2`, which
-              breaks any plain-text probe of the rendered document (the e2e lane
-              greps the PDP HTML rather than navigating 20 image-heavy pages). */}
-          {`Set quantity to ${PLANT_TWO_QUANTITY}`}
-        </button>
-      )}
+      {/* The button stays MOUNTED once the pair is reached. Unmounting it on
+          click dropped keyboard focus to <body> on a ~2300px page (WCAG 2.4.3,
+          GOL-2741). Instead it goes inert in place: `aria-disabled` (not
+          `disabled`, which would also eject focus) plus a label that reports
+          the new state. Lowering the stepper below two re-arms it. */}
+      <button
+        type="button"
+        onClick={satisfied ? undefined : onPlantTwo}
+        aria-disabled={satisfied || undefined}
+        className={
+          satisfied
+            ? "mt-3 inline-flex min-h-11 cursor-default items-center rounded border border-primary/15 bg-transparent px-4 text-sm font-semibold text-ink-soft"
+            : "mt-3 inline-flex min-h-11 items-center rounded border border-primary/30 bg-white/70 px-4 text-sm font-semibold text-primary transition hover:border-primary hover:bg-white"
+        }
+      >
+        {/* One template literal, not `to {PLANT_TWO_QUANTITY}`: JSX would split
+            that into two text nodes and SSR would emit `to <!-- -->2`, which
+            breaks any plain-text probe of the rendered document (the e2e lane
+            greps the PDP HTML rather than navigating 20 image-heavy pages). */}
+        {satisfied ? `Quantity set to ${PLANT_TWO_QUANTITY}` : `Set quantity to ${PLANT_TWO_QUANTITY}`}
+      </button>
       {/* One PERSISTENTLY MOUNTED live region, not a swapped-in element: the
           quantity stepper this button moves lives elsewhere in the buy box, and a
           live region that only mounts at the moment of the change is unreliably

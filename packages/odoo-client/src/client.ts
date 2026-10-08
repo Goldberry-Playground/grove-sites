@@ -434,6 +434,8 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             body: JSON.stringify({
               fulfillment: input.fulfillment ?? null,
               ship_wave: input.shipWave ?? null,
+              // Same `shipping.zip` shape the session posts; omitted until known.
+              ...(input.zip ? { shipping: { zip: input.zip } } : {}),
               items: input.items.map((i) => ({
                 variant_id: i.variantId,
                 quantity: i.quantity,

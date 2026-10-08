@@ -185,8 +185,11 @@ test.describe("PDP — At a glance, desktop", () => {
     const qty = page.locator(`${BUY} input`).first();
     if (await qty.count()) await expect(qty).toHaveValue("2");
     await expect(page.getByText(/enough for a pair/)).toBeVisible();
-    // The nudge is reversible and honest: the button is replaced by a status,
-    // never by a silent add to cart.
-    await expect(cta).toHaveCount(0);
+    // The nudge is reversible and honest: a status, never a silent add to cart.
+    // The button stays mounted (inert, relabelled) so keyboard focus is not
+    // dropped to <body> (GOL-2741, WCAG 2.4.3).
+    const done = page.getByRole("button", { name: /^Quantity set to 2$/ });
+    await expect(done).toHaveAttribute("aria-disabled", "true");
+    await expect(done).toBeFocused();
   });
 });

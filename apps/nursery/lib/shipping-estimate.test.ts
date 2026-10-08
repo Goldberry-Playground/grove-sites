@@ -531,6 +531,15 @@ describe("compliance exemption never widens the green list (GOL-2588)", () => {
 // keeps the never-drift property (GOL-2128) — the figure is still derived from
 // the engine mirror — while naming non-state destinations outright.
 describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
+  // Derived, not retyped: the name carries a U+00A0 (GOL-3236), so a literal
+  // with a plain space would fail and a pasted NBSP would be invisible.
+  const DC = NON_STATE_GREEN_DESTINATIONS.DC;
+
+  it("binds Washington to D.C. with a non-breaking space (GOL-3236)", () => {
+    expect(DC).toBe("Washington,\u00A0D.C.");
+    expect(shipScope().phrase).not.toMatch(/Washington, D\.C\./);
+  });
+
   it("subtracts non-state destinations from the state count and names them", () => {
     const scope = shipScope();
     const nonStateCodes = Object.keys(ZONE_BY_STATE).filter(
@@ -538,9 +547,9 @@ describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
     );
     expect(nonStateCodes).toContain("DC");
     expect(scope.stateCount).toBe(GREEN_STATE_COUNT - nonStateCodes.length);
-    expect(scope.phrase).toBe(`${scope.stateCount} states and Washington, D.C.`);
+    expect(scope.phrase).toBe(`${scope.stateCount} states and ${DC}`);
     expect(scope.phraseUS).toBe(
-      `${scope.stateCount} U.S. states and Washington, D.C.`,
+      `${scope.stateCount} U.S. states and ${DC}`,
     );
     expect(scope.shortPhrase).toBe(`${scope.stateCount} states + D.C.`);
   });
@@ -560,7 +569,7 @@ describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
     // A live feed that drops a state must move the figure without a release.
     const live = Object.keys(ZONE_BY_STATE).filter((c) => c !== "WV");
     expect(shipScope(live).stateCount).toBe(shipScope().stateCount - 1);
-    expect(shipScope(live).phrase).toContain("Washington, D.C.");
+    expect(shipScope(live).phrase).toContain(DC);
   });
 
   it("a second non-state destination cannot silently re-break the noun", () => {
@@ -575,7 +584,7 @@ describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
       const scope = shipScope(withTerritory);
       expect(scope.stateCount).toBe(shipScope().stateCount);
       expect(scope.phrase).toBe(
-        `${scope.stateCount} states and Washington, D.C. and Puerto Rico`,
+        `${scope.stateCount} states and ${DC} and Puerto Rico`,
       );
     } finally {
       delete NON_STATE_GREEN_DESTINATIONS.PR;
@@ -643,5 +652,31 @@ describe("shipping_handling_fee (GOL-2923): estimates add the per-order fee once
     expect(estimatePottedFloor(pottedWithFee)).toBe(25);
     expect(estimateTierShipping("WV", "bareroot", { feed: WITH_FEE })).toBe(27);
     expect(estimateTierFloor("bareroot", WITH_FEE)).toBe(27);
+  });
+});
+
+// GOL-3188: every fee-carrying estimate rounds the carrier + fee total UP, never
+// to nearest, so a fractional fee (or cell) can never quote below checkout.
+describe("estimates round carrier + fee UP to whole dollars (GOL-3188)", () => {
+  it("a fractional fee rounds the bareroot estimate and floor up, not to nearest", () => {
+    const quarterFee: ShippingRateFeed = { ...SCHEMA2_FEED, shipping_handling_fee: 4.25 };
+    // 22 + 4.25 = 26.25: Math.round would quote $26, under checkout's $26.25.
+    expect(estimateBoxShipping("WV", quarterFee)).toBe(27);
+    expect(estimateBoxFloor(quarterFee)).toBe(27);
+    expect(estimateTierShipping("WV", "bareroot", { feed: quarterFee })).toBe(27);
+  });
+
+  it("a fractional potted cell is not rounded down before the fee is added", () => {
+    const feed: ShippingRateFeed = {
+      ...SCHEMA2_POTTED_FEED,
+      shipping_handling_fee: 5,
+      zones: {
+        ...SCHEMA2_POTTED_FEED.zones,
+        zone_1: { ...SCHEMA2_POTTED_FEED.zones.zone_1, p24x10x4: { base: 20.4 } },
+      },
+    };
+    // 20.4 + 5 = 25.4: rounding the cell first would quote $25.
+    expect(estimatePottedShipping("WV", feed)).toBe(26);
+    expect(estimatePottedFloor(feed)).toBe(26);
   });
 });

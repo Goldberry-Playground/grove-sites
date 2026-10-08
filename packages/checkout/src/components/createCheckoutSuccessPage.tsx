@@ -61,11 +61,26 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
         )}
 
         <div className="rounded-lg border border-primary/10 p-8 text-center mb-8">
+          {/* Inline SVG, not U+2713: Dingbats is outside Fraunces / Newsreader /
+              IBM Plex Mono, so the glyph fell through to system fallback and
+              painted an empty box on any client with no symbol font
+              (GOL-3117, same defect as GOL-3112). Decorative — the "Payment
+              received" heading below is what actually reports the outcome. */}
           <div
             aria-hidden="true"
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-2xl text-primary"
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"
           >
-            ✓
+            <svg
+              viewBox="0 0 12 12"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M1.75 6.4 4.6 9.25 10.25 2.9" />
+            </svg>
           </div>
           <h1 className="text-3xl font-display font-bold text-primary mb-3">
             Payment received
@@ -95,7 +110,12 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
             <dl className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-foreground/80">
-                  <span aria-hidden="true">●</span> Paid today (deposit)
+                  {/* Filled disc for the settled amount; was U+25CF, Geometric
+                      Shapes, uncovered by all three loaded faces (GOL-3117). */}
+                  <svg aria-hidden="true" viewBox="0 0 12 12" className="h-2 w-2 shrink-0">
+                    <circle cx="6" cy="6" r="5" fill="currentColor" />
+                  </svg>{" "}
+                  Paid today (deposit)
                 </dt>
                 <dd className="font-semibold tabular-nums">
                   {formatPrice(handoff.amountDueToday, currency)}
@@ -103,7 +123,14 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
               </div>
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-foreground/70">
-                  <span aria-hidden="true">◷</span> Due when your plants ship
+                  {/* Open ring for the amount still outstanding — deliberately
+                      the hollow counterpart of the filled disc above, so the
+                      paid/unpaid pair reads as a shape difference and not a
+                      colour one. Was U+25F7 (GOL-3117). */}
+                  <svg aria-hidden="true" viewBox="0 0 12 12" className="h-2 w-2 shrink-0">
+                    <circle cx="6" cy="6" r="4.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>{" "}
+                  Due when your plants ship
                 </dt>
                 <dd className="tabular-nums">{formatPrice(dueLater, currency)}</dd>
               </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "../Button";
 import { TierNudge } from "../TierNudge";
@@ -8,6 +8,8 @@ import {
 } from "../cart-contract";
 import { useGroveLink } from "../link-context";
 import type { GroveTrustItem } from "../trust-items";
+import { GlyphIcon } from "../GlyphIcon";
+import { TrustIcon } from "../TrustIcon";
 
 export interface GroveCheckoutContact {
   name: string;
@@ -119,6 +121,14 @@ export interface CheckoutPageProps {
    *  as the order's `paymentMethod`. */
   hidePaymentMethods?: boolean;
   /** Primary submit label (banner + summary button). */
+  /**
+   * Primary CTA copy. The forward arrow is NOT part of this string — the button
+   * draws it (`<GlyphIcon name="arrow-right">`), because a `→` typed into a
+   * label here paints an empty box on a client with no symbol font, and every
+   * call site was free to retype it. The shared `@grove/checkout` wrapper did
+   * exactly that, so fixing only this default would have changed nothing that
+   * ships (GOL-3123).
+   */
   submitLabel?: string;
   /** Primary submit label while submitting. */
   submitPendingLabel?: string;
@@ -225,6 +235,12 @@ export interface CheckoutPageProps {
    */
   onFulfillmentChange?: (fulfillment: GroveFulfillment) => void;
   /**
+   * Fired on every edit of the ship-to ZIP, with the raw field value, so the
+   * consumer can re-quote against the destination once the ZIP is complete
+   * (a pre-order wave is validated against the destination's zone).
+   */
+  onShippingZipChange?: (zip: string) => void;
+  /**
    * Lock fulfillment to pickup because the cart cannot be shipped at all — it
    * holds at least one farm-pickup-only line (GOL-2588). The Fulfillment
    * fieldset then offers pickup ALONE (a disabled "Ship to me" would be a dead
@@ -253,6 +269,12 @@ export interface CheckoutPageProps {
    * only keeps the buyer from posting an order that is certain to be refused.
    */
   submitDisabled?: boolean;
+  /**
+   * Order-level notices the host owns (the order type, a refusal that blocks
+   * submit, a fix for it), rendered under the page title so they sit inside the
+   * page grid, ahead of the form they govern.
+   */
+  notice?: ReactNode;
 }
 
 /**
@@ -309,7 +331,7 @@ export function CheckoutPage({
   onPlaceOrder,
   paymentMethods = DEFAULT_PAYMENT_METHODS,
   hidePaymentMethods = false,
-  submitLabel = "Place Order →",
+  submitLabel = "Place Order",
   submitPendingLabel = "Placing Order…",
   paymentNote,
   reassure,
@@ -327,9 +349,11 @@ export function CheckoutPage({
   tierNudge = null,
   dueToday = null,
   onFulfillmentChange,
+  onShippingZipChange,
   forcePickup = false,
   forcePickupNote,
   submitDisabled = false,
+  notice,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -543,7 +567,13 @@ export function CheckoutPage({
             disabled={submitting || submitDisabled}
             className="grove-checkout__banner-cta"
           >
-            {submitting ? submitPendingLabel : submitLabel}
+            {submitting ? (
+              submitPendingLabel
+            ) : (
+              <>
+                {submitLabel} <GlyphIcon name="arrow-right" />
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -553,7 +583,7 @@ export function CheckoutPage({
           <div className="grove-checkout__trust-inner">
             {trustItems.map((t, i) => (
               <span key={i} className="grove-checkout__trust-item">
-                <span aria-hidden="true">{t.icon}</span> {t.text}
+                <TrustIcon name={t.icon} /> {t.text}
               </span>
             ))}
           </div>
@@ -562,6 +592,7 @@ export function CheckoutPage({
 
       <div className="grove-checkout">
         <h1 className="grove-checkout__title">Checkout</h1>
+        {notice ? <div className="grove-checkout__notice">{notice}</div> : null}
 
         <form ref={formRef} onSubmit={handleSubmit} className="grove-checkout__grid">
           <div className="grove-checkout__col">
@@ -619,7 +650,7 @@ export function CheckoutPage({
                     className="grove-checkout__error grove-checkout__field--span2"
                   >
                     <span aria-hidden="true" className="grove-checkout__error-icon">
-                      ⚠
+                      <GlyphIcon name="warning" />
                     </span>
                     {error}
                   </p>
@@ -738,7 +769,10 @@ export function CheckoutPage({
                   label="ZIP"
                   required
                   value={shipping.zip}
-                  onChange={(v) => setShipping({ ...shipping, zip: v })}
+                  onChange={(v) => {
+                    setShipping({ ...shipping, zip: v });
+                    onShippingZipChange?.(v);
+                  }}
                   autoComplete="postal-code"
                 />
                 <SelectField
@@ -829,6 +863,12 @@ export function CheckoutPage({
                       <span className="grove-checkout__summary-detail">{promo.label}</span>
                     )}
                   </dt>
+                  {/* U+2212, deliberately, and deliberately NOT drawn like the
+                      marks above: this sign is part of the number, so it has to
+                      stay a real character — selectable, copyable, and announced
+                      with the amount. GOL-3123 checked the premise that it was
+                      tofu and it was not: a cmap read of Fraunces, Newsreader
+                      and IBM Plex Mono shows all three carry U+2212. */}
                   <dd>−{formatPrice(discount)}</dd>
                 </div>
               )}
@@ -944,7 +984,7 @@ export function CheckoutPage({
                     className="grove-checkout__error grove-checkout__promo-error"
                   >
                     <span aria-hidden="true" className="grove-checkout__error-icon">
-                      ⚠
+                      <GlyphIcon name="warning" />
                     </span>
                     {promoError}
                   </p>
@@ -965,14 +1005,20 @@ export function CheckoutPage({
             {error && !phoneInvalid && (
               <p role="alert" className="grove-checkout__error">
                 <span aria-hidden="true" className="grove-checkout__error-icon">
-                  ⚠
+                  <GlyphIcon name="warning" />
                 </span>
                 {error}
               </p>
             )}
 
             <button type="submit" disabled={submitting || submitDisabled} className="grove-checkout__submit">
-              {submitting ? submitPendingLabel : submitLabel}
+              {submitting ? (
+                submitPendingLabel
+              ) : (
+                <>
+                  {submitLabel} <GlyphIcon name="arrow-right" />
+                </>
+              )}
             </button>
 
             <p className="grove-checkout__reassure">

@@ -114,7 +114,9 @@ export const GREEN_STATE_COUNT = Object.keys(ZONE_BY_STATE).length;
  *  explicitly, so a green-list expansion can never silently restore the
  *  "D.C. is a state" error this map exists to fix (GOL-2941). */
 export const NON_STATE_GREEN_DESTINATIONS: Record<string, string> = {
-  DC: "Washington, D.C.",
+  // U+00A0 keeps "D.C." on the same line as "Washington": a wrap at the comma
+  // orphans it and reads as Washington *state*, which is not green (GOL-3236).
+  DC: "Washington,\u00A0D.C.",
   // If the green list ever gains a territory, add it here *and* to
   // NON_STATE_SHORT_NAMES — the drift test in shipping-estimate.test.ts fails
   // on any non-state USPS code in ZONE_BY_STATE that is missing from this map.
@@ -341,6 +343,10 @@ const DEFAULT_MODE: PackingMode = "leafed";
  * field and its cells already include handling, so absent (or malformed) is 0 and
  * the estimate is unchanged. The fee is per ORDER: a single-unit "from $X" floor
  * adds it once, and the backend adds it once at checkout however many boxes pack.
+ *
+ * Every estimate that adds it rounds the carrier + fee total UP to whole dollars
+ * (`Math.ceil`), never to nearest: a fractional fee or cell must never quote
+ * below what checkout charges (GOL-3188).
  */
 export function handlingFee(feed: ShippingRateFeed | null | undefined): number {
   const fee = feed?.shipping_handling_fee;
@@ -382,7 +388,7 @@ export function estimateBoxShipping(
     if (typeof rate !== "number") continue; // no rate configured for this box
     if (cheapest == null || rate < cheapest) cheapest = rate;
   }
-  return cheapest == null ? null : Math.round(cheapest + handlingFee(feed));
+  return cheapest == null ? null : Math.ceil(cheapest + handlingFee(feed));
 }
 
 /**
@@ -417,7 +423,7 @@ export function estimateBoxFloor(
       if (cheapest == null || rate < cheapest) cheapest = rate;
     }
   }
-  return cheapest == null ? null : Math.round(cheapest + handlingFee(feed));
+  return cheapest == null ? null : Math.ceil(cheapest + handlingFee(feed));
 }
 
 /**
@@ -517,7 +523,7 @@ export function estimatePottedShipping(
   const rates = feed.zones[zone];
   if (!rates) return null;
   const carrier = cheapestPotted(rates);
-  return carrier == null ? null : Math.round(carrier + handlingFee(feed));
+  return carrier == null ? null : Math.ceil(carrier + handlingFee(feed));
 }
 
 /**
@@ -535,7 +541,7 @@ export function estimatePottedFloor(feed: ShippingRateFeed): number | null {
     const c = cheapestPotted(rates);
     if (c != null && (cheapest == null || c < cheapest)) cheapest = c;
   }
-  return cheapest == null ? null : Math.round(cheapest + handlingFee(feed));
+  return cheapest == null ? null : Math.ceil(cheapest + handlingFee(feed));
 }
 
 /** Cheapest rated potted box within one zone's rate row, or `null`. */
@@ -548,7 +554,9 @@ function cheapestPotted(
     if (typeof rate !== "number") continue;
     if (cheapest == null || rate < cheapest) cheapest = rate;
   }
-  return cheapest == null ? null : Math.round(cheapest);
+  // Raw, not rounded: callers round the carrier + fee total UP once, so an
+  // early round here could pull a fractional cell below what checkout charges.
+  return cheapest;
 }
 
 /**

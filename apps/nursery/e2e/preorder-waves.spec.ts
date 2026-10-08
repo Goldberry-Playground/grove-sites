@@ -90,6 +90,90 @@ test.describe("pre-order waves", () => {
     await expectOnReview(page);
   });
 
+  test("a zone 8 fall pre-order shipped to a ZIP whose fall wave closed switches to spring", async ({
+    page,
+  }) => {
+    const { product, scanned, listings } = await findPairedProduct(page, { needPotted: false });
+    test.skip(
+      product === null,
+      `none of the ${scanned} scanned PDPs (of ${listings} listings) carried the Bareroot pre-order card`,
+    );
+    if (!product) return;
+
+    await page.goto(product.href);
+    await fulfillmentToggle(page, "ship").click();
+    await page.locator("#usda-zone").selectOption("8");
+    await page.getByRole("button", { name: /^Bareroot pre-order/ }).first().click();
+    const fall = page.getByRole("button", { name: /^Fall wave/ });
+    test.skip((await fall.count()) === 0, `${product.name} shows no Fall wave button for zone 8`);
+    test.skip(
+      (await fall.getAttribute("aria-disabled")) === "true",
+      "the zone 8 fall wave is closed today, so the PDP cannot start a fall pre-order",
+    );
+    await fall.click();
+    const anchor = await clickAddToCart(page, "Pre-order for $10");
+    await expect(
+      anchor.getByRole("button", { name: "Added!", exact: true }).first(),
+    ).toBeVisible({ timeout: 5_000 });
+
+    // The backend judges waves on its real clock, and every fall order-by is in
+    // November, so no real ZIP refuses fall before Nov 12. Stand in for the
+    // backend's refusal of the FALL quote for this destination (the exact shape
+    // /api/cart/quote returns once the backend confirms spring); every other
+    // quote, including the spring re-quote and the session, hits QA for real.
+    const ZIP = "30303"; // GA, zone 8 in the gom ZIP matrix; spring is open for it
+    const CLOSED = "The fall pre-order for zone 8 closed on Nov 21. Choose spring.";
+    const quoteBodies: Record<string, unknown>[] = [];
+    await page.route("**/api/cart/quote", async (route) => {
+      const body = JSON.parse(route.request().postData() ?? "{}") as Record<string, unknown>;
+      quoteBodies.push(body);
+      if (body.shipWave === "fall" && body.zip === ZIP) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ error: CLOSED, alternateWave: "spring" }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto("/checkout");
+    await expect(page.getByTestId("order-type")).toHaveText(
+      "Pre-order · fall wave · $10 deposit today, balance when your trees ship",
+    );
+    await fillCheckoutForm(page, {
+      state: "GA",
+      city: "Atlanta",
+      zip: ZIP,
+      street: "100 Peachtree St",
+    });
+
+    // The ZIP reaches the quote, and the refusal shows BEFORE "Continue to payment".
+    await expect(page.getByRole("alert").filter({ hasText: CLOSED })).toBeVisible();
+    expect(quoteBodies.some((b) => b.shipWave === "fall" && b.zip === ZIP)).toBe(true);
+    await expect(page.locator(".grove-checkout__submit")).toBeDisabled();
+
+    await page.getByRole("button", { name: "Switch this order to the spring wave" }).click();
+    await expect(page.getByTestId("order-type")).toHaveText(
+      "Pre-order · spring wave · $10 deposit today, balance when your trees ship",
+    );
+    await expect(page.getByRole("alert").filter({ hasText: CLOSED })).toHaveCount(0);
+    await expect(page.locator(".grove-checkout__submit")).toBeEnabled({ timeout: 10_000 });
+    expect(quoteBodies.at(-1)).toMatchObject({ shipWave: "spring", zip: ZIP });
+
+    const sessionBodies: unknown[] = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/api/checkout/session") && req.method() === "POST") {
+        sessionBodies.push(JSON.parse(req.postData() ?? "{}"));
+      }
+    });
+    const { status, errorBody } = await submitAndCaptureSession(page);
+    expect(status, `session must be created; server said: ${errorBody ?? "(no body)"}`).toBe(200);
+    expect(sessionBodies[0]).toMatchObject({ shipWave: "spring" });
+    await expectOnReview(page);
+  });
+
   test("adding a pre-order to a cart that holds a potted line is refused", async ({ page }) => {
     test.skip(
       !pottedSeasonToday(),

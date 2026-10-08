@@ -145,6 +145,9 @@ h1 em, h2 em, h3 em {
      amber-700: #B45309 is only 3.93:1 on --paper-deep and fails AA there.
      This clears 4.5:1 on all three parchment surfaces (5.55:1 worst case). */
   --stock-reserve: #92400E;
+  /* Geometry for .field-notes-eyebrow::before, which used to be U+2726 (see
+     the note at that rule). Masked, so it tints from currentColor. — GOL-3117 */
+  --sparkle-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .5 7.3 4.7 11.5 6 7.3 7.3 6 11.5 4.7 7.3 .5 6 4.7 4.7Z'/%3E%3C/svg%3E");
 }
 
 /* ─────────────────────────────────────────────
@@ -359,10 +362,27 @@ h1 em, h2 em, h3 em {
      it sharpens real legibility. — GOL-681 */
   text-shadow: 0 1px 3px rgba(10, 20, 14, 0.85);
 }
-/* Decorative glyph keeps the orange brand accent. Icons need only 3:1; the
-   orange ◐ clears 3.68:1 on the darkest scrim band. Pinned explicitly because
-   the parent .pano-eyebrow now inherits parchment. — GOL-685 */
-.pano-eyebrow::before { content: '◐'; font-size: 14px; color: var(--orange); }
+/* Decorative mark keeps the orange brand accent. Icons need only 3:1; the
+   orange mark clears 3.68:1 on the darkest scrim band. Pinned explicitly
+   because the parent .pano-eyebrow now inherits parchment. — GOL-685
+
+   Drawn, not typed. This was `content: '\25D0'` — U+25D0 CIRCLE WITH LEFT HALF
+   BLACK, in Geometric Shapes, which none of the three faces this app loads
+   (Fraunces / Newsreader / IBM Plex Mono) cover. It resolved through system
+   fallback and painted an empty .notdef box on any client with no symbol font,
+   i.e. the brand-approved accent was a rectangle (GOL-3117; same defect as
+   GOL-3112, same remedy as the GOL-682 .facet-caret). The ring + half fill below
+   reproduces the glyph's geometry exactly and depends on no font. The pseudo is
+   a flex item of .pano-eyebrow, so width/height apply without display. */
+.pano-eyebrow::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1.25px solid var(--orange);
+  border-radius: 50%;
+  background-image: linear-gradient(to right, var(--orange) 50%, transparent 50%);
+}
 .pano-hero h1 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -824,7 +844,20 @@ h1 em, h2 em, h3 em {
   align-items: center;
   gap: 0.5rem;
 }
-.field-notes-eyebrow::before { content: '✦'; }
+/* Four-pointed star drawn as a mask rather than typed as U+2726, which lives in
+   Dingbats and is covered by none of the loaded faces — it tofu'd exactly like
+   the hero mark above (GOL-3117). A mask (not background-image) so the shape
+   still takes its colour from the eyebrow's currentColor, keeping the single
+   orange source of truth on line 812. Decorative: the eyebrow text follows it. */
+.field-notes-eyebrow::before {
+  content: '';
+  flex: none;
+  width: 11px;
+  height: 11px;
+  background-color: currentColor;
+  -webkit-mask: var(--sparkle-mask) center / contain no-repeat;
+  mask: var(--sparkle-mask) center / contain no-repeat;
+}
 .field-notes h3 {
   font-family: var(--font-display);
   font-style: italic;
