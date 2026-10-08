@@ -654,3 +654,29 @@ describe("shipping_handling_fee (GOL-2923): estimates add the per-order fee once
     expect(estimateTierFloor("bareroot", WITH_FEE)).toBe(27);
   });
 });
+
+// GOL-3188: every fee-carrying estimate rounds the carrier + fee total UP, never
+// to nearest, so a fractional fee (or cell) can never quote below checkout.
+describe("estimates round carrier + fee UP to whole dollars (GOL-3188)", () => {
+  it("a fractional fee rounds the bareroot estimate and floor up, not to nearest", () => {
+    const quarterFee: ShippingRateFeed = { ...SCHEMA2_FEED, shipping_handling_fee: 4.25 };
+    // 22 + 4.25 = 26.25: Math.round would quote $26, under checkout's $26.25.
+    expect(estimateBoxShipping("WV", quarterFee)).toBe(27);
+    expect(estimateBoxFloor(quarterFee)).toBe(27);
+    expect(estimateTierShipping("WV", "bareroot", { feed: quarterFee })).toBe(27);
+  });
+
+  it("a fractional potted cell is not rounded down before the fee is added", () => {
+    const feed: ShippingRateFeed = {
+      ...SCHEMA2_POTTED_FEED,
+      shipping_handling_fee: 5,
+      zones: {
+        ...SCHEMA2_POTTED_FEED.zones,
+        zone_1: { ...SCHEMA2_POTTED_FEED.zones.zone_1, p24x10x4: { base: 20.4 } },
+      },
+    };
+    // 20.4 + 5 = 25.4: rounding the cell first would quote $25.
+    expect(estimatePottedShipping("WV", feed)).toBe(26);
+    expect(estimatePottedFloor(feed)).toBe(26);
+  });
+});
