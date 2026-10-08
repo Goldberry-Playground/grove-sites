@@ -2,7 +2,10 @@
 
 import { trackAddToCart } from "@grove/analytics";
 import { AddToCartButton as UIAddToCartButton } from "@grove/ui-kit";
+import { useEffect, useState } from "react";
+import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
+import { canAdd } from "../cart-reducer";
 
 type AddToCartButtonProps = {
   variantId: number;
@@ -30,6 +33,12 @@ type AddToCartButtonProps = {
    * before the deposit is charged, without re-fetching the product (GOL-3028).
    */
   consultBuilt?: boolean;
+  /**
+   * Pre-order wave this add belongs to; omit for an immediate item. A cart is
+   * either immediate or a pre-order for one wave, so an add that would mix them
+   * (or add a second wave) is refused and the reason is shown inline.
+   */
+  wave?: ShipWave;
 };
 
 /**
@@ -49,18 +58,31 @@ export function AddToCartButton({
   onQuantityChange,
   pickupOnly,
   consultBuilt,
+  wave,
 }: AddToCartButtonProps) {
-  const { add, openDrawer } = useCart();
+  const { items, add, openDrawer } = useCart();
+  const [blocked, setBlocked] = useState<string | null>(null);
+  // The refusal is stale once the shopper clears the cart or checks out.
+  useEffect(() => {
+    if (items.length === 0) setBlocked(null);
+  }, [items.length]);
 
   return (
+    <>
     <UIAddToCartButton
       disabled={disabled}
       idleLabel={idleLabel}
       quantity={quantity}
       onQuantityChange={onQuantityChange}
       onAddToCart={(quantity) => {
+        const verdict = canAdd(items, { wave });
+        if (!verdict.ok) {
+          setBlocked(verdict.message);
+          return false;
+        }
+        setBlocked(null);
         add(
-          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt },
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave },
           quantity,
         );
         trackAddToCart({ variantId, price, quantity });
@@ -69,5 +91,11 @@ export function AddToCartButton({
         openDrawer(variantId);
       }}
     />
+    {blocked ? (
+      <p role="status" className="grove-add-to-cart__blocked">
+        {blocked}
+      </p>
+    ) : null}
+    </>
   );
 }

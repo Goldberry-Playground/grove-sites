@@ -12,8 +12,14 @@ import {
   type GroveFulfillment,
   type GrovePromoPreview,
 } from "@grove/ui-kit";
-import type { CartItem } from "../cart-reducer";
+import { orderKind, orderWave, type CartItem } from "../cart-reducer";
 import { useCart } from "../cart-store";
+import {
+  MIXED_CART_MESSAGE,
+  PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
+  orderTypeLine,
+  preorderDepositConfirmed,
+} from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -157,11 +163,28 @@ export function CheckoutPage({
   const fulfillment: GroveFulfillment = lockedToPickup ? "pickup" : chosenFulfillment;
   // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
   // from the storefront's `/api/cart/quote` when wired; null = charged in full.
-  const { quote: depositQuote, settled: depositSettled } = useCartDepositQuote(
-    depositQuoteHref,
-    items,
-    fulfillment,
-  );
+  // One wave per order, never mixed with immediate items (the PDP prevents it;
+  // a stale localStorage cart can still hold a mix). `shipWave` is the cart's
+  // single wave, null for an immediate cart.
+  const kind = orderKind(items);
+  const shipWave = orderWave(items);
+  const mixedCart = hydrated && kind === "mixed";
+  const {
+    quote: depositQuote,
+    settled: depositSettled,
+    error: quoteError,
+    failed: quoteFailed,
+  } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave);
+  // A pre-order may only start a session once the BACKEND has confirmed the $10
+  // deposit for this wave. An older backend ignores `ship_wave` and would charge
+  // in full under a "$10 deposit" page; the quote route's catalog fallback is
+  // display-only. Submit stays off while the quote is in flight; the message
+  // shows once it has landed (or failed) without that confirmation.
+  const preorderCart = hydrated && kind === "preorder";
+  const preorderUnconfirmed =
+    preorderCart && quoteError === null && !preorderDepositConfirmed(depositQuote, shipWave);
+  const showPreorderUnconfirmed = preorderUnconfirmed && (depositSettled || quoteFailed);
+  const blocked = mixedCart || quoteError !== null || preorderUnconfirmed;
   const dueToday = dueTodayFor(depositQuote);
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
@@ -169,7 +192,7 @@ export function CheckoutPage({
   // charge mode unknown, and we must not flash a discount promise on what may be
   // a reservation cart.
   const { nudge, tiers } = useTierNudge(tiersHref, items, {
-    hidden: !(depositSettled && !depositQuote?.depositNow),
+    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "mixed",
     surface: "checkout",
   });
 
@@ -184,6 +207,7 @@ export function CheckoutPage({
         items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
         fulfillment: mode,
         promoCode: code,
+        ...(shipWave ? { shipWave } : {}),
       }),
     }).catch(() => {
       throw new Error("We couldn't check that code. Check your connection and try again.");
@@ -222,6 +246,8 @@ export function CheckoutPage({
           // via sale_loyalty; an invalid/ineligible code fails the order with a
           // shopper-facing message shown in the form (GOL-2088).
           promoCode: order.promoCode,
+          // The pre-order wave (one per order); null for an immediate order.
+          shipWave,
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
           successUrl: `${origin}/checkout/success`,
           cancelUrl: `${origin}/checkout/cancel`,
@@ -285,8 +311,28 @@ export function CheckoutPage({
     );
   }
 
+  const orderTypeText = orderTypeLine({
+    kind,
+    wave: shipWave,
+    depositNow: depositQuote?.depositNow === true,
+    pickup: fulfillment === "pickup",
+  });
+  const blockingMessage = mixedCart
+    ? MIXED_CART_MESSAGE
+    : quoteError ?? (showPreorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
+
   return (
     <WithGroveNext>
+      {orderTypeText ? (
+        <p className="grove-checkout__order-type" data-testid="order-type">
+          {orderTypeText}
+        </p>
+      ) : null}
+      {blockingMessage ? (
+        <p role="alert" className="grove-checkout__order-blocked">
+          {blockingMessage}
+        </p>
+      ) : null}
       <UICheckoutPage
         items={items}
         subtotal={subtotal}
@@ -328,6 +374,7 @@ export function CheckoutPage({
             ? (state) => shipStateNotice(state, items)
             : undefined
         }
+        submitDisabled={blocked}
       />
     </WithGroveNext>
   );

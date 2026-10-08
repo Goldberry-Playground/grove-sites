@@ -104,7 +104,7 @@ export interface ShippingEstimatorProps {
  *      geographic: "we ship to Florida, but not this chestnut";
  *   3. green + a consult-built mix into a regulated state — checkout DOES take
  *      the deposit now (GOL-3019), so the panel discloses which species this
- *      state takes off the list and how many of the fourteen still clear, before
+ *      state takes off the list and how many of the seventeen still clear, before
  *      the shopper pays (GOL-3028). A narrowing, not a refusal;
  *   4. not green — a plain-spoken "not there yet".
  *
@@ -340,7 +340,7 @@ export function ShippingEstimator({
             decision to mix time and records the excluded taxa on the order, so
             the deposit goes through and the shopper is owed the constraint in
             advance rather than a refusal. Honest and specific: the species this
-            state takes off the list, by name, and how many of the fourteen we
+            state takes off the list, by name, and how many of the seventeen we
             grow still clear. No rate: the mix is not built yet, so the box count
             that prices it genuinely is not known, and the notice says so. Add to
             Cart stays available, which is the whole point of the deferral. */}

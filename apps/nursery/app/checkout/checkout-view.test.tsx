@@ -58,10 +58,10 @@ describe("nursery checkout — consult-built carve-out disclosure (GOL-3028)", (
     await chooseState("FL");
     const notice = await screen.findByTestId("consult-carveout-notice");
     expect(notice.textContent).toMatch(
-      /Your Florida mix: 11 of our 14 food-forest species/,
+      /Your Florida mix: 14 of our 17 food-forest species/,
     );
     expect(notice.textContent).toMatch(/American Chestnut/);
-    expect(notice.textContent).toMatch(/Dogwood/);
+    expect(notice.textContent).toMatch(/Flowering Dogwood/);
     // Checkout wording, not PDP wording: the deposit is the thing in front of
     // them, so say what it does and does not lock in.
     expect(notice.textContent).toMatch(/Your deposit reserves the consult/);

@@ -306,12 +306,15 @@ export function blocksRate(verdict: ComplianceVerdict): boolean {
 }
 
 /**
- * The 14 single-species SKUs a consult-built mix (templates 134/135) draws
+ * The 17 single-species SKUs a consult-built mix (templates 134/135) draws
  * from — the "palette" whose CEILING is what we may honestly declare for a
- * class-C SKU (GOL-2972). Snapshotted from the live published catalog
- * (`/grove/api/v1/products?limit=200` + each `facts.botanical_name`,
- * 2026-10-05): 20 SKUs = these 14 singles + 6 bundles. Bundles are excluded
- * because a mix is built from plants, not from other bundles.
+ * class-C SKU (GOL-2972). Snapshotted from the prod Odoo catalog on 2026-10-08
+ * (`product.template` where `is_published` and `grove_botanical_name` is set):
+ * 23 published templates = these 17 singles + 6 bundles/kits (22, 132, 133,
+ * 134, 135, 140). Bundles are excluded because a mix is built from plants, not
+ * from other bundles. Labels are the prod template names, exactly as the shop
+ * card reads them (the 10-05 snapshot predated the 10-07 catalog cleanup, which
+ * renamed "Chestnut - Hybrid" / "Dogwood" and published 4, 86 and 130).
  *
  * Why a snapshot and not the feed: the rate feed carries the carve-out RULES
  * (`compliance.carve_outs`) but not the catalog, so "how many of what we grow
@@ -319,7 +322,7 @@ export function blocksRate(verdict: ComplianceVerdict): boolean {
  * is baked — every exclusion decision runs the same `evaluateCompliance` the
  * checkout gate mirrors, so a rule change in the feed re-counts automatically
  * and the notice can never contradict the gate. `plant-compliance.test.ts` pins
- * the three live answers (FL 11/14, IN/OH/WI 13/14, elsewhere 14/14), so a
+ * the three live answers (FL 14/17, IN/OH/WI 16/17, elsewhere 17/17), so a
  * catalog change that moves them fails CI rather than shipping a wrong promise.
  */
 export interface PaletteSpecies {
@@ -333,23 +336,29 @@ export interface PaletteSpecies {
 
 export const CONSULT_PALETTE: PaletteSpecies[] = [
   { templateId: 93, label: "American Chestnut", botanical: "Castanea dentata" },
+  { templateId: 4, label: "American Persimmon", botanical: "Diospyros virginiana" },
   { templateId: 5, label: "American Plum", botanical: "Prunus americana" },
   { templateId: 3, label: "Apple", botanical: "Malus domestica" },
   { templateId: 87, label: "Black Walnut", botanical: "Juglans nigra" },
-  { templateId: 8, label: "Chestnut - Hybrid", botanical: "Castanea spp. (hybrid)" },
-  { templateId: 9, label: "Dogwood", botanical: "Cornus florida" },
+  { templateId: 8, label: "Chinese Chestnut", botanical: "Castanea mollissima" },
   { templateId: 10, label: "Fig", botanical: "Ficus carica" },
+  { templateId: 9, label: "Flowering Dogwood", botanical: "Cornus florida" },
   { templateId: 11, label: "Jujube", botanical: "Ziziphus jujuba" },
-  {
-    templateId: 13,
-    label: "Mulberry",
-    botanical: "Morus alba 'Maple Leaf' (hybrid white mulberry)",
-  },
+  // Prod tmpl 13 currently declares "Morus spp." (the 10-07 cleanup combined the
+  // mulberry listings). The mix is grown from white mulberry, and a separate
+  // catalog fix is expected to restore "Morus alba", so the palette carries the
+  // species the carve-out actually keys on ("morus alba"). Keeping "Morus spp."
+  // here would parse to the bare genus, match no rule, and silently tell an
+  // Indiana / Ohio / Wisconsin shopper that mulberry clears. Re-check this line
+  // when the catalog fix lands.
+  { templateId: 13, label: "Mulberry", botanical: "Morus alba" },
   { templateId: 91, label: "PawPaw", botanical: "Asimina triloba" },
   { templateId: 14, label: "Peach", botanical: "Prunus persica" },
   { templateId: 15, label: "Pear", botanical: "Pyrus spp." },
   { templateId: 17, label: "Plum", botanical: "Prunus spp." },
   { templateId: 19, label: "Service Berry", botanical: "Amelanchier laevis" },
+  { templateId: 86, label: "Shagbark Hickory", botanical: "Carya ovata" },
+  { templateId: 130, label: "White Oak", botanical: "Quercus alba" },
 ];
 
 /**
@@ -378,7 +387,7 @@ export function excludedTaxaForState(state: string, map: ComplianceMap): string[
  *
  * `excluded` is the species WE GROW that this state restricts, named the way a
  * customer reads them ("American Chestnut", not "castanea"). `clearedCount` /
- * `paletteCount` give the reassuring shape of the constraint: three of fourteen
+ * `paletteCount` give the reassuring shape of the constraint: three of seventeen
  * off the list is a narrowing, not a refusal, and a 100-tree food forest is
  * still genuinely deliverable.
  */
@@ -389,7 +398,7 @@ export interface ConsultMixOutlook {
   excludedTaxonLabels: string[];
   /** How many palette species clear this destination. */
   clearedCount: number;
-  /** Palette size (14 today) — the denominator of "N of M clear". */
+  /** Palette size (17 today) — the denominator of "N of M clear". */
   paletteCount: number;
 }
 

@@ -33,9 +33,9 @@ test.describe("checkout — cart cleared after success", { tag: "@stripe" }, () 
     // it every order deposits). After the cutover checkout-deposit-happy-path
     // covers the /checkout/success cart-clear on the deposit session.
     test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-    const product = await findProductByCta(page, "Add to Cart");
+    const product = await findProductByCta(page, "Add to cart");
     await page.goto(product.href);
-    await addCurrentProductToCart(page, 1, "Add to Cart");
+    await addCurrentProductToCart(page, 1, "Add to cart");
 
     await page.goto("/checkout");
     await fillCheckoutForm(page, { state: "WV" });
@@ -59,9 +59,9 @@ test.describe("checkout — cart cleared after success", { tag: "@stripe" }, () 
     // it every order deposits). After the cutover checkout-deposit-happy-path
     // covers the /checkout/success cart-clear on the deposit session.
     test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-    const product = await findProductByCta(page, "Add to Cart");
+    const product = await findProductByCta(page, "Add to cart");
     await page.goto(product.href);
-    await addCurrentProductToCart(page, 1, "Add to Cart");
+    await addCurrentProductToCart(page, 1, "Add to cart");
 
     await page.goto("/checkout");
     await fillCheckoutForm(page, { state: "WV" });

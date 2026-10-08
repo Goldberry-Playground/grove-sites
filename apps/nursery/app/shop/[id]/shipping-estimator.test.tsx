@@ -72,21 +72,21 @@ describe("ShippingEstimator — eligibility branches", () => {
     expect(panel.textContent).not.toMatch(/exact rate is confirmed at checkout/);
     // It must NOT borrow the consult-built disclosure: nothing here is built in
     // a consult, and promising one would be a different lie.
-    expect(panel.textContent).not.toMatch(/of our 14 food-forest species/);
+    expect(panel.textContent).not.toMatch(/of our 17 food-forest species/);
   });
 
   it("green + consult-built into FL: discloses the constraint with real numbers", () => {
     // Template 134 (Centennial Food Forest, $400) shipping to Florida. Florida
-    // restricts chestnut and dogwood, so 11 of our 14 palette species clear.
+    // restricts chestnut and dogwood, so 14 of our 17 palette species clear.
     const panel = at("FL", { botanicalName: null, consultBuilt: true });
     expect(panel.textContent).toMatch(
-      /Your Florida mix: 11 of our 14 food-forest species/,
+      /Your Florida mix: 14 of our 17 food-forest species/,
     );
     expect(panel.textContent).toMatch(/restricts chestnut and dogwood/);
     // Every excluded species is named — a count alone is not a disclosure.
     expect(panel.textContent).toMatch(/American Chestnut/);
-    expect(panel.textContent).toMatch(/Chestnut - Hybrid/);
-    expect(panel.textContent).toMatch(/Dogwood/);
+    expect(panel.textContent).toMatch(/Chinese Chestnut/);
+    expect(panel.textContent).toMatch(/Flowering Dogwood/);
     // Still no rate: the mix is not built, so the box count that prices it is
     // genuinely unknown. And no refusal language — the deposit goes through.
     expect(panel.textContent).not.toMatch(DOLLARS);
@@ -97,7 +97,7 @@ describe("ShippingEstimator — eligibility branches", () => {
   it("green + consult-built into IN: one exclusion, and only WHITE mulberry", () => {
     const panel = at("IN", { botanicalName: null, consultBuilt: true });
     expect(panel.textContent).toMatch(
-      /Your Indiana mix: 13 of our 14 food-forest species/,
+      /Your Indiana mix: 16 of our 17 food-forest species/,
     );
     expect(panel.textContent).toMatch(/restricts white mulberry/);
     expect(panel.textContent).toMatch(/Mulberry/);

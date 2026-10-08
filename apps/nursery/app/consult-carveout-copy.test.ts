@@ -163,8 +163,8 @@ describe("consult carve-out notice — ratified strings, pinned (GOL-3054)", () 
   it("Florida: heading, body, label and the PDP closing read exactly as signed", () => {
     const { paragraphs, bullets } = renderNotice("FL", "pdp");
     expect(paragraphs).toEqual([
-      "Your Florida mix: 11 of our 14 food-forest species",
-      "We ship to Florida, which restricts chestnut and dogwood for plant-health reasons. So your list comes from the other 11. That\u2019s still a full food forest.",
+      "Your Florida mix: 14 of our 17 food-forest species",
+      "We ship to Florida, which restricts chestnut and dogwood for plant-health reasons. So your list comes from the other 14. That\u2019s still a full food forest.",
       "Not for Florida:",
       "We confirm your exact list with you in the consult, cleared for Florida, before anything ships. Your shipping is quoted then too, once we know how many boxes your trees pack into.",
     ]);
@@ -173,16 +173,16 @@ describe("consult carve-out notice — ratified strings, pinned (GOL-3054)", () 
     // called dogwood.
     expect(bullets).toEqual([
       "American Chestnut (Castanea dentata)",
-      "Chestnut - Hybrid (Castanea spp.)",
-      "Dogwood (Cornus florida)",
+      "Chinese Chestnut (Castanea mollissima)",
+      "Flowering Dogwood (Cornus florida)",
     ]);
   });
 
   it("Indiana: the one-line disclosure names the species, not the cultivar", () => {
     const { paragraphs, bullets } = renderNotice("IN", "pdp");
-    expect(paragraphs[0]).toBe("Your Indiana mix: 13 of our 14 food-forest species");
+    expect(paragraphs[0]).toBe("Your Indiana mix: 16 of our 17 food-forest species");
     expect(paragraphs[1]).toBe(
-      "We ship to Indiana, which restricts white mulberry for plant-health reasons. So your list comes from the other 13. That\u2019s still a full food forest.",
+      "We ship to Indiana, which restricts white mulberry for plant-health reasons. So your list comes from the other 16. That\u2019s still a full food forest.",
     );
     expect(paragraphs[2]).toBe("Not for Indiana:");
     // Redline C. `Morus alba 'Maple Leaf'` would imply only that cultivar is

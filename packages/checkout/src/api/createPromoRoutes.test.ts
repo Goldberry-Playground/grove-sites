@@ -47,6 +47,21 @@ describe("POST /api/checkout/promo (createPromoPreviewRoute)", () => {
     });
   });
 
+  it("passes shipWave through and rejects an invalid one", async () => {
+    const promoPreview = vi.fn(async () => preview);
+    const odoo = { checkout: { promoPreview } } as unknown as OdooClient;
+    const { POST } = createPromoPreviewRoute(odoo, { allowedOrigins: [ORIGIN] });
+    const ok = await POST(
+      post("/api/checkout/promo", { items: [{ variantId: 51, quantity: 1 }], shipWave: "fall" }),
+    );
+    expect(ok.status).toBe(200);
+    expect(promoPreview).toHaveBeenCalledWith(expect.objectContaining({ shipWave: "fall" }));
+    const bad = await POST(
+      post("/api/checkout/promo", { items: [{ variantId: 51, quantity: 1 }], shipWave: "winter" }),
+    );
+    expect(bad.status).toBe(400);
+  });
+
   it("relays a backend refusal verbatim (deposit carts get no code)", async () => {
     const refusal = "Promo codes apply to orders that ship now. Your cart is a reservation.";
     const odoo = {

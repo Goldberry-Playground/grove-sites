@@ -169,7 +169,7 @@ function inWindow(d: number, window: [MonthDay, MonthDay]): boolean {
 /** Reference default windows, used only when the feed carries no zones at all
  *  (a degraded feed — the backend always serializes every zone). These MIRROR
  *  the backend's `WAVE_SCHEDULE` union (grove_headless shipping_calendar.py):
- *  fall Nov 2 → Dec 12, spring Mar 1 → Jun 6. They must not drift below the
+ *  fall Nov 2 → Dec 12, spring Mar 1 → Apr 15. They must not drift below the
  *  backend's earliest ship date, or the fallback would promise "ships now" weeks
  *  before the backend would actually ship (GOL-1313 finding 2 — the old Sep 15 /
  *  Jan 1 defaults claimed shipping through hard-freeze January). Never hardcode a
@@ -181,7 +181,7 @@ const DEFAULT_WINDOWS: ShippingCalendarZone = {
   ],
   spring: [
     [3, 1],
-    [6, 6],
+    [4, 15],
   ],
 };
 

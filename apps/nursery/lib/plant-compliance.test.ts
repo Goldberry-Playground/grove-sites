@@ -346,30 +346,30 @@ describe("consultMixOutlook — the numbers the customer is shown", () => {
   it("pins the three live answers for the published palette", () => {
     // These are the only numbers the notice ever quotes today, and they are a
     // delivery promise. A catalog change that moves them must fail here rather
-    // than ship a wrong count (GOL-3028; derived 2026-10-05 from the live
-    // /grove/api/v1/products catalog, 14 single-species SKUs + 6 bundles).
-    expect(CONSULT_PALETTE).toHaveLength(14);
+    // than ship a wrong count (GOL-3028; refreshed 2026-10-08 from the prod
+    // Odoo catalog, 17 single-species SKUs + 6 bundles/kits).
+    expect(CONSULT_PALETTE).toHaveLength(17);
 
     const fl = consultMixOutlook("FL", SNAPSHOT_COMPLIANCE);
-    expect(fl.clearedCount).toBe(11);
-    expect(fl.paletteCount).toBe(14);
+    expect(fl.clearedCount).toBe(14);
+    expect(fl.paletteCount).toBe(17);
     expect(fl.excluded.map((s) => s.label)).toEqual([
       "American Chestnut",
-      "Chestnut - Hybrid",
-      "Dogwood",
+      "Chinese Chestnut",
+      "Flowering Dogwood",
     ]);
     expect(fl.excludedTaxonLabels).toEqual(["chestnut", "dogwood"]);
 
     for (const state of ["IN", "OH", "WI"]) {
       const out = consultMixOutlook(state, SNAPSHOT_COMPLIANCE);
-      expect(out.clearedCount).toBe(13);
+      expect(out.clearedCount).toBe(16);
       expect(out.excluded.map((s) => s.label)).toEqual(["Mulberry"]);
       expect(out.excludedTaxonLabels).toEqual(["white mulberry"]);
     }
 
     // Every other green destination restricts nothing we grow.
     const wv = consultMixOutlook("WV", SNAPSHOT_COMPLIANCE);
-    expect(wv.clearedCount).toBe(14);
+    expect(wv.clearedCount).toBe(17);
     expect(wv.excluded).toEqual([]);
   });
 
@@ -387,7 +387,7 @@ describe("consultMixOutlook — the numbers the customer is shown", () => {
       regulatedStates: ["FL"],
     };
     const out = consultMixOutlook("FL", feedMap);
-    expect(out.clearedCount).toBe(13);
+    expect(out.clearedCount).toBe(16);
     expect(out.excluded.map((s) => s.label)).toEqual(["Apple"]);
   });
 

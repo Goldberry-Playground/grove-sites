@@ -247,6 +247,12 @@ export interface CheckoutPageProps {
    * omitted.
    */
   forcePickupNote?: string;
+  /**
+   * Block submitting (both submit buttons) while the host knows the order cannot
+   * go through, e.g. a mixed pre-order cart. The host renders the reason; this
+   * only keeps the buyer from posting an order that is certain to be refused.
+   */
+  submitDisabled?: boolean;
 }
 
 /**
@@ -323,6 +329,7 @@ export function CheckoutPage({
   onFulfillmentChange,
   forcePickup = false,
   forcePickupNote,
+  submitDisabled = false,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -462,6 +469,7 @@ export function CheckoutPage({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitDisabled) return;
     // `required` stops an empty field; this also stops a whitespace-only one.
     if (!contact.phone.trim()) {
       setError("Please add a phone number so we can reach you about your order.");
@@ -532,7 +540,7 @@ export function CheckoutPage({
           <button
             type="button"
             onClick={submitFromTop}
-            disabled={submitting}
+            disabled={submitting || submitDisabled}
             className="grove-checkout__banner-cta"
           >
             {submitting ? submitPendingLabel : submitLabel}
@@ -963,7 +971,7 @@ export function CheckoutPage({
               </p>
             )}
 
-            <button type="submit" disabled={submitting} className="grove-checkout__submit">
+            <button type="submit" disabled={submitting || submitDisabled} className="grove-checkout__submit">
               {submitting ? submitPendingLabel : submitLabel}
             </button>
 

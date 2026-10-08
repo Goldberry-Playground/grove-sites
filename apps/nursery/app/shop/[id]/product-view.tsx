@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ShipWave,
   ShippingTier,
   ShippingRateTable,
   ShippingRateFeed,
@@ -37,17 +38,27 @@ import {
 } from "../../../lib/shipping-estimate";
 import {
   resolveShippableMode,
-  barerootBadge,
-  barerootNote,
   tierFulfillment,
   type FulfillmentResolution,
 } from "../../../lib/fulfillment-mode";
 import { buyStateFor, type StockTone } from "../../../lib/buy-state";
+import { readFulfillmentPref, writeFulfillmentPref } from "../../../lib/fulfillment-pref";
 import {
-  formatForPref,
-  readFulfillmentPref,
-  writeFulfillmentPref,
-} from "../../../lib/fulfillment-pref";
+  formatsForMethod,
+  isPottedSeason,
+  methodFormatLabel,
+  type FulfillmentMethod,
+} from "../../../lib/fulfillment-method";
+import {
+  farmZoneOf,
+  firstOpenWave,
+  isPreorderSeason,
+  preorderWaves,
+  readUsdaZone,
+  waveZones,
+  writeUsdaZone,
+} from "../../../lib/preorder-waves";
+import { PreorderCard } from "./preorder-card";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import {
   evaluateCompliance,
@@ -229,9 +240,70 @@ export function ProductView({
   const [cultivar, setCultivar] = useState<string | null>(() =>
     defaultCultivar(variants, cultivars, isPurchasable, isInStock),
   );
-  const formats = useMemo(() => formatOptions(variants, cultivar), [variants, cultivar]);
+  // Farm pickup vs Shipped comes BEFORE Format (Josh 2026-10-07). In the potted
+  // season the potted variant is the immediate buy ("Potted" picked up, "Peat &
+  // bagged" shipped); the bareroot variant is the Fall/Spring pre-order card,
+  // offered from Sep 1 and all of the off season. Opens on "ship" when this
+  // product can ship today, else "pickup"; the mount effect below restores the
+  // remembered intent when that method is offered.
+  const calendar = shippingFeed?.calendar ?? null;
+  const pottedSeason = isPottedSeason(new Date(), calendar);
+  const preorderSeason = isPreorderSeason(new Date());
+  // A feed that prices no potted box cannot ship a potted tree (GOL-2199).
+  const pottedShips = !isPickupOnly("potted", shippingFeed);
+  const tierOfFormat = (c: string | null, f: string): ShippingTier =>
+    tierFor({
+      shippingTier: pickVariant(variants, { cultivar: c, format: f })?.shippingTier ?? null,
+      format: f,
+    });
+  const formatsFor = (m: FulfillmentMethod, c: string | null): string[] =>
+    formatsForMethod(formatOptions(variants, c), m, (f) => tierOfFormat(c, f), {
+      pottedSeason,
+      preorderSeason,
+      pottedShips,
+    });
+  // Can this product be bought by `m` for cultivar `c` today? A pickup-only
+  // template (GOL-2587) never ships. Tier presence comes from the VARIANTS, not
+  // the Format axis: prod lists formatless single-variant products (#91 PawPaw
+  // bareroot, #130 White Oak potted) that must pass the same season / pre-order
+  // gate as a paired listing. Without this, an empty Shipped view fell through
+  // `pickVariant` to the potted variant and carted it as shippable.
+  const formatlessTierOf = (c: string | null): ShippingTier | null =>
+    formatOptions(variants, c).length === 0 && variants.length > 0
+      ? tierFor({
+          shippingTier: pickVariant(variants, { cultivar: c })?.shippingTier ?? null,
+          format: null,
+        })
+      : null;
+  const methodOffered = (m: FulfillmentMethod, c: string | null): boolean => {
+    if (m === "ship" && pickupOnly) return false;
+    const lone = formatlessTierOf(c);
+    if (lone) {
+      return (
+        formatsForMethod(["formatless"], m, () => lone, {
+          pottedSeason,
+          preorderSeason,
+          pottedShips,
+        }).length > 0
+      );
+    }
+    return formatOptions(variants, c).length === 0 || formatsFor(m, c).length > 0;
+  };
+  const openingMethod = (c: string | null): FulfillmentMethod =>
+    methodOffered("ship", c) ? "ship" : "pickup";
+  const [method, setMethod] = useState<FulfillmentMethod>(() => openingMethod(cultivar));
+  const formats = useMemo(
+    () => formatsFor(method, cultivar),
+    [variants, cultivar, method, pottedSeason, preorderSeason, pottedShips],
+  );
   const [format, setFormat] = useState<string | null>(() =>
-    defaultFormat(variants, formats, cultivar, isPurchasable, isInStock),
+    defaultFormat(
+      variants,
+      formatsFor(openingMethod(cultivar), cultivar),
+      cultivar,
+      isPurchasable,
+      isInStock,
+    ),
   );
   const rootstocks = useMemo(() => rootstockOptions(variants, cultivar), [variants, cultivar]);
   const [rootstock, setRootstock] = useState<string | null>(() =>
@@ -244,43 +316,49 @@ export function ProductView({
   // Chosen quantity, lifted so the inline stepper and the mobile sticky bar add
   // the SAME count — tapping the bar no longer silently adds just 1 (GOL-1055).
   const [quantity, setQuantity] = useState(1);
+  // Shipped pre-orders resolve their waves for the shopper's USDA zone (null
+  // until chosen; remembered in `grove:usda-zone`). Pickup uses the farm zone.
+  const [usdaZone, setUsdaZone] = useState<number | null>(null);
+  const [chosenWave, setChosenWave] = useState<ShipWave | null>(null);
 
-  // Is a given Format farm-pickup-only under today's Box Engine feed? Shared by
-  // the ship-vs-pickup preference persist (on click) and restore (on mount) so
-  // both read "shippable vs pickup" the exact same way the buy box does above.
-  const formatPickupOnly = (f: string | null): boolean =>
-    f != null &&
-    isPickupOnly(
-      tierFor({
-        shippingTier: pickVariant(variants, { cultivar, format: f })?.shippingTier ?? null,
-        format: f,
-      }),
-      shippingFeed,
-      pickupOnly,
-    );
-  const formatPurchasable = (f: string): boolean =>
-    isPurchasable(pickVariant(variants, { cultivar, format: f }));
-
-  // Bias the opening Format toward the shopper's remembered ship-vs-pickup
-  // intent (GOL-2089): if they last chose a shipped format on another PDP, open
-  // a shippable format here (and symmetrically for pickup) — but only when the
-  // neutral default's intent actually differs and a *purchasable* format of the
-  // wanted intent exists. Client-only and mount-once (SSR renders the neutral
-  // GOL-1862 default, so hydration is unchanged); a later explicit click always
-  // wins because the parent owns `format` after this runs.
+  // Restore the shopper's remembered ship-vs-pickup intent (GOL-2089) as the
+  // METHOD, and their USDA zone. Client-only and mount-once, so SSR hydrates on
+  // the neutral defaults; an explicit click always wins afterwards.
   useEffect(() => {
     const pref = readFulfillmentPref();
-    if (!pref) return;
-    const wantPickup = pref === "pickup";
-    if (format != null && formatPickupOnly(format) === wantPickup) return; // already aligned
-    const preferred = formatForPref(formats, pref, formatPurchasable, formatPickupOnly);
-    if (preferred && preferred !== format) {
-      setFormat(preferred);
-      setPinnedImage(null);
+    if (pref && pref !== method && methodOffered(pref, cultivar)) {
+      chooseMethod(pref, { persist: false });
     }
-    // Mount-only restore, mirroring the estimator's saved-state effect; the
-    // parent owns `format` thereafter.
+    const zone = readUsdaZone();
+    if (zone != null && waveZones(calendar).includes(zone)) setUsdaZone(zone);
   }, []);
+
+  const zoneOptions = useMemo(() => waveZones(calendar), [calendar]);
+  // A pickup-only template never ships, so its pre-order resolves for the farm.
+  const waveZone = method === "pickup" || pickupOnly ? farmZoneOf(shippingFeed) : usdaZone;
+  const waves = useMemo(
+    () => (waveZone != null ? preorderWaves(waveZone, new Date(), calendar) : []),
+    [waveZone, calendar],
+  );
+  // The chosen wave while it is open for this zone, else the first open one.
+  const wave: ShipWave | null = waves.some((w) => w.wave === chosenWave && w.open)
+    ? chosenWave
+    : firstOpenWave(waves);
+  const axisFormats = formatOptions(variants, cultivar);
+  const formatlessTier = formatlessTierOf(cultivar);
+  const productTiers: ShippingTier[] = formatlessTier
+    ? [formatlessTier]
+    : axisFormats.map((f) => tierOfFormat(cultivar, f));
+  const hasBareroot = productTiers.includes("bareroot");
+  const hasPotted = productTiers.includes("potted");
+  /** Does `m` offer anything to buy today (formatless products included)? */
+  const offeredFor = (m: FulfillmentMethod): boolean => methodOffered(m, cultivar);
+  const formatlessOffered = formatlessTier != null && offeredFor(method);
+
+  function chooseZone(next: number) {
+    setUsdaZone(next);
+    writeUsdaZone(next);
+  }
 
   // Live backend rate table when available, else the bundled snapshot (GOL-969).
   // resolveRateTable() is drift-safe: null/empty fetch → snapshot, so the
@@ -404,10 +482,13 @@ export function ProductView({
 
   function chooseCultivar(next: string) {
     setCultivar(next);
+    // A cultivar that can't go by the current method moves to one it can.
+    const nextMethod = methodOffered(method, next) ? method : openingMethod(next);
+    setMethod(nextMethod);
     // Keep the current format if the new cultivar offers it, else re-pick its
     // first *purchasable* format so the switch never lands on a dead default
     // (GOL-1862) — same order-independent rule as the initial mount.
-    const nextFormats = formatOptions(variants, next);
+    const nextFormats = formatsFor(nextMethod, next);
     const nextFormat =
       format && nextFormats.includes(format)
         ? format
@@ -429,10 +510,21 @@ export function ProductView({
   function chooseFormat(next: string) {
     setFormat(next);
     setPinnedImage(null);
-    // Remember the ship-vs-pickup intent behind this explicit pick so the next
-    // PDP opens aligned (GOL-2089). Intent is generic (pickup-only → pickup,
-    // else ship), so it survives GOL-2031's potted-shippable flip.
-    writeFulfillmentPref(formatPickupOnly(next) ? "pickup" : "ship");
+  }
+
+  // Switch Farm pickup / Shipped, keeping the current format when the new method
+  // still offers it, else re-picking its first purchasable one (GOL-1862). The
+  // method is the remembered intent the next PDP opens on (GOL-2089).
+  function chooseMethod(next: FulfillmentMethod, opts: { persist?: boolean } = {}) {
+    setMethod(next);
+    const nextFormats = formatsFor(next, cultivar);
+    setFormat(
+      format && nextFormats.includes(format)
+        ? format
+        : defaultFormat(variants, nextFormats, cultivar, isPurchasable, isInStock),
+    );
+    setPinnedImage(null);
+    if (opts.persist !== false) writeFulfillmentPref(next);
   }
 
   function chooseRootstock(next: string) {
@@ -450,6 +542,13 @@ export function ProductView({
     format,
   });
   const selectedPickupOnly = isPickupOnly(selectedTier, shippingFeed, pickupOnly);
+  // A potted tree must never ship as potted: chosen for Farm pickup, or any time
+  // outside the potted season, flag the cart line pickupOnly so the GOL-2588
+  // checkout lock forces pickup. Independent of the method so a stale or
+  // wildcarded selection can't slip a shippable potted line into the cart.
+  const cartPickupOnly =
+    selectedPickupOnly ||
+    (selectedTier === "potted" && (method === "pickup" || !pottedSeason));
 
   // One buy-state decision drives the stock line, the CTA, and the sticky bar,
   // so the inline box and the mobile bar can never contradict each other
@@ -464,21 +563,6 @@ export function ProductView({
     pickupOnly: selectedPickupOnly,
   });
 
-  // Variant-specific charge shape for the buy-box note (GOL-2233 ruling). The
-  // deposit decision keys to the backend `_order_takes_deposit` rule — sold out
-  // OR after the Oct 15 cutover — so it needs THIS variant's stock, unlike the
-  // zone-agnostic `shipMode` above that feeds the generic estimator/format rows.
-  // A `reservable` buy state is exactly a bareroot variant with no free stock.
-  const selectedShipMode = useMemo<FulfillmentResolution | null>(
-    () =>
-      shippingFeed?.calendar
-        ? resolveShippableMode(new Date(), shippingFeed.calendar, null, {
-            soldOut: buy.mode === "reservable",
-          })
-        : null,
-    [shippingFeed, buy.mode],
-  );
-
   // Bind the cart to an EXACT variant match, never to pickVariant's display
   // fallback (GOL-1862). `pickVariant` deliberately degrades to a best-effort
   // variant so price/image/hint always render, but its terminal `?? variants[0]`
@@ -488,6 +572,29 @@ export function ProductView({
   const cartMatch = variantMatches(selected, { cultivar, format, rootstock }) ? selected : null;
   const cartName = cartMatch?.name ?? name;
   const cartVariantId = cartMatch?.id ?? productId;
+
+  // Pre-order vs immediate CTA. A bareroot line is a pre-order for ONE open
+  // wave and carries it to the cart (F2 `canAdd` refuses mixing); with no open
+  // wave the CTA is unavailable. Nothing offered for this method (a bareroot-only
+  // listing before Sep 1, a potted-only listing outside May 1 to Oct 15, with or
+  // without a Format axis) also locks the CTA.
+  const nothingOffered = !offeredFor(method);
+  const isPreorder = !nothingOffered && selectedTier === "bareroot";
+  const ctaDisabled = buy.ctaDisabled || nothingOffered || (isPreorder && wave == null);
+  const ctaLabel =
+    isPreorder && !buy.ctaDisabled
+      ? "Pre-order for $10"
+      : buy.ctaLabel === "Add to Cart"
+        ? "Add to cart"
+        : buy.ctaLabel;
+  const cartWave = isPreorder ? (wave ?? undefined) : undefined;
+  // Before Sep 1 nothing bareroot is offered; say when it will be if the shopper
+  // has nothing to buy today.
+  const showPreordersOpen =
+    hasBareroot &&
+    !preorderSeason &&
+    pottedSeason &&
+    (nothingOffered || !isPurchasable(selected));
 
   return (
     <>
@@ -557,10 +664,95 @@ export function ProductView({
             </div>
           )}
 
-          {formats.length > 0 && (
+          <div className="mb-5">
+            <span
+              id="pdp-method-label"
+              className="block text-sm font-semibold text-foreground mb-2"
+            >
+              How do you want it?
+            </span>
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-labelledby="pdp-method-label"
+            >
+              {METHOD_OPTIONS.map(([m, label, sub]) => {
+                const unavailable = !offeredFor(m);
+                const isActive = method === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => chooseMethod(m)}
+                    aria-pressed={isActive}
+                    disabled={unavailable}
+                    className={`flex flex-1 flex-col justify-start rounded border px-4 py-2 text-left text-sm transition ${
+                      isActive
+                        ? "border-primary bg-primary/5"
+                        : "border-primary/15 hover:border-primary/40"
+                    } ${unavailable ? "opacity-60" : ""}`}
+                  >
+                    <span className="block font-medium text-foreground">{label}</span>
+                    <span className="block text-xs text-ink-soft">
+                      {unavailable ? "Not available right now" : sub}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {method === "ship" && hasBareroot && !pickupOnly && (
+            <div className="mb-5">
+              <label htmlFor="usda-zone" className="block text-sm font-semibold text-foreground mb-2">
+                Your USDA zone
+              </label>
+              <select
+                id="usda-zone"
+                value={usdaZone ?? ""}
+                onChange={(e) => {
+                  if (e.target.value) chooseZone(Number(e.target.value));
+                }}
+                className="w-full rounded border border-primary/20 bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+              >
+                <option value="">Choose your zone</option>
+                {zoneOptions.map((z) => (
+                  <option key={z} value={z}>
+                    Zone {z}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {(formats.length > 0 || formatlessOffered) && (
             <div className="mb-5">
               <span className="block text-sm font-semibold text-foreground mb-2">Format</span>
               <div className="flex flex-wrap gap-2">
+                {/* A formatless listing's single variant, shown as the same card a
+                    paired listing would show for its tier. */}
+                {formatlessOffered && formatlessTier === "bareroot" && (
+                  <PreorderCard
+                    method={method}
+                    price={selected?.price ?? null}
+                    selected
+                    onSelect={() => {}}
+                    zone={waveZone}
+                    waves={waves}
+                    wave={wave}
+                    onChooseWave={setChosenWave}
+                  />
+                )}
+                {formatlessOffered && formatlessTier === "potted" && (
+                  <div className="rounded border border-primary bg-primary/5 px-4 py-2 text-left text-sm">
+                    <span className="block font-medium text-foreground">
+                      {pickupOnly ? "Potted" : methodFormatLabel(method, "potted", "Potted")}
+                    </span>
+                    <span className="block text-xs text-ink-soft">
+                      ${price.toFixed(2)} · charged in full
+                    </span>
+                  </div>
+                )}
                 {formats.map((f) => {
                   const fVariant = pickVariant(variants, { cultivar, format: f });
                   const fHint = shippingHintFor({
@@ -575,6 +767,25 @@ export function ProductView({
                     format: f,
                   });
                   const fPickupOnly = isPickupOnly(fTier, shippingFeed, pickupOnly);
+                  // Bareroot is always a Fall/Spring wave pre-order (Josh 2026-10-07).
+                  if (fTier === "bareroot") {
+                    return (
+                      <PreorderCard
+                        key={f}
+                        method={method}
+                        price={fVariant?.price ?? null}
+                        selected={f === format}
+                        onSelect={() => chooseFormat(f)}
+                        zone={waveZone}
+                        waves={waves}
+                        wave={wave}
+                        onChooseWave={(w) => {
+                          setChosenWave(w);
+                          if (f !== format) chooseFormat(f);
+                        }}
+                      />
+                    );
+                  }
                   // A carve-out blocks the ITEM, not the format, so it kills the
                   // quote for every format (GOL-2973) — the card must not echo a
                   // "ship $20 to FL" the estimator panel just said we can't do.
@@ -622,8 +833,12 @@ export function ProductView({
                   } = tierFulfillment({
                     tier: fTier,
                     label: f,
-                    pickupOnly: fPickupOnly,
-                    pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
+                    // Under Farm pickup every card is collected at the farm, so
+                    // no card may carry a ship promise ("Ships now", GOL-1114).
+                    pickupOnly: fPickupOnly || method === "pickup",
+                    pickupFulfillment: fPickupOnly
+                      ? PICKUP_ONLY_FULFILLMENT
+                      : PICKUP_METHOD_FULFILLMENT,
                     hintFulfillment: fHint.fulfillment,
                     shipMode,
                   });
@@ -641,7 +856,7 @@ export function ProductView({
                       }`}
                     >
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
-                        {fLabel}
+                        {methodFormatLabel(method, fTier, fLabel)}
                         {fBadge && (
                           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
                             {fBadge}
@@ -654,7 +869,7 @@ export function ProductView({
                           fFulfillment,
                           // Pickup-only formats don't quote a ship line — the
                           // fulfillment already says "Farm pickup only".
-                          fPickupOnly ? null : shipText,
+                          fPickupOnly || method === "pickup" ? null : shipText,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -719,7 +934,7 @@ export function ProductView({
               fulfillment story instead (progressive disclosure: don't ask for
               input that cannot change the outcome). Potted-only products keep
               the panel, because their bareroot siblings still price per state. */}
-          {estimatorTiers.length > 0 && !pickupOnly && (
+          {estimatorTiers.length > 0 && !pickupOnly && method === "ship" && (
             <ShippingEstimator
               state={shipState}
               onStateChange={setShipState}
@@ -765,50 +980,6 @@ export function ProductView({
             </p>
           )}
 
-          {/* Bareroot fulfillment note, driven by the selected variant's charge
-              shape (GOL-2233 ruling): ships-now + charged in full for in-stock
-              bareroot on/before Oct 15, else a flat $10-per-order reserve deposit
-              (sold out, or after the cutover). Peat & bagged for the leafed
-              window. Icon + words, never colour alone. The legacy backend (no
-              calendar feed → selectedShipMode null) keeps the old stock-driven
-              deposit note below. Coming-soon placeholders show neither. */}
-          {selectedShipMode &&
-            selectedTier === "bareroot" &&
-            !selectedPickupOnly &&
-            buy.mode !== "coming-soon" && (
-            <p className="mb-4 flex items-start gap-1.5 text-xs text-ink-soft">
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                className="mt-0.5 h-3.5 w-3.5 shrink-0 fill-secondary"
-              >
-                <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.5 3.6L12 11.5 5.5 7.9 12 4.3ZM5 9.6l6 3.3v6.2l-6-3.3V9.6Zm14 0v6.2l-6 3.3v-6.2l6-3.3Z" />
-              </svg>
-              <span>
-                {barerootBadge(selectedShipMode) && (
-                  <strong className="font-semibold text-foreground">
-                    {barerootBadge(selectedShipMode)}.
-                  </strong>
-                )}{" "}
-                {barerootNote(selectedShipMode)}
-                {/* Windows are estimates (GOL-1177 `approximate`); a weather-
-                    permitting qualifier keeps the promise honest. Suppressed when
-                    an explicit hold banner already says more. */}
-                {selectedShipMode.approximate &&
-                  !selectedShipMode.weatherHoldNote &&
-                  selectedShipMode.mode !== "peat-and-bagged" && (
-                    <span className="text-ink-soft"> Ship dates are estimates, weather permitting.</span>
-                  )}
-              </span>
-            </p>
-          )}
-
-          {buy.showDepositNote && !selectedShipMode && (
-            <p className="text-xs text-ink-soft mb-4">
-              Bareroot ships in fall. Reserve now with a $10 deposit applied to your total.
-            </p>
-          )}
-
           {selectedPickupOnly && (
             // Icon + words (never colour alone): this format is farm pickup only.
             // Inline SVG pin (not a unicode glyph) so it renders on every font.
@@ -833,6 +1004,16 @@ export function ProductView({
             </p>
           )}
 
+          {hasPotted && !hasBareroot && !pottedSeason && (
+            <p className="mb-4 text-xs text-ink-soft">Potted trees are sold May 1 to Oct 15.</p>
+          )}
+
+          {showPreordersOpen && (
+            <p className="mb-4 text-xs text-ink-soft">
+              Bareroot is sold as a pre-order. Pre-orders open Sep 1.
+            </p>
+          )}
+
           <div data-add-to-cart-anchor className="mt-4">
             <AddToCartButton
               variantId={cartVariantId}
@@ -840,11 +1021,12 @@ export function ProductView({
               name={cartName}
               price={price}
               imageUrl={hero}
-              disabled={buy.ctaDisabled}
-              idleLabel={buy.ctaLabel}
+              disabled={ctaDisabled}
+              idleLabel={ctaLabel}
               quantity={quantity}
               onQuantityChange={setQuantity}
-              pickupOnly={selectedPickupOnly}
+              pickupOnly={cartPickupOnly}
+              wave={cartWave}
               consultBuilt={consultBuilt}
             />
           </div>
@@ -897,10 +1079,11 @@ export function ProductView({
         name={cartName}
         price={price}
         imageUrl={hero}
-        disabled={buy.ctaDisabled}
-        idleLabel={buy.ctaLabel}
+        disabled={ctaDisabled}
+        idleLabel={ctaLabel}
         quantity={quantity}
-        pickupOnly={selectedPickupOnly}
+        pickupOnly={cartPickupOnly}
+        wave={cartWave}
         consultBuilt={consultBuilt}
       />
     </>
@@ -918,6 +1101,15 @@ const STOCK_TONE_CLASS: Record<StockTone, string> = {
   reserve: "stock-line stock-line--reserve",
   "sold-out": "stock-line stock-line--out",
 };
+
+/** Fulfillment method buttons, in display order (Josh 2026-10-07). */
+const METHOD_OPTIONS: ReadonlyArray<readonly [FulfillmentMethod, string, string]> = [
+  ["pickup", "Farm pickup", "Free · Tue to Sat"],
+  ["ship", "Shipped", "To 31 states and Washington, D.C."],
+];
+
+/** Format-card fulfillment line when the shopper chose Farm pickup. */
+const PICKUP_METHOD_FULFILLMENT = "Pick up at the farm";
 
 /** Friendly per-tier label for the shipping estimator rows. */
 const TIER_LABEL: Record<ShippingTier, string> = {
