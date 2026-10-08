@@ -146,6 +146,18 @@ export function validateOrderInput(payload: unknown): string | null {
   }
   const isPickup = p.fulfillment === "pickup";
 
+  // Optional pre-order wave (one wave per order). Absent/null = an immediate
+  // order. Whether the wave is open, and whether the cart may carry one, is
+  // re-validated server-side; the BFF only guards the shape.
+  if (
+    p.shipWave !== undefined &&
+    p.shipWave !== null &&
+    p.shipWave !== "fall" &&
+    p.shipWave !== "spring"
+  ) {
+    return 'shipWave must be "fall" or "spring"';
+  }
+
   // Ship orders require a full, valid shipping address; pickup orders do not.
   if (!isPickup) {
     const shippingError = validateAddress(p.shipping, "shipping");

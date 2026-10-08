@@ -51,7 +51,7 @@ export function createPromoPreviewRoute(odoo: OdooClient, { allowedOrigins }: Pr
     const body = await readObject(request);
     if (body instanceof Response) return body;
 
-    const { items, fulfillment, promoCode } = body;
+    const { items, fulfillment, promoCode, shipWave } = body;
     if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) {
       return NextResponse.json(
         { error: `items must be a non-empty array of at most ${MAX_ITEMS} entries` },
@@ -73,6 +73,9 @@ export function createPromoPreviewRoute(odoo: OdooClient, { allowedOrigins }: Pr
         { status: 400 },
       );
     }
+    if (shipWave !== undefined && shipWave !== null && shipWave !== "fall" && shipWave !== "spring") {
+      return NextResponse.json({ error: 'shipWave must be "fall" or "spring"' }, { status: 400 });
+    }
     const code = typeof promoCode === "string" ? promoCode.trim() : "";
 
     try {
@@ -80,6 +83,7 @@ export function createPromoPreviewRoute(odoo: OdooClient, { allowedOrigins }: Pr
         items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
         fulfillment: fulfillment === "ship" || fulfillment === "pickup" ? fulfillment : null,
         promoCode: code || undefined,
+        shipWave: shipWave === "fall" || shipWave === "spring" ? shipWave : undefined,
       });
       return NextResponse.json(preview);
     } catch (e) {

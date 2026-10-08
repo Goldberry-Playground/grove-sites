@@ -21,6 +21,8 @@ export type {
   CheckoutSession,
   CheckoutQuoteInput,
   CheckoutQuote,
+  ShipWave,
+  PreorderWave,
   PromoPreviewInput,
   PromoPreview,
   PromotionTier,

@@ -336,7 +336,7 @@ describe("crash safety, fallback windows, advisory fields", () => {
         "6": {
           ...CAL.zones["6"],
           fall_order_deadline: [11, 21],
-          spring_order_deadline: [5, 31],
+          spring_order_deadline: [3, 29],
         },
       },
     };
@@ -472,9 +472,9 @@ describe("zoneShipNote — homepage Field Notes row", () => {
     zones: {
       "3": {
         fall: [[11, 2], [11, 13]],
-        spring: [[4, 19], [6, 6]],
+        spring: [[4, 8], [4, 15]],
         fall_order_deadline: [11, 12],
-        spring_order_deadline: [5, 31],
+        spring_order_deadline: [4, 1],
       },
     },
   };
@@ -492,13 +492,13 @@ describe("zoneShipNote — homepage Field Notes row", () => {
 
   it("past the fall window: rolls to next spring", () => {
     expect(zoneShipNote(on(12, 1), Z, 3)).toEqual({
-      label: "Ships Apr 19 – Jun 6",
-      note: "Order by May 31",
+      label: "Ships Apr 8 – Apr 15",
+      note: "Order by Apr 1",
     });
   });
 
   it("before the spring window ends: shows spring", () => {
-    expect(zoneShipNote(on(3, 1), Z, 3).label).toBe("Ships Apr 19 – Jun 6");
+    expect(zoneShipNote(on(3, 1), Z, 3).label).toBe("Ships Apr 8 – Apr 15");
   });
 
   it("unknown zone: no invented dates", () => {
