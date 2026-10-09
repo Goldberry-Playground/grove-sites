@@ -9,10 +9,9 @@ import type {
   ShippingRateFeed,
   ShippingZoneMap,
 } from "@grove/odoo-client";
-import Image from "next/image";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
 import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
-import { ProductImage } from "../../product-image";
+import { ProductGallery, galleryThumbs, type ViewImage } from "./product-gallery";
 import {
   cultivarOptions,
   formatOptions,
@@ -73,12 +72,7 @@ import { ZoneCheck } from "./zone-check";
 import { AtAGlance, PlantTwoHint } from "./at-a-glance";
 import { PLANT_TWO_QUANTITY } from "../../../lib/plant-two";
 
-/** Serializable gallery image (URLs pre-resolved to absolute on the server). */
-export interface ViewImage {
-  id: number;
-  url: string;
-  thumbUrl: string;
-}
+export type { ViewImage };
 
 /** Serializable variant for the buy box (image URL pre-resolved). */
 export interface ViewVariant {
@@ -92,8 +86,10 @@ export interface ViewVariant {
   /** Rootstock / propagation axis value (e.g. "M.111", "Seedling"); null when
    *  the product has no Rootstock attribute (GOL-1112). */
   rootstock: string | null;
-  shippingTier: "potted" | "bareroot" | null;
+  shippingTier: ShippingTier | null;
   imageUrl: string;
+  /** Pack size axis value on a seed product ("Pack of 10"); null otherwise. */
+  packSize?: string | null;
 }
 
 export interface ProductViewProps {
@@ -496,12 +492,7 @@ export function ProductView({
   const variantImage = selected?.imageUrl || null;
   const hero = pinnedImage ?? variantImage ?? heroImage;
 
-  const thumbs: ViewImage[] =
-    images.length > 0
-      ? images
-      : heroImage
-        ? [{ id: -1, url: heroImage, thumbUrl: heroImage }]
-        : [];
+  const thumbs = galleryThumbs(images, heroImage);
 
   function chooseCultivar(next: string) {
     setCultivar(next);
@@ -622,44 +613,14 @@ export function ProductView({
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
-        {/* Gallery */}
-        <div>
-          <div className="relative aspect-square bg-secondary/20 rounded-lg overflow-hidden">
-            <ProductImage
-              src={hero}
-              alt={name}
-              sizes="(max-width: 768px) 100vw, 50vw"
-              priority
-            />
-            {featured && (
-              <span className="absolute top-3 right-3 bg-accent text-white text-xs font-medium px-2 py-1 rounded">
-                Featured
-              </span>
-            )}
-          </div>
-          {thumbs.length > 1 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto" role="list" aria-label="Product images">
-              {thumbs.map((img) => {
-                const isActive = (pinnedImage ?? variantImage ?? heroImage) === img.url;
-                return (
-                  <button
-                    key={img.id}
-                    type="button"
-                    role="listitem"
-                    onClick={() => setPinnedImage(img.url)}
-                    aria-pressed={isActive}
-                    aria-label="Show image"
-                    className={`relative h-16 w-16 shrink-0 overflow-hidden rounded border transition ${
-                      isActive ? "border-primary" : "border-primary/10 hover:border-primary/40"
-                    }`}
-                  >
-                    <Image src={img.thumbUrl} alt="" fill className="object-cover" sizes="64px" />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <ProductGallery
+          name={name}
+          featured={featured}
+          hero={hero}
+          thumbs={thumbs}
+          activeUrl={hero}
+          onPick={setPinnedImage}
+        />
 
         {/* Buy box */}
         <div>
@@ -1162,6 +1123,7 @@ const PICKUP_METHOD_FULFILLMENT = "Pick up at the farm";
 const TIER_LABEL: Record<ShippingTier, string> = {
   potted: "Potted",
   bareroot: "Bareroot",
+  seed: "Seed",
 };
 
 /** Secondary descriptor under each rootstock option's raw value (GOL-1112). */

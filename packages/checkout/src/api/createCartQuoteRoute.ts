@@ -3,6 +3,7 @@ import { OdooApiError, type OdooClient, type ShippingTier, type ShipWave } from 
 import { isOriginAllowed, rejectOrigin } from "./origins";
 import { requireJsonContentType } from "./contentType";
 import { forwardCheckoutError, sanitizeUpstreamError } from "./upstreamError";
+import { SEED_DEPOSIT } from "../seed";
 
 /** One cart line, enriched with the live catalog facts a deposit rule needs. */
 export interface CartQuoteLine {
@@ -68,6 +69,30 @@ function estimatedWaveQuote(shipWave: ShipWave): EstimatedWaveQuote {
     shipWave,
     depositAmount: WAVE_PREORDER_DEPOSIT,
     amountDueToday: WAVE_PREORDER_DEPOSIT,
+    estimated: true,
+  };
+}
+
+/**
+ * The fallback answer for an all-seed cart when the backend quote is
+ * unavailable (GOL-3258): one flat $1 seed deposit. Display-only for the same
+ * reason as {@link estimatedWaveQuote}: `seedDepositConfirmed` ignores it, so
+ * checkout stays blocked until the backend itself says `seed`.
+ */
+export interface EstimatedSeedQuote {
+  depositNow: true;
+  depositReason: "seed";
+  depositAmount: number;
+  amountDueToday: number;
+  estimated: true;
+}
+
+function estimatedSeedQuote(): EstimatedSeedQuote {
+  return {
+    depositNow: true,
+    depositReason: "seed",
+    depositAmount: SEED_DEPOSIT,
+    amountDueToday: SEED_DEPOSIT,
     estimated: true,
   };
 }
@@ -252,6 +277,12 @@ export function createCartQuoteRoute<Quote>(
       const v = variantsById.get(r.variantId);
       if (!v) continue;
       lines.push({ ...r, ...v });
+    }
+
+    // An all-seed cart is a $1 seed pre-order by definition; the brand rule
+    // only knows the tree triggers and would estimate it as charged in full.
+    if (lines.length > 0 && lines.every((l) => l.shippingTier === "seed")) {
+      return NextResponse.json(estimatedSeedQuote());
     }
 
     const quote = resolve(lines, { fulfillment: fulfillmentChoice });

@@ -20,6 +20,8 @@ import type {
   ApiPromoPreviewResponse,
   ApiPromotionTier,
   ApiZoneResponse,
+  ApiSeedSeason,
+  SeedSeason,
   Product,
   ProductVariant,
   GrowingFacts,
@@ -241,6 +243,36 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
       .map((v) => (hasTemplatePhoto ? v : { ...v, imageUrl: "" })),
     facts: raw.facts ? normalizeFacts(raw.facts) : undefined,
     images: (raw.images ?? []).map(normalizeImage),
+    seedSeason: normalizeSeedSeason(raw.seed_season ?? raw.seedSeason),
+  };
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Seed pre-order season (GOL-3257/3258). Accepts the API's snake_case and the
+ * spec's camelCase spelling. Returns null unless the year and all three dates
+ * are usable: a seed card with a missing ship window would promise nothing
+ * true, so the PDP treats a malformed season as "not taking reservations".
+ */
+export function normalizeSeedSeason(raw: ApiSeedSeason | null | undefined): SeedSeason | null {
+  if (!raw || typeof raw !== "object" || !Number.isInteger(raw.year)) return null;
+  const shipStart = raw.ship_start ?? raw.shipStart;
+  const shipEnd = raw.ship_end ?? raw.shipEnd;
+  const orderBy = raw.order_by ?? raw.orderBy;
+  if (![shipStart, shipEnd, orderBy].every((d) => typeof d === "string" && ISO_DATE.test(d))) {
+    return null;
+  }
+  const reason = raw.reason === "order_by_passed" || raw.reason === "cap_reached" ? raw.reason : null;
+  return {
+    year: raw.year,
+    shipStart: shipStart as string,
+    shipEnd: shipEnd as string,
+    orderBy: orderBy as string,
+    rolledOver: (raw.rolled_over ?? raw.rolledOver) === true,
+    reason,
+    // Default closed: only an explicit `open: true` takes a reservation.
+    open: raw.open === true,
   };
 }
 
@@ -266,6 +298,8 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     rootstock: emptyToNull(raw.rootstock),
     shippingTier: raw.shipping_tier || null,
     treeCount: normalizeTreeCount(raw.tree_count),
+    packSize: emptyToNull(raw.pack_size),
+    packLb: typeof raw.pack_lb === "number" && raw.pack_lb > 0 ? raw.pack_lb : null,
   };
 }
 
@@ -421,6 +455,7 @@ export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQ
     depositNow: raw.deposit_now,
     depositReason: raw.deposit_reason ?? null,
     shipWave: raw.ship_wave ?? null,
+    seedHarvestYear: typeof raw.seed_harvest_year === "number" ? raw.seed_harvest_year : null,
     depositAmount: raw.deposit_amount,
     amountDueToday: raw.amount_due_today ?? null,
     afterCutover: raw.after_cutover,

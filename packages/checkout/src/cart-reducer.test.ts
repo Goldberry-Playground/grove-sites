@@ -3,6 +3,7 @@ import {
   addItem,
   canAdd,
   orderKind,
+  orderSeed,
   orderWave,
   cartStorageKey,
   removeItem,
@@ -13,6 +14,7 @@ import {
   validateCartItems,
   type CartItem,
 } from "./cart-reducer";
+import { SEED_MIXED_MESSAGE, SEED_YEAR_MESSAGE } from "./seed";
 
 const apple: Omit<CartItem, "quantity"> = {
   variantId: 2,
@@ -343,5 +345,63 @@ describe("setOrderWave — move a pre-order to another wave (GOL-3194)", () => {
     const cart: CartItem[] = [{ ...apple, quantity: 1 }];
     expect(setOrderWave(cart, "spring")).toEqual(cart);
     expect(orderKind(setOrderWave(cart, "spring"))).toBe("immediate");
+  });
+});
+
+describe("seed pre-order carts (GOL-3258)", () => {
+  const tree: CartItem = { variantId: 1, templateId: 1, name: "Tree", price: 12, imageUrl: "", quantity: 1 };
+  const fallTree: CartItem = { ...tree, variantId: 2, wave: "fall" };
+  const seedLine = (variantId: number, year: number): CartItem => ({
+    variantId,
+    templateId: 300,
+    name: "Seed",
+    price: 20,
+    imageUrl: "",
+    quantity: 1,
+    seed: { year, rolledOver: year > 2026, shipStart: `${year}-10-15`, shipEnd: `${year}-11-15` },
+  });
+
+  it("an all-seed, one-year cart is a seed order", () => {
+    expect(orderKind([seedLine(901, 2026), seedLine(951, 2026)])).toBe("seed");
+    expect(orderSeed([seedLine(901, 2026)])?.year).toBe(2026);
+  });
+
+  it("seeds with trees, or two harvest years, are mixed", () => {
+    expect(orderKind([seedLine(901, 2026), tree])).toBe("mixed");
+    expect(orderKind([seedLine(901, 2026), fallTree])).toBe("mixed");
+    expect(orderKind([seedLine(901, 2026), seedLine(902, 2027)])).toBe("mixed");
+    expect(orderSeed([seedLine(901, 2026), tree])).toBeNull();
+  });
+
+  it("canAdd refuses seeds into a tree cart and trees into a seed cart", () => {
+    const seed2026 = { year: 2026 };
+    for (const items of [[tree], [fallTree]]) {
+      expect(canAdd(items, { seed: seed2026 })).toEqual({ ok: false, reason: "seed", message: SEED_MIXED_MESSAGE });
+    }
+    expect(canAdd([seedLine(901, 2026)], {})).toEqual({ ok: false, reason: "seed", message: SEED_MIXED_MESSAGE });
+    expect(canAdd([seedLine(901, 2026)], { wave: "fall" })).toMatchObject({ ok: false, reason: "seed" });
+  });
+
+  it("canAdd allows a second seed product of the same harvest year, not another year", () => {
+    expect(canAdd([], { seed: { year: 2026 } })).toEqual({ ok: true });
+    expect(canAdd([seedLine(901, 2026)], { seed: { year: 2026 } })).toEqual({ ok: true });
+    expect(canAdd([seedLine(901, 2026)], { seed: { year: 2027 } })).toEqual({
+      ok: false,
+      reason: "seed",
+      message: SEED_YEAR_MESSAGE,
+    });
+  });
+
+  it("validateCartItems keeps a well-formed seed line and drops a tampered one", () => {
+    const good = seedLine(901, 2026);
+    expect(validateCartItems([good])).toEqual([good]);
+    expect(validateCartItems([{ ...good, seed: { year: "2026" } }])).toEqual([]);
+    expect(validateCartItems([{ ...good, seed: true }])).toEqual([]);
+  });
+
+  it("addItem refreshes the harvest on an existing seed line", () => {
+    const next = addItem([seedLine(901, 2026)], { ...seedLine(901, 2027) }, 2);
+    expect(next[0].quantity).toBe(3);
+    expect(next[0].seed?.year).toBe(2027);
   });
 });

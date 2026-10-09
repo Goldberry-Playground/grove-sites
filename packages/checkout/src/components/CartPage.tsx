@@ -2,13 +2,14 @@
 
 import { CartPage as UICartPage } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
-import { orderKind, orderWave } from "../cart-reducer";
+import { orderKind, orderSeed, orderWave } from "../cart-reducer";
 import {
-  MIXED_CART_MESSAGE,
   PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
+  depositConfirmedFor,
+  mixedCartMessage,
   orderTypeLine,
-  preorderDepositConfirmed,
 } from "../order-type";
+import { seedLineNotes } from "../seed";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
@@ -61,25 +62,27 @@ export function CartPage({
     wave: shipWave,
     depositNow: depositQuote?.depositNow === true,
     pickup: allPickupOnly ? true : null,
+    seed: orderSeed(items),
   });
   // Same guard as the checkout form: a pre-order the backend has not confirmed
-  // as a $10 deposit for this wave (older backend, or the route's estimate).
+  // as a $10 deposit for this wave, or a seed cart not confirmed as the $1 seed
+  // deposit (older backend, or the route's estimate).
   const preorderUnconfirmed =
     hydrated &&
-    kind === "preorder" &&
+    (kind === "preorder" || kind === "seed") &&
     quoteError === null &&
     (depositSettled || quoteFailed) &&
-    !preorderDepositConfirmed(depositQuote, shipWave);
+    !depositConfirmedFor(kind, depositQuote, shipWave);
   const blockingMessage = mixedCart
-    ? MIXED_CART_MESSAGE
+    ? mixedCartMessage(items)
     : quoteError ?? (preorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
-  const dueToday = dueTodayFor(depositQuote);
+  const dueToday = dueTodayFor(depositQuote, { subtotal });
   // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
   // nudge only once the quote confirms a charged-in-full cart — never while the
   // quote is loading or if it failed (both leave the charge mode unknown), so a
   // reservation cart can't flash a discount promise it will never honour.
   const { nudge } = useTierNudge(tiersHref, items, {
-    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "mixed",
+    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "seed" || kind === "mixed",
     surface: "cart",
   });
 
@@ -105,6 +108,10 @@ export function CartPage({
         trustItems={BRAND_TRUST[brand].cart}
         dueToday={dueToday}
         tierNudge={nudge?.message ?? null}
+        lineNotes={(item) => {
+          const seed = items.find((i) => i.variantId === item.variantId)?.seed;
+          return seed ? seedLineNotes(seed) : null;
+        }}
       />
     </WithGroveNext>
   );

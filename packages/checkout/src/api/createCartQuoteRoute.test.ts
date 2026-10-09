@@ -316,3 +316,39 @@ describe("createCartQuoteRoute — destination ZIP and closed waves (GOL-3194)",
     expect(quote).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("createCartQuoteRoute — seed pre-orders (GOL-3258)", () => {
+  const chinquapin = product(30, [
+    { id: 301, name: "Chinquapin (Pack of 10)", sku: null, price: 20, available: false, imageUrl: "", shippingTier: "seed", qtyAvailable: 0 },
+  ]);
+
+  it("falls back to a display-only $1 seed estimate for an all-seed cart", async () => {
+    const { odoo } = fakeOdoo(vi.fn(async () => chinquapin));
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve });
+    const res = await POST(postReq({ items: [{ variantId: 301, templateId: 30, quantity: 2 }] }));
+    expect(await res.json()).toEqual({
+      depositNow: true,
+      depositReason: "seed",
+      depositAmount: 1,
+      amountDueToday: 1,
+      estimated: true,
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it("leaves a seed + tree cart to the brand rule (the backend refuses the mix)", async () => {
+    const { odoo } = fakeOdoo(vi.fn(async (id: number) => (id === 30 ? chinquapin : pear)));
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve });
+    await POST(
+      postReq({
+        items: [
+          { variantId: 301, templateId: 30, quantity: 1 },
+          { variantId: 51, templateId: 5, quantity: 1 },
+        ],
+      }),
+    );
+    expect(resolve).toHaveBeenCalledOnce();
+  });
+});

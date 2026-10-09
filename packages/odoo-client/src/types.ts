@@ -177,8 +177,33 @@ export interface ApiMany2One {
 
 /** Effective per-variant shipping tier — bareroot ships as a slim box, potted
  * as a heavy box, so a bareroot Format variant must not quote potted rates
- * (resolved server-side in grove_headless, catalog API v1). */
-export type ShippingTier = "bareroot" | "potted";
+ * (resolved server-side in grove_headless, catalog API v1). `seed` is a seed-nut
+ * pre-order (GOL-3257/3258): never box-packed or rate-quoted, shipped at the
+ * actual label cost once the harvest is in. */
+export type ShippingTier = "bareroot" | "potted" | "seed";
+
+/** Why a seed product is reserving from next fall's harvest (`seed_season`). */
+export type SeedRolloverReason = "order_by_passed" | "cap_reached";
+
+/**
+ * Raw seed season from the product detail endpoint (grove_headless
+ * `seed_season(template, today)`, seed pre-orders spec §3/§5). Dates are ISO
+ * `YYYY-MM-DD`; when `rolled_over` they are already next fall's. The spec
+ * names the object in camelCase, so the normalizer accepts both spellings.
+ */
+export interface ApiSeedSeason {
+  year: number;
+  ship_start?: string;
+  ship_end?: string;
+  order_by?: string;
+  rolled_over?: boolean;
+  reason?: SeedRolloverReason | null;
+  open?: boolean;
+  shipStart?: string;
+  shipEnd?: string;
+  orderBy?: string;
+  rolledOver?: boolean;
+}
 
 /** Raw structured variant from the product detail endpoint (catalog API v1).
  *
@@ -211,6 +236,11 @@ export interface ApiVariant {
    *  count for a bundle (Remembrance Grove = 5), 0 for supplies / gift cards /
    *  services. Absent on a backend that predates the field. */
   tree_count?: number;
+  /** Pack size axis value on a seed product ("Pack of 10", "1 lb"), "" or absent
+   *  otherwise (GOL-3257). */
+  pack_size?: string;
+  /** Pack weight in lb, counted against the seed season cap (GOL-3257). */
+  pack_lb?: number | null;
 }
 
 /** Gallery image from the product detail endpoint (catalog API v1). */
@@ -301,6 +331,10 @@ export interface ApiProductDetail
   tags: ApiTag[];
   /** Ordered gallery: template hero first, then eCommerce media (catalog API v1). */
   images: ApiProductImage[];
+  /** Seed pre-order season (GOL-3257); absent/null on every non-seed product. */
+  seed_season?: ApiSeedSeason | null;
+  /** camelCase spelling of `seed_season` used by the seed pre-orders spec. */
+  seedSeason?: ApiSeedSeason | null;
 }
 
 /** Raw response from GET /grove/api/v1/zone?zip= (catalog API v1). The
@@ -916,6 +950,28 @@ export interface Product {
   facts?: GrowingFacts;
   /** Ordered gallery (detail endpoint). Undefined on list items/mocks. */
   images?: ProductImage[];
+  /**
+   * Seed pre-order season (detail endpoint, GOL-3257/3258). Present only on a
+   * seed product; the PDP swaps the tree buy box for the seed pre-order card
+   * when it is set. Undefined on list items, mocks and tree products.
+   */
+  seedSeason?: SeedSeason | null;
+}
+
+/** Normalized seed season (see {@link ApiSeedSeason}). */
+export interface SeedSeason {
+  /** Harvest year the shopper reserves from ("Fall 2026 harvest"). */
+  year: number;
+  /** ISO `YYYY-MM-DD` ship window and order-by date for that harvest. */
+  shipStart: string;
+  shipEnd: string;
+  orderBy: string;
+  /** True when this season closed (order-by passed or cap reached) and the
+   *  page now reserves from next fall's harvest. */
+  rolledOver: boolean;
+  reason: SeedRolloverReason | null;
+  /** Odoo master switch (`grove_seed_open`); false = not taking reservations. */
+  open: boolean;
 }
 
 export interface ProductVariant {
@@ -947,6 +1003,10 @@ export interface ProductVariant {
    * the field — callers must treat that as "unknown" and not guess.
    */
   treeCount?: number | null;
+  /** Pack size axis value on a seed product ("Pack of 10"); null otherwise. */
+  packSize?: string | null;
+  /** Pack weight in lb (seed season cap); null when unknown or not a seed. */
+  packLb?: number | null;
 }
 
 /** Filterable + display growing facts, normalized from the detail endpoint. */
@@ -1193,8 +1253,10 @@ export interface CheckoutQuoteInput {
 /** Raw response from POST /grove/api/v1/checkout/quote (GOL-2233). */
 export interface ApiCheckoutQuoteResponse {
   deposit_now: boolean;
-  deposit_reason: "sold-out" | "off-season" | "preorder" | null;
+  deposit_reason: "sold-out" | "off-season" | "preorder" | "seed" | null;
   ship_wave?: ShipWave | null;
+  /** Harvest year a seed cart reserves from (GOL-3257); absent otherwise. */
+  seed_harvest_year?: number | null;
   deposit_amount: number;
   amount_due_today: number | null;
   after_cutover: boolean;
@@ -1212,9 +1274,11 @@ export interface ApiCheckoutQuoteResponse {
  *  predicate the checkout session charges by. */
 export interface CheckoutQuote {
   depositNow: boolean;
-  depositReason: "sold-out" | "off-season" | "preorder" | null;
+  depositReason: "sold-out" | "off-season" | "preorder" | "seed" | null;
   /** The wave the quote was priced for; null for an immediate cart. */
   shipWave: ShipWave | null;
+  /** Harvest year a seed cart reserves from; null for any other cart. */
+  seedHarvestYear: number | null;
   /** The flat deposit in dollars (backend constant). */
   depositAmount: number;
   /** Dollars charged today under the deposit path; null when charged in full. */

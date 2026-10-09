@@ -58,6 +58,12 @@ export interface CartPageProps {
    * hides it for deposit carts and when the tier feed is unavailable.
    */
   tierNudge?: string | null;
+  /**
+   * Extra plain-text sublines under a line's unit price (e.g. a seed line's
+   * "Reserved, fall 2026 harvest" and ship window, GOL-3258). The consumer owns
+   * the words; the kit only renders them. Omit, or return null, for none.
+   */
+  lineNotes?: (item: GroveCartLineItem) => readonly string[] | null;
 }
 
 function formatPrice(amount: number): string {
@@ -82,6 +88,7 @@ export function CartPage({
   trustItems = [],
   dueToday = null,
   tierNudge = null,
+  lineNotes,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -188,6 +195,11 @@ export function CartPage({
                     <p className="grove-cart__line-unit">
                       {formatPrice(item.price)} each
                     </p>
+                    {lineNotes?.(item)?.map((note) => (
+                      <p key={note} className="grove-cart__line-unit">
+                        {note}
+                      </p>
+                    ))}
                   </div>
 
                   <div className="grove-cart__line-controls">
