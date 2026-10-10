@@ -6,6 +6,8 @@ export type {
   ProductImage,
   ProductCategory,
   ShippingTier,
+  SeedSeason,
+  SeedRolloverReason,
   ProductListResult,
   Cart,
   CartItem,

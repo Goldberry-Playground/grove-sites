@@ -1,5 +1,6 @@
 import type { GroveDueToday } from "@grove/ui-kit";
 import type { CartDepositQuote } from "./hooks/useCartDepositQuote";
+import { formatDollars } from "./seed";
 
 /**
  * Turn a cart deposit quote into the "due today" block the kit's cart and
@@ -10,8 +11,24 @@ import type { CartDepositQuote } from "./hooks/useCartDepositQuote";
  * $10 deposit per order, whatever is in the cart, balance at ship. Plain
  * factual sentences, no em dashes (brand voice rule).
  */
-export function dueTodayFor(quote: CartDepositQuote | null): GroveDueToday | null {
+export function dueTodayFor(
+  quote: CartDepositQuote | null,
+  /** Cart goods subtotal, for the seed balance line ("$29.00 plus shipping"). */
+  opts: { subtotal?: number } = {},
+): GroveDueToday | null {
   if (!quote?.depositNow || quote.amountDueToday == null) return null;
+  if (quote.depositReason === "seed") {
+    const rest =
+      opts.subtotal != null && opts.subtotal > quote.amountDueToday
+        ? `${formatDollars(opts.subtotal - quote.amountDueToday)} plus shipping and tax is charged`
+        : "The rest of the pack price, plus shipping and tax, is charged";
+    return {
+      amount: quote.amountDueToday,
+      label: "Due today (seed deposit)",
+      note: `This is a seed pre-order. You pay one flat ${formatDollars(quote.amountDueToday)} deposit today. ${rest} when your order ships.`,
+      eyebrow: "seed pre-order",
+    };
+  }
   if (quote.depositReason === "preorder") {
     const wave = quote.shipWave ? `${quote.shipWave} wave ` : "";
     return {

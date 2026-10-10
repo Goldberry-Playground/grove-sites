@@ -7,8 +7,10 @@ import type { CartItem } from "../cart-reducer";
 /** The subset of a `/api/cart/quote` response the summaries render. */
 export interface CartDepositQuote {
   depositNow: boolean;
-  depositReason: "sold-out" | "off-season" | "preorder" | null;
+  depositReason: "sold-out" | "off-season" | "preorder" | "seed" | null;
   shipWave?: ShipWave | null;
+  /** Harvest year a seed cart reserves from (GOL-3258); absent otherwise. */
+  seedHarvestYear?: number | null;
   amountDueToday: number | null;
   /** Set by the storefront quote route when the backend quote was unavailable
    *  and this is its own catalog estimate (display only, never confirms a

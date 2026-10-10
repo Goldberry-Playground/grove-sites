@@ -10,6 +10,7 @@ import {
   normalizeOrderSummary,
   normalizeOrderDetail,
   normalizeCheckoutSession,
+  normalizeSeedSeason,
 } from "./normalizers";
 import {
   honeycrispListItem,
@@ -870,5 +871,67 @@ describe("promo preview + volume tiers (GOL-2432)", () => {
     const base = { id: 1, display_name: "x", sku: false as const, cultivar: "", format: "", price: 1, qty_available: 1, shipping_tier: false as const, image_url: null };
     expect(normalizeVariant({ ...base, tree_count: 5 }).treeCount).toBe(5);
     expect(normalizeVariant(base).treeCount).toBeNull();
+  });
+});
+
+describe("seed pre-orders (GOL-3257/3258)", () => {
+  const SEASON = {
+    year: 2026,
+    ship_start: "2026-10-15",
+    ship_end: "2026-11-15",
+    order_by: "2026-11-01",
+    rolled_over: false,
+    reason: null,
+    open: true,
+  };
+  const NORMALIZED = {
+    year: 2026,
+    shipStart: "2026-10-15",
+    shipEnd: "2026-11-15",
+    orderBy: "2026-11-01",
+    rolledOver: false,
+    reason: null,
+    open: true,
+  };
+
+  it("normalizes the snake_case seed_season", () => {
+    expect(normalizeProductDetail({ ...honeycrispDetail, seed_season: SEASON }).seedSeason).toEqual(NORMALIZED);
+  });
+
+  it("accepts the spec's camelCase seedSeason too", () => {
+    const seedSeason = {
+      year: 2027,
+      shipStart: "2027-10-15",
+      shipEnd: "2027-11-15",
+      orderBy: "2027-11-01",
+      rolledOver: true,
+      reason: "cap_reached" as const,
+      open: true,
+    };
+    expect(normalizeSeedSeason(seedSeason)).toEqual(seedSeason);
+  });
+
+  it("is null on a tree product and on a season with a missing or malformed date", () => {
+    expect(normalizeProductDetail(honeycrispDetail).seedSeason).toBeNull();
+    expect(normalizeSeedSeason({ ...SEASON, ship_end: undefined })).toBeNull();
+    expect(normalizeSeedSeason({ ...SEASON, order_by: "Nov 1" })).toBeNull();
+    expect(normalizeSeedSeason({ ...SEASON, year: 2026.5 })).toBeNull();
+  });
+
+  it("defaults closed unless open is explicitly true, and drops an unknown reason", () => {
+    const { open: _open, ...noOpen } = SEASON;
+    expect(normalizeSeedSeason(noOpen)?.open).toBe(false);
+    expect(normalizeSeedSeason({ ...SEASON, reason: "weather" as never })?.reason).toBeNull();
+  });
+
+  it("reads the Pack size axis and pack weight on a variant", () => {
+    const v = normalizeVariant({
+      ...honeycrispDetail.variants[0],
+      shipping_tier: "seed",
+      pack_size: "Pack of 50",
+      pack_lb: 0.125,
+    });
+    expect(v).toMatchObject({ shippingTier: "seed", packSize: "Pack of 50", packLb: 0.125 });
+    expect(normalizeVariant(honeycrispDetail.variants[0])).toMatchObject({ packSize: null, packLb: null });
   });
 });

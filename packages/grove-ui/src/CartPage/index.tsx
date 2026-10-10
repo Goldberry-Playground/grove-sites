@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "../Button";
 import {
@@ -58,6 +58,18 @@ export interface CartPageProps {
    * hides it for deposit carts and when the tier feed is unavailable.
    */
   tierNudge?: string | null;
+  /**
+   * Extra plain-text sublines under a line's unit price (e.g. a seed line's
+   * "Reserved, fall 2026 harvest" and ship window, GOL-3258). The consumer owns
+   * the words; the kit only renders them. Omit, or return null, for none.
+   */
+  lineNotes?: (item: GroveCartLineItem) => readonly string[] | null;
+  /**
+   * Order-level notices the host owns (the order type, a refusal that blocks
+   * checkout), rendered under the page title inside the page measure. Same
+   * slot and styling as CheckoutPage's `notice`.
+   */
+  notice?: ReactNode;
 }
 
 function formatPrice(amount: number): string {
@@ -82,6 +94,8 @@ export function CartPage({
   trustItems = [],
   dueToday = null,
   tierNudge = null,
+  lineNotes,
+  notice,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -168,6 +182,7 @@ export function CartPage({
             <GlyphIcon name="arrow-left" /> Keep shopping
           </Link>
         </div>
+        {notice ? <div className="grove-checkout__notice">{notice}</div> : null}
 
         <div className="grove-cart__grid">
           <ul className="grove-cart__lines">
@@ -188,6 +203,11 @@ export function CartPage({
                     <p className="grove-cart__line-unit">
                       {formatPrice(item.price)} each
                     </p>
+                    {lineNotes?.(item)?.map((note) => (
+                      <p key={note} className="grove-cart__line-unit">
+                        {note}
+                      </p>
+                    ))}
                   </div>
 
                   <div className="grove-cart__line-controls">
