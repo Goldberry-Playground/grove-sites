@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "../Button";
 import {
@@ -64,6 +64,12 @@ export interface CartPageProps {
    * the words; the kit only renders them. Omit, or return null, for none.
    */
   lineNotes?: (item: GroveCartLineItem) => readonly string[] | null;
+  /**
+   * Order-level notices the host owns (the order type, a refusal that blocks
+   * checkout), rendered under the page title inside the page measure. Same
+   * slot and styling as CheckoutPage's `notice`.
+   */
+  notice?: ReactNode;
 }
 
 function formatPrice(amount: number): string {
@@ -89,6 +95,7 @@ export function CartPage({
   dueToday = null,
   tierNudge = null,
   lineNotes,
+  notice,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -175,6 +182,7 @@ export function CartPage({
             <GlyphIcon name="arrow-left" /> Keep shopping
           </Link>
         </div>
+        {notice ? <div className="grove-checkout__notice">{notice}</div> : null}
 
         <div className="grove-cart__grid">
           <ul className="grove-cart__lines">

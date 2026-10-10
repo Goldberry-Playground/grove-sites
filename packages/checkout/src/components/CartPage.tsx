@@ -88,16 +88,6 @@ export function CartPage({
 
   return (
     <WithGroveNext>
-      {orderTypeText ? (
-        <p className="grove-cart__order-type" data-testid="order-type">
-          {orderTypeText}
-        </p>
-      ) : null}
-      {blockingMessage ? (
-        <p role="alert" className="grove-cart__order-blocked">
-          {blockingMessage}
-        </p>
-      ) : null}
       <UICartPage
         items={items}
         subtotal={subtotal}
@@ -108,6 +98,22 @@ export function CartPage({
         trustItems={BRAND_TRUST[brand].cart}
         dueToday={dueToday}
         tierNudge={nudge?.message ?? null}
+        notice={
+          orderTypeText || blockingMessage ? (
+            <>
+              {orderTypeText ? (
+                <p className="grove-checkout__order-type" data-testid="order-type">
+                  {orderTypeText}
+                </p>
+              ) : null}
+              {blockingMessage ? (
+                <p role="alert" className="grove-checkout__order-blocked">
+                  {blockingMessage}
+                </p>
+              ) : null}
+            </>
+          ) : null
+        }
         lineNotes={(item) => {
           const seed = items.find((i) => i.variantId === item.variantId)?.seed;
           return seed ? seedLineNotes(seed) : null;

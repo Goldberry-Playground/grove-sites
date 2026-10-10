@@ -94,10 +94,14 @@ export function SeedPreorderCard({
               type="button"
               onClick={() => onSelect(p.variantId)}
               aria-pressed={isActive}
-              className={`rounded border px-4 py-2 text-left text-sm transition ${optionCardClass(isActive)}`}
+              className={`flex flex-col justify-start rounded border px-4 py-2 text-left text-sm transition ${optionCardClass(isActive)}`}
             >
-              <span className="flex items-center gap-1.5 font-medium text-foreground">
-                <RadioDot active={isActive} />
+              {/* Top-aligned so a pack label that wraps at 375px ("1/2 lb (about
+                  200)") keeps its dot on the first line. */}
+              <span className="flex items-start gap-1.5 font-medium text-foreground">
+                <span className="mt-[0.2rem] inline-flex">
+                  <RadioDot active={isActive} />
+                </span>
                 {p.label}
               </span>
               <span className="block pl-[1.375rem] text-xs text-ink-soft">${p.price.toFixed(2)}</span>
