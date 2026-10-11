@@ -236,7 +236,7 @@ export interface ApiVariant {
    *  count for a bundle (Remembrance Grove = 5), 0 for supplies / gift cards /
    *  services. Absent on a backend that predates the field. */
   tree_count?: number;
-  /** Pack size axis value on a seed product ("Pack of 10", "1 lb"), "" or absent
+  /** Pack size axis value on a seed product ("Pack of 20", "1/2 lb", "1 lb"), "" or absent
    *  otherwise (GOL-3257). */
   pack_size?: string;
   /** Pack weight in lb, counted against the seed season cap (GOL-3257). */
@@ -1003,7 +1003,7 @@ export interface ProductVariant {
    * the field — callers must treat that as "unknown" and not guess.
    */
   treeCount?: number | null;
-  /** Pack size axis value on a seed product ("Pack of 10"); null otherwise. */
+  /** Pack size axis value on a seed product ("Pack of 20"); null otherwise. */
   packSize?: string | null;
   /** Pack weight in lb (seed season cap); null when unknown or not a seed. */
   packLb?: number | null;

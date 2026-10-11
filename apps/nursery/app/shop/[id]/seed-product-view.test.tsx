@@ -32,7 +32,13 @@ const pack = (id: number, packSize: string, price: number): ViewVariant => ({
 });
 
 // Deliberately out of price order: the card sorts cheapest first.
-const PACKS = [pack(902, "Pack of 50", 30), pack(901, "Pack of 10", 20), pack(904, "1 lb", 180)];
+const PACKS = [
+  pack(902, "Pack of 50", 30),
+  pack(901, "Pack of 20", 14),
+  pack(905, "1 lb", 180),
+  pack(903, "Pack of 100", 55),
+  pack(904, "1/2 lb", 100),
+];
 
 const IN_SEASON: SeedSeason = {
   year: 2026,
@@ -63,7 +69,7 @@ function renderSeed(season: SeedSeason | null, saleOk = true) {
         heroImage=""
         images={[]}
         variants={PACKS}
-        fallbackPrice={20}
+        fallbackPrice={14}
         saleOk={saleOk}
         seedSeason={season}
       />
@@ -108,16 +114,24 @@ describe("<SeedProductView />", () => {
     expect(screen.queryByText("Format")).toBeNull();
     expect(screen.queryByRole("group", { name: "Pre-order wave" })).toBeNull();
     expect(screen.queryByText(/Ship to/i)).toBeNull();
-    expect(screen.queryByText(/\$10/)).toBeNull();
+    expect(screen.queryByText(/\$10\b/)).toBeNull();
+  });
+
+  it("lists the five-pack ladder cheapest first", () => {
+    renderSeed(IN_SEASON);
+    const labels = screen
+      .getAllByRole("button", { name: /Pack of|lb/ })
+      .map((b) => b.textContent?.match(/Pack of \d+|1\/2 lb|1 lb/)?.[0]);
+    expect(labels).toEqual(["Pack of 20", "Pack of 50", "Pack of 100", "1/2 lb", "1 lb"]);
   });
 
   it("pack picker selects the right variant and reserves it with the harvest", () => {
     renderSeed(IN_SEASON);
     // Cheapest pack opens selected.
-    expect(screen.getByRole("button", { name: /Pack of 10/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Pack of 20/ }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: /Pack of 50/ }));
     expect(screen.getByRole("button", { name: /Pack of 50/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: /Pack of 10/ }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: /Pack of 20/ }).getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(cta());
     const lines = cart();
     expect(lines).toHaveLength(1);

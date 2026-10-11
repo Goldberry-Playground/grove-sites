@@ -319,7 +319,7 @@ describe("createCartQuoteRoute — destination ZIP and closed waves (GOL-3194)",
 
 describe("createCartQuoteRoute — seed pre-orders (GOL-3258)", () => {
   const chinquapin = product(30, [
-    { id: 301, name: "Chinquapin (Pack of 10)", sku: null, price: 20, available: false, imageUrl: "", shippingTier: "seed", qtyAvailable: 0 },
+    { id: 301, name: "Chinquapin (Pack of 20)", sku: null, price: 14, available: false, imageUrl: "", shippingTier: "seed", qtyAvailable: 0 },
   ]);
 
   it("falls back to a display-only $1 seed estimate for an all-seed cart", async () => {

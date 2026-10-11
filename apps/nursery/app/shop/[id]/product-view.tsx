@@ -88,7 +88,7 @@ export interface ViewVariant {
   rootstock: string | null;
   shippingTier: ShippingTier | null;
   imageUrl: string;
-  /** Pack size axis value on a seed product ("Pack of 10"); null otherwise. */
+  /** Pack size axis value on a seed product ("Pack of 20"); null otherwise. */
   packSize?: string | null;
 }
 

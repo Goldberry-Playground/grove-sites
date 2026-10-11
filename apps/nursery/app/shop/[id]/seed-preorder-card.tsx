@@ -7,7 +7,7 @@ import { RadioDot, optionCardClass } from "./option-card";
 /** One Pack size choice on a seed product. */
 export interface SeedPack {
   variantId: number;
-  /** Pack size axis value ("Pack of 10", "1 lb"). */
+  /** Pack size axis value ("Pack of 20", "1/2 lb", "1 lb"). */
   label: string;
   price: number;
 }

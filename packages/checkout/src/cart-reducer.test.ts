@@ -355,7 +355,7 @@ describe("seed pre-order carts (GOL-3258)", () => {
     variantId,
     templateId: 300,
     name: "Seed",
-    price: 20,
+    price: 14,
     imageUrl: "",
     quantity: 1,
     seed: { year, rolledOver: year > 2026, shipStart: `${year}-10-15`, shipEnd: `${year}-11-15` },
