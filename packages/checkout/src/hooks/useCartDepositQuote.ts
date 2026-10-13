@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ShipWave } from "@grove/odoo-client";
+import type { FulfillmentRoute, ShipWave } from "@grove/odoo-client";
 import type { CartItem } from "../cart-reducer";
 
 /** The subset of a `/api/cart/quote` response the summaries render. */
@@ -16,6 +16,15 @@ export interface CartDepositQuote {
    *  and this is its own catalog estimate (display only, never confirms a
    *  pre-order deposit). Absent on a backend-confirmed quote. */
   estimated?: boolean;
+  /** Route of the whole cart as the backend sees it (GOL-3315); absent on
+   *  older backends and on the storefront's own estimates. */
+  fulfillmentRoute?: FulfillmentRoute;
+  /**
+   * Printify's live shipping for an all-shirt cart, in dollars, once state and
+   * ZIP were sent; null until then and on every other cart. The farm checkout
+   * shows exactly this or nothing: never an estimate (gom printify spec §5).
+   */
+  shippingAmount?: number | null;
 }
 
 export type QuoteFulfillment = "ship" | "pickup";
@@ -37,6 +46,16 @@ export const QUOTE_REFUSED_FALLBACK = "We couldn't confirm this order. Please re
 export function quotableZip(raw: string | null | undefined): string | null {
   const m = /^(\d{5})(?:-\d{4})?$/.exec((raw ?? "").trim());
   return m ? m[1] : null;
+}
+
+/**
+ * The two-letter ship-to state to quote with, upper-cased, or null while the
+ * field is empty or not yet a state code. Pairs with `quotableZip` so a
+ * Printify cart is re-quoted once, when the destination is complete.
+ */
+export function quotableState(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? "").trim();
+  return /^[A-Za-z]{2}$/.test(trimmed) ? trimmed.toUpperCase() : null;
 }
 
 function isQuote(value: unknown): value is CartDepositQuote {
@@ -108,6 +127,9 @@ export function useCartDepositQuote(
   /** The destination ZIP as typed (ship only; ignored for pickup). Sent once
    *  it is a complete ZIP so a closed wave surfaces before submit (GOL-3194). */
   zip?: string | null,
+  /** The ship-to state as typed or chosen (ship only). Sent beside the ZIP so
+   *  the backend can quote Printify shipping live (GOL-3315). */
+  state?: string | null,
 ): CartDepositQuoteState {
   const [quote, setQuote] = useState<CartDepositQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -118,12 +140,14 @@ export function useCartDepositQuote(
   const [failed, setFailed] = useState(false);
   // A pickup wave is judged on the farm's zone, so the ZIP only keys a ship quote.
   const destinationZip = fulfillment === "pickup" ? null : quotableZip(zip);
+  const destinationState = fulfillment === "pickup" ? null : quotableState(state);
   // Serialize the inputs so the effect keys on cart CONTENT, not array identity.
   const key = JSON.stringify({
     items: items.map((i) => ({ variantId: i.variantId, templateId: i.templateId, quantity: i.quantity })),
     fulfillment: fulfillment ?? null,
     shipWave: shipWave ?? null,
     zip: destinationZip,
+    state: destinationState,
   });
 
   useEffect(() => {
@@ -151,24 +175,44 @@ export function useCartDepositQuote(
             // Omitted for an immediate cart (absent = no wave).
             ...(shipWave ? { shipWave } : {}),
             ...(destinationZip ? { zip: destinationZip } : {}),
+            ...(destinationState ? { state: destinationState } : {}),
           }),
           signal: controller.signal,
         });
         if (!res.ok) {
           // Charge mode unknown — leave `settled` false so nudges stay closed.
           setQuote(null);
-          // A 400 carries the backend's shopper-facing reason; show it.
-          if (res.status === 400) {
+          // A 400 carries the backend's shopper-facing reason; show it. A 409 or
+          // 503 only reaches the browser when the storefront opted into relaying
+          // them (the farm's Printify carts, GOL-3315): with a message it is
+          // shown the same way; without one it is a plain failure, never
+          // invented copy. The nursery route still estimates past both.
+          if (res.status === 400 || res.status === 409 || res.status === 503) {
             try {
               const body = (await res.json()) as { error?: unknown; alternateWave?: unknown };
               const message = typeof body.error === "string" && body.error ? body.error : null;
+              if (res.status !== 400 && !message) {
+                setError(null);
+                setAlternateWave(null);
+                setFailed(true);
+                return;
+              }
               setError(message ?? QUOTE_REFUSED_FALLBACK);
               setAlternateWave(
-                message && (body.alternateWave === "fall" || body.alternateWave === "spring") && body.alternateWave !== shipWave
+                res.status === 400 &&
+                  message &&
+                  (body.alternateWave === "fall" || body.alternateWave === "spring") &&
+                  body.alternateWave !== shipWave
                   ? body.alternateWave
                   : null,
               );
             } catch {
+              if (res.status !== 400) {
+                setError(null);
+                setAlternateWave(null);
+                setFailed(true);
+                return;
+              }
               setError(QUOTE_REFUSED_FALLBACK);
               setAlternateWave(null);
             }
@@ -201,7 +245,7 @@ export function useCartDepositQuote(
       clearTimeout(timer);
       controller.abort();
     };
-    // `key` captures items + fulfillment + wave + ZIP by value.
+    // `key` captures items + fulfillment + wave + ZIP + state by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [href, key]);
 

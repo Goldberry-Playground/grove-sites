@@ -23,14 +23,14 @@ import {
 } from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
-import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { quotableState, quotableZip, useCartDepositQuote } from "../hooks/useCartDepositQuote";
 import { useSeedHarvestSync } from "../hooks/useSeedHarvestSync";
 import { useTierNudge } from "../hooks/useTierNudge";
 import { seedHarvestConfirmLabel, seedHarvestMovedMessage } from "../seed";
 import { tierFor, tierLabel } from "../tier-nudge";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
-import { SEED_SHIP_TO_STATES, SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
+import { SEED_SHIP_TO_STATES, SHIP_TO_STATES, SHIP_TO_COUNTRIES, US_SHIP_TO_STATES } from "../ship-to-states";
 
 const STRIPE_PAYMENT_METHOD = [
   { value: "card", label: "Pay by card — secure Stripe checkout" },
@@ -96,6 +96,19 @@ const CHECKOUT_ERROR =
   "We couldn't start secure checkout. Please try again.";
 
 /**
+ * Shown on a live-shipping (Printify) checkout when the destination is complete
+ * but no carrier amount arrived: the quote failed, or the backend answered
+ * without one. Same words as the backend's own 503 so the shopper sees one
+ * message whichever side gave up. No price is ever shown in its place.
+ */
+export const LIVE_SHIPPING_UNAVAILABLE_MESSAGE =
+  "Shipping is temporarily unavailable. Try again in a few minutes.";
+
+function formatPrice(amount: number): string {
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+/**
  * Cart-connected checkout with the Stripe hand-off. Two phases:
  *
  *   1. Form — the presentational `@grove/ui-kit` CheckoutPage collects contact +
@@ -115,9 +128,19 @@ export function CheckoutPage({
   promoPreviewHref,
   tiersHref,
   shipStateNotice,
+  liveShipping = false,
 }: {
   brand?: GroveBrand;
   depositQuoteHref?: string;
+  /**
+   * Shipping is a live carrier quote from `depositQuoteHref`, not "On the next
+   * step" (the farm's Printify shirts, GOL-3315). The summary's shipping row
+   * shows the quoted amount once state and ZIP are typed, "Enter your address"
+   * before that, and submit stays blocked until an amount exists, so a shirt
+   * order never starts on a guessed price. Default off: nursery and woodworking
+   * are unchanged.
+   */
+  liveShipping?: boolean;
   /** Storefront `/api/checkout/promo` route — enables the promo Apply button
    *  and the automatic volume-discount row (GOL-2432). */
   promoPreviewHref?: string;
@@ -168,6 +191,8 @@ export function CheckoutPage({
   // destination's USDA zone, so sending it surfaces a closed wave here, next to
   // a fix, instead of as a refusal at "Continue to payment" (GOL-3194).
   const [shippingZip, setShippingZip] = useState("");
+  // The ship-to state, so a Printify cart is quoted live per destination (GOL-3315).
+  const [shippingState, setShippingState] = useState("");
   const orderTypeRef = useRef<HTMLParagraphElement | null>(null);
   // What the cart charges today under the flat-deposit rule (GOL-2233), quoted
   // from the storefront's `/api/cart/quote` when wired; null = charged in full.
@@ -183,7 +208,7 @@ export function CheckoutPage({
     error: quoteError,
     failed: quoteFailed,
     alternateWave,
-  } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave, shippingZip);
+  } = useCartDepositQuote(depositQuoteHref, items, fulfillment, shipWave, shippingZip, shippingState);
   // The backend refused this wave for the destination but confirmed the other
   // one quotes: offer the switch. Hidden once the cart already holds that wave
   // (the re-quote is in flight and the stale refusal has not cleared yet).
@@ -223,8 +248,35 @@ export function CheckoutPage({
   // the ZIP-less quote and meet the closed-wave refusal at the session instead
   // of here (GOL-3194). A pre-order waits for the quote of its current inputs.
   const preorderQuotePending = preorderCart && !depositSettled;
+  // Live carrier shipping (GOL-3315): the farm opts in, and any cart the backend
+  // reports as Printify is treated the same way. The amount counts only once the
+  // quote for the CURRENT destination has landed, so a shopper who changes state
+  // after a quote cannot submit on the previous destination's price.
+  const printifyQuote = depositQuote?.fulfillmentRoute === "printify";
+  const needsLiveShipping = liveShipping || printifyQuote;
+  const destinationKnown =
+    fulfillment === "ship" && quotableZip(shippingZip) !== null && quotableState(shippingState) !== null;
+  const liveShippingAmount =
+    needsLiveShipping && depositSettled && depositQuote?.shippingAmount != null ? depositQuote.shippingAmount : null;
+  // Address complete, quote finished (or failed), still no carrier figure.
+  const liveShippingUnavailable =
+    needsLiveShipping && destinationKnown && liveShippingAmount === null && (depositSettled || quoteFailed);
+  const shippingValue = !needsLiveShipping
+    ? undefined
+    : liveShippingAmount !== null
+      ? formatPrice(liveShippingAmount)
+      : !destinationKnown
+        ? "Enter your address"
+        : liveShippingUnavailable
+          ? "Unavailable"
+          : "Checking…";
   const blocked =
-    mixedCart || quoteError !== null || preorderUnconfirmed || preorderQuotePending || seedMove !== null;
+    mixedCart ||
+    quoteError !== null ||
+    preorderUnconfirmed ||
+    preorderQuotePending ||
+    seedMove !== null ||
+    (needsLiveShipping && liveShippingAmount === null);
   const dueToday = dueTodayFor(depositQuote, { subtotal });
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
@@ -360,7 +412,12 @@ export function CheckoutPage({
   });
   const blockingMessage = mixedCart
     ? mixedCartMessage(items)
-    : quoteError ?? (showPreorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
+    : quoteError ??
+      (showPreorderUnconfirmed
+        ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE
+        : liveShippingUnavailable
+          ? LIVE_SHIPPING_UNAVAILABLE_MESSAGE
+          : null);
 
   const notice =
     orderTypeText || blockingMessage || seedMove ? (
@@ -428,17 +485,22 @@ export function CheckoutPage({
         // Seeds are not living trees: a seed-only cart may ship to the lower 48
         // plus DC, never Hawaii or Alaska (Josh, 2026-10-13). Tree carts keep the
         // nursery licence list. The backend enforces the same split (GOL-3257).
-        shipStates={kind === "seed" ? SEED_SHIP_TO_STATES : SHIP_TO_STATES}
+        // A live-shipping (Printify) cart goes to all 50 states and DC (Josh,
+        // 2026-10-13, GOL-3315); seeds to the lower 48 plus DC; trees keep the
+        // nursery licence list.
+        shipStates={liveShipping ? US_SHIP_TO_STATES : kind === "seed" ? SEED_SHIP_TO_STATES : SHIP_TO_STATES}
         shipStatesNote={
           // Nursery voices its live-tree routing; the kit's neutral default
           // covers every other brand so no false "live trees" claim leaks
           // (GOL-1314).
-          kind === "seed"
-            ? () => "We ship seeds to the lower 48 states and Washington, DC. We can't ship seeds to Hawaii or Alaska."
-            : brand === "nursery"
-              ? (n) =>
-                  `We currently ship live trees to ${n} states. Don't see yours? It's not on our route yet.`
-              : undefined
+          liveShipping
+            ? () => "We ship shirts to all 50 states and Washington, DC."
+            : kind === "seed"
+              ? () => "We ship seeds to the lower 48 states and Washington, DC. We can't ship seeds to Hawaii or Alaska."
+              : brand === "nursery"
+                ? (n) =>
+                    `We currently ship live trees to ${n} states. Don't see yours? It's not on our route yet.`
+                : undefined
         }
         countries={SHIP_TO_COUNTRIES}
         allowPickup={pickup !== null}
@@ -470,6 +532,8 @@ export function CheckoutPage({
             : undefined
         }
         onShippingZipChange={setShippingZip}
+        onShippingStateChange={setShippingState}
+        shippingValue={shippingValue}
         submitDisabled={blocked}
         notice={notice}
       />
