@@ -92,7 +92,7 @@ export function CatalogSearch({ initialQuery }: CatalogSearchProps) {
             name="q"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Search by name or type — fig, apple, nut tree…"
+            placeholder="Search by name or type: fig, apple, nut tree…"
             autoComplete="off"
             className="catalog-search__input"
           />

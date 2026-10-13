@@ -23,6 +23,8 @@ const SOURCES = [
   "./notify-me.tsx",
   "./search-results.tsx",
   "./shop-browse.tsx",
+  "./catalog-search.tsx",
+  "./facet-sidebar.tsx",
   "./product-grid.tsx",
   "./guilds/page.tsx",
   "./guilds/guild-card.tsx",
