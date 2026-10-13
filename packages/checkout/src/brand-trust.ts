@@ -121,6 +121,7 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     cart: [
       { icon: "sparkle", text: "Printed to order for you" },
       { icon: "half-circle", text: "Ships from our print partner" },
+      { icon: "check", text: "Ships to all 50 states and DC" },
       { icon: "diamond", text: "No payment until you review your total" },
     ],
     checkout: [
