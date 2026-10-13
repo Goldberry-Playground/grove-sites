@@ -23,7 +23,19 @@ function formatPrice(amount: number, currency: string): string {
  * (bookmark, refresh, cross-device) we still show a graceful "payment received"
  * confirmation — landing here already means Stripe reported success.
  */
-export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
+export function createCheckoutSuccessPage({
+  odoo,
+  fulfillmentNote,
+}: {
+  odoo: OdooClient;
+  /**
+   * One sentence about how the order is fulfilled, rendered under the
+   * confirmation (the farm's "Your shirt is printed to order and usually ships
+   * in 3 to 7 business days. We'll email tracking when it's on the way.",
+   * GOL-3315). Omit for brands with nothing to add; nothing renders.
+   */
+  fulfillmentNote?: string;
+}) {
   return async function CheckoutSuccessPage({
     searchParams,
   }: {
@@ -99,6 +111,9 @@ export function createCheckoutSuccessPage({ odoo }: { odoo: OdooClient }) {
               Your payment went through and your order is confirmed. A receipt is
               on its way to your email. You can close this page.
             </p>
+          )}
+          {fulfillmentNote && (
+            <p className="grove-checkout-success__note mt-3 text-foreground/70">{fulfillmentNote}</p>
           )}
         </div>
 

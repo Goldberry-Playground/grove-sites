@@ -96,3 +96,20 @@ describe("cartTrustItems — the charge badge tells the truth for deposit carts 
     expect(items.map((i) => i.text)).not.toContain("No payment until we confirm");
   });
 });
+
+// GOL-3315: the farm shop sells Printify shirts, so its trust copy describes a
+// printed-to-order shirt, not farm food, and carries no em dash (GOL-589).
+describe("BRAND_TRUST.goldberry — Printify shirts (GOL-3315)", () => {
+  it("describes printed-to-order shirts, not pantry goods", () => {
+    const text = allText("goldberry");
+    expect(text).toContain("printed to order");
+    expect(text).toContain("print partner");
+    expect(text).not.toContain("packed fresh");
+    expect(text).not.toContain("grown and made");
+  });
+
+  it("has no em dash in any goldberry trust string", () => {
+    const { cart, checkout } = BRAND_TRUST.goldberry;
+    for (const item of [...cart, ...checkout]) expect(item.text).not.toContain("—");
+  });
+});

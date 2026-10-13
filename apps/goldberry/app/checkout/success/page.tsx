@@ -6,9 +6,15 @@ import { tenantConfig } from "../../../tenant.config";
 // `grove_checkout_handoff` cookie (set pre-redirect), keeping the token out of
 // the URL. `referrer: "no-referrer"` is belt-and-suspenders on the session_id.
 export const metadata = {
-  title: `Payment Received — ${tenantConfig.name}`,
+  title: `Payment received | ${tenantConfig.name}`,
   referrer: "no-referrer",
 };
 export const dynamic = "force-dynamic";
 
-export default createCheckoutSuccessPage({ odoo });
+// Printed-to-order note (GOL-3315, gom printify spec Storefront §5). The lead
+// time here is the Printify default; the PDP shows each shirt's own.
+export default createCheckoutSuccessPage({
+  odoo,
+  fulfillmentNote:
+    "Your shirt is printed to order and usually ships in 3 to 7 business days. We'll email tracking when it's on the way.",
+});
