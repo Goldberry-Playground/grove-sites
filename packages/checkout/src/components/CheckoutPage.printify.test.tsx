@@ -80,6 +80,19 @@ describe("<CheckoutPage /> — live Printify shipping (GOL-3315)", () => {
     expect(last).toMatchObject({ state: "CA", zip: "90001" });
   });
 
+  it("words the order as printed to order, not ready to ship", async () => {
+    printifyBackend();
+    farmCheckout();
+    expect((await screen.findByTestId("order-type")).textContent).toBe(
+      "Printed to order · ships from our print partner · charged in full",
+    );
+    expect(screen.getByText(/printed to order$/)).toBeTruthy(); // banner eyebrow
+    expect(screen.queryByText(/ready to ship/)).toBeNull();
+    expect(screen.queryByText(/ready for pickup/)).toBeNull();
+    expect(screen.getByText(/^Sales tax is added on the next step/)).toBeTruthy();
+    expect(screen.queryByText(/Shipping and sales tax are added/)).toBeNull();
+  });
+
   it("offers all 50 states and DC to the farm shopper", async () => {
     printifyBackend();
     farmCheckout();
@@ -103,6 +116,8 @@ describe("<CheckoutPage /> — live Printify shipping (GOL-3315)", () => {
     expect(alert.textContent).toBe(unavailable);
     expect(submit().disabled).toBe(true);
     expect(screen.queryByText("$4.75")).toBeNull();
+    // The row says so too, instead of a "Checking…" that never resolves.
+    expect(await screen.findByText("Unavailable")).toBeTruthy();
   });
 
   it("blocks submit with the 409 mixed-cart message", async () => {
@@ -153,5 +168,7 @@ describe("<CheckoutPage /> — nursery unchanged by the live-shipping option", (
     await waitFor(() => expect(screen.getAllByText("On the next step")).toHaveLength(2));
     expect(screen.queryByText("$4.75")).toBeNull();
     expect(screen.queryByText("Enter your address")).toBeNull();
+    expect(screen.getByText(/ready to ship/)).toBeTruthy();
+    expect(screen.getByText(/^Shipping and sales tax are added/)).toBeTruthy();
   });
 });

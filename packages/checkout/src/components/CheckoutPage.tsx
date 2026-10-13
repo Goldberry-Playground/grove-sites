@@ -258,9 +258,13 @@ export function CheckoutPage({
     fulfillment === "ship" && quotableZip(shippingZip) !== null && quotableState(shippingState) !== null;
   const liveShippingAmount =
     needsLiveShipping && depositSettled && depositQuote?.shippingAmount != null ? depositQuote.shippingAmount : null;
-  // Address complete, quote finished (or failed), still no carrier figure.
+  // Address complete, quote finished (failed, or refused with a message),
+  // still no carrier figure.
   const liveShippingUnavailable =
-    needsLiveShipping && destinationKnown && liveShippingAmount === null && (depositSettled || quoteFailed);
+    needsLiveShipping &&
+    destinationKnown &&
+    liveShippingAmount === null &&
+    (depositSettled || quoteFailed || quoteError !== null);
   const shippingValue = !needsLiveShipping
     ? undefined
     : liveShippingAmount !== null
@@ -409,6 +413,10 @@ export function CheckoutPage({
     depositNow: depositQuote?.depositNow === true,
     pickup: fulfillment === "pickup",
     seed: orderSeed(items),
+    // A live-shipping storefront sells Printify shirts only, so the line reads
+    // printed-to-order even before (or without) a quote; elsewhere the backend
+    // decides.
+    route: depositQuote?.fulfillmentRoute ?? (liveShipping ? "printify" : null),
   });
   const blockingMessage = mixedCart
     ? mixedCartMessage(items)
@@ -534,6 +542,7 @@ export function CheckoutPage({
         onShippingZipChange={setShippingZip}
         onShippingStateChange={setShippingState}
         shippingValue={shippingValue}
+        readyEyebrow={needsLiveShipping ? "printed to order" : undefined}
         submitDisabled={blocked}
         notice={notice}
       />

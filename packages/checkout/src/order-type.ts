@@ -1,4 +1,4 @@
-import type { ShipWave } from "@grove/odoo-client";
+import type { FulfillmentRoute, ShipWave } from "@grove/odoo-client";
 import type { CartItem, OrderKind } from "./cart-reducer";
 import type { CartDepositQuote } from "./hooks/useCartDepositQuote";
 import { SEED_DEPOSIT, SEED_MIXED_MESSAGE, type CartSeedReservation } from "./seed";
@@ -81,6 +81,9 @@ export function orderTypeLine(opts: {
   pickup: boolean | null;
   /** The seed cart's harvest (GOL-3258); null for every other cart. */
   seed?: CartSeedReservation | null;
+  /** The cart's fulfillment route as the backend quoted it (GOL-3315); a
+   *  Printify cart is printed to order, so it is never "ships now". */
+  route?: FulfillmentRoute | null;
 }): string | null {
   if (opts.kind === "seed" && opts.seed) {
     return `Seed pre-order · fall ${opts.seed.year} harvest · $${SEED_DEPOSIT} deposit today, the rest when it ships`;
@@ -91,9 +94,9 @@ export function orderTypeLine(opts: {
     return `Pre-order · ${opts.wave} wave · $10 deposit today, balance when ${balance}`;
   }
   if (opts.kind === "immediate") {
-    return opts.depositNow
-      ? `Pre-order · $10 deposit today, balance when ${balance}`
-      : "Ships now or ready for pickup · charged in full";
+    if (opts.depositNow) return `Pre-order · $10 deposit today, balance when ${balance}`;
+    if (opts.route === "printify") return "Printed to order · ships from our print partner · charged in full";
+    return "Ships now or ready for pickup · charged in full";
   }
   return null;
 }

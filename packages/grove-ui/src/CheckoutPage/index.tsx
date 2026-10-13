@@ -253,6 +253,12 @@ export interface CheckoutPageProps {
    */
   shippingValue?: ReactNode;
   /**
+   * Banner eyebrow for a charged-in-full shipped order, after the item count
+   * (default "ready to ship"). A printed-to-order cart passes "printed to
+   * order" so the banner never claims stock that does not exist yet.
+   */
+  readyEyebrow?: string;
+  /**
    * Lock fulfillment to pickup because the cart cannot be shipped at all — it
    * holds at least one farm-pickup-only line (GOL-2588). The Fulfillment
    * fieldset then offers pickup ALONE (a disabled "Ship to me" would be a dead
@@ -364,6 +370,7 @@ export function CheckoutPage({
   onShippingZipChange,
   onShippingStateChange,
   shippingValue,
+  readyEyebrow = "ready to ship",
   forcePickup = false,
   forcePickupNote,
   submitDisabled = false,
@@ -567,7 +574,7 @@ export function CheckoutPage({
                   : (dueToday.eyebrow ?? "reservation")
                 : isPickup
                   ? "farm pickup"
-                  : "ready to ship"}
+                  : readyEyebrow}
             </div>
             <div className="grove-checkout__banner-total">
               {dueToday ? (
@@ -942,8 +949,10 @@ export function CheckoutPage({
               </p>
             )}
 
+            {/* With a live shipping figure in the row above, only tax is still
+                to come; the default wording would wrongly defer shipping too. */}
             <p className="grove-checkout__field-note grove-checkout__field-note--block">
-              {isPickup ? "Sales tax is" : "Shipping and sales tax are"} added on
+              {isPickup || shippingValue !== undefined ? "Sales tax is" : "Shipping and sales tax are"} added on
               the next step, Review &amp; pay. You&apos;ll see and confirm the
               full total before you&apos;re charged.
             </p>

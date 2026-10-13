@@ -59,9 +59,24 @@ export default async function ProductDetailPage({
     <div className="mx-auto max-w-6xl px-6 py-12">
       <Link
         href="/shop"
-        className="text-sm text-foreground/60 hover:text-primary transition-colors mb-6 inline-block"
+        className="text-sm text-foreground/60 hover:text-primary transition-colors mb-6 inline-flex items-center gap-1.5"
       >
-        &larr; Back to Shop
+        {/* Inline SVG, not U+2190: the arrow is outside the loaded fonts and
+            painted a tofu box (GOL-3117 / GOL-3123). Decorative; the text is
+            the link. */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 12 12"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M7.5 2.5 4 6l3.5 3.5M4 6h7" />
+        </svg>
+        Back to Shop
       </Link>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
@@ -130,13 +145,17 @@ export default async function ProductDetailPage({
             </p>
           )}
 
-          <p className="text-sm mb-6">
-            {product.available ? (
-              <span className="text-green-700">In stock</span>
-            ) : (
-              <span className="text-red-600">Out of stock</span>
-            )}
-          </p>
+          {/* A printed-to-order shirt is never "in stock"; the picker's lead-time
+              line says what is true instead (GOL-3315). */}
+          {product.fulfillmentRoute !== "printify" && (
+            <p className="text-sm mb-6">
+              {product.available ? (
+                <span className="text-green-700">In stock</span>
+              ) : (
+                <span className="text-red-600">Out of stock</span>
+              )}
+            </p>
+          )}
 
           {/* Color then Size (GOL-3315). The picker owns the selection and
               hands the exact variant to the cart; a single-variant product

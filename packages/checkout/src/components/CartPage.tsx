@@ -76,6 +76,7 @@ export function CartPage({
     depositNow: depositQuote?.depositNow === true,
     pickup: allPickupOnly ? true : null,
     seed: orderSeed(items),
+    route: depositQuote?.fulfillmentRoute ?? null,
   });
   // Same guard as the checkout form: a pre-order the backend has not confirmed
   // as a $10 deposit for this wave, or a seed cart not confirmed as the $1 seed
