@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BRAND_TRUST, type GroveBrand } from "./brand-trust";
+import { BRAND_TRUST, cartTrustItems, type GroveBrand } from "./brand-trust";
 
 // GOL-1090: the cart/checkout trust strip used to be hardcoded to the nursery's
 // live-plant "arrive-alive guarantee" and shared across every tenant, so a
@@ -70,5 +70,29 @@ describe("BRAND_TRUST — per-brand truthfulness (GOL-1090)", () => {
         expect(item.icon.trim().length).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe("cartTrustItems — the charge badge tells the truth for deposit carts (Josh, 2026-10-13)", () => {
+  const full = { amountDueToday: null, depositKind: false };
+  it("a charged-in-full cart keeps every brand's strip verbatim", () => {
+    for (const brand of BRANDS) expect(cartTrustItems(brand, full)).toEqual(BRAND_TRUST[brand].cart);
+  });
+  it("a quoted deposit swaps 'No payment until we confirm' for the quoted amount, same icon, same slot", () => {
+    const items = cartTrustItems("nursery", { amountDueToday: 1, depositKind: true });
+    expect(items.map((i) => i.text)).toEqual([
+      "Ships from our farm",
+      "Made by us, on our land",
+      "Arrive-alive guarantee",
+      "$1 today, the rest when it ships.",
+    ]);
+    expect(items[3].icon).toBe(BRAND_TRUST.nursery.cart[3].icon);
+    expect(cartTrustItems("nursery", { amountDueToday: 10, depositKind: false })[3].text).toBe("$10 today, the rest when it ships.");
+    for (const item of items) expect(item.text).not.toContain("\u2014");
+  });
+  it("a known deposit cart drops the charge badge until the quote lands", () => {
+    const items = cartTrustItems("nursery", { amountDueToday: null, depositKind: true });
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.text)).not.toContain("No payment until we confirm");
   });
 });

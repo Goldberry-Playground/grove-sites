@@ -1,4 +1,5 @@
 import type { GroveTrustItem, GrovePickupCopy } from "@grove/ui-kit";
+import { depositTodayLine } from "./due-today";
 
 /**
  * Which storefront is rendering the shared cart/checkout. The three apps that
@@ -130,3 +131,30 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     pickupOnlyNote: null,
   },
 };
+
+/** The charged-in-full cart badge every brand carries; swapped out on deposit carts. */
+const NO_PAYMENT_UNTIL_CONFIRMED = "No payment until we confirm";
+
+/**
+ * The cart-page trust strip for what the cart actually charges today.
+ *
+ * "No payment until we confirm" is true for a charged-in-full cart (Stripe
+ * takes the card; we confirm by email before processing) and false for a
+ * deposit cart, which charges $1 (seed) or $10 (tree reservation) at checkout.
+ * So a deposit cart swaps that badge for "$1 today, the rest when it ships.",
+ * with the amount from the confirmed quote's `amount_due_today` (Josh,
+ * 2026-10-13). A cart the host already knows is a deposit cart (`depositKind`)
+ * drops the badge while the quote is still loading or has failed, so the
+ * false claim never flashes; everything else keeps the brand strip verbatim.
+ */
+export function cartTrustItems(
+  brand: GroveBrand,
+  opts: { amountDueToday: number | null; depositKind: boolean },
+): GroveTrustItem[] {
+  const items = BRAND_TRUST[brand].cart;
+  if (opts.amountDueToday == null && !opts.depositKind) return items;
+  return items.flatMap((item) => {
+    if (item.text !== NO_PAYMENT_UNTIL_CONFIRMED) return [item];
+    return opts.amountDueToday == null ? [] : [{ icon: item.icon, text: depositTodayLine(opts.amountDueToday) }];
+  });
+}

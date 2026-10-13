@@ -11,8 +11,8 @@ import {
   orderTypeLine,
 } from "../order-type";
 import { seedHarvestConfirmLabel, seedHarvestMovedMessage, seedLineNotes } from "../seed";
-import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
-import { dueTodayFor } from "../due-today";
+import { cartTrustItems, type GroveBrand } from "../brand-trust";
+import { depositTodayLine, dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
 import { useSeedHarvestSync } from "../hooks/useSeedHarvestSync";
 import { useTierNudge } from "../hooks/useTierNudge";
@@ -90,14 +90,20 @@ export function CartPage({
     ? mixedCartMessage(items)
     : quoteError ?? (preorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
   const dueToday = dueTodayFor(depositQuote, { subtotal });
-  // "You will not be charged today" is false on a deposit cart ($1 seed, $10
-  // tree), so it never renders there, not even while the quote is loading: the
-  // trust strip's "No payment until we confirm" is the one claim (Josh,
-  // 2026-10-13). A cart the quote has not yet confirmed as charged in full
-  // stays silent too; only an affirmative full-charge quote earns the line.
+  // A deposit cart says what actually happens, "$1 today, the rest when it
+  // ships." ($10 for a tree reservation), with the amount from the confirmed
+  // quote, under the CTA and in the trust strip; "You will not be charged
+  // today" and "No payment until we confirm" never render there, not even
+  // while the quote is loading (Josh, 2026-10-13). A charged-in-full cart keeps
+  // both, but only once an affirmative full-charge quote confirms it.
   const chargedInFull = depositSettled && depositQuote?.depositNow !== true;
-  const reassure =
-    kind === "immediate" && !quoteError && chargedInFull ? undefined : null;
+  const depositKind = kind === "preorder" || kind === "seed";
+  const reassure = dueToday
+    ? depositTodayLine(dueToday.amount)
+    : kind === "immediate" && !quoteError && chargedInFull
+      ? undefined
+      : null;
+  const trustItems = cartTrustItems(brand, { amountDueToday: dueToday?.amount ?? null, depositKind });
   // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
   // nudge only once the quote confirms a charged-in-full cart — never while the
   // quote is loading or if it failed (both leave the charge mode unknown), so a
@@ -116,7 +122,7 @@ export function CartPage({
         loading={!hydrated}
         onSetQuantity={setQuantity}
         onRemove={remove}
-        trustItems={BRAND_TRUST[brand].cart}
+        trustItems={trustItems}
         dueToday={dueToday}
         reassure={reassure}
         tierNudge={nudge?.message ?? null}

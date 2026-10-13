@@ -3,6 +3,19 @@ import type { CartDepositQuote } from "./hooks/useCartDepositQuote";
 import { formatDollars } from "./seed";
 
 /**
+ * The one line a deposit cart says about today's charge, on the cart page
+ * under the checkout CTA and in the cart trust strip: "$1 today, the rest
+ * when it ships." for a seed cart, "$10 today, the rest when it ships." for a
+ * tree pre-order or reservation. The amount is the confirmed quote's
+ * `amount_due_today`, never a literal (Josh, 2026-10-13). Whole dollars print
+ * without cents, so it reads the way Josh wrote it.
+ */
+export function depositTodayLine(amountDueToday: number): string {
+  const amount = Number.isInteger(amountDueToday) ? `$${amountDueToday}` : formatDollars(amountDueToday);
+  return `${amount} today, the rest when it ships.`;
+}
+
+/**
  * Turn a cart deposit quote into the "due today" block the kit's cart and
  * checkout summaries render. Null when the cart charges in full (the summary
  * then shows its plain subtotal/total as before).
