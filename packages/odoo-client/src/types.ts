@@ -1255,7 +1255,10 @@ export interface ApiCheckoutQuoteResponse {
   deposit_now: boolean;
   deposit_reason: "sold-out" | "off-season" | "preorder" | "seed" | null;
   ship_wave?: ShipWave | null;
-  /** Harvest year a seed cart reserves from (GOL-3257); absent otherwise. */
+  /** Harvest year a seed cart reserves from, re-decided by the backend at quote
+   *  time (GOL-3257 §6): absent on a tree cart. Older seed-aware builds carry
+   *  it per line only (`lines[].seed_harvest_year`); the normalizer reads
+   *  either. */
   seed_harvest_year?: number | null;
   deposit_amount: number;
   amount_due_today: number | null;
@@ -1266,6 +1269,8 @@ export interface ApiCheckoutQuoteResponse {
     bareroot: boolean;
     sold_out: boolean;
     free_qty: number | null;
+    /** Harvest year THIS seed line would reserve (GOL-3257); absent on a tree line. */
+    seed_harvest_year?: number | null;
   }[];
 }
 
@@ -1277,7 +1282,10 @@ export interface CheckoutQuote {
   depositReason: "sold-out" | "off-season" | "preorder" | "seed" | null;
   /** The wave the quote was priced for; null for an immediate cart. */
   shipWave: ShipWave | null;
-  /** Harvest year a seed cart reserves from; null for any other cart. */
+  /** Harvest year a seed cart reserves from, as the backend decides it NOW
+   *  (not the year the shopper saw at add time); null for any other cart. The
+   *  storefront compares it with the stored cart line and shows the change
+   *  before payment (GOL-3258, spec §6). */
   seedHarvestYear: number | null;
   /** The flat deposit in dollars (backend constant). */
   depositAmount: number;
@@ -1290,6 +1298,8 @@ export interface CheckoutQuote {
     bareroot: boolean;
     soldOut: boolean;
     freeQty: number | null;
+    /** Harvest year this seed line would reserve; null on a tree line. */
+    seedHarvestYear: number | null;
   }[];
 }
 

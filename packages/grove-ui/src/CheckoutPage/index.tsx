@@ -372,6 +372,18 @@ export function CheckoutPage({
   }
   // Pickup collapses the ship-to address; ship keeps it required.
   const isPickup = allowPickup && fulfillment === "pickup";
+  // The kit's default reassurance says nothing is charged today, which is false
+  // beside a due-today deposit row, so a deposit cart gets no default line
+  // (Josh, 2026-10-13). A consumer's own `reassure` is used as given.
+  const reassureLine =
+    reassure !== undefined ? (
+      reassure
+    ) : dueToday ? null : (
+      <>
+        You will not be charged today. We confirm every order by email
+        before processing payment.
+      </>
+    );
 
   const [contact, setContact] = useState<GroveCheckoutContact>({
     name: "",
@@ -548,7 +560,7 @@ export function CheckoutPage({
                 <>
                   {formatPrice(dueToday.amount)}
                   <span className="grove-checkout__banner-note">
-                    due today · balance when your trees ship
+                    due today · {dueToday.balanceNote ?? "balance when your trees ship"}
                   </span>
                 </>
               ) : (
@@ -1021,14 +1033,7 @@ export function CheckoutPage({
               )}
             </button>
 
-            <p className="grove-checkout__reassure">
-              {reassure ?? (
-                <>
-                  You will not be charged today. We confirm every order by email
-                  before processing payment.
-                </>
-              )}
-            </p>
+            {reassureLine ? <p className="grove-checkout__reassure">{reassureLine}</p> : null}
 
             <Link href={cartHref} className="grove-checkout__back">
               Back to Cart

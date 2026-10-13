@@ -19,6 +19,15 @@ export interface CartSeedReservation {
   /** ISO `YYYY-MM-DD` ship window. */
   shipStart: string;
   shipEnd: string;
+  /**
+   * The harvest year the shopper saw when they added this line, set when the
+   * backend's checkout quote moved the reservation to a later harvest (the
+   * season closed or filled between add and checkout, spec §6). While present
+   * the cart and checkout show the change and checkout stays blocked; the
+   * shopper's "Continue with the fall YYYY harvest" clears it. Absent when the
+   * line still reserves the harvest it was added for.
+   */
+  movedFromYear?: number;
 }
 
 /** Refusal when an add would mix seeds with trees (either direction). */
@@ -57,4 +66,61 @@ export function seedLineNotes(s: CartSeedReservation): string[] {
 /** Dollars, two decimals ("$29.00"). */
 export function formatDollars(amount: number): string {
   return `$${amount.toFixed(2)}`;
+}
+
+/** "2026-10-15" shifted by `years` ("2027-10-15"); a non-ISO string is returned as-is. */
+export function shiftIsoYear(iso: string, years: number): string {
+  const m = /^(\d{4})(-\d{2}-\d{2})$/.exec(iso);
+  return m ? `${Number(m[1]) + years}${m[2]}` : iso;
+}
+
+/**
+ * Move a reservation to the harvest year the backend quoted (GOL-3258, spec
+ * §6). A later season shifts the ship window by whole years, exactly as the
+ * backend's `seed_season` does (all three dates + 1 year), and reads as rolled
+ * over ("Pre-ordered, fall 2027 harvest"). `movedFromYear` keeps the year the
+ * shopper first saw, even across a second move, so the notice always names the
+ * harvest they thought they were reserving. Returns the same object when the
+ * year is unchanged.
+ */
+export function moveSeedReservation(s: CartSeedReservation, year: number): CartSeedReservation {
+  if (year === s.year) return s;
+  const delta = year - s.year;
+  const from = s.movedFromYear ?? s.year;
+  return {
+    ...s,
+    year,
+    // Later than the harvest first shown = this season closed on them. The rare
+    // move BACK (a cancel freed the cap) is in season again.
+    rolledOver: year > from,
+    shipStart: shiftIsoYear(s.shipStart, delta),
+    shipEnd: shiftIsoYear(s.shipEnd, delta),
+    movedFromYear: from,
+  };
+}
+
+/** The reservation with its move acknowledged (nothing left to confirm). */
+export function acknowledgeSeedMove(s: CartSeedReservation): CartSeedReservation {
+  if (s.movedFromYear === undefined) return s;
+  const { movedFromYear: _moved, ...rest } = s;
+  return rest;
+}
+
+/**
+ * The notice shown when a seed reservation moved to a later harvest between
+ * add-to-cart and checkout (spec §6): what changed, why, what the $1 now
+ * reserves, and the two ways out. Plain sentences, no em dashes.
+ */
+export function seedHarvestMovedMessage(s: CartSeedReservation): string {
+  const from = s.movedFromYear ?? s.year;
+  const why =
+    s.year > from
+      ? `Fall ${from} pre-orders closed before you checked out`
+      : `Room opened up in the fall ${s.year} harvest`;
+  return `Your seed reservation moved to the fall ${s.year} harvest. ${why}, so your $${SEED_DEPOSIT} deposit now reserves seeds from the fall ${s.year} harvest, shipping approx ${seedShipWindow(s)}. Confirm to continue, or remove the seeds from your cart.`;
+}
+
+/** The button that acknowledges the move. */
+export function seedHarvestConfirmLabel(s: Pick<CartSeedReservation, "year">): string {
+  return `Continue with the fall ${s.year} harvest`;
 }

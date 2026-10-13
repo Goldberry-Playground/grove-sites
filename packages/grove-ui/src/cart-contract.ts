@@ -72,4 +72,10 @@ export interface GroveDueToday {
   note: string;
   /** Short banner word replacing "ready to ship", e.g. "reservation". */
   eyebrow?: string;
+  /**
+   * Checkout banner note after the due-today amount, e.g. "balance when your
+   * seeds ship" (GOL-3258). Defaults to the tree wording; a consumer whose
+   * deposit cart holds no trees supplies its own.
+   */
+  balanceNote?: string;
 }

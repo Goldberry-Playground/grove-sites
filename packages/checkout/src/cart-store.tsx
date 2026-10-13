@@ -11,11 +11,13 @@ import {
   type ReactNode,
 } from "react";
 import {
+  acknowledgeSeedHarvest,
   addItem,
   cartStorageKey,
   removeItem,
   setItemQuantity,
   setOrderWave,
+  setSeedHarvestYear,
   subtotal as calculateSubtotal,
   totalQuantity as calculateTotalQuantity,
   validateCartItems,
@@ -40,6 +42,10 @@ type CartContextValue = {
   remove: (variantId: number) => void;
   /** Move the whole pre-order to another wave (one wave per order). */
   setWave: (wave: ShipWave) => void;
+  /** Move the seed cart to the harvest year the backend quoted (GOL-3258 §6). */
+  moveSeedHarvest: (year: number) => void;
+  /** The shopper confirmed the harvest-year change; nothing left to show. */
+  confirmSeedHarvest: () => void;
   clear: () => void;
   totalQuantity: number;
   subtotal: number;
@@ -103,6 +109,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((current) => setOrderWave(current, wave));
   }, []);
 
+  const moveSeedHarvest = useCallback((year: number) => {
+    setItems((current) => setSeedHarvestYear(current, year));
+  }, []);
+
+  const confirmSeedHarvest = useCallback(() => {
+    setItems((current) => acknowledgeSeedHarvest(current));
+  }, []);
+
   const clear = useCallback(() => setItems([]), []);
 
   const openDrawer = useCallback((justAddedVariantId?: number) => {
@@ -129,6 +143,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setQuantity,
       remove,
       setWave,
+      moveSeedHarvest,
+      confirmSeedHarvest,
       clear,
       totalQuantity,
       subtotal,
@@ -137,8 +153,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       closeDrawer,
       lastAddedVariantId,
     }),
-    [items, hydrated, add, setQuantity, remove, setWave, clear, totalQuantity, subtotal,
-     drawerOpen, openDrawer, closeDrawer, lastAddedVariantId]
+    [items, hydrated, add, setQuantity, remove, setWave, moveSeedHarvest, confirmSeedHarvest, clear,
+     totalQuantity, subtotal, drawerOpen, openDrawer, closeDrawer, lastAddedVariantId]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

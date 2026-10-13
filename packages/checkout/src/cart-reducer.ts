@@ -3,7 +3,13 @@
 // implementation. Any change to cart semantics happens here once.
 
 import type { ShipWave } from "@grove/odoo-client";
-import { SEED_MIXED_MESSAGE, SEED_YEAR_MESSAGE, type CartSeedReservation } from "./seed";
+import {
+  SEED_MIXED_MESSAGE,
+  SEED_YEAR_MESSAGE,
+  acknowledgeSeedMove,
+  moveSeedReservation,
+  type CartSeedReservation,
+} from "./seed";
 
 export type CartItem = {
   /** product.product id — the actual SKU/variant. Used as the unique line key. */
@@ -101,6 +107,30 @@ export function setOrderWave(items: readonly CartItem[], wave: ShipWave): CartIt
 }
 
 /**
+ * Move a seed cart to the harvest year the backend quoted (GOL-3258, spec §6):
+ * rewrites EVERY seed line (one harvest year per order, so a seed cart moves as
+ * a whole) and marks each as moved so the page can show the change and hold
+ * checkout until the shopper confirms. Tree lines carry no seed and are left
+ * alone; a cart already on that year comes back unchanged.
+ */
+export function setSeedHarvestYear(items: readonly CartItem[], year: number): CartItem[] {
+  return items.map((i) => {
+    if (i.seed === undefined) return i;
+    const moved = moveSeedReservation(i.seed, year);
+    return moved === i.seed ? i : { ...i, seed: moved };
+  });
+}
+
+/** The shopper has read the harvest-year change: clear it from every seed line. */
+export function acknowledgeSeedHarvest(items: readonly CartItem[]): CartItem[] {
+  return items.map((i) => {
+    if (i.seed === undefined) return i;
+    const seen = acknowledgeSeedMove(i.seed);
+    return seen === i.seed ? i : { ...i, seed: seen };
+  });
+}
+
+/**
  * Remove a line by variantId. No-op if the line doesn't exist.
  */
 export function removeItem(
@@ -163,7 +193,9 @@ function isSeedReservation(value: unknown): value is CartSeedReservation {
     Number.isInteger(s.year) &&
     typeof s.rolledOver === "boolean" &&
     typeof s.shipStart === "string" &&
-    typeof s.shipEnd === "string"
+    typeof s.shipEnd === "string" &&
+    // Optional: set only once the quote moved the line to a later harvest.
+    (s.movedFromYear === undefined || Number.isInteger(s.movedFromYear))
   );
 }
 
@@ -206,6 +238,16 @@ export function orderWave(items: readonly CartItem[]): ShipWave | null {
 /** The seed cart's harvest, or null (not a seed cart). */
 export function orderSeed(items: readonly CartItem[]): CartSeedReservation | null {
   return orderKind(items) === "seed" ? (items[0].seed ?? null) : null;
+}
+
+/**
+ * The seed cart's harvest when the backend moved it to a later year and the
+ * shopper has not yet confirmed the change (GOL-3258, spec §6); null otherwise.
+ * Checkout stays blocked while this is set.
+ */
+export function unconfirmedSeedMove(items: readonly CartItem[]): CartSeedReservation | null {
+  const seed = orderSeed(items);
+  return seed !== null && seed.movedFromYear !== undefined ? seed : null;
 }
 
 export type CanAdd =

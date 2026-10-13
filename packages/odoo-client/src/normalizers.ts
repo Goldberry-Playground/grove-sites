@@ -455,7 +455,7 @@ export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQ
     depositNow: raw.deposit_now,
     depositReason: raw.deposit_reason ?? null,
     shipWave: raw.ship_wave ?? null,
-    seedHarvestYear: typeof raw.seed_harvest_year === "number" ? raw.seed_harvest_year : null,
+    seedHarvestYear: quotedSeedHarvestYear(raw),
     depositAmount: raw.deposit_amount,
     amountDueToday: raw.amount_due_today ?? null,
     afterCutover: raw.after_cutover,
@@ -465,8 +465,24 @@ export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQ
       bareroot: l.bareroot,
       soldOut: l.sold_out,
       freeQty: l.free_qty ?? null,
+      seedHarvestYear: typeof l.seed_harvest_year === "number" ? l.seed_harvest_year : null,
     })),
   };
+}
+
+/**
+ * The harvest year the backend would book a seed cart into, read from the
+ * quote's top level (GOL-3257 adds it there) with a fallback to the first seed
+ * line (the first seed-aware build only stamped `lines[]`). The mixing rule
+ * keeps every seed line in one cart on one year, so the first line is the
+ * cart's year. Null when no line carries one (a tree cart).
+ */
+function quotedSeedHarvestYear(raw: ApiCheckoutQuoteResponse): number | null {
+  if (typeof raw.seed_harvest_year === "number") return raw.seed_harvest_year;
+  for (const line of raw.lines ?? []) {
+    if (typeof line.seed_harvest_year === "number") return line.seed_harvest_year;
+  }
+  return null;
 }
 
 export function normalizeOrderDetail(raw: ApiOrderDetail): OrderDetail {

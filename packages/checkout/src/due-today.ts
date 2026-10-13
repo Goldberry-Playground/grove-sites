@@ -27,6 +27,8 @@ export function dueTodayFor(
       label: "Due today (seed deposit)",
       note: `This is a seed pre-order. You pay one flat ${formatDollars(quote.amountDueToday)} deposit today. ${rest} when your order ships.`,
       eyebrow: "seed pre-order",
+      // The kit's default banner note says "trees"; a seed cart holds none.
+      balanceNote: "balance when your seeds ship",
     };
   }
   if (quote.depositReason === "preorder") {

@@ -15,6 +15,12 @@ interface BrandTrust {
   /** Checkout-page strip (three signals; leads with the Stripe assurance). */
   checkout: GroveTrustItem[];
   /**
+   * Checkout strip for a SEED-only cart (GOL-3258): the tree strip names a $10
+   * deposit, and a seed order takes $1. Optional; a brand without seeds falls
+   * back to `checkout`.
+   */
+  seedCheckout?: GroveTrustItem[];
+  /**
    * Farm-pickup fulfillment. `null` for brands with no pickup location — the
    * checkout renders ship-only and never shows a pickup option. Only the
    * nursery has a physical West Virginia pickup point, and its copy names live
@@ -70,6 +76,13 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
       { icon: "sparkle", text: "Card entered on Stripe — never stored by us" },
       { icon: "half-circle", text: "Flat $10 deposit per order on reservations, balance when it ships" },
       { icon: "check", text: "Arrive-alive guarantee" },
+    ],
+    // Seeds: $1, and the balance is goods plus the actual label cost plus tax,
+    // no handling fee (Josh, 2026-10-13). No live-plant promise on seed nuts.
+    seedCheckout: [
+      { icon: "sparkle", text: "Card entered on Stripe — never stored by us" },
+      { icon: "half-circle", text: "Flat $1 deposit per order on seed reservations, the rest plus shipping and tax when it ships" },
+      { icon: "check", text: "Ships from our farm" },
     ],
     pickup: {
       shipLabel: "Ship to me — delivered to your address",

@@ -70,6 +70,15 @@ export interface CartPageProps {
    * slot and styling as CheckoutPage's `notice`.
    */
   notice?: ReactNode;
+  /**
+   * Reassurance line under the checkout CTA. Omit for the kit's default ("You
+   * will not be charged today..."), which only ever renders on a charged-in-full
+   * cart, never beside a due-today deposit row. Pass `null` for no line at all:
+   * the consumer knows a deposit cart (a seed or wave pre-order) before the
+   * quote lands, and must not flash "not charged today" over a $1 or $10
+   * deposit even for a moment (Josh, 2026-10-13).
+   */
+  reassure?: ReactNode | null;
 }
 
 function formatPrice(amount: number): string {
@@ -96,6 +105,7 @@ export function CartPage({
   tierNudge = null,
   lineNotes,
   notice,
+  reassure,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -263,10 +273,17 @@ export function CartPage({
               Proceed to Checkout <GlyphIcon name="arrow-right" />
             </Link>
 
-            {!dueToday && (
+            {/* A deposit cart makes one claim about today's charge: the
+                due-today row and its note. The trust strip's "No payment until
+                we confirm" stays; this line does not (Josh, 2026-10-13). */}
+            {!dueToday && reassure !== null && (
               <p className="grove-cart__reassure">
-                You will not be charged today. We confirm every order by email before
-                processing payment.
+                {reassure ?? (
+                  <>
+                    You will not be charged today. We confirm every order by email before
+                    processing payment.
+                  </>
+                )}
               </p>
             )}
 
