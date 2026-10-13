@@ -2291,6 +2291,88 @@ h1 em, h2 em, h3 em, h4 em {
 }
 
 /* ─────────────────────────────────────────────
+   PDP Color / Size picker (GOL-3315)
+
+   Text pills in the shop sub-header's pill idiom: mono, uppercase, chestnut
+   on ivory (6.48:1), chestnut fill with ivory text when pressed (6.48:1).
+   Selection is carried by the fill AND aria-pressed, never by hue alone, so it
+   reads identically under deuteranopia / protanopia / tritanopia and in
+   grayscale. Pills are at least 44px tall for thumbs (Fitts, GOL-2745 lesson).
+   Focus uses the global --focus-ring; nothing here overrides it.
+   ───────────────────────────────────────────── */
+.shop-variant-picker {
+  display: grid;
+  gap: 1.1rem;
+  margin-bottom: 1.5rem;
+}
+.shop-axis__label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chestnut-reserve);
+  margin: 0 0 0.6rem;
+}
+.shop-axis__value {
+  font-family: var(--font-body, inherit);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--chestnut-reserve-deep);
+}
+.shop-axis__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.6rem;
+}
+.shop-axis__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chestnut-reserve);
+  background: transparent;
+  border: 1px solid rgba(127, 79, 29, 0.35);
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.shop-axis__option:hover {
+  background: var(--harvest-gold);
+  border-color: var(--harvest-gold-deep);
+  color: var(--chestnut-reserve-deep);
+}
+.shop-axis__option.is-active,
+.shop-axis__option[aria-pressed="true"] {
+  background: var(--chestnut-reserve);
+  color: var(--ivory-mist);
+  border-color: var(--chestnut-reserve);
+}
+.shop-size-note,
+.shop-variant-picker__summary,
+.shop-lead-time {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--chestnut-reserve-deep);
+}
+.shop-size-note { margin-top: -0.35rem; }
+.shop-variant-picker__summary { font-weight: 600; }
+.shop-lead-time {
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+/* ─────────────────────────────────────────────
    Product growing-guide block (GOL-1002 / GOL-986 Part A)
 
    The guide renders trusted Ghost HTML (h3/p/ul) inside `.grove-guide`. This

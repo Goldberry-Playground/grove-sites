@@ -6,8 +6,8 @@ import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
 import { isDataUri } from "../../../lib/is-data-uri";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
-import { AddToCartButton } from "./add-to-cart-button";
 import { GuideBlock } from "./guide-block";
+import { VariantPicker } from "./variant-picker";
 import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
@@ -138,81 +138,43 @@ export default async function ProductDetailPage({
             )}
           </p>
 
-          {/* Variants */}
-          {product.variants.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-foreground mb-3">
-                Available Options
-              </h3>
-              <div className="space-y-2">
-                {product.variants.map((variant) => (
-                  <div
-                    key={variant.id}
-                    className="flex items-center justify-between rounded border border-primary/10 px-3 py-2 text-sm"
-                  >
-                    <span>{variant.name}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">
-                        ${variant.price.toFixed(2)}
-                      </span>
-                      <span
-                        className={
-                          variant.available
-                            ? "text-green-700 text-xs"
-                            : "text-red-600 text-xs"
-                        }
-                      >
-                        {variant.available ? "In stock" : "Out of stock"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
+          {/* Color then Size (GOL-3315). The picker owns the selection and
+              hands the exact variant to the cart; a single-variant product
+              shows no pickers. */}
           <div data-add-to-cart-anchor>
-            <AddToCartButton
-              variantId={
-                product.variants.length > 0 ? product.variants[0].id : product.id
-              }
-              templateId={product.id}
-              name={
-                product.variants.length > 0
-                  ? product.variants[0].name
-                  : product.name
-              }
-              price={
-                product.variants.length > 0
-                  ? product.variants[0].price
-                  : product.price
-              }
+            <VariantPicker
+              product={product}
               // Cart line items render through next/image which doesn't accept
               // inline data: URIs; pass an empty string in that case so the
               // cart shows the neutral placeholder tile instead of erroring.
               imageUrl={usePlainImg ? "" : fullImageUrl}
-              disabled={!product.available}
             />
           </div>
         </div>
       </div>
 
-      <GuideBlock html={guideHtml} />
+      {/* A shirt has no growing guide; the block (and its coming-soon collapse)
+          is for the farm's plants only (GOL-3315). */}
+      {product.fulfillmentRoute !== "printify" && <GuideBlock html={guideHtml} />}
 
-      <StickyAddToCartBar
-        variantId={
-          product.variants.length > 0 ? product.variants[0].id : product.id
-        }
-        templateId={product.id}
-        name={
-          product.variants.length > 0 ? product.variants[0].name : product.name
-        }
-        price={
-          product.variants.length > 0 ? product.variants[0].price : product.price
-        }
-        imageUrl={usePlainImg ? "" : fullImageUrl}
-        disabled={!product.available}
-      />
+      {/* The sticky bar cannot know the picker's selection, so it only renders
+          when there is nothing to pick (GOL-3315). */}
+      {product.variants.length <= 1 && (
+        <StickyAddToCartBar
+          variantId={
+            product.variants.length > 0 ? product.variants[0].id : product.id
+          }
+          templateId={product.id}
+          name={
+            product.variants.length > 0 ? product.variants[0].name : product.name
+          }
+          price={
+            product.variants.length > 0 ? product.variants[0].price : product.price
+          }
+          imageUrl={usePlainImg ? "" : fullImageUrl}
+          disabled={!product.available}
+        />
+      )}
     </div>
   );
 }
