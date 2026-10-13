@@ -151,7 +151,9 @@ describe("ProductView: estimator quotes the selected Format only (GOL-3286)", ()
     // No zone yet, so the card shows no wave: the line invents no ship date.
     expect(line).not.toMatch(/wave/);
     await user.selectOptions(screen.getByLabelText(/your usda zone/i), "6");
-    line = lines()[0].textContent ?? "";
+    // Dates carry no-break spaces so "Nov 26" never splits at 375px; compare
+    // on plain spaces against the chip.
+    line = (lines()[0].textContent ?? "").replace(/\u00a0/g, " ");
     // The chip's own words and casing: "Fall wave" + "Approx Nov 9 to Nov 26".
     expect(line).toMatch(/·\sFall wave, approx [A-Z][a-z]{2} \d+ to [A-Z][a-z]{2} \d+/);
     const chip = within(formatGroup()).getByRole("group", { name: /pre-order wave/i });

@@ -1,6 +1,6 @@
 "use client";
 
-import type { PreorderWave, ShipWave } from "@grove/odoo-client";
+import type { MonthDay, PreorderWave, ShipWave } from "@grove/odoo-client";
 import type { FulfillmentMethod } from "../../../lib/fulfillment-method";
 import { formatMonthDay } from "../../../lib/fulfillment-mode";
 import {
@@ -52,7 +52,9 @@ export function preorderCardTiming(
   const w = wave ? waves.find((x) => x.wave === wave && x.open) : null;
   if (!w) return null;
   const [from, to] = w.ship_window;
-  return `${WAVE_NAME[method][w.wave]}, approx ${formatMonthDay(from)} to ${formatMonthDay(to)}`;
+  // No-break spaces inside each date, so a 375px wrap never splits "Nov 26".
+  const nb = (md: MonthDay) => formatMonthDay(md).replace(" ", "\u00a0");
+  return `${WAVE_NAME[method][w.wave]}, approx ${nb(from)} to ${nb(to)}`;
 }
 
 /**
