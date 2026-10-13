@@ -112,7 +112,7 @@ export function FacetSidebar({
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-controls="facet-panel"
-          className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/70 md:pointer-events-none md:cursor-default"
+          className="flex min-h-11 items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/70 md:min-h-0 md:pointer-events-none md:cursor-default"
         >
           <span aria-hidden="true" data-open={open} className="facet-caret md:hidden" />
           <span>Filter</span>

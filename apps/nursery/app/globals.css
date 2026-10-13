@@ -1037,7 +1037,7 @@ h1 em, h2 em, h3 em {
 }
 .catalog-search__input {
   width: 100%;
-  padding: 0.75rem 2.4rem 0.75rem 2.5rem;
+  padding: 0.75rem 3.1rem 0.75rem 2.5rem;
   border: 1px solid var(--parchment-deep);
   border-radius: 8px;
   background: var(--parchment-soft);
@@ -1059,14 +1059,15 @@ h1 em, h2 em, h3 em {
   -webkit-appearance: none;
   appearance: none;
 }
+/* 44px hit area (WCAG 2.5.5 / GOL-2745 tap-target bar); the glyph stays small. */
 .catalog-search__clear {
   position: absolute;
-  right: 0.4rem;
+  right: 0.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   font-size: 1.3rem;
   line-height: 1;
