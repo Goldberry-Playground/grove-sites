@@ -16,6 +16,7 @@ import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
+import { resolveLivechatConfig } from "./livechat-config";
 import "./globals.css";
 
 // Site-wide metadata defaults (GOL-2878 Phase 1).
@@ -74,6 +75,7 @@ export default async function RootLayout({
 }) {
   const host = (await headers()).get("host");
   const sites = siblingSitesForHost(host);
+  const livechat = resolveLivechatConfig(process.env);
   return (
     <html lang="en">
       <head>
@@ -160,7 +162,12 @@ export default async function RootLayout({
           </footer>
         </Providers>
         </GroveProviders>
-        <SupportChat />
+        {/* grove_support live chat (GOL-2023 / GOL-3302). Resolved from the
+            RUNTIME env here (this layout is an async Server Component, so it
+            runs per request inside the container) because NEXT_PUBLIC_* is
+            inlined at image-build time in CI and cannot be set per environment
+            on the App Platform spec. null => the widget renders nothing. */}
+        <SupportChat channelId={livechat?.channelId} odooUrl={livechat?.odooUrl} />
       </body>
     </html>
   );

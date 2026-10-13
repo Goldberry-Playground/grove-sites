@@ -26,13 +26,29 @@ import { useState } from "react";
  * `/websocket` endpoint (Odoo 19 uses the websocket bus, not `/longpolling`),
  * which prod Caddy proxies to `odoo:8072` (`Caddyfile-odoo.tpl`).
  *
- * Inert until `NEXT_PUBLIC_LIVECHAT_CHANNEL_ID` is set, so this is safe to ship
- * ahead of the channel config: no channel id → render nothing, no script, no
- * network. `strategy="lazyOnload"` keeps both scripts off the critical path so
- * the widget cannot regress catalog/checkout LCP. Nursery ONLY in phase 1.
+ * Inert until a channel id is configured, so this is safe to ship ahead of the
+ * channel config: no channel id → render nothing, no script, no network.
+ * `strategy="lazyOnload"` keeps both scripts off the critical path so the
+ * widget cannot regress catalog/checkout LCP. Nursery ONLY in phase 1.
+ *
+ * Config source (GOL-3302): the root layout (a Server Component) resolves the
+ * RUNTIME env (`LIVECHAT_CHANNEL_ID` / `LIVECHAT_ODOO_URL`, set on the App
+ * Platform spec in odoocker TF) via `resolveLivechatConfig` and passes it in as
+ * props. The `NEXT_PUBLIC_*` reads below are only a build-time fallback for
+ * local dev -- they are inlined by `next build` in grove-sites CI, so a value
+ * set on the DO app can never reach them. See livechat-config.ts.
  */
 
-const DEFAULT_ODOO_URL = "https://odoo.gatheringatthegrove.com";
+import { DEFAULT_LIVECHAT_ODOO_URL } from "./livechat-config";
+
+const DEFAULT_ODOO_URL = DEFAULT_LIVECHAT_ODOO_URL;
+
+export type SupportChatProps = {
+  /** Runtime-resolved `im_livechat.channel` id; undefined => fall back to NEXT_PUBLIC_. */
+  channelId?: string;
+  /** Runtime-resolved Odoo origin; undefined => NEXT_PUBLIC_ fallback, then prod default. */
+  odooUrl?: string;
+};
 
 function stripTrailingSlash(odooUrl: string): string {
   return odooUrl.replace(/\/+$/, "");
@@ -48,13 +64,13 @@ export function livechatAssetsEmbedSrc(odooUrl: string): string {
   return `${stripTrailingSlash(odooUrl)}/im_livechat/assets_embed.js`;
 }
 
-export function SupportChat() {
-  const channelId = process.env.NEXT_PUBLIC_LIVECHAT_CHANNEL_ID;
+export function SupportChat({ channelId: channelIdProp, odooUrl: odooUrlProp }: SupportChatProps) {
+  const channelId = channelIdProp || process.env.NEXT_PUBLIC_LIVECHAT_CHANNEL_ID;
   // Gate the widget bundle on the loader having executed, so `livechatData` is
   // populated before the bundle boots.
   const [loaderReady, setLoaderReady] = useState(false);
   if (!channelId) return null;
-  const odooUrl = process.env.NEXT_PUBLIC_LIVECHAT_ODOO_URL || DEFAULT_ODOO_URL;
+  const odooUrl = odooUrlProp || process.env.NEXT_PUBLIC_LIVECHAT_ODOO_URL || DEFAULT_ODOO_URL;
   return (
     <>
       <Script
