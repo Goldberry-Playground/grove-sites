@@ -310,7 +310,11 @@ export function ShippingEstimator({
                   </span>
                 )}
                 {tier.fulfillment && (
-                  <span className="text-foreground/55"> · {tier.fulfillment}</span>
+                  // The separator is glued to the timing with a no-break space,
+                  // so a long bareroot line ("Fall wave, approx Nov 9 to Nov 26")
+                  // wraps at 375px with the dot leading the second line, never
+                  // dangling at the end of the first.
+                  <span className="text-foreground/55"> ·&nbsp;{tier.fulfillment}</span>
                 )}
               </span>
               {tier.pickupOnly ? (

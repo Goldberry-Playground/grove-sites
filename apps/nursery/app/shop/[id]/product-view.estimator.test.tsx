@@ -125,7 +125,7 @@ describe("ProductView: estimator quotes the selected Format only (GOL-3286)", ()
     expect(lines()).toHaveLength(1);
     const line = lines()[0].textContent ?? "";
     // The selected (potted) card's words, not the tier's hard-coded label.
-    expect(line).toMatch(/^Peat & bagged · Ships now/);
+    expect(line).toMatch(/^Peat & bagged ·\sShips now/);
     expect(line).toMatch(/from \$\d+$/);
     expect(panel().textContent).not.toMatch(/Potted/);
     // The card echoes the same number the estimator quotes.
@@ -153,7 +153,7 @@ describe("ProductView: estimator quotes the selected Format only (GOL-3286)", ()
     await user.selectOptions(screen.getByLabelText(/your usda zone/i), "6");
     line = lines()[0].textContent ?? "";
     // The chip's own words and casing: "Fall wave" + "Approx Nov 9 to Nov 26".
-    expect(line).toMatch(/· Fall wave, approx [A-Z][a-z]{2} \d+ to [A-Z][a-z]{2} \d+/);
+    expect(line).toMatch(/·\sFall wave, approx [A-Z][a-z]{2} \d+ to [A-Z][a-z]{2} \d+/);
     const chip = within(formatGroup()).getByRole("group", { name: /pre-order wave/i });
     const window = line.match(/approx (.+?) to (.+?)(?:from|$)/)!;
     expect(chip.textContent).toMatch(`Approx ${window[1]} to ${window[2].trim()}`);
@@ -161,7 +161,7 @@ describe("ProductView: estimator quotes the selected Format only (GOL-3286)", ()
     // And back: the potted card's line returns, still without "Potted".
     await user.click(within(formatGroup()).getByRole("button", { name: /^Peat & bagged/ }));
     expect(lines()).toHaveLength(1);
-    expect(lines()[0].textContent).toMatch(/^Peat & bagged · Ships now/);
+    expect(lines()[0].textContent).toMatch(/^Peat & bagged ·\sShips now/);
     expect(panel().textContent).not.toMatch(/Potted/);
   });
 
