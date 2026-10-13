@@ -13,6 +13,9 @@ import {
   totalQuantity,
   validateCartItems,
   type CartItem,
+  setSeedHarvestYear,
+  acknowledgeSeedHarvest,
+  unconfirmedSeedMove,
 } from "./cart-reducer";
 import { SEED_MIXED_MESSAGE, SEED_YEAR_MESSAGE } from "./seed";
 
@@ -403,5 +406,47 @@ describe("seed pre-order carts (GOL-3258)", () => {
     const next = addItem([seedLine(901, 2026)], { ...seedLine(901, 2027) }, 2);
     expect(next[0].quantity).toBe(3);
     expect(next[0].seed?.year).toBe(2027);
+  });
+});
+
+describe("setSeedHarvestYear / acknowledgeSeedHarvest — the quote moved the harvest (GOL-3258 §6)", () => {
+  const seedLine = (variantId: number): CartItem => ({
+    variantId,
+    templateId: 300,
+    name: `Chinquapin ${variantId}`,
+    price: 14,
+    imageUrl: "",
+    quantity: 1,
+    seed: { year: 2026, rolledOver: false, shipStart: "2026-10-15", shipEnd: "2026-11-15" },
+  });
+  const tree: CartItem = { variantId: 1, templateId: 1, name: "Tree", price: 12, imageUrl: "", quantity: 1 };
+
+  it("moves every seed line as one order and flags the move until acknowledged", () => {
+    const moved = setSeedHarvestYear([seedLine(901), seedLine(951)], 2027);
+    expect(moved.map((i) => i.seed)).toEqual([
+      { year: 2027, rolledOver: true, shipStart: "2027-10-15", shipEnd: "2027-11-15", movedFromYear: 2026 },
+      { year: 2027, rolledOver: true, shipStart: "2027-10-15", shipEnd: "2027-11-15", movedFromYear: 2026 },
+    ]);
+    expect(orderKind(moved)).toBe("seed");
+    expect(unconfirmedSeedMove(moved)?.movedFromYear).toBe(2026);
+    const seen = acknowledgeSeedHarvest(moved);
+    expect(seen.every((i) => i.seed?.movedFromYear === undefined)).toBe(true);
+    expect(seen.map((i) => i.seed?.year)).toEqual([2027, 2027]);
+    expect(unconfirmedSeedMove(seen)).toBeNull();
+  });
+
+  it("leaves tree lines and an already-current year alone", () => {
+    const items = [seedLine(901)];
+    expect(setSeedHarvestYear(items, 2026)[0]).toBe(items[0]);
+    expect(setSeedHarvestYear([tree], 2027)[0]).toBe(tree);
+    expect(acknowledgeSeedHarvest(items)[0]).toBe(items[0]);
+    expect(unconfirmedSeedMove(items)).toBeNull();
+  });
+
+  it("validateCartItems keeps a moved line and drops a tampered movedFromYear", () => {
+    const moved = setSeedHarvestYear([seedLine(901)], 2027);
+    expect(validateCartItems(JSON.parse(JSON.stringify(moved)))).toEqual(moved);
+    const tampered = [{ ...moved[0], seed: { ...moved[0].seed, movedFromYear: "2026" } }];
+    expect(validateCartItems(tampered)).toEqual([]);
   });
 });

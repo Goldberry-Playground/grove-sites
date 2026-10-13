@@ -70,6 +70,17 @@ export interface CartPageProps {
    * slot and styling as CheckoutPage's `notice`.
    */
   notice?: ReactNode;
+  /**
+   * Line under the checkout CTA about today's charge. Omit for the kit's
+   * default ("You will not be charged today..."), which only ever renders on a
+   * charged-in-full cart, never beside a due-today deposit row. Pass `null` for
+   * no line at all: the consumer knows a deposit cart (a seed or wave
+   * pre-order) before the quote lands, and must not flash "not charged today"
+   * over a $1 or $10 deposit even for a moment. Pass a node to say what the
+   * cart actually charges ("$1 today, the rest when it ships."); it renders
+   * beside the due-today row (Josh, 2026-10-13).
+   */
+  reassure?: ReactNode | null;
 }
 
 function formatPrice(amount: number): string {
@@ -96,6 +107,7 @@ export function CartPage({
   tierNudge = null,
   lineNotes,
   notice,
+  reassure,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -128,6 +140,17 @@ export function CartPage({
   // No client-side tax math: shipping and tax are backend lines shown on
   // Review & pay once the ship-to is known (Josh, 2026-09-22; GOL-2432).
   const total = subtotal;
+  // Same rule as CheckoutPage: a host-supplied line is used as given (null =
+  // none); the kit's "not charged today" default only on a charged-in-full cart.
+  const reassureLine =
+    reassure !== undefined ? (
+      reassure
+    ) : dueToday ? null : (
+      <>
+        You will not be charged today. We confirm every order by email before
+        processing payment.
+      </>
+    );
 
   return (
     <>
@@ -263,12 +286,11 @@ export function CartPage({
               Proceed to Checkout <GlyphIcon name="arrow-right" />
             </Link>
 
-            {!dueToday && (
-              <p className="grove-cart__reassure">
-                You will not be charged today. We confirm every order by email before
-                processing payment.
-              </p>
-            )}
+            {/* The kit's default says nothing is charged today, which is false
+                beside a due-today deposit row, so a deposit cart gets no default
+                line; the host says what it actually charges ("$1 today, the
+                rest when it ships.") through `reassure` (Josh, 2026-10-13). */}
+            {reassureLine ? <p className="grove-cart__reassure">{reassureLine}</p> : null}
 
             <Link href={shopHref} className="grove-cart__summary-continue">
               Continue Shopping

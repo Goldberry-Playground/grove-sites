@@ -108,13 +108,17 @@ describe("<SeedProductView />", () => {
   });
 
   it("renders no tree control: method, zone, Format, wave or estimator", () => {
-    renderSeed(IN_SEASON);
+    const { container } = renderSeed(IN_SEASON);
     expect(screen.queryByText("How do you want it?")).toBeNull();
     expect(screen.queryByLabelText("Your USDA zone")).toBeNull();
     expect(screen.queryByText("Format")).toBeNull();
     expect(screen.queryByRole("group", { name: "Pre-order wave" })).toBeNull();
     expect(screen.queryByText(/Ship to/i)).toBeNull();
     expect(screen.queryByText(/\$10\b/)).toBeNull();
+    // No handling fee on seeds (Josh, 2026-10-13): the estimator footnote from
+    // GOL-3188 ("Includes our $5 handling fee") must never reach a seed page.
+    expect(container.textContent).not.toMatch(/handling/i);
+    expect(container.textContent).toContain("plus shipping and tax");
   });
 
   it("lists the five-pack ladder cheapest first", () => {

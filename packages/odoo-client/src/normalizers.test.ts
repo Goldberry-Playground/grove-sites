@@ -11,6 +11,7 @@ import {
   normalizeOrderDetail,
   normalizeCheckoutSession,
   normalizeSeedSeason,
+  normalizeCheckoutQuote,
 } from "./normalizers";
 import {
   honeycrispListItem,
@@ -933,5 +934,43 @@ describe("seed pre-orders (GOL-3257/3258)", () => {
     });
     expect(v).toMatchObject({ shippingTier: "seed", packSize: "Pack of 50", packLb: 0.125 });
     expect(normalizeVariant(honeycrispDetail.variants[0])).toMatchObject({ packSize: null, packLb: null });
+  });
+});
+
+describe("normalizeCheckoutQuote — seed harvest year (GOL-3258 §6)", () => {
+  const base = {
+    deposit_now: true,
+    deposit_reason: "seed" as const,
+    deposit_amount: 1,
+    amount_due_today: 1,
+    after_cutover: false,
+    lines: [{ variant_id: 901, quantity: 1, bareroot: false, sold_out: false, free_qty: null, seed_harvest_year: 2027 }],
+  };
+
+  it("reads the top-level year the GOL-3257 backend sends", () => {
+    const q = normalizeCheckoutQuote({ ...base, seed_harvest_year: 2028 });
+    expect(q.seedHarvestYear).toBe(2028);
+    expect(q.lines[0].seedHarvestYear).toBe(2027);
+  });
+
+  it("falls back to the first seed line when the build only stamps lines[]", () => {
+    expect(normalizeCheckoutQuote(base).seedHarvestYear).toBe(2027);
+    expect(
+      normalizeCheckoutQuote({
+        ...base,
+        lines: [{ variant_id: 1, quantity: 1, bareroot: true, sold_out: false, free_qty: 3 }, ...base.lines],
+      }).seedHarvestYear,
+    ).toBe(2027);
+  });
+
+  it("is null on a tree cart and never coerces a non-number", () => {
+    const tree = normalizeCheckoutQuote({
+      ...base,
+      deposit_reason: "preorder",
+      lines: [{ variant_id: 1, quantity: 1, bareroot: true, sold_out: false, free_qty: 3 }],
+    });
+    expect(tree.seedHarvestYear).toBeNull();
+    expect(tree.lines[0].seedHarvestYear).toBeNull();
+    expect(normalizeCheckoutQuote({ ...base, seed_harvest_year: "2027" as never, lines: [] }).seedHarvestYear).toBeNull();
   });
 });

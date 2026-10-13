@@ -1,4 +1,5 @@
 import type { GroveTrustItem, GrovePickupCopy } from "@grove/ui-kit";
+import { depositTodayLine } from "./due-today";
 
 /**
  * Which storefront is rendering the shared cart/checkout. The three apps that
@@ -14,6 +15,12 @@ interface BrandTrust {
   cart: GroveTrustItem[];
   /** Checkout-page strip (three signals; leads with the Stripe assurance). */
   checkout: GroveTrustItem[];
+  /**
+   * Checkout strip for a SEED-only cart (GOL-3258): the tree strip names a $10
+   * deposit, and a seed order takes $1. Optional; a brand without seeds falls
+   * back to `checkout`.
+   */
+  seedCheckout?: GroveTrustItem[];
   /**
    * Farm-pickup fulfillment. `null` for brands with no pickup location — the
    * checkout renders ship-only and never shows a pickup option. Only the
@@ -71,6 +78,13 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
       { icon: "half-circle", text: "Flat $10 deposit per order on reservations, balance when it ships" },
       { icon: "check", text: "Arrive-alive guarantee" },
     ],
+    // Seeds: $1, and the balance is goods plus the actual label cost plus tax,
+    // no handling fee (Josh, 2026-10-13). No live-plant promise on seed nuts.
+    seedCheckout: [
+      { icon: "sparkle", text: "Card entered on Stripe — never stored by us" },
+      { icon: "half-circle", text: "Flat $1 deposit per order on seed reservations, the rest plus shipping and tax when it ships" },
+      { icon: "check", text: "Ships from our farm" },
+    ],
     pickup: {
       shipLabel: "Ship to me — delivered to your address",
       pickupLabel: "Farm pickup — collect at our WV nursery ($0 shipping)",
@@ -117,3 +131,30 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     pickupOnlyNote: null,
   },
 };
+
+/** The charged-in-full cart badge every brand carries; swapped out on deposit carts. */
+const NO_PAYMENT_UNTIL_CONFIRMED = "No payment until we confirm";
+
+/**
+ * The cart-page trust strip for what the cart actually charges today.
+ *
+ * "No payment until we confirm" is true for a charged-in-full cart (Stripe
+ * takes the card; we confirm by email before processing) and false for a
+ * deposit cart, which charges $1 (seed) or $10 (tree reservation) at checkout.
+ * So a deposit cart swaps that badge for "$1 today, the rest when it ships.",
+ * with the amount from the confirmed quote's `amount_due_today` (Josh,
+ * 2026-10-13). A cart the host already knows is a deposit cart (`depositKind`)
+ * drops the badge while the quote is still loading or has failed, so the
+ * false claim never flashes; everything else keeps the brand strip verbatim.
+ */
+export function cartTrustItems(
+  brand: GroveBrand,
+  opts: { amountDueToday: number | null; depositKind: boolean },
+): GroveTrustItem[] {
+  const items = BRAND_TRUST[brand].cart;
+  if (opts.amountDueToday == null && !opts.depositKind) return items;
+  return items.flatMap((item) => {
+    if (item.text !== NO_PAYMENT_UNTIL_CONFIRMED) return [item];
+    return opts.amountDueToday == null ? [] : [{ icon: item.icon, text: depositTodayLine(opts.amountDueToday) }];
+  });
+}

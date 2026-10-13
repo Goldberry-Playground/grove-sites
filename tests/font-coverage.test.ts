@@ -155,8 +155,9 @@ describe("the trust strip names its shapes instead of typing them", () => {
 
   it("every BRAND_TRUST icon is a declared shape name, not a character", () => {
     const icons = [...brandTrust.matchAll(/\bicon:\s*"([^"]*)"/g)].map((m) => m[1]);
-    // Three brands x (4 cart + 3 checkout) badges.
-    expect(icons.length).toBe(21);
+    // Three brands x (4 cart + 3 checkout) badges, plus the nursery's three
+    // seed-checkout badges (GOL-3258: a seed cart takes $1, not $10).
+    expect(icons.length).toBe(24);
     for (const icon of icons) {
       expect(
         SHAPES.includes(icon),

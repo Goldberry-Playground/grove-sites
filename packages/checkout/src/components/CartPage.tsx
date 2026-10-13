@@ -1,18 +1,20 @@
 "use client";
 
-import { CartPage as UICartPage } from "@grove/ui-kit";
+import { useRef } from "react";
+import { Button, CartPage as UICartPage } from "@grove/ui-kit";
 import { useCart } from "../cart-store";
-import { orderKind, orderSeed, orderWave } from "../cart-reducer";
+import { orderKind, orderSeed, orderWave, unconfirmedSeedMove } from "../cart-reducer";
 import {
   PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
   depositConfirmedFor,
   mixedCartMessage,
   orderTypeLine,
 } from "../order-type";
-import { seedLineNotes } from "../seed";
-import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
-import { dueTodayFor } from "../due-today";
+import { seedHarvestConfirmLabel, seedHarvestMovedMessage, seedLineNotes } from "../seed";
+import { cartTrustItems, type GroveBrand } from "../brand-trust";
+import { depositTodayLine, dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { useSeedHarvestSync } from "../hooks/useSeedHarvestSync";
 import { useTierNudge } from "../hooks/useTierNudge";
 import { WithGroveNext } from "./grove-next-seam";
 
@@ -42,8 +44,9 @@ export function CartPage({
    *  ("Add 2 more trees to unlock 10% off", GOL-2432). */
   tiersHref?: string;
 } = {}) {
-  const { items, hydrated, setQuantity, remove, subtotal, totalQuantity } =
+  const { items, hydrated, setQuantity, remove, subtotal, totalQuantity, moveSeedHarvest, confirmSeedHarvest } =
     useCart();
+  const orderTypeRef = useRef<HTMLParagraphElement | null>(null);
   const kind = orderKind(items);
   const shipWave = orderWave(items);
   const mixedCart = hydrated && kind === "mixed";
@@ -53,6 +56,16 @@ export function CartPage({
     error: quoteError,
     failed: quoteFailed,
   } = useCartDepositQuote(depositQuoteHref, items, undefined, shipWave);
+  // A seed cart follows the harvest year the backend quotes NOW, not the one
+  // stamped at add time (spec §6); a move is shown until the shopper confirms.
+  useSeedHarvestSync({ kind, items, quote: depositQuote, settled: depositSettled, onMove: moveSeedHarvest });
+  const seedMove = hydrated ? unconfirmedSeedMove(items) : null;
+  function confirmSeedMove() {
+    confirmSeedHarvest();
+    // The notice unmounts; land focus on the order line, which names the new
+    // harvest, rather than dropping it to <body>.
+    orderTypeRef.current?.focus();
+  }
   // The cart page has no ship / pickup choice yet: an all-pickup-only cart is
   // pickup, anything else reads neutrally (never "when your trees ship" for an
   // order that may be picked up).
@@ -77,6 +90,20 @@ export function CartPage({
     ? mixedCartMessage(items)
     : quoteError ?? (preorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
   const dueToday = dueTodayFor(depositQuote, { subtotal });
+  // A deposit cart says what actually happens, "$1 today, the rest when it
+  // ships." ($10 for a tree reservation), with the amount from the confirmed
+  // quote, under the CTA and in the trust strip; "You will not be charged
+  // today" and "No payment until we confirm" never render there, not even
+  // while the quote is loading (Josh, 2026-10-13). A charged-in-full cart keeps
+  // both, but only once an affirmative full-charge quote confirms it.
+  const chargedInFull = depositSettled && depositQuote?.depositNow !== true;
+  const depositKind = kind === "preorder" || kind === "seed";
+  const reassure = dueToday
+    ? depositTodayLine(dueToday.amount)
+    : kind === "immediate" && !quoteError && chargedInFull
+      ? undefined
+      : null;
+  const trustItems = cartTrustItems(brand, { amountDueToday: dueToday?.amount ?? null, depositKind });
   // Deposit carts get no discount, so no nudge (GOL-2088 / GOL-2432). Reveal the
   // nudge only once the quote confirms a charged-in-full cart — never while the
   // quote is loading or if it failed (both leave the charge mode unknown), so a
@@ -95,14 +122,20 @@ export function CartPage({
         loading={!hydrated}
         onSetQuantity={setQuantity}
         onRemove={remove}
-        trustItems={BRAND_TRUST[brand].cart}
+        trustItems={trustItems}
         dueToday={dueToday}
+        reassure={reassure}
         tierNudge={nudge?.message ?? null}
         notice={
-          orderTypeText || blockingMessage ? (
+          orderTypeText || blockingMessage || seedMove ? (
             <>
               {orderTypeText ? (
-                <p className="grove-checkout__order-type" data-testid="order-type">
+                <p
+                  ref={orderTypeRef}
+                  tabIndex={-1}
+                  className="grove-checkout__order-type"
+                  data-testid="order-type"
+                >
                   {orderTypeText}
                 </p>
               ) : null}
@@ -110,6 +143,24 @@ export function CartPage({
                 <p role="alert" className="grove-checkout__order-blocked">
                   {blockingMessage}
                 </p>
+              ) : null}
+              {seedMove ? (
+                <>
+                  <p role="alert" className="grove-checkout__order-blocked" data-testid="seed-harvest-moved">
+                    {seedHarvestMovedMessage(seedMove)}
+                  </p>
+                  <div className="grove-checkout__wave-switch">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="md"
+                      className="grove-checkout__wave-switch-button"
+                      onClick={confirmSeedMove}
+                    >
+                      {seedHarvestConfirmLabel(seedMove)}
+                    </Button>
+                  </div>
+                </>
               ) : null}
             </>
           ) : null

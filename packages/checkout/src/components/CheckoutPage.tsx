@@ -13,7 +13,7 @@ import {
   type GroveFulfillment,
   type GrovePromoPreview,
 } from "@grove/ui-kit";
-import { orderKind, orderSeed, orderWave, type CartItem } from "../cart-reducer";
+import { orderKind, orderSeed, orderWave, unconfirmedSeedMove, type CartItem } from "../cart-reducer";
 import { useCart } from "../cart-store";
 import {
   PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
@@ -24,11 +24,13 @@ import {
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { useSeedHarvestSync } from "../hooks/useSeedHarvestSync";
 import { useTierNudge } from "../hooks/useTierNudge";
+import { seedHarvestConfirmLabel, seedHarvestMovedMessage } from "../seed";
 import { tierFor, tierLabel } from "../tier-nudge";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
-import { SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
+import { SEED_SHIP_TO_STATES, SHIP_TO_STATES, SHIP_TO_COUNTRIES } from "../ship-to-states";
 
 const STRIPE_PAYMENT_METHOD = [
   { value: "card", label: "Pay by card — secure Stripe checkout" },
@@ -137,7 +139,7 @@ export function CheckoutPage({
     items: readonly CartItem[],
   ) => React.ReactNode;
 } = {}) {
-  const { items, hydrated, subtotal, setWave } = useCart();
+  const { items, hydrated, subtotal, setWave, moveSeedHarvest, confirmSeedHarvest } = useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   // Mirrors the form's ship/pickup radio so the "due today" quote follows the
@@ -196,6 +198,16 @@ export function CheckoutPage({
     // now names the new wave, rather than dropping it to <body>.
     orderTypeRef.current?.focus();
   }
+  // A seed cart follows the harvest year the backend quotes NOW (spec §6): the
+  // season may have closed or filled between add-to-cart and checkout, and the
+  // $1 then reserves next fall's harvest. The lines move to the quoted year and
+  // checkout holds until the shopper confirms the change.
+  useSeedHarvestSync({ kind, items, quote: depositQuote, settled: depositSettled, onMove: moveSeedHarvest });
+  const seedMove = hydrated ? unconfirmedSeedMove(items) : null;
+  function confirmSeedMove() {
+    confirmSeedHarvest();
+    orderTypeRef.current?.focus();
+  }
   // A pre-order may only start a session once the BACKEND has confirmed the $10
   // deposit for this wave. An older backend ignores `ship_wave` and would charge
   // in full under a "$10 deposit" page; the quote route's catalog fallback is
@@ -211,7 +223,8 @@ export function CheckoutPage({
   // the ZIP-less quote and meet the closed-wave refusal at the session instead
   // of here (GOL-3194). A pre-order waits for the quote of its current inputs.
   const preorderQuotePending = preorderCart && !depositSettled;
-  const blocked = mixedCart || quoteError !== null || preorderUnconfirmed || preorderQuotePending;
+  const blocked =
+    mixedCart || quoteError !== null || preorderUnconfirmed || preorderQuotePending || seedMove !== null;
   const dueToday = dueTodayFor(depositQuote, { subtotal });
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
@@ -350,7 +363,7 @@ export function CheckoutPage({
     : quoteError ?? (showPreorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
 
   const notice =
-    orderTypeText || blockingMessage ? (
+    orderTypeText || blockingMessage || seedMove ? (
       <>
         {orderTypeText ? (
           <p
@@ -367,6 +380,24 @@ export function CheckoutPage({
           <p role="alert" className="grove-checkout__order-blocked">
             {blockingMessage}
           </p>
+        ) : null}
+        {seedMove ? (
+          <>
+            <p role="alert" className="grove-checkout__order-blocked" data-testid="seed-harvest-moved">
+              {seedHarvestMovedMessage(seedMove)}
+            </p>
+            <div className="grove-checkout__wave-switch">
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="grove-checkout__wave-switch-button"
+                onClick={confirmSeedMove}
+              >
+                {seedHarvestConfirmLabel(seedMove)}
+              </Button>
+            </div>
+          </>
         ) : null}
         {switchWave ? (
           <div className="grove-checkout__wave-switch">
@@ -394,15 +425,20 @@ export function CheckoutPage({
         subtotal={subtotal}
         loading={!hydrated}
         onPlaceOrder={createSession}
-        shipStates={SHIP_TO_STATES}
+        // Seeds are not living trees: a seed-only cart may ship to the lower 48
+        // plus DC, never Hawaii or Alaska (Josh, 2026-10-13). Tree carts keep the
+        // nursery licence list. The backend enforces the same split (GOL-3257).
+        shipStates={kind === "seed" ? SEED_SHIP_TO_STATES : SHIP_TO_STATES}
         shipStatesNote={
           // Nursery voices its live-tree routing; the kit's neutral default
           // covers every other brand so no false "live trees" claim leaks
           // (GOL-1314).
-          brand === "nursery"
-            ? (n) =>
-                `We currently ship live trees to ${n} states. Don't see yours? It's not on our route yet.`
-            : undefined
+          kind === "seed"
+            ? () => "We ship seeds to the lower 48 states and Washington, DC. We can't ship seeds to Hawaii or Alaska."
+            : brand === "nursery"
+              ? (n) =>
+                  `We currently ship live trees to ${n} states. Don't see yours? It's not on our route yet.`
+              : undefined
         }
         countries={SHIP_TO_COUNTRIES}
         allowPickup={pickup !== null}
@@ -422,7 +458,7 @@ export function CheckoutPage({
         submitLabel="Continue to payment"
         submitPendingLabel="Starting secure checkout…"
         reassure="You'll review the amount and enter card details on Stripe's secure page. Nothing is charged until you confirm there."
-        trustItems={BRAND_TRUST[brand].checkout}
+        trustItems={kind === "seed" ? (BRAND_TRUST[brand].seedCheckout ?? BRAND_TRUST[brand].checkout) : BRAND_TRUST[brand].checkout}
         dueToday={dueToday}
         onFulfillmentChange={setChosenFulfillment}
         // Only ask for a notice once the cart is hydrated: an un-hydrated cart is
