@@ -271,7 +271,11 @@ export function tierFor(input: {
   shippingTier?: ShippingTier | null;
   format?: string | null;
 }): ShippingTier {
-  if (input.shippingTier === "bareroot" || input.shippingTier === "potted") {
+  if (
+    input.shippingTier === "bareroot" ||
+    input.shippingTier === "potted" ||
+    input.shippingTier === "seed"
+  ) {
     return input.shippingTier;
   }
   if (input.format && /bare\s*-?\s*root/i.test(input.format)) return "bareroot";
@@ -295,6 +299,8 @@ export function estimateShipping(
   rates: RateTable = ZONE_RATE_TABLE,
   zoneByState: Record<string, string> = ZONE_BY_STATE,
 ): number | null {
+  // Seeds are never rate-quoted: shipping is the actual label cost at ship time.
+  if (tier === "seed") return null;
   const zone = zoneByState[normalizeState(state)];
   if (!zone) return null;
   const tierKey = tier === "bareroot" || tier === "potted" ? tier : DEFAULT_TIER;
@@ -445,6 +451,7 @@ export function estimateTierShipping(
   tier: ShippingTier,
   opts: { feed?: ShippingRateFeed | null; rates?: RateTable; zoneMap?: ZoneMap } = {},
 ): number | null {
+  if (tier === "seed") return null;
   if (tier === "bareroot" && hasBoxFeed(opts.feed)) {
     return estimateBoxShipping(state, opts.feed);
   }
@@ -569,7 +576,7 @@ export function estimateTierFloor(
   feed: ShippingRateFeed | null | undefined,
   opts: { lengthClass?: number; mode?: PackingMode } = {},
 ): number | null {
-  if (!hasBoxFeed(feed)) return null;
+  if (tier === "seed" || !hasBoxFeed(feed)) return null;
   return tier === "potted" ? estimatePottedFloor(feed) : estimateBoxFloor(feed, opts);
 }
 

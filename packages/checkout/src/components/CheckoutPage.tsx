@@ -13,13 +13,13 @@ import {
   type GroveFulfillment,
   type GrovePromoPreview,
 } from "@grove/ui-kit";
-import { orderKind, orderWave, type CartItem } from "../cart-reducer";
+import { orderKind, orderSeed, orderWave, type CartItem } from "../cart-reducer";
 import { useCart } from "../cart-store";
 import {
-  MIXED_CART_MESSAGE,
   PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE,
+  depositConfirmedFor,
+  mixedCartMessage,
   orderTypeLine,
-  preorderDepositConfirmed,
 } from "../order-type";
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
@@ -201,9 +201,10 @@ export function CheckoutPage({
   // in full under a "$10 deposit" page; the quote route's catalog fallback is
   // display-only. Submit stays off while the quote is in flight; the message
   // shows once it has landed (or failed) without that confirmation.
-  const preorderCart = hydrated && kind === "preorder";
+  // A seed cart waits the same way on the backend confirming its $1 seed deposit.
+  const preorderCart = hydrated && (kind === "preorder" || kind === "seed");
   const preorderUnconfirmed =
-    preorderCart && quoteError === null && !preorderDepositConfirmed(depositQuote, shipWave);
+    preorderCart && quoteError === null && !depositConfirmedFor(kind, depositQuote, shipWave);
   const showPreorderUnconfirmed = preorderUnconfirmed && (depositSettled || quoteFailed);
   // The last confirmed quote persists until the next one lands, so a shopper who
   // completes the ZIP and submits inside the debounce would otherwise submit on
@@ -211,14 +212,14 @@ export function CheckoutPage({
   // of here (GOL-3194). A pre-order waits for the quote of its current inputs.
   const preorderQuotePending = preorderCart && !depositSettled;
   const blocked = mixedCart || quoteError !== null || preorderUnconfirmed || preorderQuotePending;
-  const dueToday = dueTodayFor(depositQuote);
+  const dueToday = dueTodayFor(depositQuote, { subtotal });
   // Deposit/preorder carts get no discount (CEO directive, GOL-2088), so they
   // get no "unlock 10% off" promise either. Only reveal the nudge once the quote
   // confirms a charged-in-full cart — a still-loading or failed quote leaves the
   // charge mode unknown, and we must not flash a discount promise on what may be
   // a reservation cart.
   const { nudge, tiers } = useTierNudge(tiersHref, items, {
-    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "mixed",
+    hidden: !(depositSettled && !depositQuote?.depositNow) || kind === "preorder" || kind === "seed" || kind === "mixed",
     surface: "checkout",
   });
 
@@ -342,9 +343,10 @@ export function CheckoutPage({
     wave: shipWave,
     depositNow: depositQuote?.depositNow === true,
     pickup: fulfillment === "pickup",
+    seed: orderSeed(items),
   });
   const blockingMessage = mixedCart
-    ? MIXED_CART_MESSAGE
+    ? mixedCartMessage(items)
     : quoteError ?? (showPreorderUnconfirmed ? PREORDER_DEPOSIT_UNCONFIRMED_MESSAGE : null);
 
   const notice =

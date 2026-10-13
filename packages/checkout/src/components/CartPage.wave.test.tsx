@@ -101,3 +101,48 @@ describe("<CartPage /> — order type and pre-order deposit", () => {
     );
   });
 });
+
+describe("<CartPage /> — seed pre-order (GOL-3258)", () => {
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  const seedLine = {
+    variantId: 902,
+    templateId: 300,
+    name: "Allegheny Chinquapin seed nuts (Pack of 50)",
+    price: 30,
+    imageUrl: "/x.jpg",
+    quantity: 1,
+    seed: { year: 2026, rolledOver: false, shipStart: "2026-10-15", shipEnd: "2026-11-15" },
+  };
+
+  it("shows the harvest sublines, the seed order line and $1 due today", async () => {
+    seed([seedLine]);
+    mockFetch({ depositNow: true, depositReason: "seed", amountDueToday: 1 });
+    renderCart();
+    expect(await screen.findByText("Reserved, fall 2026 harvest")).toBeTruthy();
+    expect(screen.getByText("Ships approx Oct 15 to Nov 15")).toBeTruthy();
+    expect(screen.getByTestId("order-type").textContent).toBe(
+      "Seed pre-order · fall 2026 harvest · $1 deposit today, the rest when it ships",
+    );
+    await waitFor(() => expect(screen.getAllByText(/Due today \(seed deposit\)/).length).toBeGreaterThan(0));
+    expect(screen.getAllByText(/\$29\.00 plus shipping and tax is charged when your order ships/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("blocks a seed cart the backend did not confirm as a $1 seed deposit", async () => {
+    seed([seedLine]);
+    mockFetch({ depositNow: false, depositReason: null, amountDueToday: null });
+    renderCart();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not confirm your pre-order deposit/);
+  });
+
+  it("a stale cart mixing seeds and trees gets the seed refusal", async () => {
+    seed([seedLine, line(1)]);
+    mockFetch({ depositNow: false, depositReason: null, amountDueToday: null });
+    renderCart();
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Seed reservations check out on their own. Check out or clear your cart first.",
+    );
+  });
+});

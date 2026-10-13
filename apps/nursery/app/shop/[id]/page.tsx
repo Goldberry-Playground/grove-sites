@@ -15,6 +15,8 @@ import { findDepartment, ORCHARD_SLUG } from "../../../lib/departments";
 import { DepartmentNav } from "../../department-nav";
 import { DepartmentTeaser } from "../department-teaser";
 import { ShopBrowse } from "../shop-browse";
+import { SeedProductView } from "./seed-product-view";
+import { isSeedProduct } from "../../../lib/seed";
 import { ProductView, type ViewImage, type ViewVariant } from "./product-view";
 import { SpecBlock } from "./spec-block";
 import { ProductDescription } from "./product-description";
@@ -213,6 +215,7 @@ export default async function ShopSegmentPage({
     rootstock: v.rootstock ?? null,
     shippingTier: v.shippingTier ?? null,
     imageUrl: resolveOdooImageUrl(v.imageUrl, odooBase),
+    packSize: v.packSize ?? null,
   }));
 
   // Breadcrumb category trail (GOL-679). Odoo's `categoryName` may arrive as a
@@ -257,6 +260,23 @@ export default async function ShopSegmentPage({
         </div>
       )}
 
+      {isSeedProduct(product) ? (
+        // Seed nuts are a $1 pre-order with their own harvest window (GOL-3258):
+        // a separate buy box, so no tree control (method, zone, Format, wave,
+        // estimator) can render on a seed page.
+        <SeedProductView
+          productId={product.id}
+          name={product.name}
+          featured={product.featured}
+          heroImage={heroImage}
+          images={images}
+          variants={variants}
+          fallbackPrice={product.price}
+          saleOk={product.saleOk}
+          seedSeason={product.seedSeason ?? null}
+          facts={product.facts}
+        />
+      ) : (
       <ProductView
         productId={product.id}
         name={product.name}
@@ -293,6 +313,7 @@ export default async function ShopSegmentPage({
         // component), so it must not be reinstated on this page.
         facts={product.facts}
       />
+      )}
 
       {/* Below the grid, in reading order once the buy decision is made:
           description → growing guide → the FULL spec table (every row, unchanged)

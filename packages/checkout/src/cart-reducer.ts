@@ -3,6 +3,7 @@
 // implementation. Any change to cart semantics happens here once.
 
 import type { ShipWave } from "@grove/odoo-client";
+import { SEED_MIXED_MESSAGE, SEED_YEAR_MESSAGE, type CartSeedReservation } from "./seed";
 
 export type CartItem = {
   /** product.product id — the actual SKU/variant. Used as the unique line key. */
@@ -44,6 +45,12 @@ export type CartItem = {
    * immediate or a pre-order for exactly one wave; see {@link canAdd}.
    */
   wave?: ShipWave;
+  /**
+   * Seed pre-order line (GOL-3258): the harvest it reserves from. Absent on every
+   * tree line. A seed cart holds only seed lines of ONE harvest year; see
+   * {@link canAdd}.
+   */
+  seed?: CartSeedReservation;
 };
 
 /**
@@ -61,7 +68,7 @@ export function addItem(
   if (existing) {
     return items.map((i) =>
       i.variantId === newItem.variantId
-        ? { ...i, quantity: i.quantity + quantity, wave: newItem.wave }
+        ? { ...i, quantity: i.quantity + quantity, wave: newItem.wave, seed: newItem.seed }
         : i,
     );
   }
@@ -144,7 +151,19 @@ export function validateCartItems(parsed: unknown): CartItem[] {
       // than the two known waves is a tampered line.
       ((item as CartItem).wave === undefined ||
         (item as CartItem).wave === "fall" ||
-        (item as CartItem).wave === "spring"),
+        (item as CartItem).wave === "spring") &&
+      ((item as CartItem).seed === undefined || isSeedReservation((item as CartItem).seed)),
+  );
+}
+
+function isSeedReservation(value: unknown): value is CartSeedReservation {
+  if (!value || typeof value !== "object") return false;
+  const s = value as Record<string, unknown>;
+  return (
+    Number.isInteger(s.year) &&
+    typeof s.rolledOver === "boolean" &&
+    typeof s.shipStart === "string" &&
+    typeof s.shipEnd === "string"
   );
 }
 
@@ -157,16 +176,22 @@ export function cartStorageKey(tenantId: string | undefined): string {
   return `${tenantId ?? "grove"}-cart-v1`;
 }
 
-export type OrderKind = "empty" | "immediate" | "preorder" | "mixed";
+export type OrderKind = "empty" | "immediate" | "preorder" | "seed" | "mixed";
 
 /**
  * What kind of order this cart is. A cart is EITHER immediate (no line has a
- * wave) OR a pre-order for exactly one wave (every line has the same wave).
+ * wave) OR a pre-order for exactly one wave (every line has the same wave) OR a
+ * seed pre-order for one harvest year (every line is seed, same year, no wave).
  * Anything else, such as a stale localStorage cart, is "mixed" and cannot check
  * out.
  */
 export function orderKind(items: readonly CartItem[]): OrderKind {
   if (items.length === 0) return "empty";
+  const seeded = items.filter((i) => i.seed !== undefined);
+  if (seeded.length > 0) {
+    if (seeded.length < items.length || seeded.some((i) => i.wave !== undefined)) return "mixed";
+    return new Set(seeded.map((i) => i.seed?.year)).size === 1 ? "seed" : "mixed";
+  }
   const waved = items.filter((i) => i.wave !== undefined);
   if (waved.length === 0) return "immediate";
   if (waved.length < items.length) return "mixed";
@@ -178,20 +203,34 @@ export function orderWave(items: readonly CartItem[]): ShipWave | null {
   return orderKind(items) === "preorder" ? (items[0].wave ?? null) : null;
 }
 
+/** The seed cart's harvest, or null (not a seed cart). */
+export function orderSeed(items: readonly CartItem[]): CartSeedReservation | null {
+  return orderKind(items) === "seed" ? (items[0].seed ?? null) : null;
+}
+
 export type CanAdd =
   | { ok: true }
-  | { ok: false; reason: "mixed" | "wave"; message: string };
+  | { ok: false; reason: "mixed" | "wave" | "seed"; message: string };
 
 /**
- * May a line with this `wave` (undefined = immediate) join the cart? Prevents
- * mixing pre-orders with immediate items and a second wave in one order.
+ * May a line with this `wave` (undefined = immediate) or `seed` harvest join the
+ * cart? Prevents mixing pre-orders with immediate items, a second wave in one
+ * order, seeds with trees, and two seed harvest years in one order.
  */
 export function canAdd(
   items: readonly CartItem[],
-  incoming: { wave?: ShipWave },
+  incoming: { wave?: ShipWave; seed?: Pick<CartSeedReservation, "year"> },
 ): CanAdd {
   const kind = orderKind(items);
   if (kind === "empty") return { ok: true };
+  if (incoming.seed || kind === "seed") {
+    if (!incoming.seed || kind !== "seed") {
+      return { ok: false, reason: "seed", message: SEED_MIXED_MESSAGE };
+    }
+    return orderSeed(items)?.year === incoming.seed.year
+      ? { ok: true }
+      : { ok: false, reason: "seed", message: SEED_YEAR_MESSAGE };
+  }
   const incomingKind = incoming.wave ? "preorder" : "immediate";
   if (kind === "mixed" || kind !== incomingKind) {
     return {

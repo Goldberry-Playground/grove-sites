@@ -53,7 +53,7 @@ export function formatsForMethod(
   opts: { pottedSeason: boolean; preorderSeason: boolean; pottedShips?: boolean },
 ): string[] {
   const potted = formats.filter((f) => tierOf(f) === "potted");
-  const bareroot = formats.filter((f) => tierOf(f) !== "potted");
+  const bareroot = formats.filter((f) => tierOf(f) === "bareroot");
   if (!opts.pottedSeason) return bareroot;
   const immediate = method === "ship" && opts.pottedShips === false ? [] : potted;
   return opts.preorderSeason ? [...immediate, ...bareroot] : immediate;

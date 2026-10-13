@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
 import { canAdd } from "../cart-reducer";
+import type { CartSeedReservation } from "../seed";
 
 type AddToCartButtonProps = {
   variantId: number;
@@ -39,6 +40,12 @@ type AddToCartButtonProps = {
    * (or add a second wave) is refused and the reason is shown inline.
    */
   wave?: ShipWave;
+  /**
+   * Seed pre-order harvest this add reserves from (GOL-3258); omit for a tree.
+   * Seeds check out on their own, one harvest year per order, so a mixing add
+   * is refused inline like a second wave.
+   */
+  seed?: CartSeedReservation;
 };
 
 /**
@@ -59,6 +66,7 @@ export function AddToCartButton({
   pickupOnly,
   consultBuilt,
   wave,
+  seed,
 }: AddToCartButtonProps) {
   const { items, add, openDrawer } = useCart();
   const [blocked, setBlocked] = useState<string | null>(null);
@@ -82,14 +90,14 @@ export function AddToCartButton({
       quantity={quantity}
       onQuantityChange={onQuantityChange}
       onAddToCart={(quantity) => {
-        const verdict = canAdd(items, { wave });
+        const verdict = canAdd(items, { wave, seed });
         if (!verdict.ok) {
           setBlocked(verdict.message);
           return false;
         }
         setBlocked(null);
         add(
-          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave },
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave, seed },
           quantity,
         );
         trackAddToCart({ variantId, price, quantity });

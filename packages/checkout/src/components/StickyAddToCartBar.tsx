@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { ShipWave } from "@grove/odoo-client";
 import { useCart } from "../cart-store";
 import { canAdd } from "../cart-reducer";
+import type { CartSeedReservation } from "../seed";
 
 type StickyAddToCartBarProps = {
   variantId: number;
@@ -37,6 +38,12 @@ type StickyAddToCartBarProps = {
   consultBuilt?: boolean;
   /** Pre-order wave this add belongs to; omit for an immediate item. See AddToCartButton. */
   wave?: ShipWave;
+  /**
+   * Seed pre-order harvest this add reserves from (GOL-3258); omit for a tree.
+   * Seeds check out on their own, one harvest year per order, so a mixing add
+   * is refused inline like a second wave.
+   */
+  seed?: CartSeedReservation;
 };
 
 /**
@@ -57,6 +64,7 @@ export function StickyAddToCartBar({
   pickupOnly,
   consultBuilt,
   wave,
+  seed,
 }: StickyAddToCartBarProps) {
   const { items, add, openDrawer, totalQuantity, hydrated } = useCart();
   const [blocked, setBlocked] = useState<string | null>(null);
@@ -79,14 +87,14 @@ export function StickyAddToCartBar({
       // agree (both show 0 → no badge).
       cartQuantity={hydrated ? totalQuantity : 0}
       onAdd={() => {
-        const verdict = canAdd(items, { wave });
+        const verdict = canAdd(items, { wave, seed });
         if (!verdict.ok) {
           setBlocked(verdict.message);
           return;
         }
         setBlocked(null);
         add(
-          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave },
+          { variantId, templateId, name, price, imageUrl, pickupOnly, consultBuilt, wave, seed },
           addQuantity,
         );
         openDrawer(variantId);

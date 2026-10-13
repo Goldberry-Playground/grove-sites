@@ -30,6 +30,10 @@ const HINTS: Record<ShippingTier, ShippingHint> = {
     fulfillment: "Reserve for October",
     preorder: true,
   },
+  // Seed nuts (GOL-3258) never reach a Format card or estimator row; the entry
+  // exists so the map stays exhaustive. No "from $X": seeds ship at the actual
+  // label cost, charged when the order ships.
+  seed: { fromShipping: 0, fulfillment: "Ships with the fall harvest", preorder: true },
 };
 
 /**
