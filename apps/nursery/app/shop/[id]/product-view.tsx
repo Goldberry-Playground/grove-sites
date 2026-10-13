@@ -59,7 +59,12 @@ import {
   waveZones,
   writeUsdaZone,
 } from "../../../lib/preorder-waves";
-import { PreorderCard } from "./preorder-card";
+import {
+  PREORDER_BADGE,
+  PREORDER_CARD_LABEL,
+  PreorderCard,
+  preorderCardTiming,
+} from "./preorder-card";
 import { RadioDot, optionCardClass } from "./option-card";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
 import {
@@ -461,31 +466,46 @@ export function ProductView({
     };
   }, [shippingFeed]);
 
-  // Distinct shipping tiers this product offers, for the state estimator.
-  const estimatorTiers = useMemo<EstimatorTier[]>(() => {
-    const seen = new Set<ShippingTier>();
-    const out: EstimatorTier[] = [];
-    for (const f of formats) {
-      const v = pickVariant(variants, { cultivar, format: f });
-      const tier = tierFor({ shippingTier: v?.shippingTier ?? null, format: f });
-      if (seen.has(tier)) continue;
-      seen.add(tier);
-      const tierPickupOnly = isPickupOnly(tier, shippingFeed, pickupOnly);
-      const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format: f });
-      // Single presentation authority for tier timing + badge (GOL-1313), shared
-      // with the Format cards below so the two can never drift.
-      const { label, fulfillment, badge } = tierFulfillment({
+  // The ONE line the state estimator quotes: the currently selected Format,
+  // worded exactly as its card (GOL-3286, Josh 2026-10-13). The old panel
+  // listed every tier under its own hard-coded label, so a shopper who picked
+  // Shipped read "Potted · Ships now" next to a card that said "Peat & bagged",
+  // and a "Peat & bagged · Ships in 5-10 business days" row for a format whose
+  // card said "Bareroot pre-order". The cards are the authority: the potted
+  // card's name comes from `methodFormatLabel` and its timing from
+  // `tierFulfillment`; the bareroot card is `PreorderCard`, whose name, badge
+  // and wave timing come from the same helpers it renders with. Null while no
+  // Format is selected (a formatless listing), which hides the panel exactly
+  // as the empty tier list used to.
+  const estimatorTier = useMemo<EstimatorTier | null>(() => {
+    if (format == null || !formats.includes(format)) return null;
+    const v = pickVariant(variants, { cultivar, format });
+    const tier = tierFor({ shippingTier: v?.shippingTier ?? null, format });
+    const tierPickupOnly = isPickupOnly(tier, shippingFeed, pickupOnly);
+    const hint = shippingHintFor({ shippingTier: v?.shippingTier ?? null, format });
+    const label =
+      tier === "bareroot" ? PREORDER_CARD_LABEL : methodFormatLabel(method, tier, format);
+    if (tier === "bareroot" && !tierPickupOnly) {
+      // Bareroot is always a Fall/Spring wave pre-order (Josh 2026-10-07): the
+      // card never shows the legacy "Ships in N days" line, so neither do we.
+      return {
         tier,
-        label: TIER_LABEL[tier],
-        pickupOnly: tierPickupOnly,
-        pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
-        hintFulfillment: hint.fulfillment,
-        shipMode,
-      });
-      out.push({ tier, label, fulfillment, pickupOnly: tierPickupOnly, badge });
+        label,
+        fulfillment: preorderCardTiming(method, waves, wave),
+        pickupOnly: false,
+        badge: PREORDER_BADGE,
+      };
     }
-    return out;
-  }, [formats, variants, cultivar, shippingFeed, shipMode, pickupOnly]);
+    const { fulfillment, badge } = tierFulfillment({
+      tier,
+      label,
+      pickupOnly: tierPickupOnly,
+      pickupFulfillment: PICKUP_ONLY_FULFILLMENT,
+      hintFulfillment: hint.fulfillment,
+      shipMode,
+    });
+    return { tier, label, fulfillment, pickupOnly: tierPickupOnly, badge };
+  }, [format, formats, variants, cultivar, shippingFeed, shipMode, pickupOnly, method, waves, wave]);
 
   const selected = pickVariant(variants, { cultivar, format, rootstock });
   const price = selected?.price ?? fallbackPrice;
@@ -807,7 +827,7 @@ export function ProductView({
                             // reasons stay distinguishable at a glance.
                             `not cleared for ${shipState}, see below`
                           : `ships from ~$${fFromFloor}`;
-                  // Same tier-presentation authority as the estimator rows above
+                  // Same tier-presentation authority as the estimator line above
                   // (GOL-1313): bareroot follows today's mode; potted takes its
                   // static hint, or the pickup line while the feed prices no
                   // potted box (GOL-2199 / #813).
@@ -916,11 +936,11 @@ export function ProductView({
               fulfillment story instead (progressive disclosure: don't ask for
               input that cannot change the outcome). Potted-only products keep
               the panel, because their bareroot siblings still price per state. */}
-          {estimatorTiers.length > 0 && !pickupOnly && method === "ship" && (
+          {estimatorTier && !pickupOnly && method === "ship" && (
             <ShippingEstimator
               state={shipState}
               onStateChange={setShipState}
-              tiers={estimatorTiers}
+              tier={estimatorTier}
               rates={rateTable}
               feed={shippingFeed}
               zoneMap={zoneMap}
@@ -1118,13 +1138,6 @@ const METHOD_OPTIONS: ReadonlyArray<readonly [FulfillmentMethod, string, string]
 
 /** Format-card fulfillment line when the shopper chose Farm pickup. */
 const PICKUP_METHOD_FULFILLMENT = "Pick up at the farm";
-
-/** Friendly per-tier label for the shipping estimator rows. */
-const TIER_LABEL: Record<ShippingTier, string> = {
-  potted: "Potted",
-  bareroot: "Bareroot",
-  seed: "Seed",
-};
 
 /** Secondary descriptor under each rootstock option's raw value (GOL-1112). */
 const ROOTSTOCK_KIND_COPY: Record<"grafted" | "seedling", string> = {

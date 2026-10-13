@@ -22,21 +22,24 @@ import { ZONE_BY_STATE } from "../../../lib/shipping-estimate";
  * also covers products nobody has declared yet.
  */
 
-const TIERS: EstimatorTier[] = [
-  { tier: "bareroot", label: "Bareroot", fulfillment: "Ships in 5–10 business days" },
-];
+const TIER: EstimatorTier = {
+  tier: "bareroot",
+  label: "Bareroot pre-order",
+  fulfillment: "Fall wave, approx Nov 9 to Nov 26",
+  badge: "Pre-order",
+};
 
 function renderEstimator(props: Partial<React.ComponentProps<typeof ShippingEstimator>> = {}) {
   let state = "";
   const view = render(
-    <ShippingEstimator state={state} onStateChange={() => {}} tiers={TIERS} {...props} />,
+    <ShippingEstimator state={state} onStateChange={() => {}} tier={TIER} {...props} />,
   );
   return { ...view, state };
 }
 
 /** Rerender at a chosen state — the parent owns `state`, so tests drive it. */
 function at(state: string, props: Partial<React.ComponentProps<typeof ShippingEstimator>> = {}) {
-  render(<ShippingEstimator state={state} onStateChange={() => {}} tiers={TIERS} {...props} />);
+  render(<ShippingEstimator state={state} onStateChange={() => {}} tier={TIER} {...props} />);
   return screen.getByRole("region", { name: /estimate shipping/i, hidden: true });
 }
 
@@ -196,7 +199,7 @@ describe("ShippingEstimator — eligibility branches", () => {
       { botanicalName: null }, // unconfirmed
     ]) {
       const { unmount } = render(
-        <ShippingEstimator state="FL" onStateChange={() => {}} tiers={TIERS} {...props} />,
+        <ShippingEstimator state="FL" onStateChange={() => {}} tier={TIER} {...props} />,
       );
       expect(screen.getByRole("button", { name: "Ask us" })).toBeTruthy();
       expect(screen.getByText(/free at the farm/)).toBeTruthy();
@@ -215,7 +218,7 @@ describe("ShippingEstimator — eligibility branches", () => {
     ];
     const openings = cases.map(([s, props]) => {
       const { container, unmount } = render(
-        <ShippingEstimator state={s} onStateChange={() => {}} tiers={TIERS} {...props} />,
+        <ShippingEstimator state={s} onStateChange={() => {}} tier={TIER} {...props} />,
       );
       const text = container.textContent ?? "";
       unmount();
@@ -230,7 +233,7 @@ describe("ShippingEstimator — eligibility branches", () => {
   it("selecting a state calls back so the parent (and the Format cards) follow", async () => {
     const seen: string[] = [];
     render(
-      <ShippingEstimator state="" onStateChange={(s) => seen.push(s)} tiers={TIERS} />,
+      <ShippingEstimator state="" onStateChange={(s) => seen.push(s)} tier={TIER} />,
     );
     await userEvent.selectOptions(screen.getByRole("combobox"), "FL");
     expect(seen).toContain("FL");
@@ -294,7 +297,7 @@ describe("ShippingEstimator — once-per-order handling fee (GOL-3188)", () => {
     const panel = at("WV", {
       botanicalName: "Castanea spp.",
       feed: feedWith(5),
-      tiers: [{ ...TIERS[0], pickupOnly: true }],
+      tier: { ...TIER, pickupOnly: true },
     });
     expect(panel.textContent).not.toMatch(/handling fee/);
   });

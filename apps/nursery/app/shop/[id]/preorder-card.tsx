@@ -31,6 +31,30 @@ const WAVE_NAME: Record<FulfillmentMethod, Record<ShipWave, string>> = {
   pickup: { fall: "Fall pickup", spring: "Spring pickup" },
 };
 
+/** The card's name and badge, exported so the state estimator's one line can
+ *  repeat the selected card word for word instead of keeping its own label
+ *  (GOL-3286: it used to say "Potted" beside a card that said "Peat & bagged"). */
+export const PREORDER_CARD_LABEL = "Bareroot pre-order";
+export const PREORDER_BADGE = "Pre-order";
+
+/**
+ * The timing the estimator shows beside a selected bareroot pre-order: the
+ * effective wave's chip, "Fall wave, approx Nov 9 to Nov 26", built from the
+ * same `WAVE_NAME` + `ship_window` the chips render with. Null while the
+ * card shows no open wave (zone not chosen, or nothing open), so the line
+ * never invents a ship date the card does not show.
+ */
+export function preorderCardTiming(
+  method: FulfillmentMethod,
+  waves: readonly PreorderWave[],
+  wave: ShipWave | null,
+): string | null {
+  const w = wave ? waves.find((x) => x.wave === wave && x.open) : null;
+  if (!w) return null;
+  const [from, to] = w.ship_window;
+  return `${WAVE_NAME[method][w.wave]}, approx ${formatMonthDay(from)} to ${formatMonthDay(to)}`;
+}
+
 /**
  * The Bareroot pre-order Format card (Josh 2026-10-07, mockup v4): a $10
  * deposit reserves a tree in ONE Fall or Spring wave. Closed waves stay visible
@@ -77,9 +101,9 @@ export function PreorderCard({
       >
         <span className="flex items-center gap-1.5 font-medium text-foreground">
           <RadioDot active={selected} />
-          Bareroot pre-order
+          {PREORDER_CARD_LABEL}
           <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground">
-            Pre-order
+            {PREORDER_BADGE}
           </span>
         </span>
         <span className="block pl-[1.375rem] text-xs text-ink-soft">{subline}</span>

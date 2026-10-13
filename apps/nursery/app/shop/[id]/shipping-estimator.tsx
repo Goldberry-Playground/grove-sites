@@ -26,13 +26,14 @@ import { ConsultCarveOutNotice } from "../../consult-carveout-notice";
 
 const STORAGE_KEY = "grove:ship-state";
 
-/** A tier this product actually offers, with the timing line to show beside it. */
+/** The selected Format, with the timing line to show beside it (GOL-3286). */
 export interface EstimatorTier {
   tier: ShippingTier;
-  /** Display label, e.g. "Potted" / "Bareroot". */
+  /** The selected card's own name, e.g. "Peat & bagged" / "Bareroot pre-order". */
   label: string;
-  /** Fulfillment timing line, e.g. "Ships now" / "Reserve for October". */
-  fulfillment: string;
+  /** The card's timing line, e.g. "Ships now" / "Fall wave, approx Nov 9 to
+   *  Nov 26"; null when the card shows none (a pre-order with no wave yet). */
+  fulfillment: string | null;
   /** True when this format is farm-pickup-only (no ship price) under Box Engine
    *  v2 — see `isPickupOnly` (GOL-1114). Renders a pickup row, never a rate. */
   pickupOnly?: boolean;
@@ -46,8 +47,9 @@ export interface ShippingEstimatorProps {
   /** Currently selected state code ("" = none picked yet). Controlled by the parent. */
   state: string;
   onStateChange: (state: string) => void;
-  /** Distinct shipping tiers this product offers (deduped, in display order). */
-  tiers: EstimatorTier[];
+  /** The currently selected Format. One line, worded as that card (GOL-3286):
+   *  the parent swaps it when the shopper picks another card. */
+  tier: EstimatorTier;
   /** Rate table to price against — the live backend feed resolved by the parent
    *  (GOL-969), or the bundled snapshot when the feed is absent. Defaults to the
    *  snapshot so the component still works standalone (e.g. in tests). */
@@ -100,7 +102,8 @@ export interface ShippingEstimatorProps {
  * "Estimate shipping to your state" (GOL-943). A native state selector that,
  * on selection, resolves the destination into exactly one of FOUR states:
  *
- *   1. green + this item is cleared — the per-box "from" estimate per format;
+ *   1. green + this item is cleared — the per-box "from" estimate for the
+ *      selected Format, worded as its card (GOL-3286);
  *   2. green but this item is NOT cleared — the per-taxon plant-health
  *      carve-out (GOL-2132) that checkout refuses the order on, so the panel
  *      names the reason and shows NO rate (GOL-2973). Item-specific, not
@@ -133,7 +136,7 @@ export interface ShippingEstimatorProps {
 export function ShippingEstimator({
   state,
   onStateChange,
-  tiers,
+  tier,
   rates = ZONE_RATE_TABLE,
   feed,
   zoneMap = SNAPSHOT_ZONE_MAP,
@@ -206,6 +209,11 @@ export function ShippingEstimator({
     [verdict, state, compliance],
   );
   const cleared = verdict.kind === "clear";
+  // Priced only on the quoting branch; a pickup-only format has no rate.
+  const amount =
+    state !== "" && eligible && cleared && !tier.pickupOnly
+      ? estimateTierShipping(state, tier.tier, { feed, rates, zoneMap })
+      : null;
   // Live green list when the feed reached us, else the baked snapshot
   // (GOL-2292) — the interactive panel reflects the live backend, unlike the
   // static marketing pages that read the module-level snapshot. The wording is
@@ -223,7 +231,7 @@ export function ShippingEstimator({
   const handlingLabel = Number.isInteger(fee)
     ? `$${fee}`
     : `$${fee.toFixed(2)}`;
-  const anyQuoted = tiers.some((t) => !t.pickupOnly);
+  const anyQuoted = !tier.pickupOnly;
 
   return (
     <section
@@ -286,53 +294,50 @@ export function ShippingEstimator({
               </svg>
               We ship to {stateName}
             </p>
-            <ul className="mt-2 space-y-1.5">
-              {tiers.map(({ tier, label, fulfillment, pickupOnly, badge }) => {
-                const amount = pickupOnly
-                  ? null
-                  : estimateTierShipping(state, tier, { feed, rates, zoneMap });
-                return (
-                  <li
-                    key={tier}
-                    className="flex items-baseline justify-between gap-3 text-sm"
-                  >
-                    <span className="text-foreground">
-                      {label}
-                      {badge && (
-                        <span className="ml-1.5 rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium align-middle text-foreground">
-                          {badge}
-                        </span>
-                      )}
-                      <span className="text-foreground/55"> · {fulfillment}</span>
-                    </span>
-                    {pickupOnly ? (
-                      // Potted has no shippable box (Box Engine v2) — it's picked
-                      // up free at the farm, so there is no per-state rate to show.
-                      // "Free" + the "Farm pickup only" line above carry the meaning
-                      // in words, never colour alone (a11y / colour-blind safe).
-                      <span className="font-semibold text-foreground whitespace-nowrap">
-                        Free
-                        <span className="font-normal text-foreground/55"> · pickup</span>
-                      </span>
-                    ) : (
-                      // Box Engine v2 prices per packed box; trees consolidate
-                      // into as few boxes as possible, so this is a "from" floor
-                      // for one box, never a linear per-tree charge.
-                      <span className="font-semibold text-foreground whitespace-nowrap">
-                        {amount != null ? (
-                          <>
-                            <span className="font-normal text-foreground/55">from </span>
-                            {`$${amount.toFixed(0)}`}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            {/* ONE line, for the selected Format only (GOL-3286). Its name,
+                badge and timing are the selected card's own words, handed down
+                by the parent, so the panel can never call a "Peat & bagged"
+                card "Potted" or quote a format the shopper did not pick. */}
+            <p
+              data-estimator-line
+              className="mt-2 flex items-baseline justify-between gap-3 text-sm"
+            >
+              <span className="text-foreground">
+                {tier.label}
+                {tier.badge && (
+                  <span className="ml-1.5 rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium align-middle text-foreground">
+                    {tier.badge}
+                  </span>
+                )}
+                {tier.fulfillment && (
+                  <span className="text-foreground/55"> · {tier.fulfillment}</span>
+                )}
+              </span>
+              {tier.pickupOnly ? (
+                // Potted has no shippable box (Box Engine v2) — it's picked
+                // up free at the farm, so there is no per-state rate to show.
+                // "Free" + the "Farm pickup only" line above carry the meaning
+                // in words, never colour alone (a11y / colour-blind safe).
+                <span className="font-semibold text-foreground whitespace-nowrap">
+                  Free
+                  <span className="font-normal text-foreground/55"> · pickup</span>
+                </span>
+              ) : (
+                // Box Engine v2 prices per packed box; trees consolidate
+                // into as few boxes as possible, so this is a "from" floor
+                // for one box, never a linear per-tree charge.
+                <span className="font-semibold text-foreground whitespace-nowrap">
+                  {amount != null ? (
+                    <>
+                      <span className="font-normal text-foreground/55">from </span>
+                      {`$${amount.toFixed(0)}`}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              )}
+            </p>
             {/* `text-ink-soft`, not `text-foreground/55`: the line now carries
                 the handling fee (pricing, not decoration), and /55 measured
                 3.48:1 on this panel at 12px, under the 4.5:1 AA floor. */}
