@@ -53,3 +53,28 @@ describe("ship_wave pass-through", () => {
     expect("shipping" in lastBody()).toBe(false);
   });
 });
+
+describe("checkout.quote shipping state (GOL-3315 Printify live quote)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })),
+    );
+  });
+
+  it("sends shipping state and zip together", async () => {
+    const c = createOdooClient(config);
+    await c.checkout
+      .quote({ items: [{ variantId: 1, quantity: 1 }], fulfillment: "ship", zip: "90001", state: "CA" })
+      .catch(() => undefined);
+    expect(lastBody().shipping).toEqual({ zip: "90001", state: "CA" });
+  });
+
+  it("sends state alone when the ZIP is not known yet, and nothing when neither is", async () => {
+    const c = createOdooClient(config);
+    await c.checkout.quote({ items: [{ variantId: 1, quantity: 1 }], state: "CA" }).catch(() => undefined);
+    expect(lastBody().shipping).toEqual({ state: "CA" });
+    await c.checkout.quote({ items: [{ variantId: 1, quantity: 1 }] }).catch(() => undefined);
+    expect("shipping" in lastBody()).toBe(false);
+  });
+});

@@ -1,6 +1,7 @@
 export type {
   TenantConfig,
   Product,
+  FulfillmentRoute,
   ProductVariant,
   GrowingFacts,
   ProductImage,
