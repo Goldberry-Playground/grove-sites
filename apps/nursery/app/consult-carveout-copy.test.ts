@@ -7,7 +7,8 @@ import { ConsultCarveOutNotice } from "./consult-carveout-notice";
 import { SNAPSHOT_COMPLIANCE } from "../lib/plant-compliance";
 
 /**
- * Brand-voice guard for the consult-built carve-out notice (GOL-3054).
+ * Brand-voice guard for the consult-built carve-out notice (GOL-3054) and the
+ * shipping estimator it renders inside (GOL-3065).
  *
  * CMO sign-off on GOL-3054 ratified two rules for this disclosure, and a
  * disclosure is the worst place to let either regress: it is the last thing a
@@ -17,7 +18,8 @@ import { SNAPSHOT_COMPLIANCE } from "../lib/plant-compliance";
  *    `Marketing/Brand Voice` blesses em dashes for Josh's *spoken* long-form
  *    cadence (scripts, blog, newsletter); the storefront rule is the narrower
  *    one and it governs transactional copy. `product-view.copy.test.ts` already
- *    guards its own file this way; this is the same guard for the notice.
+ *    guards its own file this way; this is the same guard for both surfaces of
+ *    the ship-state panel.
  * 2. **US spelling, and no apology register.** "honour" shipped in the first
  *    draft of the sibling unconfirmed-branch string, and an apology opener
  *    ("unfortunately") inverts the pillar-2 rule that a constraint leads with
@@ -46,32 +48,47 @@ function stripComments(src: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1"); // // line comments (spares http:// URLs)
 }
 
-function offendingLines(file: string, pattern: RegExp): string[] {
+/**
+ * The one em dash that is typography rather than prose: a line whose entire
+ * content is the quoted glyph, which is the estimator's empty-value placeholder
+ * in a price cell (`{amount != null ? ... : "—"}`). A bare dash in a table cell
+ * means "no value", which is precisely what the glyph is for, so it is exempted
+ * by SHAPE — not by rewriting the cell into a word, and not by loosening the
+ * pattern. Any dash with copy around it still fails.
+ */
+const TYPOGRAPHIC_DASH_CELL = /^["'`]\s*—\s*["'`],?$/;
+
+function offendingLines(
+  file: string,
+  pattern: RegExp,
+  exempt?: RegExp,
+): string[] {
   return stripComments(readFileSync(file, "utf8"))
     .split("\n")
     .map((line, i) => ({ line: line.trim(), n: i + 1 }))
-    .filter(({ line }) => pattern.test(line))
+    .filter(({ line }) => pattern.test(line) && !exempt?.test(line))
     .map(({ line, n }) => `  L${n}: ${line}`);
 }
 
 describe("consult carve-out notice — customer-facing copy (GOL-3054)", () => {
-  it("renders no em dash outside of code comments (GOL-589)", () => {
-    const offending = offendingLines(NOTICE, /—/);
-    expect(
-      offending,
-      `em dash (—) found in customer-facing copy; use a period or comma instead:\n${offending.join("\n")}`,
-    ).toEqual([]);
-  });
-
-  // Both surfaces' strings, because the unconfirmed-branch rewrite that GOL-3054
-  // signed off lives in the estimator, not the notice. Scoped to spelling and
-  // apology register only: the estimator still carries four pre-existing em
-  // dashes in older copy, tracked separately, so it cannot join the rule above
-  // until those are redlined.
+  // Both surfaces, both rules. The estimator joined the em-dash rule in
+  // GOL-3065, once the four pre-existing dashes in its older copy (the
+  // no-state lede, the per-box footnote, the not-there-yet pickup line and the
+  // notify-me description) were redlined to periods and commas. Keeping the
+  // two files in one loop is what stops the next string added to either one
+  // from quietly escaping the rule, which is exactly how GOL-1371 happened.
   for (const [name, file] of [
     ["notice", NOTICE],
     ["estimator", ESTIMATOR],
   ] as const) {
+    it(`${name}: renders no em dash outside of code comments (GOL-589)`, () => {
+      const offending = offendingLines(file, /—/, TYPOGRAPHIC_DASH_CELL);
+      expect(
+        offending,
+        `em dash (—) found in customer-facing copy; use a period or comma instead:\n${offending.join("\n")}`,
+      ).toEqual([]);
+    });
+
     it(`${name}: uses US spelling and no apology register`, () => {
       const offending = offendingLines(
         file,
