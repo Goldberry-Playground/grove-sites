@@ -2279,6 +2279,16 @@ h1 em, h2 em, h3 em, h4 em {
 @media (min-width: 1024px) {
   .shop-card__name { font-size: 1.2rem; }
 }
+/* "Printed to order" card meta (GOL-3315): mono eyebrow scale, chestnut on
+   ivory (6.48:1), so it reads as a fact about the product, not a badge. */
+.shop-card__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chestnut-reserve);
+  margin: 0.5rem 0 0;
+}
 
 /* ─────────────────────────────────────────────
    Product growing-guide block (GOL-1002 / GOL-986 Part A)

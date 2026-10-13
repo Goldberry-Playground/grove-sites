@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
-import { getMockProductById, isDataUri } from "../../../data/mock-products";
+import { isDataUri } from "../../../lib/is-data-uri";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { AddToCartButton } from "./add-to-cart-button";
 import { GuideBlock } from "./guide-block";
@@ -28,8 +28,9 @@ export default async function ProductDetailPage({
   try {
     product = await odoo.products.get(productId);
   } catch {
-    // Odoo unreachable — fall back to mock catalog. Remove when Odoo is live.
-    product = getMockProductById(productId);
+    // Odoo unreachable or the id is unknown: a 404, never a demo product
+    // (GOL-3315). The farm shop shows only what Odoo can actually sell.
+    notFound();
   }
 
   if (!product) notFound();
@@ -49,12 +50,8 @@ export default async function ProductDetailPage({
   // Build the absolute image URL only when the product actually has an image
   // path; otherwise leave it empty so we don't store a bare host in the cart
   // (which would fail next/image remotePatterns and 404 on render).
-  // The mock catalog uses three URL shapes:
-  //   - `data:image/svg+xml;...` inline SVG (typographic placeholder cards)
-  //   - `/photos/...`            local public/ asset
-  //   - `https://...`            external host (Unsplash, etc.)
   // Odoo products are paths under /web/image/... so they get prefixed with
-  // ODOO_URL. Everything else passes through unchanged.
+  // ODOO_URL. An absolute or `data:` URL passes through unchanged.
   const fullImageUrl = resolveOdooImageUrl(product.imageUrl, odooBase);
   const usePlainImg = isDataUri(fullImageUrl);
 
