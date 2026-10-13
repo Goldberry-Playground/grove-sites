@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
@@ -141,7 +142,7 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
 
       <div style={{ textAlign: "center", marginTop: "3rem" }}>
         <Link href="/shop" className="btn btn-forest">
-          Browse all {total} plants &rarr;
+          Browse all {total} plants <GlyphIcon name="arrow-right" />
         </Link>
       </div>
     </section>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useGroveLink } from "../link-context";
+import { GlyphIcon } from "../GlyphIcon";
 
 /** One sister site in the cross-village strip. */
 export type SiblingSite = {
@@ -62,7 +63,7 @@ export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
       >
         <span className="here">{currentSiteName}</span>
         <span className="sibling-strip__caret" aria-hidden>
-          ▾
+          <GlyphIcon name="caret-down" />
         </span>
       </button>
       <ul id="sibling-strip-list" className="sibling-strip__list">

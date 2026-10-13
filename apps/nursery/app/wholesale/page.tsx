@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import { CaptureForm } from "@grove/ui-kit";
 import { CategoryBar } from "../category-bar";
 
@@ -42,7 +43,7 @@ export default function WholesalePage() {
             </h1>
           </div>
           <Link href="#inquire" className="btn">
-            Start an inquiry &rarr;
+            Start an inquiry <GlyphIcon name="arrow-right" />
           </Link>
         </div>
         <p className="section-lede" style={{ maxWidth: "62ch" }}>

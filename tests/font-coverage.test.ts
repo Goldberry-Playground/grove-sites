@@ -43,26 +43,41 @@ const AUDITED = [
   "packages/grove-ui/src/CheckoutPage/index.tsx",
   "packages/checkout/src/components/CheckoutPage.tsx",
   "packages/grove-ui/src/GlyphIcon.tsx",
+  // GOL-2797 — the rest of GOL-3123's follow-up list outside the goldberry and
+  // ggg route trees: the order review step, the mini-cart, the hub vendor
+  // surfaces, the sibling strip and shop sub-header marks (component CSS and
+  // the generated ds-theme bundles they feed), the checkout cancel page, and
+  // every nursery route that still typed or referenced an arrow.
+  "packages/grove-ui/src/CheckoutReview/index.tsx",
+  "packages/grove-ui/src/MiniCartDrawer/index.tsx",
+  "packages/grove-ui/src/BuyAtVendorForm/index.tsx",
+  "packages/grove-ui/src/VendorCard/index.tsx",
+  "packages/grove-ui/src/SiblingStrip/index.tsx",
+  "packages/grove-ui/src/SiblingStrip/SiblingStrip.css",
+  "packages/grove-ui/src/ShopSubHeader/ShopSubHeader.css",
+  "packages/grove-ui/ds-theme.nursery.css",
+  "packages/grove-ui/ds-theme.hub.css",
+  "packages/grove-ui/ds-theme.ggg.css",
+  "packages/grove-ui/ds-theme.goldberry.css",
+  "packages/checkout/src/components/CheckoutCancelPage.tsx",
+  "apps/nursery/app/page.tsx",
+  "apps/nursery/app/featured-lead-sellers.tsx",
+  "apps/nursery/app/notify/page.tsx",
+  "apps/nursery/app/wholesale/page.tsx",
+  "apps/nursery/app/shipping-warranty/page.tsx",
 ] as const;
 
 /**
  * Still NOT listed, and deliberately so. GOL-3123 swept the shared cart and
- * checkout packages plus all three storefront route trees with the corrected
- * coverage table and the new reference scan: 49 uncovered marks remain across
- * 25 files outside its two, tracked on their own follow-up rather than claimed
- * here. Listing a file here is a claim that someone rendered it in a
- * symbol-font-less stack; none of these have been.
+ * checkout packages plus all three storefront route trees and found 49
+ * uncovered marks across 25 files outside its two. GOL-2797 cleared every one
+ * of those in the shared packages and the nursery routes (listed above). What
+ * remains is the goldberry and ggg route trees, tracked on their own follow-up
+ * rather than claimed here. Listing a file here is a claim that someone
+ * rendered it in a symbol-font-less stack; none of these have been.
  *
- *   grove-ui/CheckoutReview/index.tsx   ● ◷ ⚠ → ✦ ←  (6 — the order review
- *                                      step, and `●`/`◷`/`✦` are the very
- *                                      marks GOL-3117 fixed in its sibling)
- *   grove-ui/MiniCartDrawer, BuyAtVendorForm, VendorCard        →  (1 each)
- *   grove-ui/SiblingStrip/{index.tsx,SiblingStrip.css}          ▾ ◐
- *   grove-ui/ShopSubHeader/ShopSubHeader.css                    ◐
- *   checkout/components/CheckoutCancelPage.tsx                  ↩
  *   apps/goldberry                       → x17, ← x4            (worst offender)
  *   apps/ggg                             → x4, ⌂, &larr;
- *   apps/nursery                         → x1, &rarr; x5, &darr;
  *
  * Deliberately NOT on that list, having been checked rather than assumed: the
  * cart stepper's `&minus;`, the ggg homepage's seven `№`, and the nursery PDP's
@@ -253,5 +268,53 @@ describe("the cart and checkout draw their marks instead of typing them", () => 
       expect(m[1]).toContain('aria-hidden="true"');
     expect(glyphIcon).toContain('aria-hidden="true"');
     expect(uncoveredGlyphs(glyphIcon)).toEqual([]);
+  });
+});
+
+describe("GlyphIcon draws every mark it declares (GOL-2797)", () => {
+  const glyphIcon = read("packages/grove-ui/src/GlyphIcon.tsx");
+  const NAMES = (() => {
+    const decl = glyphIcon.match(/export type GroveGlyphIconName\s*=([^;]+);/)?.[1] ?? "";
+    return [...stripComments(decl).matchAll(/"([a-z-]+)"/g)].map((m) => m[1]);
+  })();
+
+  it("declares the GOL-3123 marks plus the GOL-2797 additions", () => {
+    expect(NAMES).toEqual(
+      expect.arrayContaining([
+        "arrow-right",
+        "arrow-left",
+        "warning",
+        "arrow-down",
+        "caret-down",
+        "undo",
+        "dot",
+        "clock",
+      ]),
+    );
+  });
+
+  it("has geometry for every declared name", () => {
+    for (const name of NAMES) {
+      const key = /^[a-z]+$/.test(name) ? name : `"${name}"`;
+      expect(glyphIcon, `GlyphIcon has no geometry for ${name}`).toContain(`${key}:`);
+    }
+  });
+
+  it("keeps the arrow out of the VendorCard default label", () => {
+    // A string default is retypable at every call site; the card owns the mark.
+    const card = stripComments(read("packages/grove-ui/src/VendorCard/index.tsx"));
+    expect(card).toContain('cta = "Visit the shop"');
+    expect(card).toContain('{cta} <GlyphIcon name="arrow-right" />');
+  });
+
+  it("draws the sibling-strip and sub-header half-circles in CSS", () => {
+    for (const rel of [
+      "packages/grove-ui/src/SiblingStrip/SiblingStrip.css",
+      "packages/grove-ui/src/ShopSubHeader/ShopSubHeader.css",
+    ]) {
+      const css = stripComments(read(rel));
+      expect(css, rel).toMatch(/::before\s*\{[^}]*content:\s*(['"])\1;[^}]*border-radius:\s*50%/);
+      expect(css, rel).toMatch(/linear-gradient\(to right, .*50%, transparent 50%\)/);
+    }
   });
 });
