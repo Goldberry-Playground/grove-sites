@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import {
   uncoveredGlyphs,
@@ -111,6 +111,38 @@ const AUDITED = [
  * faces (and by Libre Baskerville).
  */
 
+/**
+ * GOL-2831 — the trees those files sit in, walked rather than listed. AUDITED
+ * is a per-file claim; a route added tomorrow is not on it, and nothing stops
+ * it typing a `→` into a Newsreader heading, which is how the goldberry, ggg
+ * and hub trees silted up with 40-odd arrows between GOL-2797 and GOL-3128 in
+ * the first place. Everything under these roots that can paint (.tsx, .ts, .css)
+ * is read; tests are skipped because nothing in a test reaches a browser. The
+ * walk is deliberately a second gate beside AUDITED, not a replacement: the
+ * list still records which files were rendered, the walk makes the claim
+ * hold for the files nobody has rendered yet.
+ */
+const ROOTS = [
+  "apps/nursery/app",
+  "apps/nursery/data",
+  "apps/goldberry/app",
+  "apps/ggg/app",
+  "apps/hub/app",
+  "apps/hub/components",
+] as const;
+
+const PAINTS = /\.(tsx|ts|css)$/;
+const NOT_PAINTED = /(^|\/)(__tests__\/|[^/]*\.(test|spec)\.[^/]+$)/;
+
+const walk = (rel: string): string[] =>
+  readdirSync(path.join(ROOT, rel), { withFileTypes: true, recursive: true })
+    .filter((d) => d.isFile() && PAINTS.test(d.name))
+    .map((d) => path.relative(ROOT, path.join(d.parentPath, d.name)))
+    .filter((f) => !NOT_PAINTED.test(f))
+    .sort();
+
+const WALKED = ROOTS.flatMap(walk);
+
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
 
 describe("audited surfaces render only glyphs the loaded fonts cover", () => {
@@ -128,6 +160,24 @@ describe("audited surfaces render only glyphs the loaded fonts cover", () => {
       }
     }
     expect(found, `tofu glyph(s) back in rendered output:\n  ${found.join("\n  ")}`).toEqual([]);
+  });
+});
+
+describe("every file the four storefront route trees can paint stays inside the covered set (GOL-2831)", () => {
+  it("walks all six roots, not an empty directory", () => {
+    expect(WALKED.length).toBeGreaterThan(60);
+    for (const root of ROOTS) expect(WALKED.some((f) => f.startsWith(`${root}/`)), root).toBe(true);
+  });
+
+  it("covers every AUDITED file that lives under a root, so the two gates cannot drift apart", () => {
+    const under = AUDITED.filter((rel) => ROOTS.some((root) => rel.startsWith(`${root}/`)));
+    expect(under.length).toBeGreaterThan(0);
+    for (const rel of under) expect(WALKED, rel).toContain(rel);
+  });
+
+  it.each(WALKED)("%s", (rel) => {
+    const offending = uncoveredGlyphs(read(rel));
+    expect(offending, explain(offending)).toEqual([]);
   });
 });
 
@@ -210,16 +260,25 @@ describe("the trust strip names its shapes instead of typing them", () => {
 describe("globals.css draws its eyebrow marks rather than typing them", () => {
   const css = stripComments(read("apps/nursery/app/globals.css"));
 
-  it("has no CSS content: declaration holding an uncovered character", () => {
-    const bad = (css.match(/content:\s*(['"])(.*?)\1/g) ?? []).filter((d) =>
-      [...d].some((c) => c.codePointAt(0)! > 0xff),
-    );
-    expect(
-      bad,
-      "a content: glyph outside the loaded faces — draw it in CSS or mask an " +
-        `SVG instead (GOL-682, GOL-3117): ${bad.join(" / ")}`,
-    ).toEqual([]);
-  });
+  // CSS `content:` is the second form of this defect and the one a markup grep
+  // cannot see: a typed `◐` on a ::before paints on every page of the site at
+  // once (nursery sibling strip, GOL-2797; goldberry eyebrow and ggg card
+  // arrow and notice mark, GOL-3128). Checked in every app's stylesheet, not
+  // only the nursery's (GOL-2831).
+  it.each(["nursery", "goldberry", "ggg", "hub"] as const)(
+    "apps/%s/app/globals.css has no content: declaration holding an uncovered character",
+    (app) => {
+      const sheet = stripComments(read(`apps/${app}/app/globals.css`));
+      const bad = (sheet.match(/content:\s*(['"])(.*?)\1/g) ?? []).filter((d) =>
+        [...d].some((c) => c.codePointAt(0)! > 0xff),
+      );
+      expect(
+        bad,
+        "a content: glyph outside the loaded faces — draw it in CSS or mask an " +
+          `SVG instead (GOL-682, GOL-3117): ${bad.join(" / ")}`,
+      ).toEqual([]);
+    },
+  );
 
   it("still draws both eyebrow marks in the brand orange", () => {
     // The hero mark was U+25D0 and the field-notes mark U+2726. Replacing them
