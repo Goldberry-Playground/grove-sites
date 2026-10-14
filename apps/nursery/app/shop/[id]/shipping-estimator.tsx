@@ -9,9 +9,9 @@ import {
   US_STATE_NAMES,
   ZONE_RATE_TABLE,
   SNAPSHOT_ZONE_MAP,
+  boxOptions,
   estimateTierShipping,
-  handlingFee,
-  hasBoxFeed,
+  formatUsd,
   shipsTo,
   type RateTable,
   type ZoneMap,
@@ -222,16 +222,13 @@ export function ShippingEstimator({
   const shipTo = shipScope(
     zoneMap.greenStates.length ? zoneMap.greenStates : undefined,
   );
-  // The once-per-order S&H fee (GOL-2923) is folded into every box-feed quote
-  // below, because each quote prices a one-unit order. Say so in words: a
-  // shopper adding a second tree should know the $5 doesn't repeat, which is
-  // the part a per-unit "from $X" can't carry on its own (GOL-3188). Zero on a
-  // feed predating GOL-2923, whose cells still carry handling, so no line.
-  const fee = hasBoxFeed(feed) ? handlingFee(feed) : 0;
-  const handlingLabel = Number.isInteger(fee)
-    ? `$${fee}`
-    : `$${fee.toFixed(2)}`;
-  const anyQuoted = !tier.pickupOnly;
+  // The cartons this format can fill to the chosen state, smallest first, with
+  // trees-per-box from the feed's packing catalog and the exact cell for each
+  // (GOL-3344). Empty when the feed carries no capacity for the tier (today's
+  // feed publishes the bareroot catalog only), so the panel keeps its single
+  // price line rather than inventing a count. Only on the quoting branch.
+  const boxes =
+    amount != null ? (boxOptions(state, tier.tier, feed) ?? []) : [];
 
   return (
     <section
@@ -334,7 +331,7 @@ export function ShippingEstimator({
                   {amount != null ? (
                     <>
                       <span className="font-normal text-foreground/55">from </span>
-                      {`$${amount.toFixed(0)}`}
+                      {formatUsd(amount)}
                     </>
                   ) : (
                     "—"
@@ -342,16 +339,55 @@ export function ShippingEstimator({
                 </span>
               )}
             </p>
-            {/* `text-ink-soft`, not `text-foreground/55`: the line now carries
-                the handling fee (pricing, not decoration), and /55 measured
-                3.48:1 on this panel at 12px, under the 4.5:1 AA floor. */}
+            {/* Trees per box (GOL-3344, Josh 2026-10-14): "from $14.33" alone
+                hides the bulk value, so each carton the format can fill to this
+                state gets a row — how many trees it holds (from the feed's
+                packing catalog, never a literal) and its exact cell. The larger
+                carton carries a "Best per tree" chip: words in a bordered chip,
+                the same construction as the format badge, never colour alone.
+                Rows are a list so a screen reader announces the count. Rendered
+                only when the feed publishes a capacity for the tier; otherwise
+                the single line above stands on its own. */}
+            {boxes.length > 0 && (
+              <ul
+                data-estimator-boxes
+                aria-label="Trees per box"
+                className="mt-1.5 space-y-1 border-l-2 border-primary/15 pl-3"
+              >
+                {boxes.map((box) => (
+                  <li
+                    key={box.boxId}
+                    data-estimator-box
+                    className="flex items-baseline justify-between gap-3 text-sm"
+                  >
+                    {/* Flex-wrap, not inline: at 375px the label plus chip
+                        overflow the column, and inline wrapping orphaned
+                        "box" on its own line under the chip. As flex items
+                        the sentence stays whole and the chip drops as a unit. */}
+                    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-foreground">
+                      <span>Up to {box.capacity} trees in one box</span>
+                      {box.bestPerTree && (
+                        <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground whitespace-nowrap">
+                          Best per tree
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold text-foreground whitespace-nowrap">
+                      {formatUsd(box.rate)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* `text-ink-soft`, not `text-foreground/55`: the line carries
+                pricing terms, not decoration, and /55 measured 3.48:1 on this
+                panel at 12px, under the 4.5:1 AA floor. Handling is inside the
+                rate since Josh's 2026-10-13 ruling (grove-odoo-modules #343),
+                so there is no separate fee to name (GOL-3344). */}
             <p className="mt-2 text-xs text-ink-soft">
-              Estimated UPS Ground, priced per box. Your trees ship together in as few
-              boxes as possible.
-              {fee > 0 && anyQuoted && (
-                <> Includes our {handlingLabel} handling fee, charged once per order.</>
-              )}{" "}
-              Your exact rate is confirmed at checkout.
+              Estimated UPS Ground, priced per box with handling included. Your trees
+              ship together in as few boxes as possible. Your exact rate is confirmed at
+              checkout.
             </p>
           </div>
         )}

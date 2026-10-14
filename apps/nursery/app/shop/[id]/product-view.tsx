@@ -26,6 +26,7 @@ import {
 import { shippingHintFor } from "../../../lib/shipping-hints";
 import {
   estimateTierShipping,
+  formatUsd,
   shipScope,
   hasBoxFeed,
   estimateTierFloor,
@@ -808,11 +809,16 @@ export function ProductView({
                   // legacy per-tree hint so the card can't advertise a per-tree
                   // "$12" the engine won't honour (GOL-1822); `floorFor` is null
                   // on the legacy backend, where the per-tier hint still holds.
-                  const fFromFloor = floorFor(fTier) ?? fHint.fromShipping;
+                  // The feed floor is an exact cell (to the cent, handling
+                  // included), so it reads as-is; only the legacy per-tree hint
+                  // is a rough figure and keeps its "~" (GOL-3344).
+                  const fFeedFloor = floorFor(fTier);
+                  const fFromFloor =
+                    fFeedFloor != null ? formatUsd(fFeedFloor) : `~$${fHint.fromShipping}`;
                   const shipText = fPickupOnly
                     ? "farm pickup only"
                     : fEst != null
-                      ? `ship $${fEst.toFixed(0)} to ${shipState}`
+                      ? `ship ${formatUsd(fEst)} to ${shipState}`
                       : shipState && !shipsTo(shipState, zoneMap)
                         ? `not shipping to ${shipState} yet`
                         : shipState && shipStateConsultConstrained
@@ -826,7 +832,7 @@ export function ProductView({
                             // words from the not-green line above so the two
                             // reasons stay distinguishable at a glance.
                             `not cleared for ${shipState}, see below`
-                          : `ships from ~$${fFromFloor}`;
+                          : `ships from ${fFromFloor}`;
                   // Same tier-presentation authority as the estimator line above
                   // (GOL-1313): bareroot follows today's mode; potted takes its
                   // static hint, or the pickup line while the feed prices no

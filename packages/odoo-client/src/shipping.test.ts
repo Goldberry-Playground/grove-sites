@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createOdooClient } from "./client";
+import {
+  createOdooClient,
+  SHIPPING_RATES_CACHE_TAG,
+  SHIPPING_RATES_REVALIDATE_SECONDS,
+} from "./client";
 
 const config = { tenantId: "nursery", odooUrl: "http://localhost:8069" };
 
@@ -32,16 +36,22 @@ describe("client.shipping.rates (live shipping-rate feed, GOL-969)", () => {
     expect(table?.zone_1?.potted?.base).toBe(32);
   });
 
-  it("requests a daily-ish revalidate so product views don't re-hit Odoo each render", async () => {
+  it("caches the feed for ONE hour, tagged, so a mid-day Odoo hot-fix reaches the PDP (GOL-3344)", async () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValue(new Response(JSON.stringify(FEED), { status: 200 }));
 
     await createOdooClient(config).shipping.rates();
 
-    const init = mockFetch.mock.calls[0][1] as (RequestInit & {
-      next?: { revalidate?: number };
-    });
-    expect(init.next?.revalidate).toBeGreaterThan(0);
+    const init = mockFetch.mock.calls[0][1] as RequestInit & {
+      next?: { revalidate?: number; tags?: string[] };
+    };
+    // Pinned, not just "> 0": the old 21600 kept a pre-hotfix table on the PDP
+    // for hours. An explicit `next.revalidate` is honoured even on the
+    // `force-dynamic` product page (Next 15.5 only opts out fetches with NO
+    // cache config and NO revalidate), so this number is the real staleness cap.
+    expect(init.next?.revalidate).toBe(SHIPPING_RATES_REVALIDATE_SECONDS);
+    expect(SHIPPING_RATES_REVALIDATE_SECONDS).toBe(3600);
+    expect(init.next?.tags).toEqual([SHIPPING_RATES_CACHE_TAG]);
   });
 
   it("returns null (→ estimator falls back to snapshot) when the feed is unreachable", async () => {
@@ -148,16 +158,19 @@ describe("client.shipping.rateFeed (schema-2 Box Engine v2 feed, GOL-1038)", () 
     expect(feed?.green_states).toHaveLength(21);
   });
 
-  it("requests the same daily-ish revalidate as the legacy accessor", async () => {
+  it("shares the one-hour, tagged cache init with the legacy accessor so Next dedupes the calls", async () => {
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValue(new Response(JSON.stringify(SCHEMA2_FEED), { status: 200 }));
 
-    await createOdooClient(config).shipping.rateFeed();
+    const client = createOdooClient(config);
+    await client.shipping.rateFeed();
+    await client.shipping.zoneMap();
 
-    const init = mockFetch.mock.calls[0][1] as RequestInit & {
-      next?: { revalidate?: number };
-    };
-    expect(init.next?.revalidate).toBeGreaterThan(0);
+    for (const call of mockFetch.mock.calls) {
+      const init = call[1] as RequestInit & { next?: { revalidate?: number; tags?: string[] } };
+      expect(init.next?.revalidate).toBe(SHIPPING_RATES_REVALIDATE_SECONDS);
+      expect(init.next?.tags).toEqual([SHIPPING_RATES_CACHE_TAG]);
+    }
   });
 
   it("returns null for a legacy schema-1 feed (Odoo not yet upgraded to Box Engine v2)", async () => {

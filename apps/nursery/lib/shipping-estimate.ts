@@ -342,26 +342,23 @@ export const DEFAULT_LENGTH_CLASS = 20;
 const DEFAULT_MODE: PackingMode = "leafed";
 
 /**
- * The flat shipping-and-handling fee an order pays ONCE on top of its carrier
- * cost (GOL-2923). A backend that publishes `shipping_handling_fee` serves
- * carrier-only `zones` cells, so a feed-built estimate must add the fee or it
- * under-quotes by exactly that amount. A backend that predates GOL-2923 omits the
- * field and its cells already include handling, so absent (or malformed) is 0 and
- * the estimate is unchanged. The fee is per ORDER: a single-unit "from $X" floor
- * adds it once, and the backend adds it once at checkout however many boxes pack.
- *
- * Every estimate that adds it rounds the carrier + fee total UP to whole dollars
- * (`Math.ceil`), never to nearest: a fractional fee or cell must never quote
- * below what checkout charges (GOL-3188).
+ * Dollar formatting shared by the estimator panel and the Format cards, so the
+ * two can never show the same cell two ways (GOL-3344): a whole-dollar cell
+ * reads "$14", a cents cell reads "$14.33". Never rounds. Since Josh's
+ * 2026-10-13 ruling (grove-odoo-modules #343) every rate cell is the carrier
+ * label plus the flat $2.50 handling, published to the cent, and checkout
+ * charges exactly that cell per box, so rounding a quote in either direction
+ * would misstate the real charge. Nothing is added on top of a cell any more:
+ * a feed that still carried `shipping_handling_fee` is ignored, because the
+ * handling is already inside the rate (no double handling).
  */
-export function handlingFee(feed: ShippingRateFeed | null | undefined): number {
-  const fee = feed?.shipping_handling_fee;
-  return typeof fee === "number" && Number.isFinite(fee) && fee > 0 ? fee : 0;
+export function formatUsd(amount: number): string {
+  return Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`;
 }
 
 /**
- * Cheapest bareroot shipping for ONE tree to `state` under Box Engine v2, in
- * whole dollars, or `null` when unshippable (state outside the green list, no
+ * Cheapest bareroot shipping for ONE tree to `state` under Box Engine v2, the
+ * exact feed cell (to the cent, handling included), or `null` when unshippable (state outside the green list, no
  * box long enough, or no rate configured). Faithful client mirror of
  * grove_headless `single_tree_rate()`: for a single tree the min-cost pack is
  * simply the cheapest *rated* box that is (a) at least as long as the tree's
@@ -394,12 +391,12 @@ export function estimateBoxShipping(
     if (typeof rate !== "number") continue; // no rate configured for this box
     if (cheapest == null || rate < cheapest) cheapest = rate;
   }
-  return cheapest == null ? null : Math.ceil(cheapest + handlingFee(feed));
+  return cheapest;
 }
 
 /**
  * The stateless "from $X" bareroot floor under Box Engine v2 — the cheapest
- * single-tree box rate over *every* shippable zone, in whole dollars, or `null`
+ * single-tree box rate over *every* shippable zone, the exact cell, or `null`
  * when no rate is configured. This is the honest number to show BEFORE a shopper
  * picks a state: it is a real per-box rate (the cheapest zone × cheapest usable
  * box), so it can never be lower than the state-specific `estimateBoxShipping`
@@ -429,11 +426,11 @@ export function estimateBoxFloor(
       if (cheapest == null || rate < cheapest) cheapest = rate;
     }
   }
-  return cheapest == null ? null : Math.ceil(cheapest + handlingFee(feed));
+  return cheapest;
 }
 
 /**
- * Per-tier shipping estimate for the product page, in whole dollars or `null`.
+ * Per-tier shipping estimate for the product page, the exact cell or `null`.
  * The single seam both the Format cards and the estimator panel price through,
  * so they can never disagree. Bareroot prices off the schema-2 box feed when one
  * is present (Box Engine v2), else off the legacy tier-keyed snapshot. Potted
@@ -511,7 +508,7 @@ export function hasPottedRates(feed: ShippingRateFeed | null | undefined): boole
 }
 
 /**
- * Cheapest potted shipping for ONE unit to `state`, in whole dollars, or `null`
+ * Cheapest potted shipping for ONE unit to `state`, the exact cell, or `null`
  * when unshippable (state outside the green list, or no rated potted box).
  *
  * Client mirror of grove_headless `single_potted_rate()`. Potted packs by unit
@@ -529,8 +526,7 @@ export function estimatePottedShipping(
   if (!zone) return null;
   const rates = feed.zones[zone];
   if (!rates) return null;
-  const carrier = cheapestPotted(rates);
-  return carrier == null ? null : Math.ceil(carrier + handlingFee(feed));
+  return cheapestPotted(rates);
 }
 
 /**
@@ -548,7 +544,7 @@ export function estimatePottedFloor(feed: ShippingRateFeed): number | null {
     const c = cheapestPotted(rates);
     if (c != null && (cheapest == null || c < cheapest)) cheapest = c;
   }
-  return cheapest == null ? null : Math.ceil(cheapest + handlingFee(feed));
+  return cheapest;
 }
 
 /** Cheapest rated potted box within one zone's rate row, or `null`. */
@@ -578,6 +574,101 @@ export function estimateTierFloor(
 ): number | null {
   if (tier === "seed" || !hasBoxFeed(feed)) return null;
   return tier === "potted" ? estimatePottedFloor(feed) : estimateBoxFloor(feed, opts);
+}
+
+// ── Trees per box (GOL-3344) ─────────────────────────────────────────────────
+
+/** One carton a shopper could fill to `state`: how many trees it holds and
+ *  what the feed charges for it, so the estimator can show the bulk value
+ *  ("up to 10 trees in one box", "up to 20 trees for $16.06"). */
+export interface BoxOption {
+  boxId: ShippingRatedBoxId;
+  /** Trees this carton holds, from the feed's packing catalog, never a literal. */
+  capacity: number;
+  /** The exact feed cell for one such box to the state's zone. */
+  rate: number;
+  /** True on the carton with the lowest rate per tree when it is full. Set on
+   *  exactly one option, and only when there is more than one to compare. */
+  bestPerTree: boolean;
+}
+
+/**
+ * The cartons the selected tier can ship to `state`, smallest first, each with
+ * its trees-per-box and its exact rate (GOL-3344). Capacities come from the
+ * feed's `packing` block only — bareroot from `packing.boxes[id].capacity[mode]`
+ * (p24x10x4 holds 10, p24x10x6 holds 20 since GOL-3285), peat & bagged from
+ * the optional `packing.potted_boxes[id].capacity` — and prices from the state's
+ * zone row, which already includes handling (Josh 2026-10-13). Nothing here is
+ * hard-coded, so a backend that re-cuts its cartons re-words the PDP without a
+ * storefront release.
+ *
+ * Returns `[]` rather than inventing a number when the feed carries no capacity
+ * for the tier (today's `rate_feed()` publishes the bareroot catalog only): the
+ * caller then falls back to its single price line. `null` when the state is not
+ * shippable, exactly like the single-box estimators.
+ *
+ * Dominated cartons are dropped: a box that holds no more trees than another
+ * and costs at least as much is one the backend packer would never choose, so
+ * listing it would advertise a price nobody pays. What remains is strictly
+ * increasing in both capacity and rate, so `[0]` is the "from" price the single
+ * estimators return and the last entry is the bulk option.
+ */
+export function boxOptions(
+  state: string | null | undefined,
+  tier: ShippingTier,
+  feed: ShippingRateFeed | null | undefined,
+  opts: { lengthClass?: number; mode?: PackingMode } = {},
+): BoxOption[] | null {
+  if (!hasBoxFeed(feed)) return null;
+  const zone = feed.zone_by_state[normalizeState(state)];
+  if (!zone) return null;
+  const rates = feed.zones[zone];
+  if (!rates) return null;
+
+  const raw: Array<{ boxId: ShippingRatedBoxId; capacity: number; rate: number }> = [];
+  if (tier === "bareroot") {
+    const lengthClass = opts.lengthClass ?? DEFAULT_LENGTH_CLASS;
+    const mode = opts.mode ?? DEFAULT_MODE;
+    for (const [boxId, spec] of Object.entries(feed.packing.boxes)) {
+      if (!spec) continue;
+      if (spec.length < lengthClass) continue;
+      const capacity = spec.capacity[mode];
+      if (typeof capacity !== "number" || capacity <= 0) continue;
+      const rate = rates[boxId as ShippingBoxId]?.base;
+      if (typeof rate !== "number") continue;
+      raw.push({ boxId: boxId as ShippingBoxId, capacity, rate });
+    }
+  } else {
+    const potted = feed.packing.potted_boxes;
+    if (!potted) return [];
+    for (const boxId of POTTED_BOX_IDS) {
+      const capacity = potted[boxId]?.capacity;
+      if (typeof capacity !== "number" || capacity <= 0) continue;
+      const rate = rates[boxId]?.base;
+      if (typeof rate !== "number") continue;
+      raw.push({ boxId, capacity, rate });
+    }
+  }
+
+  // `o` dominates `b` when it holds at least as many trees for no more money
+  // and is strictly better on one axis; an exact tie keeps the lower box id.
+  const dominated = (b: (typeof raw)[number]) =>
+    raw.some(
+      (o) =>
+        o !== b &&
+        o.capacity >= b.capacity &&
+        o.rate <= b.rate &&
+        (o.capacity > b.capacity || o.rate < b.rate || o.boxId < b.boxId),
+    );
+  const kept = raw.filter((b) => !dominated(b)).sort((a, b) => a.capacity - b.capacity);
+  let best = -1;
+  if (kept.length > 1) {
+    kept.forEach((b, i) => {
+      const prev = kept[best];
+      if (!prev || b.rate / b.capacity < prev.rate / prev.capacity) best = i;
+    });
+  }
+  return kept.map((b, i) => ({ ...b, bestPerTree: i === best }));
 }
 
 /** Customer-facing timing line for a farm-pickup-only format. Paired with the
