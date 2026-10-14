@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import { ProductCard } from "../../../components/ProductCard";
 import {
   fetchFeaturedProducts,
@@ -26,7 +27,7 @@ export default async function MarketplacePage({
         <header className="marketplace__head">
           <h1>Search results</h1>
           <p>{matches.length} product{matches.length === 1 ? "" : "s"} matching “{query}”.</p>
-          <Link href="/marketplace">← Back to the marketplace</Link>
+          <Link href="/marketplace"><GlyphIcon name="arrow-left" /> Back to the marketplace</Link>
         </header>
         <section className="marketplace__grid">
           {matches.map((m) => (
@@ -107,8 +108,9 @@ export default async function MarketplacePage({
               style={{ color: vendor.brandColor }}
             >
               {catalog.state === "ok"
-                ? `See all ${catalog.products.length} from ${vendor.name} →`
-                : "Meet the maker →"}
+                ? `See all ${catalog.products.length} from ${vendor.name}`
+                : "Meet the maker"}{" "}
+              <GlyphIcon name="arrow-right" />
             </Link>
           </header>
 

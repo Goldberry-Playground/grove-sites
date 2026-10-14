@@ -1,4 +1,5 @@
 import type { Vendor } from "../data/marketplace";
+import { GlyphIcon } from "@grove/ui-kit";
 import { buildCheckoutUrl } from "../data/marketplace";
 
 type Props = {
@@ -47,7 +48,7 @@ export function BuyAtVendorForm({ vendor, productId }: Props) {
         className="btn-buy"
         style={{ backgroundColor: vendor.brandColor }}
       >
-        Buy from {vendor.name} →
+        Buy from {vendor.name} <GlyphIcon name="arrow-right" />
       </button>
     </form>
   );
