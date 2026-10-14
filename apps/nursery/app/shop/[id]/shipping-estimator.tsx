@@ -21,6 +21,18 @@ import {
 
 const STORAGE_KEY = "grove:ship-state";
 
+/**
+ * Estimator row copy, Josh 2026-10-14 (shipping hotfix): name the format and
+ * how many trees one box (and so one "from" price) covers. Bareroot packs 10 to
+ * the 24x10x4, peat-and-bagged 5 (GOL-3285 / grove-odoo-modules #335). The
+ * potted tier ships out of the pot as peat-and-bagged, so it never reads
+ * "Potted" here.
+ */
+const ESTIMATOR_ROW: Record<ShippingTier, { label: string; trees: string }> = {
+  bareroot: { label: "Bareroot", trees: "1 to 10 trees" },
+  potted: { label: "Peat & bagged", trees: "1 to 5 trees" },
+};
+
 /** A tier this product actually offers, with the timing line to show beside it. */
 export interface EstimatorTier {
   tier: ShippingTier;
@@ -233,7 +245,8 @@ export function ShippingEstimator({
               We ship to {stateName}
             </p>
             <ul className="mt-2 space-y-1.5">
-              {tiers.map(({ tier, label, fulfillment, pickupOnly, badge }) => {
+              {tiers.map(({ tier, pickupOnly }) => {
+                const row = ESTIMATOR_ROW[tier];
                 const amount = pickupOnly
                   ? null
                   : estimateTierShipping(state, tier, { feed, rates, zoneMap });
@@ -243,13 +256,8 @@ export function ShippingEstimator({
                     className="flex items-baseline justify-between gap-3 text-sm"
                   >
                     <span className="text-foreground">
-                      {label}
-                      {badge && (
-                        <span className="ml-1.5 rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium align-middle text-foreground">
-                          {badge}
-                        </span>
-                      )}
-                      <span className="text-foreground/55"> · {fulfillment}</span>
+                      {row.label}
+                      <span className="text-foreground/55"> · {row.trees}</span>
                     </span>
                     {pickupOnly ? (
                       // Potted has no shippable box (Box Engine v2) — it's picked
@@ -268,7 +276,7 @@ export function ShippingEstimator({
                         {amount != null ? (
                           <>
                             <span className="font-normal text-foreground/55">from </span>
-                            {`$${amount.toFixed(0)}`}
+                            {`$${amount.toFixed(2)}`}
                           </>
                         ) : (
                           "—"
