@@ -4,10 +4,10 @@ import { notFound } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
-import { getMockProductById, isDataUri } from "../../../data/mock-products";
+import { isDataUri } from "../../../lib/is-data-uri";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
-import { AddToCartButton } from "./add-to-cart-button";
 import { GuideBlock } from "./guide-block";
+import { VariantPicker } from "./variant-picker";
 import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +28,9 @@ export default async function ProductDetailPage({
   try {
     product = await odoo.products.get(productId);
   } catch {
-    // Odoo unreachable — fall back to mock catalog. Remove when Odoo is live.
-    product = getMockProductById(productId);
+    // Odoo unreachable or the id is unknown: a 404, never a demo product
+    // (GOL-3315). The farm shop shows only what Odoo can actually sell.
+    notFound();
   }
 
   if (!product) notFound();
@@ -49,12 +50,8 @@ export default async function ProductDetailPage({
   // Build the absolute image URL only when the product actually has an image
   // path; otherwise leave it empty so we don't store a bare host in the cart
   // (which would fail next/image remotePatterns and 404 on render).
-  // The mock catalog uses three URL shapes:
-  //   - `data:image/svg+xml;...` inline SVG (typographic placeholder cards)
-  //   - `/photos/...`            local public/ asset
-  //   - `https://...`            external host (Unsplash, etc.)
   // Odoo products are paths under /web/image/... so they get prefixed with
-  // ODOO_URL. Everything else passes through unchanged.
+  // ODOO_URL. An absolute or `data:` URL passes through unchanged.
   const fullImageUrl = resolveOdooImageUrl(product.imageUrl, odooBase);
   const usePlainImg = isDataUri(fullImageUrl);
 
@@ -62,9 +59,24 @@ export default async function ProductDetailPage({
     <div className="mx-auto max-w-6xl px-6 py-12">
       <Link
         href="/shop"
-        className="text-sm text-foreground/60 hover:text-primary transition-colors mb-6 inline-block"
+        className="text-sm text-foreground/60 hover:text-primary transition-colors mb-6 inline-flex items-center gap-1.5"
       >
-        &larr; Back to Shop
+        {/* Inline SVG, not U+2190: the arrow is outside the loaded fonts and
+            painted a tofu box (GOL-3117 / GOL-3123). Decorative; the text is
+            the link. */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 12 12"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M7.5 2.5 4 6l3.5 3.5M4 6h7" />
+        </svg>
+        Back to Shop
       </Link>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">
@@ -133,89 +145,55 @@ export default async function ProductDetailPage({
             </p>
           )}
 
-          <p className="text-sm mb-6">
-            {product.available ? (
-              <span className="text-green-700">In stock</span>
-            ) : (
-              <span className="text-red-600">Out of stock</span>
-            )}
-          </p>
-
-          {/* Variants */}
-          {product.variants.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-foreground mb-3">
-                Available Options
-              </h3>
-              <div className="space-y-2">
-                {product.variants.map((variant) => (
-                  <div
-                    key={variant.id}
-                    className="flex items-center justify-between rounded border border-primary/10 px-3 py-2 text-sm"
-                  >
-                    <span>{variant.name}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">
-                        ${variant.price.toFixed(2)}
-                      </span>
-                      <span
-                        className={
-                          variant.available
-                            ? "text-green-700 text-xs"
-                            : "text-red-600 text-xs"
-                        }
-                      >
-                        {variant.available ? "In stock" : "Out of stock"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* A printed-to-order shirt is never "in stock"; the picker's lead-time
+              line says what is true instead (GOL-3315). */}
+          {product.fulfillmentRoute !== "printify" && (
+            <p className="text-sm mb-6">
+              {product.available ? (
+                <span className="text-green-700">In stock</span>
+              ) : (
+                <span className="text-red-600">Out of stock</span>
+              )}
+            </p>
           )}
 
+          {/* Color then Size (GOL-3315). The picker owns the selection and
+              hands the exact variant to the cart; a single-variant product
+              shows no pickers. */}
           <div data-add-to-cart-anchor>
-            <AddToCartButton
-              variantId={
-                product.variants.length > 0 ? product.variants[0].id : product.id
-              }
-              templateId={product.id}
-              name={
-                product.variants.length > 0
-                  ? product.variants[0].name
-                  : product.name
-              }
-              price={
-                product.variants.length > 0
-                  ? product.variants[0].price
-                  : product.price
-              }
+            <VariantPicker
+              product={product}
               // Cart line items render through next/image which doesn't accept
               // inline data: URIs; pass an empty string in that case so the
               // cart shows the neutral placeholder tile instead of erroring.
               imageUrl={usePlainImg ? "" : fullImageUrl}
-              disabled={!product.available}
             />
           </div>
         </div>
       </div>
 
-      <GuideBlock html={guideHtml} />
+      {/* A shirt has no growing guide; the block (and its coming-soon collapse)
+          is for the farm's plants only (GOL-3315). */}
+      {product.fulfillmentRoute !== "printify" && <GuideBlock html={guideHtml} />}
 
-      <StickyAddToCartBar
-        variantId={
-          product.variants.length > 0 ? product.variants[0].id : product.id
-        }
-        templateId={product.id}
-        name={
-          product.variants.length > 0 ? product.variants[0].name : product.name
-        }
-        price={
-          product.variants.length > 0 ? product.variants[0].price : product.price
-        }
-        imageUrl={usePlainImg ? "" : fullImageUrl}
-        disabled={!product.available}
-      />
+      {/* The sticky bar cannot know the picker's selection, so it only renders
+          when there is nothing to pick (GOL-3315). */}
+      {product.variants.length <= 1 && (
+        <StickyAddToCartBar
+          variantId={
+            product.variants.length > 0 ? product.variants[0].id : product.id
+          }
+          templateId={product.id}
+          name={
+            product.variants.length > 0 ? product.variants[0].name : product.name
+          }
+          price={
+            product.variants.length > 0 ? product.variants[0].price : product.price
+          }
+          imageUrl={usePlainImg ? "" : fullImageUrl}
+          disabled={!product.available}
+        />
+      )}
     </div>
   );
 }

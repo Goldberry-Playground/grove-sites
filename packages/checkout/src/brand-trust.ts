@@ -115,18 +115,21 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
     pickupOnlyNote: null,
   },
   goldberry: {
+    // The farm shop sells Printify shirts (GOL-3315): printed to order and
+    // shipped by the print partner, so the strip says that and not farm food.
+    // No em dash (GOL-589). Copy pending Josh's edit; ships as written.
     cart: [
-      { icon: "sparkle", text: "Ships from our farm" },
-      { icon: "half-circle", text: "Grown and made on our land" },
-      { icon: "check", text: "Packed fresh, sealed for the trip" },
-      { icon: "diamond", text: "No payment until we confirm" },
+      { icon: "sparkle", text: "Printed to order for you" },
+      { icon: "half-circle", text: "Ships from our print partner" },
+      { icon: "check", text: "Ships to all 50 states and DC" },
+      { icon: "diamond", text: "No payment until you review your total" },
     ],
     checkout: [
-      { icon: "sparkle", text: "Card entered on Stripe — never stored by us" },
+      { icon: "sparkle", text: "Card entered on Stripe, never stored by us" },
       { icon: "half-circle", text: "Review your full total before you pay" },
-      { icon: "check", text: "Packed fresh, sealed for the trip" },
+      { icon: "check", text: "Printed to order for you" },
     ],
-    // No physical pickup point — goldberry ships pantry goods only.
+    // No physical pickup point — Printify ships every farm order.
     pickup: null,
     pickupOnlyNote: null,
   },

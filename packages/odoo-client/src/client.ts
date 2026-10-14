@@ -434,8 +434,17 @@ export function createOdooClient(config: TenantConfig): OdooClient {
             body: JSON.stringify({
               fulfillment: input.fulfillment ?? null,
               ship_wave: input.shipWave ?? null,
-              // Same `shipping.zip` shape the session posts; omitted until known.
-              ...(input.zip ? { shipping: { zip: input.zip } } : {}),
+              // Same `shipping` shape the session posts; omitted until known.
+              // `state` joins `zip` so Odoo can quote Printify shipping live for
+              // an all-shirt cart (GOL-3315); a tree cart ignores it.
+              ...(input.zip || input.state
+                ? {
+                    shipping: {
+                      ...(input.zip ? { zip: input.zip } : {}),
+                      ...(input.state ? { state: input.state } : {}),
+                    },
+                  }
+                : {}),
               items: input.items.map((i) => ({
                 variant_id: i.variantId,
                 quantity: i.quantity,

@@ -122,3 +122,18 @@ export const SEED_SHIP_TO_STATES: ShipToOption[] = [
   { code: "WI", name: "Wisconsin" },
   { code: "WY", name: "Wyoming" },
 ];
+
+/**
+ * Ship-to list for a PRINTIFY (shirt) cart (gom printify spec, Josh 2026-10-13,
+ * GOL-3315): the 50 US states plus DC, 51 options, no territories. Printify
+ * prints and ships the shirts, so neither the nursery licence list nor the
+ * seed list applies. The backend enforces the same 51-code set and refuses
+ * anything else with "Shirts ship to the 50 US states and DC."
+ */
+export const US_SHIP_TO_STATES: ShipToOption[] = [
+  { code: "AL", name: "Alabama" },
+  { code: "AK", name: "Alaska" },
+  ...SEED_SHIP_TO_STATES.filter((s) => s.code !== "AL" && s.name.localeCompare("Hawaii") < 0 && s.code !== "AK"),
+  { code: "HI", name: "Hawaii" },
+  ...SEED_SHIP_TO_STATES.filter((s) => s.name.localeCompare("Hawaii") > 0),
+];

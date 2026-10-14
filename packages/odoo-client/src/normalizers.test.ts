@@ -974,3 +974,64 @@ describe("normalizeCheckoutQuote — seed harvest year (GOL-3258 §6)", () => {
     expect(normalizeCheckoutQuote({ ...base, seed_harvest_year: "2027" as never, lines: [] }).seedHarvestYear).toBeNull();
   });
 });
+
+describe("printify fields (GOL-3315, gom printify spec §4/§5)", () => {
+  const rawQuote = {
+    deposit_now: false,
+    deposit_reason: null,
+    deposit_amount: 10,
+    amount_due_today: null,
+    after_cutover: false,
+    lines: [],
+  };
+
+  it("maps fulfillment_route and lead_time on list and detail", () => {
+    const list = normalizeProductListItem({
+      ...honeycrispListItem,
+      fulfillment_route: "printify",
+      lead_time: "3 to 7 business days",
+    });
+    expect(list.fulfillmentRoute).toBe("printify");
+    expect(list.leadTime).toBe("3 to 7 business days");
+    const detail = normalizeProductDetail({
+      ...honeycrispDetail,
+      fulfillment_route: "printify",
+      lead_time: "3 to 7 business days",
+    });
+    expect(detail.fulfillmentRoute).toBe("printify");
+    expect(detail.leadTime).toBe("3 to 7 business days");
+  });
+
+  it("defaults to in_house and null lead time when absent (older pins, mocks)", () => {
+    const list = normalizeProductListItem(honeycrispListItem);
+    expect(list.fulfillmentRoute).toBe("in_house");
+    expect(list.leadTime).toBeNull();
+    const detail = normalizeProductDetail(honeycrispDetail);
+    expect(detail.fulfillmentRoute).toBe("in_house");
+    expect(detail.leadTime).toBeNull();
+  });
+
+  it("maps variant color and size, empty string when absent", () => {
+    const rawVariant = honeycrispDetail.variants[0];
+    const v = normalizeVariant({ ...rawVariant, color: "Natural", size: "M" });
+    expect([v.color, v.size]).toEqual(["Natural", "M"]);
+    expect(normalizeVariant(rawVariant).color).toBe("");
+    expect(normalizeVariant(rawVariant).size).toBe("");
+  });
+
+  it("maps quote shipping_amount and fulfillment_route", () => {
+    const q = normalizeCheckoutQuote({ ...rawQuote, fulfillment_route: "printify", shipping_amount: 4.75 });
+    expect(q.shippingAmount).toBe(4.75);
+    expect(q.fulfillmentRoute).toBe("printify");
+    const plain = normalizeCheckoutQuote(rawQuote);
+    expect(plain.shippingAmount).toBeNull();
+    expect(plain.fulfillmentRoute).toBe("in_house");
+  });
+
+  it("never turns a non-number shipping_amount into a price", () => {
+    expect(normalizeCheckoutQuote({ ...rawQuote, shipping_amount: null }).shippingAmount).toBeNull();
+    expect(
+      normalizeCheckoutQuote({ ...rawQuote, shipping_amount: "4.75" as unknown as number }).shippingAmount,
+    ).toBeNull();
+  });
+});

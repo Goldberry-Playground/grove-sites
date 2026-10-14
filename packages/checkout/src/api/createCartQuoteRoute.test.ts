@@ -352,3 +352,71 @@ describe("createCartQuoteRoute — seed pre-orders (GOL-3258)", () => {
     expect(resolve).toHaveBeenCalledOnce();
   });
 });
+
+describe("createCartQuoteRoute — relayStatuses and ship-to state (GOL-3315 Printify)", () => {
+  const items = [{ variantId: 701, templateId: 70, quantity: 1 }];
+  const unavailable = "Shipping is temporarily unavailable. Try again in a few minutes.";
+  const mixed = "Shirts check out separately from trees.";
+  const refuse = (status: number, msg: string) =>
+    new OdooApiError(status, `Odoo API error: ${status}`, JSON.stringify({ error: msg }));
+
+  it("relays a 503 when opted in instead of estimating", async () => {
+    const { odoo, get } = fakeOdoo(undefined, async () => { throw refuse(503, unavailable); });
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve, relayStatuses: [400, 409, 503] });
+    const res = await POST(postReq({ items, fulfillment: "ship", zip: "90001", state: "CA" }));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: unavailable });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("relays a 409 when opted in", async () => {
+    const { odoo } = fakeOdoo(undefined, async () => { throw refuse(409, mixed); });
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve, relayStatuses: [400, 409, 503] });
+    const res = await POST(postReq({ items, fulfillment: "ship" }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: mixed });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it("still falls back on a 503 by default (nursery unchanged)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { odoo } = fakeOdoo(undefined, async () => { throw refuse(503, unavailable); });
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve });
+    const res = await POST(postReq({ items: [{ variantId: 51, templateId: 5, quantity: 1 }], fulfillment: "ship" }));
+    expect(res.status).toBe(200);
+    expect(resolve).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("does not relay a status outside the opt-in list even with a friendly body", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { odoo } = fakeOdoo(undefined, async () => { throw refuse(503, unavailable); });
+    const resolve = vi.fn(() => ({ depositNow: false }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve, relayStatuses: [400, 409] });
+    const res = await POST(postReq({ items: [{ variantId: 51, templateId: 5, quantity: 1 }], fulfillment: "ship" }));
+    expect(res.status).toBe(200);
+    expect(resolve).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("passes a normalized state through to the backend quote with the ZIP", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async () => ({ ...backendQuote, depositNow: false, shippingAmount: 4.75 }));
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    const res = await POST(postReq({ items, fulfillment: "ship", zip: "90001", state: " ca " }));
+    expect(res.status).toBe(200);
+    expect(quote.mock.calls[0][0]).toMatchObject({ zip: "90001", state: "CA" });
+  });
+
+  it("drops the state for a pickup order and rejects a malformed one", async () => {
+    const { odoo, quote } = fakeOdoo(undefined, async () => backendQuote);
+    const { POST } = createCartQuoteRoute(odoo, { allowedOrigins: [ORIGIN], resolve: vi.fn() });
+    await POST(postReq({ items, fulfillment: "pickup", state: "CA" }));
+    expect("state" in (quote.mock.calls[0][0] as object)).toBe(false);
+    const bad = await POST(postReq({ items, fulfillment: "ship", state: "California" }));
+    expect(bad.status).toBe(400);
+  });
+});

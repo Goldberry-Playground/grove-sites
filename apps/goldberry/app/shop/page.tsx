@@ -3,72 +3,44 @@ import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
-import {
-  mockProducts,
-  isDataUri,
-  SHOP_CATEGORIES,
-} from "../../data/mock-products";
+import { isDataUri } from "../../lib/is-data-uri";
 
 // Render on every request so the page reflects current Odoo state.
 // (Build-time render can't reach Odoo when building inside Docker; ISR will
 // be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
 export const dynamic = "force-dynamic";
 
-/** Pick the products that belong to the selected category slug. The mock
- *  catalog uses categoryId; SHOP_CATEGORIES is the list-page filter source
- *  of truth. */
-function filterByCategory(products: Product[], catSlug: string): Product[] {
-  if (!catSlug || catSlug === "all") return products;
-  const cat = SHOP_CATEGORIES.find((c) => c.id === catSlug);
-  if (!cat || !("categoryId" in cat)) return products;
-  return products.filter((p) => p.categoryId === cat.categoryId);
-}
-
+/**
+ * The farm shop lists what Odoo publishes for the goldberry tenant and nothing
+ * else (GOL-3315, gom printify spec Storefront §1/§2). There is no demo
+ * catalog any more: when Odoo is unreachable or lists nothing, the page says so
+ * instead of inventing products it cannot sell. `searchParams` stays in the
+ * signature so the route type is unchanged; the old `?cat=` filter is gone with
+ * the category tabs (three shirts need no tabs).
+ */
 export default async function ShopPage({
   searchParams,
 }: {
   searchParams: Promise<{ cat?: string }>;
 }) {
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
-  const params = await searchParams;
-  const activeCat = (params.cat ?? "all").toLowerCase();
+  await searchParams;
 
   let products: Product[] = [];
-  let usingMockData = false;
-
   try {
-    const result = await odoo.products.list({ limit: 40 });
-    products = result.products;
+    products = (await odoo.products.list({ limit: 40 })).products;
   } catch {
-    // Odoo unreachable — fall back to seed data so the storefront is still
-    // demoable. Remove this branch when Odoo is consistently up.
-    products = mockProducts;
-    usingMockData = true;
+    // Odoo unreachable: the restocking state below is the only honest answer.
+    products = [];
   }
-
-  if (products.length === 0) {
-    products = mockProducts;
-    usingMockData = true;
-  }
-
-  const visible = filterByCategory(products, activeCat);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
-      {usingMockData && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-8 text-amber-800 text-xs font-mono uppercase tracking-wider">
-          Demo catalog · These products are placeholders until the Odoo backend is live.
-        </div>
-      )}
-
-      {visible.length === 0 ? (
-        <p className="shop-empty">
-          No products in this category just yet — check back as the season
-          turns.
-        </p>
+      {products.length === 0 ? (
+        <p className="shop-empty">The shop is restocking. Check back soon.</p>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {visible.map((product) => {
+          {products.map((product) => {
             const src = resolveOdooImageUrl(product.imageUrl, odooBase);
             const dataUri = isDataUri(src);
             return (
@@ -115,6 +87,9 @@ export default async function ShopPage({
                     </span>
                   )}
                 </div>
+                {product.fulfillmentRoute === "printify" && (
+                  <p className="shop-card__meta">Printed to order</p>
+                )}
                 {product.sku && (
                   <p className="text-xs text-foreground/40 mt-1">
                     SKU: {product.sku}

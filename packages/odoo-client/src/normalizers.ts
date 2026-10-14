@@ -164,6 +164,10 @@ export function normalizeProductListItem(raw: ApiProductListItem): Product {
     // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
     shipsAllGreenStates: raw.ships_all_green_states ?? false,
     consultBuilt: raw.consult_built ?? false,
+    // Printify merch (GOL-3315). Default in_house / null so mocks and a build
+    // that predates the field keep today's in-house behaviour.
+    fulfillmentRoute: raw.fulfillment_route ?? "in_house",
+    leadTime: raw.lead_time || null,
     // Department tree fields (GOL-2745). All three are left UNDEFINED when the
     // backend omits them so the UI can tell "no department / no offers yet"
     // apart from a real `false` — the deal badge and the conditional "On offer"
@@ -237,6 +241,9 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // 19.0.1.63.0 omits it, and prod has zero mrp.bom either way (GOL-2949).
     shipsAllGreenStates: raw.ships_all_green_states ?? false,
     consultBuilt: raw.consult_built ?? false,
+    // Printify merch (GOL-3315); same defaults as the list normalizer.
+    fulfillmentRoute: raw.fulfillment_route ?? "in_house",
+    leadTime: raw.lead_time || null,
     featured: raw.grove_featured,
     variants: (raw.variants ?? [])
       .map(normalizeVariant)
@@ -300,6 +307,10 @@ export function normalizeVariant(raw: ApiProductDetail["variants"][number]): Pro
     treeCount: normalizeTreeCount(raw.tree_count),
     packSize: emptyToNull(raw.pack_size),
     packLb: typeof raw.pack_lb === "number" && raw.pack_lb > 0 ? raw.pack_lb : null,
+    // Printify axes (GOL-3315): "" when the product has no Color / Size
+    // attribute, matching the backend contract (empty string, not null).
+    color: raw.color ?? "",
+    size: raw.size ?? "",
   };
 }
 
@@ -459,6 +470,11 @@ export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQ
     depositAmount: raw.deposit_amount,
     amountDueToday: raw.amount_due_today ?? null,
     afterCutover: raw.after_cutover,
+    fulfillmentRoute: raw.fulfillment_route ?? "in_house",
+    // A Printify quote is a live carrier figure or nothing: anything that is not
+    // a finite number stays null so the checkout never renders a guess.
+    shippingAmount:
+      typeof raw.shipping_amount === "number" && Number.isFinite(raw.shipping_amount) ? raw.shipping_amount : null,
     lines: (raw.lines ?? []).map((l) => ({
       variantId: l.variant_id,
       quantity: l.quantity,

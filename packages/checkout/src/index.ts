@@ -23,6 +23,7 @@ export { CheckoutCancelPage } from "./components/CheckoutCancelPage";
 export {
   SHIP_TO_STATES,
   SEED_SHIP_TO_STATES,
+  US_SHIP_TO_STATES,
   SHIP_TO_COUNTRIES,
   type ShipToOption,
 } from "./ship-to-states";

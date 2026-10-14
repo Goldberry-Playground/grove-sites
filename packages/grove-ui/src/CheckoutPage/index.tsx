@@ -241,6 +241,24 @@ export interface CheckoutPageProps {
    */
   onShippingZipChange?: (zip: string) => void;
   /**
+   * Fired on every change of the ship-to state (select or free text), with the
+   * two-letter code, so the consumer can re-quote shipping against the
+   * destination (a Printify shirt cart is quoted live per state + ZIP).
+   */
+  onShippingStateChange?: (state: string) => void;
+  /**
+   * Overrides the summary's shipping value for a shipped order (the kit's own
+   * "On the next step"). The farm passes Printify's live amount, "Enter your
+   * address" or "Unavailable" here; omit to keep the default.
+   */
+  shippingValue?: ReactNode;
+  /**
+   * Banner eyebrow for a charged-in-full shipped order, after the item count
+   * (default "ready to ship"). A printed-to-order cart passes "printed to
+   * order" so the banner never claims stock that does not exist yet.
+   */
+  readyEyebrow?: string;
+  /**
    * Lock fulfillment to pickup because the cart cannot be shipped at all — it
    * holds at least one farm-pickup-only line (GOL-2588). The Fulfillment
    * fieldset then offers pickup ALONE (a disabled "Ship to me" would be a dead
@@ -350,6 +368,9 @@ export function CheckoutPage({
   dueToday = null,
   onFulfillmentChange,
   onShippingZipChange,
+  onShippingStateChange,
+  shippingValue,
+  readyEyebrow = "ready to ship",
   forcePickup = false,
   forcePickupNote,
   submitDisabled = false,
@@ -553,7 +574,7 @@ export function CheckoutPage({
                   : (dueToday.eyebrow ?? "reservation")
                 : isPickup
                   ? "farm pickup"
-                  : "ready to ship"}
+                  : readyEyebrow}
             </div>
             <div className="grove-checkout__banner-total">
               {dueToday ? (
@@ -762,7 +783,10 @@ export function CheckoutPage({
                     label="State"
                     required
                     value={shipping.state}
-                    onChange={(v) => setShipping({ ...shipping, state: v })}
+                    onChange={(v) => {
+                      setShipping({ ...shipping, state: v });
+                      onShippingStateChange?.(v);
+                    }}
                     autoComplete="address-level1"
                     placeholder="Select a state"
                     options={shipStates.map((s) => ({ value: s.code, label: s.name }))}
@@ -772,7 +796,10 @@ export function CheckoutPage({
                     label="State"
                     required
                     value={shipping.state}
-                    onChange={(v) => setShipping({ ...shipping, state: v.toUpperCase() })}
+                    onChange={(v) => {
+                      setShipping({ ...shipping, state: v.toUpperCase() });
+                      onShippingStateChange?.(v.toUpperCase());
+                    }}
                     autoComplete="address-level1"
                     maxLength={2}
                   />
@@ -886,7 +913,7 @@ export function CheckoutPage({
               )}
               <div className="grove-checkout__summary-row">
                 <dt>Shipping</dt>
-                <dd>{isPickup ? "Free (pickup)" : "On the next step"}</dd>
+                <dd>{isPickup ? "Free (pickup)" : (shippingValue ?? "On the next step")}</dd>
               </div>
               <div className="grove-checkout__summary-row">
                 <dt>Sales tax</dt>
@@ -922,8 +949,10 @@ export function CheckoutPage({
               </p>
             )}
 
+            {/* With a live shipping figure in the row above, only tax is still
+                to come; the default wording would wrongly defer shipping too. */}
             <p className="grove-checkout__field-note grove-checkout__field-note--block">
-              {isPickup ? "Sales tax is" : "Shipping and sales tax are"} added on
+              {isPickup || shippingValue !== undefined ? "Sales tax is" : "Shipping and sales tax are"} added on
               the next step, Review &amp; pay. You&apos;ll see and confirm the
               full total before you&apos;re charged.
             </p>

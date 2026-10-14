@@ -41,6 +41,15 @@ export interface CartQuoteRouteOptions<Quote> {
    * Default true.
    */
   preferBackend?: boolean;
+  /**
+   * Backend statuses relayed to the browser verbatim instead of estimating past
+   * them (default `[400]`, today's behaviour). The farm passes
+   * `[400, 409, 503]` so a Printify outage (503) or a mixed shirt-and-tree cart
+   * (409) is shown to the shopper and blocks submit, never papered over with a
+   * catalog estimate (gom printify spec §5, GOL-3315). Only statuses with a
+   * shopper-safe `{ error }` body are ever forwarded (see `forwardCheckoutError`).
+   */
+  relayStatuses?: readonly number[];
 }
 
 /** Flat per-order pre-order deposit in dollars (backend `PREORDER_DEPOSIT`). */
@@ -100,6 +109,9 @@ function estimatedSeedQuote(): EstimatedSeedQuote {
 /** A US ZIP: five digits, optionally ZIP+4. Only the first five reach the backend. */
 const ZIP_RE = /^\d{5}(?:-\d{4})?$/;
 
+/** A two-letter ship-to state code (case-insensitive, surrounding space allowed). */
+const STATE_RE = /^[A-Za-z]{2}$/;
+
 /**
  * The quote route's answer when the backend refuses the cart's wave for this
  * destination (GOL-3194). `alternateWave` is set only when the backend has
@@ -130,7 +142,7 @@ function isPositiveInt(value: unknown): value is number {
  */
 export function createCartQuoteRoute<Quote>(
   odoo: OdooClient,
-  { allowedOrigins, resolve, preferBackend = true }: CartQuoteRouteOptions<Quote>,
+  { allowedOrigins, resolve, preferBackend = true, relayStatuses = [400] }: CartQuoteRouteOptions<Quote>,
 ) {
   async function POST(request: Request) {
     if (!isOriginAllowed(request, allowedOrigins)) return rejectOrigin();
@@ -147,11 +159,12 @@ export function createCartQuoteRoute<Quote>(
       return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 });
     }
 
-    const { items, fulfillment, shipWave, zip } = body as {
+    const { items, fulfillment, shipWave, zip, state } = body as {
       items?: unknown;
       fulfillment?: unknown;
       shipWave?: unknown;
       zip?: unknown;
+      state?: unknown;
     };
     if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) {
       return NextResponse.json(
@@ -189,6 +202,9 @@ export function createCartQuoteRoute<Quote>(
     if (zip !== undefined && zip !== null && (typeof zip !== "string" || !ZIP_RE.test(zip.trim()))) {
       return NextResponse.json({ error: "zip must be a 5-digit US ZIP code" }, { status: 400 });
     }
+    if (state !== undefined && state !== null && (typeof state !== "string" || !STATE_RE.test(state.trim()))) {
+      return NextResponse.json({ error: "state must be a 2-letter US state code" }, { status: 400 });
+    }
 
     const fulfillmentChoice: CartQuoteFulfillment | null =
       fulfillment === "ship" || fulfillment === "pickup" ? fulfillment : null;
@@ -196,6 +212,10 @@ export function createCartQuoteRoute<Quote>(
     // wave is judged against the farm's own zone, whatever the shopper typed.
     const destinationZip =
       typeof zip === "string" && fulfillmentChoice !== "pickup" ? zip.trim().slice(0, 5) : undefined;
+    // The ship-to state joins the ZIP so the backend can quote Printify shipping
+    // live for an all-shirt cart (GOL-3315); a pickup order has no destination.
+    const destinationState =
+      typeof state === "string" && fulfillmentChoice !== "pickup" ? state.trim().toUpperCase() : undefined;
 
     // Backend first: the authoritative answer, straight from the predicate the
     // checkout session charges by. A 404 means the modules pin predates the
@@ -207,25 +227,30 @@ export function createCartQuoteRoute<Quote>(
           fulfillment: fulfillmentChoice,
           shipWave: waveChoice ?? undefined,
           ...(destinationZip ? { zip: destinationZip } : {}),
+          ...(destinationState ? { state: destinationState } : {}),
         });
         return NextResponse.json(quote);
       } catch (e) {
         // A 400 is a real answer the shopper must see and act on (mixed cart,
-        // closed wave, potted line out of season): relay it, never estimate past it.
-        if (e instanceof OdooApiError && e.status === 400) {
+        // closed wave, potted line out of season): relay it, never estimate past
+        // it. A storefront that opted in (`relayStatuses`) relays its other
+        // statuses the same way: the farm shows a Printify 503 / mixed-cart 409
+        // rather than estimating a shirt's shipping (GOL-3315).
+        if (e instanceof OdooApiError && relayStatuses.includes(e.status)) {
           const forwarded = forwardCheckoutError(e);
           if (forwarded) {
             // A refused FALL pre-order may still go out in spring (the backend's
             // own copy says "Choose spring."). Ask the backend whether the same
             // cart quotes as spring for the same destination; only a confirmed
             // yes earns the switch, so we never offer a wave that is shut too.
-            if (waveChoice === "fall") {
+            if (e.status === 400 && waveChoice === "fall") {
               try {
                 await odoo.checkout.quote({
                   items: requested.map((r) => ({ variantId: r.variantId, quantity: r.quantity })),
                   fulfillment: fulfillmentChoice,
                   shipWave: "spring",
                   ...(destinationZip ? { zip: destinationZip } : {}),
+                  ...(destinationState ? { state: destinationState } : {}),
                 });
                 const { error } = (await forwarded.json()) as { error: string };
                 return NextResponse.json({ error, alternateWave: "spring" } satisfies WaveRefusal, {

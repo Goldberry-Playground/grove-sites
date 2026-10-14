@@ -159,7 +159,19 @@ export interface ApiProductListItem {
    * grove_headless build that predates the field behave as before.
    */
   consult_built?: boolean;
+  /**
+   * Who prints and ships this product (gom printify spec §4, GOL-3315):
+   * `"printify"` for print-on-demand merch, `"in_house"` for everything the
+   * farm or nursery packs itself. Absent on older pins = in_house.
+   */
+  fulfillment_route?: FulfillmentRoute;
+  /** Printify production time shown on the PDP and confirmation
+   *  ("3 to 7 business days"); null or absent for in-house products. */
+  lead_time?: string | null;
 }
+
+/** Fulfillment route of a product or an all-one-route cart (GOL-3315). */
+export type FulfillmentRoute = "printify" | "in_house";
 
 /** Paginated product list response. */
 export interface ApiProductListResponse {
@@ -241,6 +253,10 @@ export interface ApiVariant {
   pack_size?: string;
   /** Pack weight in lb, counted against the seed season cap (GOL-3257). */
   pack_lb?: number | null;
+  /** Color axis value on a Printify shirt ("Natural"), "" or absent otherwise (GOL-3315). */
+  color?: string;
+  /** Size axis value on a Printify shirt ("M", "2XL"), "" or absent otherwise (GOL-3315). */
+  size?: string;
 }
 
 /** Gallery image from the product detail endpoint (catalog API v1). */
@@ -903,6 +919,15 @@ export interface Product {
    * (GOL-3028). Defaults to false in the normalizer.
    */
   consultBuilt?: boolean;
+  /**
+   * `"printify"` = printed and shipped by Printify (GOL-3315): the farm shop
+   * shows a Color/Size picker and the printed-to-order line, and skips every
+   * plant UI. Defaults to `"in_house"` in the normalizer, so mocks and older
+   * payloads behave exactly as before.
+   */
+  fulfillmentRoute?: FulfillmentRoute;
+  /** Printify production time, e.g. "3 to 7 business days"; null otherwise. */
+  leadTime?: string | null;
   featured: boolean;
   variants: ProductVariant[];
   /**
@@ -1007,6 +1032,12 @@ export interface ProductVariant {
   packSize?: string | null;
   /** Pack weight in lb (seed season cap); null when unknown or not a seed. */
   packLb?: number | null;
+  /** Color axis value on a Printify shirt; "" when the product has no Color
+   *  attribute (GOL-3315). Empty string, not null, so the farm picker can treat
+   *  "no axis" and "axis present" uniformly. */
+  color?: string;
+  /** Size axis value on a Printify shirt; "" when absent (GOL-3315). */
+  size?: string;
 }
 
 /** Filterable + display growing facts, normalized from the detail endpoint. */
@@ -1248,6 +1279,9 @@ export interface CheckoutQuoteInput {
    *  backend validates the wave against this ZIP's USDA zone, so a closed wave
    *  surfaces at the quote instead of at "Continue to payment" (GOL-3194). */
   zip?: string | null;
+  /** Two-letter ship-to state. With `zip`, lets Odoo quote Printify shipping
+   *  live for an all-shirt cart (GOL-3315); ignored for a tree cart. */
+  state?: string | null;
 }
 
 /** Raw response from POST /grove/api/v1/checkout/quote (GOL-2233). */
@@ -1263,6 +1297,12 @@ export interface ApiCheckoutQuoteResponse {
   deposit_amount: number;
   amount_due_today: number | null;
   after_cutover: boolean;
+  /** Route of an all-one-route cart (GOL-3315); absent on older pins = in_house. */
+  fulfillment_route?: FulfillmentRoute;
+  /** Printify's live standard shipping for the cart, once the request carried
+   *  `shipping.state` and `shipping.zip`; null until then and for every
+   *  non-Printify cart. Never a guessed price. */
+  shipping_amount?: number | null;
   lines: {
     variant_id: number;
     quantity: number;
@@ -1292,6 +1332,14 @@ export interface CheckoutQuote {
   /** Dollars charged today under the deposit path; null when charged in full. */
   amountDueToday: number | null;
   afterCutover: boolean;
+  /** Route of the cart as the backend sees it; "in_house" when not reported. */
+  fulfillmentRoute?: FulfillmentRoute;
+  /**
+   * Printify's live shipping amount in dollars for an all-shirt cart, quoted
+   * once state and ZIP are known; null until then and on every other cart. The
+   * farm checkout shows this figure or nothing, never a catalog estimate.
+   */
+  shippingAmount?: number | null;
   lines: {
     variantId: number;
     quantity: number;
