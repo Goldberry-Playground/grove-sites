@@ -416,4 +416,160 @@ for (const phase of ['ERROR', 'CANCELED', 'SUPERSEDED', 'ACTIVE']) {
   assert.equal(r.exit, 1, 'one real drift still fails the run');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. SUPERSEDED IS BEING REPLACED, NOT BROKEN.
+//    Live API shape caught on the first real rollout after the event heartbeat
+//    (2026-10-08T20:24Z, all four prod apps repinned; runs 37839181673 and
+//    37839349125): for ~60 s `active_deployment` is still the old deployment,
+//    already reporting phase SUPERSEDED, while the replacement is DEPLOYING.
+//    The old build is still serving and nothing is wrong with it. Treating
+//    SUPERSEDED as UNHEALTHY paged ops twice for a healthy deploy.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The 20:24Z shape: pin moved (serving OLD, intended NEW), active SUPERSEDED,
+// replacement DEPLOYING onto NEW, seconds old.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', inProgress: rollout('DEPLOYING', 1, DIG_NEW) })],
+  });
+  const e = only(r);
+  assert.equal(e.status, 'ROLLING_OUT', 'a superseded active deployment mid-repin is a rollout');
+  assert.equal(r.report.drift, false);
+  assert.equal(r.exit, 0, 'a repin in progress must not go red');
+  assert.equal(e.phase, 'SUPERSEDED', 'the observed phase is still reported');
+  assert.equal(e.rollout_phase, 'DEPLOYING');
+}
+
+// The 20:26Z grove-hub-prod shape: a MANUAL redeploy of the SAME image. Serving
+// already equals the pin, phase SUPERSEDED, replacement DEPLOYING the same
+// digest. Neither OK (something is in flight) nor UNHEALTHY.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ serving: DIG_NEW, phase: 'SUPERSEDED',
+                 inProgress: rollout('DEPLOYING', 1, DIG_NEW) })],
+  });
+  assert.equal(only(r).status, 'ROLLING_OUT', 'a same-image redeploy is a rollout');
+  assert.equal(r.exit, 0);
+}
+
+// The grace window still bounds it: a replacement wedged past 20 min is loud.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', inProgress: rollout('DEPLOYING', 45, DIG_NEW) })],
+  });
+  assert.equal(only(r).status, 'ROLLING_OUT_STALE', 'superseded + wedged replacement must alarm');
+  assert.equal(r.exit, 1);
+}
+
+// A replacement heading for the WRONG digest is drift, superseded or not.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', inProgress: rollout('DEPLOYING', 1, DIG_OTHER) })],
+  });
+  assert.equal(only(r).status, 'DRIFT');
+  assert.equal(r.exit, 1);
+}
+
+// Superseded with NOTHING replacing it is a prod app with no good deployment.
+// This is the fail-loud row: the carve-out must not swallow a dead replacement.
+{
+  const r = run({ intended: DIG_NEW, apps: [app({ phase: 'SUPERSEDED', inProgress: null })] });
+  const e = only(r);
+  assert.equal(e.status, 'UNHEALTHY', 'superseded with no replacement must stay loud');
+  assert.equal(r.exit, 1);
+  assert.match(e.detail, /no replacement deployment was found/);
+}
+
+// The real-world payload shape omits `in_progress_deployment` entirely (see
+// find_inflight_deployment), so the carve-out MUST work through the
+// deployments-endpoint fallback or it is a no-op in production.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', omitInProgressKey: true })],
+    deployments: {
+      'app-grove-nursery-prod': [
+        { id: 'old', phase: 'SUPERSEDED', age_minutes: 600, services: [] },
+        { id: 'new', phase: 'DEPLOYING', age_minutes: 1,
+          services: [{ source_image_digest: DIG_NEW }] },
+      ],
+    },
+  });
+  assert.equal(only(r).status, 'ROLLING_OUT',
+    'with the field absent, the fallback must still find the replacement');
+  assert.equal(r.exit, 0);
+}
+
+// Replacement already ACTIVE on the pin, apps list lagging a few seconds: prod
+// is serving exactly the pin, so this is informational, not a page.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', omitInProgressKey: true })],
+    deployments: {
+      'app-grove-nursery-prod': [
+        { id: 'old', phase: 'SUPERSEDED', age_minutes: 600, services: [] },
+        { id: 'new', phase: 'ACTIVE', age_minutes: 1,
+          services: [{ source_image_digest: DIG_NEW }] },
+      ],
+    },
+  });
+  const e = only(r);
+  assert.equal(e.status, 'ROLLING_OUT', 'a finished replacement on the pin is not drift');
+  assert.equal(r.exit, 0);
+  assert.match(e.detail, /already ACTIVE/);
+}
+
+// ...but a finished replacement on some OTHER digest is drift: the pin moved
+// after it rolled out and nothing is bringing prod to the new pin.
+{
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', omitInProgressKey: true })],
+    deployments: {
+      'app-grove-nursery-prod': [
+        { id: 'old', phase: 'SUPERSEDED', age_minutes: 600, services: [] },
+        { id: 'new', phase: 'ACTIVE', age_minutes: 1,
+          services: [{ source_image_digest: DIG_OTHER }] },
+      ],
+    },
+  });
+  assert.equal(only(r).status, 'DRIFT');
+  assert.equal(r.exit, 1);
+}
+
+// A replacement that DIED (ERROR / CANCELED) left prod with no healthy
+// deployment. Loud, with the dead phase named so the alarm says what happened.
+for (const phase of ['ERROR', 'CANCELED']) {
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase: 'SUPERSEDED', omitInProgressKey: true })],
+    deployments: {
+      'app-grove-nursery-prod': [
+        { id: 'old', phase: 'SUPERSEDED', age_minutes: 600, services: [] },
+        { id: 'new', phase, age_minutes: 3, services: [{ source_image_digest: DIG_NEW }] },
+      ],
+    },
+  });
+  const e = only(r);
+  assert.equal(e.status, 'UNHEALTHY', `a ${phase} replacement must page`);
+  assert.equal(r.exit, 1);
+  assert.match(e.detail, new RegExp(phase));
+}
+
+// The carve-out is SUPERSEDED only. Every other non-ACTIVE phase on the active
+// deployment is still UNHEALTHY regardless of what is in flight.
+for (const phase of ['ERROR', 'CANCELED', 'DEPLOYING']) {
+  const r = run({
+    intended: DIG_NEW,
+    apps: [app({ phase, inProgress: rollout('DEPLOYING', 1, DIG_NEW) })],
+  });
+  assert.equal(only(r).status, 'UNHEALTHY', `active phase ${phase} must stay UNHEALTHY`);
+  assert.equal(r.exit, 1);
+}
+
 console.log(`prod-deploy-drift rollout awareness: ${caseNum} scenarios OK`);

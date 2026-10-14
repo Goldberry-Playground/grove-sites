@@ -73,8 +73,36 @@ deployment too and split the mismatch three ways:
 
 Every branch that is not this mismatch — UNHEALTHY / UNKNOWN / OK / GHCR_ERROR /
 MISSING / SKIPPED — is deliberately unchanged. In particular UNHEALTHY is still
-evaluated FIRST: an app whose active deployment is broken is broken even if a
-replacement is already building.
+evaluated FIRST: an app whose active deployment is broken (ERROR / CANCELED /
+anything else non-ACTIVE) is broken even if a replacement is already building.
+
+SUPERSEDED IS NOT BROKEN, IT IS BEING REPLACED
+----------------------------------------------
+One phase is carved out of that rule. Observed on the live API the first time
+a real rollout met the event heartbeat (2026-10-08T20:24Z, all four prod apps
+repinned at once, runs 37839181673 / 37839349125): while the replacement is
+DEPLOYING, `GET /v2/apps` still points `active_deployment` at the OLD
+deployment but already reports its phase as SUPERSEDED. The old build is still
+what prod serves — nothing is wrong with it — and ~60 s later the app is ACTIVE
+on the new one. Calling that UNHEALTHY produced two red runs and two Discord
+alarms for a healthy deploy, i.e. exactly the false alarm this file exists to
+remove, on the very first deploy after the heartbeat went in.
+
+So a SUPERSEDED active deployment is classified by its REPLACEMENT, using the
+same in-flight logic as the digest mismatch:
+
+  replacement in flight, heading for the pin, young     -> ROLLING_OUT (exit 0)
+  replacement in flight, older than the grace window    -> ROLLING_OUT_STALE
+  replacement in flight toward some other digest        -> DRIFT
+  replacement already ACTIVE on the pin (list lagging)  -> ROLLING_OUT (exit 0)
+  replacement already ACTIVE on a different digest      -> DRIFT
+  replacement ERROR / CANCELED, or none found at all    -> UNHEALTHY (loud)
+
+The last row keeps the fail-loud property: "superseded, and the thing that
+superseded it is dead or missing" is a prod app with no healthy deployment and
+must page. Note the manual-redeploy case (2026-10-08T20:26Z, grove-hub-prod):
+serving == pinned AND phase SUPERSEDED, because the replacement is the SAME
+image. That is also ROLLING_OUT, not UNHEALTHY and not OK.
 
 THE GRACE WINDOW IS A BACKSTOP, NOT THE PRIMARY SIGNAL
 ------------------------------------------------------
@@ -286,18 +314,28 @@ def find_inflight_deployment(app, list_deployments=None):
     return None
 
 
-def classify_mismatch(app, intended, now, grace_minutes, list_deployments=None):
-    """Decide what a `serving != intended` mismatch actually means.
+def _newest_deployment(app, list_deployments=None):
+    """The most recently created deployment for `app` from the deployments
+    endpoint, whatever its phase, or None if the probe is unavailable/fails."""
+    if list_deployments is None:
+        return None
+    try:
+        deps = list_deployments(app["id"]) or []
+    except Exception:  # noqa: BLE001 - a failed probe must not mask the drift
+        return None
+    newest = None
+    for dep in deps:
+        if newest is None or (dep.get("created_at") or "") > (newest.get("created_at") or ""):
+            newest = dep
+    return newest
 
-    Returns (status, detail, extra_fields, is_drift).
+
+def classify_inflight(inflight, intended, now, grace_minutes):
+    """Judge a deployment known to be in flight against the pin.
+
+    Returns (status, detail, extra_fields, is_drift). Shared by the digest
+    mismatch path and the SUPERSEDED path so the two cannot drift apart.
     """
-    inflight = find_inflight_deployment(app, list_deployments=list_deployments)
-
-    if inflight is None:
-        # Nothing is rolling out, so the pin genuinely moved with no deploy
-        # behind it. This is the original GOL-1600 alarm, unchanged.
-        return ("DRIFT", None, {}, True)
-
     started = _parse_ts(inflight.get("created_at"))
     if started is None:
         # A rollout is in flight but we cannot age it, so we cannot tell
@@ -343,6 +381,67 @@ def classify_mismatch(app, intended, now, grace_minutes, list_deployments=None):
             f"{age:.1f} min old (< {grace_minutes:g} min grace) — prod is "
             f"mid-deploy, not drifted",
             extra, False)
+
+
+def classify_mismatch(app, intended, now, grace_minutes, list_deployments=None):
+    """Decide what a `serving != intended` mismatch actually means.
+
+    Returns (status, detail, extra_fields, is_drift).
+    """
+    inflight = find_inflight_deployment(app, list_deployments=list_deployments)
+
+    if inflight is None:
+        # Nothing is rolling out, so the pin genuinely moved with no deploy
+        # behind it. This is the original GOL-1600 alarm, unchanged.
+        return ("DRIFT", None, {}, True)
+
+    return classify_inflight(inflight, intended, now, grace_minutes)
+
+
+def classify_superseded(app, intended, now, grace_minutes, list_deployments=None):
+    """Decide what a SUPERSEDED `active_deployment` actually means.
+
+    See "SUPERSEDED IS NOT BROKEN" in the module docstring. The old build is
+    still serving; the question is only whether the thing replacing it is
+    healthy, so the verdict comes from the replacement, never from the phase.
+
+    Returns (status, detail, extra_fields, is_drift).
+    """
+    inflight = find_inflight_deployment(app, list_deployments=list_deployments)
+    if inflight is not None:
+        return classify_inflight(inflight, intended, now, grace_minutes)
+
+    # Nothing in flight. Either the replacement already finished and the apps
+    # list has not caught up with the deployment object, or the replacement
+    # died and left this one marked superseded. Only the deployments endpoint
+    # can tell those apart, and they deserve opposite verdicts.
+    newest = _newest_deployment(app, list_deployments=list_deployments)
+    if newest is not None and newest.get("phase") == "ACTIVE":
+        target = deployment_digest(newest)
+        started = _parse_ts(newest.get("created_at"))
+        age = ((now - started).total_seconds() / 60.0) if started else None
+        extra = {"rollout_phase": "ACTIVE",
+                 "rollout_age_minutes": round(age, 1) if age is not None else None,
+                 "rollout_target": target}
+        if target is not None and target == intended:
+            return ("ROLLING_OUT",
+                    f"replacement deployment is already ACTIVE on the pinned "
+                    f"{target[:19]}…; the apps list still reports the superseded "
+                    f"one — payload lag, not drift",
+                    extra, False)
+        return ("DRIFT",
+                f"replacement deployment is ACTIVE but serves "
+                f"{(target or 'an unresolved digest')[:19]}…, not the pinned "
+                f"{intended[:19]}… — the pin moved after it rolled out",
+                extra, True)
+
+    what = (f"the newest deployment is {newest.get('phase')}"
+            if newest is not None else "no replacement deployment was found")
+    return ("UNHEALTHY",
+            f"active_deployment phase is SUPERSEDED but nothing healthy replaced "
+            f"it ({what}) — prod has no good deployment",
+            {"rollout_phase": newest.get("phase") if newest is not None else None},
+            True)
 
 
 def main():
@@ -437,7 +536,22 @@ def main():
         entry = {"app": name, "tag": f"{owner}/{repo}:{tag}", "phase": phase,
                  "serving": serving, "intended": intended}
 
-        if phase != "ACTIVE":
+        if phase == "SUPERSEDED":
+            # Being replaced, not broken — judged by the replacement (GOL-3135,
+            # 2026-10-08 false alarms). Must come BEFORE the generic non-ACTIVE
+            # branch or every repin pages ops for its first ~60 s.
+            status, detail, extra, is_drift = classify_superseded(
+                app, intended, now, grace_minutes,
+                list_deployments=list_deployments)
+            entry.update(extra)
+            entry["status"] = status
+            entry["detail"] = detail
+            if is_drift:
+                drift = True
+                print(f"::error::{name}: {status} — {detail}")
+            else:
+                print(f"{name}: {status} — {detail}")
+        elif phase != "ACTIVE":
             drift = True
             entry["status"] = "UNHEALTHY"
             entry["detail"] = f"active_deployment phase is {phase}, not ACTIVE"
