@@ -396,8 +396,22 @@ h1 em, h2 em, h3 em, h4 em {
   margin-bottom: 1.2rem;
 }
 .about-eyebrow::before {
-  content: '◐';
+  /* Drawn, not typed: this was U+25D0 CIRCLE WITH LEFT HALF BLACK, which neither
+     loaded face (Libre Baskerville / IBM Plex Mono) covers, so it painted an
+     empty box on a client with no symbol font (GOL-3128). Same ring + half-fill
+     geometry as the nursery .pano-eyebrow and the ui-kit sub-header mark
+     (GOL-3117 / GOL-2797). currentColor, so the .about-vision override below
+     still recolours it. The comment sits inside the block on purpose: the
+     never-as-text guard keys its baseline on the text before the brace. */
+  content: '';
+  display: inline-block;
+  vertical-align: -0.1em;
+  width: 0.85em;
+  height: 0.85em;
   margin-right: 0.6rem;
+  border: 1.25px solid currentColor;
+  border-radius: 50%;
+  background-image: linear-gradient(to right, currentColor 50%, transparent 50%);
   color: var(--harvest-gold-deep);
 }
 .about-family h2 {
@@ -1269,6 +1283,10 @@ h1 em, h2 em, h3 em, h4 em {
 .btn {
   display: inline-flex;
   align-items: center;
+  /* Space between the label and a drawn <GlyphIcon> arrow. A flex row drops
+     the whitespace that used to separate the typed arrow (GOL-3128); a
+     text-only button has one item, so the gap never applies there. */
+  gap: 0.6em;
   padding: 12px 24px;
   font-family: var(--font-mono);
   font-size: 11px;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 
 // GGG Woodworking homepage — port of wireframes/ggg/index.html structure.
 // Sections in wireframe order: hero (split) → spec-strip → catalog →
@@ -249,7 +250,7 @@ export default function HomePage() {
         </div>
         <div style={{ textAlign: "center", marginTop: "3rem" }}>
           <Link href="/shop" className="btn btn-outline">
-            See all twelve pieces →
+            See all twelve pieces <GlyphIcon name="arrow-right" />
           </Link>
         </div>
       </section>

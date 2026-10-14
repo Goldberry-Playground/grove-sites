@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import { notFound } from "next/navigation";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
@@ -56,7 +57,7 @@ export default async function ProductDetailPage({
         href="/shop"
         className="text-sm text-foreground/60 hover:text-primary transition-colors mb-6 inline-block"
       >
-        &larr; Back to Shop
+        <GlyphIcon name="arrow-left" /> Back to Shop
       </Link>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-4">

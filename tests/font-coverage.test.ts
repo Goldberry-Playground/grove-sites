@@ -65,23 +65,40 @@ const AUDITED = [
   "apps/nursery/app/notify/page.tsx",
   "apps/nursery/app/wholesale/page.tsx",
   "apps/nursery/app/shipping-warranty/page.tsx",
+  // GOL-3128 — the goldberry and ggg route trees, the last two on GOL-3123's
+  // follow-up list. Each file was rendered from a local `next dev` with Google
+  // Fonts blocked, at 1440x900 and 390x844, before it was listed here.
+  // Goldberry is the odd one out: it loads Libre Baskerville + IBM Plex Mono,
+  // not Fraunces/Newsreader, and a cmap read of that face (2026-10-14) gives
+  // the same answer — no arrows, no U+25D0 — so the rule holds there too.
+  "apps/goldberry/app/page.tsx",
+  "apps/goldberry/app/visit/page.tsx",
+  "apps/goldberry/app/visit/upick/page.tsx",
+  "apps/goldberry/app/visit/events/page.tsx",
+  "apps/goldberry/app/visit/seminars/page.tsx",
+  "apps/goldberry/app/visit/private/page.tsx",
+  "apps/goldberry/app/about/page.tsx",
+  "apps/goldberry/app/globals.css",
+  "apps/ggg/app/page.tsx",
+  "apps/ggg/app/shop/page.tsx",
+  "apps/ggg/app/shop/[id]/page.tsx",
+  "apps/ggg/app/globals.css",
 ] as const;
 
 /**
  * Still NOT listed, and deliberately so. GOL-3123 swept the shared cart and
- * checkout packages plus all three storefront route trees and found 49
- * uncovered marks across 25 files outside its two. GOL-2797 cleared every one
- * of those in the shared packages and the nursery routes (listed above). What
- * remains is the goldberry and ggg route trees, tracked on their own follow-up
- * rather than claimed here. Listing a file here is a claim that someone
- * rendered it in a symbol-font-less stack; none of these have been.
- *
- *   apps/goldberry                       → x17, ← x4            (worst offender)
- *   apps/ggg                             → x4, ⌂, &larr;
+ * checkout packages plus the nursery, goldberry and ggg route trees; GOL-2797
+ * and GOL-3128 between them cleared and listed every file that sweep named.
+ * The hub route tree was never in that sweep. GOL-3128 swept it and found 10
+ * arrows across 4 files (`apps/hub/app/(site)/**`, `apps/hub/components/
+ * BuyAtVendorForm.tsx`), tracked on GOL-3356 rather than claimed here. Listing
+ * a file here is a claim that someone rendered it in a symbol-font-less stack;
+ * none of those have been.
  *
  * Deliberately NOT on that list, having been checked rather than assumed: the
- * cart stepper's `&minus;`, the ggg homepage's seven `№`, and the nursery PDP's
- * two `›`. All three codepoints are carried by all three faces.
+ * cart stepper's `&minus;`, the ggg homepage's seven `№`, the hub's three `№`,
+ * and the nursery PDP's two `›`. All three codepoints are carried by all three
+ * faces (and by Libre Baskerville).
  */
 
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
@@ -316,6 +333,57 @@ describe("GlyphIcon draws every mark it declares (GOL-2797)", () => {
       const css = stripComments(read(rel));
       expect(css, rel).toMatch(/::before\s*\{[^}]*content:\s*(['"])\1;[^}]*border-radius:\s*50%/);
       expect(css, rel).toMatch(/linear-gradient\(to right, .*50%, transparent 50%\)/);
+    }
+  });
+});
+
+describe("the goldberry and ggg routes draw their marks instead of typing them (GOL-3128)", () => {
+  const goldberryCss = stripComments(read("apps/goldberry/app/globals.css"));
+  const gggCss = stripComments(read("apps/ggg/app/globals.css"));
+
+  it("draws the goldberry eyebrow half-circle in CSS, in currentColor", () => {
+    // Was `content: '◐'` (U+25D0). The ring + half fill must tint from
+    // currentColor so `.about-vision .about-eyebrow::before { color: … }` — the
+    // only place the mark changes colour — keeps working unchanged.
+    expect(goldberryCss).toMatch(
+      /\.about-eyebrow::before\s*\{[^}]*content:\s*''[^}]*border-radius:\s*50%[^}]*linear-gradient\(to right, currentColor 50%, transparent 50%\)/,
+    );
+    expect(goldberryCss).toMatch(/\.about-vision \.about-eyebrow::before\s*\{[^}]*color:/);
+  });
+
+  it("gives the goldberry .btn a gap, because a flex row drops the space before a drawn arrow", () => {
+    expect(goldberryCss).toMatch(/\.btn\s*\{[^}]*display:\s*inline-flex[^}]*gap:/);
+  });
+
+  it("masks the ggg card arrow and workshop-sign house instead of typing them", () => {
+    // Was `content: '→'` (U+2192) and `content: '⌂'` (U+2302). Masks, not
+    // background-images, so both keep currentColor through the hover recolour.
+    for (const sel of ["\\.timber-card-action::after", "\\.timber-notice::before"]) {
+      expect(gggCss, sel).toMatch(
+        new RegExp(`${sel}\\s*\\{[^}]*content:\\s*''[^}]*background-color:\\s*currentColor[^}]*mask:\\s*url\\("data:image/svg\\+xml`),
+      );
+    }
+  });
+
+  it("has no CSS content: declaration holding an uncovered character in either app stylesheet", () => {
+    for (const [rel, css] of [["goldberry", goldberryCss], ["ggg", gggCss]] as const) {
+      const bad = (css.match(/content:\s*(['"])(.*?)\1/g) ?? []).filter((d) =>
+        [...d].some((c) => c.codePointAt(0)! > 0xff),
+      );
+      expect(bad, `${rel}: ${bad.join(" / ")}`).toEqual([]);
+    }
+  });
+
+  it("keeps every arrow out of the goldberry and ggg link copy", () => {
+    // The CTA copy is words only; the link draws the arrow. A typed `→` in a
+    // Plex Mono CTA would survive while the webfont loads and tofu before it
+    // does (`ui-monospace` need not carry U+2192), and a typed one in a
+    // Fraunces/Newsreader/Libre Baskerville element tofus always.
+    for (const rel of AUDITED.filter((r) => /^apps\/(goldberry|ggg)\/.*\.tsx$/.test(r))) {
+      const src = stripComments(read(rel));
+      expect(src, rel).not.toMatch(/[→←]|&rarr;|&larr;/);
+      expect(src, rel).toContain('<GlyphIcon name="arrow-');
+      expect(src, rel).toContain('import { GlyphIcon } from "@grove/ui-kit";');
     }
   });
 });

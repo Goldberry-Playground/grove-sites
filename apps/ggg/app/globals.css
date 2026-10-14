@@ -827,7 +827,16 @@ h1 em, h2 em, h3 em {
   transition: color 0.2s;
 }
 .timber-card:hover .timber-card-action { color: var(--amber); }
-.timber-card-action::after { content: '→'; font-size: 14px; transition: transform 0.2s; }
+/* Drawn, not typed: was U+2192, which Fraunces and Newsreader lack (GOL-3128).
+   A mask, not a background-image, so it keeps the action's currentColor through
+   the hover recolour. Same 12x12 geometry as <GlyphIcon name="arrow-right" />. */
+.timber-card-action::after {
+  content: ''; flex-shrink: 0; width: 1em; height: 1em; font-size: 14px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.25 6h9'/%3E%3Cpath d='M6.9 2.4 10.5 6l-3.6 3.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.25 6h9'/%3E%3Cpath d='M6.9 2.4 10.5 6l-3.6 3.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.2s;
+}
 .timber-card:hover .timber-card-action::after { transform: translateX(3px); }
 
 /* Plank footer */
@@ -859,7 +868,15 @@ h1 em, h2 em, h3 em {
   font-family: var(--font-mono); font-size: 11px;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--timber-dark);
 }
-.timber-notice::before { content: '⌂'; margin-right: 0.8rem; font-size: 14px; }
+/* Drawn, not typed: was U+2302 HOUSE, which none of the loaded faces cover
+   (GOL-3128). Decorative — the notice copy carries the meaning. */
+.timber-notice::before {
+  content: ''; display: inline-block; vertical-align: -0.15em;
+  width: 1em; height: 1em; font-size: 14px; margin-right: 0.8rem;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.75 6.25 6 2l4.25 4.25'/%3E%3Cpath d='M2.75 5.5v4.75h6.5V5.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.75 6.25 6 2l4.25 4.25'/%3E%3Cpath d='M2.75 5.5v4.75h6.5V5.5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 
 /* ─── Coming soon (the workshop sign, before the doors open) ─── */
 .timber-coming-soon {

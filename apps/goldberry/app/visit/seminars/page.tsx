@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 import { CaptureForm } from "@grove/ui-kit";
@@ -114,7 +115,7 @@ export default function SeminarsPage() {
         />
 
         <Link href="/visit" className="btn btn-gold visit-cta">
-          ← Back to all visits
+          <GlyphIcon name="arrow-left" /> Back to all visits
         </Link>
       </div>
     </article>
