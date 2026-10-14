@@ -259,10 +259,21 @@ def build_payload(tier, label, ref, expires_at, days_left, run_url, note=None):
     }
 
 
+# Discord's edge (Cloudflare) answers HTTP 403 to urllib's default
+# `Python-urllib/3.x` User-Agent — verified 2026-10-14 against the live ops
+# webhook: a GET with that UA is 403, the same GET with any other UA is 200.
+# Every post from this script since it replaced the inline curl step (#1003)
+# failed that way (`Discord webhook failed (HTTP Error 403: Forbidden)` on runs
+# 37839181673 / 37839349125) while the run still went red, so the alarm was
+# mute exactly when it fired. Any descriptive UA works; this one says who to blame.
+USER_AGENT = "grove-prod-credential-expiry-warn/1.0 (+https://github.com/Goldberry-Playground/grove-sites)"
+
+
 def post_discord(url, payload):
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        url, data=body, method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             resp.read()
