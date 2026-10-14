@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GlyphIcon } from "@grove/ui-kit";
 import { ProductCard } from "../../../../../components/ProductCard";
 import { fetchVendorCatalog } from "../../../../../lib/marketplace";
 import { findVendor } from "../../../../../data/marketplace";
@@ -35,7 +36,7 @@ export default async function VendorProfilePage({
           rel="noopener noreferrer"
           className="vendor-profile__site-link"
         >
-          Visit {vendor.name} →
+          Visit {vendor.name} <GlyphIcon name="arrow-right" />
         </a>
       </header>
 
@@ -52,13 +53,13 @@ export default async function VendorProfilePage({
         ) : catalog.state === "empty" ? (
           <p className="vendor-profile__empty">
             {vendor.name} hasn't listed anything in the marketplace yet. Their
-            own shop is the best place to look →{" "}
+            own shop is the best place to look <GlyphIcon name="arrow-right" />{" "}
             <a href={vendor.homepageUrl}>{vendor.homepageUrl}</a>
           </p>
         ) : catalog.state === "unreachable" ? (
           <p className="vendor-profile__empty">
             We couldn't load {vendor.name}'s catalog just now. Visit them
-            directly →{" "}
+            directly <GlyphIcon name="arrow-right" />{" "}
             <a href={vendor.homepageUrl}>{vendor.homepageUrl}</a>
           </p>
         ) : (

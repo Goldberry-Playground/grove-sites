@@ -83,21 +83,31 @@ const AUDITED = [
   "apps/ggg/app/shop/page.tsx",
   "apps/ggg/app/shop/[id]/page.tsx",
   "apps/ggg/app/globals.css",
+  // GOL-3356 — the hub route tree, the fourth and last. Never in GOL-3123's
+  // sweep; GOL-3128 found 10 arrows across these four files. Same three faces
+  // as nursery/ggg (`apps/hub/app/globals.css`), so the same rule: `→`/`←`
+  // live in Plex Mono only. Each file was rendered from a local `next dev` with
+  // Google Fonts blocked, at 1440x900 and 390x844, before it was listed here.
+  // The hub keeps its own `BuyAtVendorForm`; the `@grove/ui-kit` one was
+  // GOL-2797's and is listed above.
+  "apps/hub/app/(site)/page.tsx",
+  "apps/hub/app/(site)/marketplace/page.tsx",
+  "apps/hub/app/(site)/marketplace/vendor/[slug]/page.tsx",
+  "apps/hub/components/BuyAtVendorForm.tsx",
 ] as const;
 
 /**
- * Still NOT listed, and deliberately so. GOL-3123 swept the shared cart and
- * checkout packages plus the nursery, goldberry and ggg route trees; GOL-2797
- * and GOL-3128 between them cleared and listed every file that sweep named.
- * The hub route tree was never in that sweep. GOL-3128 swept it and found 10
- * arrows across 4 files (`apps/hub/app/(site)/**`, `apps/hub/components/
- * BuyAtVendorForm.tsx`), tracked on GOL-3356 rather than claimed here. Listing
- * a file here is a claim that someone rendered it in a symbol-font-less stack;
- * none of those have been.
+ * Nothing is left off this list on purpose any more. GOL-3123 swept the shared
+ * cart and checkout packages plus the nursery, goldberry and ggg route trees;
+ * GOL-2797 and GOL-3128 cleared and listed every file that sweep named, and
+ * GOL-3356 did the same for the hub route tree, which that sweep never covered.
+ * A file that is not here either carries no mark outside the covered set or
+ * has not been rendered in a symbol-font-less stack — listing it is the claim
+ * that someone did.
  *
- * Deliberately NOT on that list, having been checked rather than assumed: the
- * cart stepper's `&minus;`, the ggg homepage's seven `№`, the hub's three `№`,
- * and the nursery PDP's two `›`. All three codepoints are carried by all three
+ * Deliberately NOT replaced, having been checked rather than assumed: the cart
+ * stepper's `&minus;`, the ggg homepage's seven `№`, the hub's three `№`, and
+ * the nursery PDP's two `›`. All three codepoints are carried by all three
  * faces (and by Libre Baskerville).
  */
 
@@ -385,5 +395,46 @@ describe("the goldberry and ggg routes draw their marks instead of typing them (
       expect(src, rel).toContain('<GlyphIcon name="arrow-');
       expect(src, rel).toContain('import { GlyphIcon } from "@grove/ui-kit";');
     }
+  });
+});
+
+describe("the hub routes draw their arrows instead of typing them (GOL-3356)", () => {
+  const HUB = AUDITED.filter((r) => r.startsWith("apps/hub/"));
+
+  it("covers the four files GOL-3128's hub sweep named", () => {
+    expect(HUB).toEqual([
+      "apps/hub/app/(site)/page.tsx",
+      "apps/hub/app/(site)/marketplace/page.tsx",
+      "apps/hub/app/(site)/marketplace/vendor/[slug]/page.tsx",
+      "apps/hub/components/BuyAtVendorForm.tsx",
+    ]);
+  });
+
+  it("keeps every arrow out of the hub link and button copy", () => {
+    // Same reasoning as the goldberry/ggg block above. The hub's arrow hosts
+    // split both ways: `.portal-cta`, `.btn`, `.btn-buy`, the vendor-head and
+    // site links are Plex Mono (swap-window / fallback tofu), while the two
+    // vendor-profile empty-state sentences are Newsreader (always tofu).
+    for (const rel of HUB) {
+      const src = stripComments(read(rel));
+      expect(src, rel).not.toMatch(/[→←]|&rarr;|&larr;|&#8594;|&#8592;/);
+      expect(src, rel).toContain('<GlyphIcon name="arrow-');
+      expect(src, rel).toContain('import { GlyphIcon } from "@grove/ui-kit";');
+    }
+  });
+
+  it("keeps the marketplace back link's arrow on the left and the rest on the right", () => {
+    const mp = stripComments(read("apps/hub/app/(site)/marketplace/page.tsx"));
+    expect(mp).toContain('<GlyphIcon name="arrow-left" /> Back to the marketplace');
+    expect(mp).not.toMatch(/arrow-left[^]*arrow-left/);
+    expect(read("apps/hub/components/BuyAtVendorForm.tsx")).toMatch(
+      /Buy from \{vendor\.name\} <GlyphIcon name="arrow-right" \/>/,
+    );
+  });
+
+  it("leaves the hub's three № alone, because every loaded face carries U+2116", () => {
+    const home = stripComments(read("apps/hub/app/(site)/page.tsx"));
+    expect((home.match(/№/g) ?? []).length).toBe(3);
+    expect(uncoveredGlyphs(home).map((o) => o.char)).not.toContain("№");
   });
 });

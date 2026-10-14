@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import { marketplace } from "../../data/marketplace";
 
 export const revalidate = 600;
@@ -105,7 +106,7 @@ export default function HomePage() {
                 Chestnut-anchored regenerative agroforestry on twenty acres
                 in Nicholas County, WV. Korean-Appalachian roots, two years in.
               </div>
-              <div className="portal-cta">Enter the farm shop →</div>
+              <div className="portal-cta">Enter the farm shop <GlyphIcon name="arrow-right" /></div>
             </div>
           </a>
 
@@ -121,7 +122,7 @@ export default function HomePage() {
                 Cold-climate fruit trees, berries &amp; edible perennials.
                 Propagated on-site since 2024 · zone 3–7.
               </div>
-              <div className="portal-cta">Enter the catalog →</div>
+              <div className="portal-cta">Enter the catalog <GlyphIcon name="arrow-right" /></div>
             </div>
           </a>
 
@@ -137,7 +138,7 @@ export default function HomePage() {
                 Furniture from the trees of the land. Walnut, cherry, white
                 oak — felled on-site, air-dried four to six years, bench-built.
               </div>
-              <div className="portal-cta">Enter the workshop →</div>
+              <div className="portal-cta">Enter the workshop <GlyphIcon name="arrow-right" /></div>
             </div>
           </a>
         </div>
@@ -169,7 +170,7 @@ export default function HomePage() {
               what stewardship looks like at year two — jointly written by
               the three of us.
             </p>
-            <Link href="/journal" className="btn btn-ink">Read the essay →</Link>
+            <Link href="/journal" className="btn btn-ink">Read the essay <GlyphIcon name="arrow-right" /></Link>
           </div>
         </article>
 
