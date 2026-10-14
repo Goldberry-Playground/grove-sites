@@ -285,6 +285,44 @@ test('a garbage threshold falls back to the default instead of crashing', (dir) 
   assert.equal(r.state.tier, 'WARN', 'default WARN_DAYS=14 still applies');
 });
 
+test('the Discord POST carries a non-default User-Agent (Discord 403s Python-urllib)', (dir) => {
+  // Discord's edge returns 403 to urllib's default `Python-urllib/3.x` agent,
+  // which silently muted every alarm after the inline curl step was replaced.
+  // The payload sink never exercises post_discord, so drive it directly with
+  // urlopen stubbed and inspect the Request that would have gone out.
+  const harness = join(dir, 'ua.py');
+  writeFileSync(harness, `
+import importlib.util, json, sys, contextlib
+spec = importlib.util.spec_from_file_location("mod", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+seen = {}
+@contextlib.contextmanager
+def fake_urlopen(req, timeout=None):
+    seen.update({"url": req.get_full_url(), "method": req.get_method(),
+                 "ua": req.get_header("User-agent"),
+                 "ctype": req.get_header("Content-type"),
+                 "body": json.loads(req.data.decode())})
+    class R:
+        def read(self): return b""
+    yield R()
+mod.urllib.request.urlopen = fake_urlopen
+ok = mod.post_discord("https://discord.invalid/api/webhooks/1/x", {"content": "probe"})
+print("@@UA@@" + json.dumps({"ok": ok, **seen}))
+`);
+  const res = spawnSync('python3', [harness, SCRIPT], { encoding: 'utf8' });
+  assert.equal(res.status, 0, `harness crashed:\n${res.stdout}\n${res.stderr}`);
+  const line = res.stdout.split('\n').find((l) => l.startsWith('@@UA@@'));
+  assert.ok(line, `no result:\n${res.stdout}`);
+  const seen = JSON.parse(line.slice('@@UA@@'.length));
+  assert.equal(seen.ok, true);
+  assert.equal(seen.method, 'POST');
+  assert.equal(seen.ctype, 'application/json');
+  assert.deepEqual(seen.body, { content: 'probe' });
+  assert.ok(seen.ua, 'a User-Agent header must be set explicitly');
+  assert.ok(!/^Python-urllib/i.test(seen.ua), `Discord 403s the default agent: ${seen.ua}`);
+  assert.match(seen.ua, /grove/, 'the agent should say which script is posting');
+});
+
 if (failures) {
   console.error(`\n${failures} test(s) failed`);
   process.exit(1);
