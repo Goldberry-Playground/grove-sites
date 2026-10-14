@@ -55,6 +55,30 @@ import {
  * response text so a caller can recover the backend's `{ "error": … }` payload
  * (the checkout route forwards friendly 4xx/409 stock/potted messages) without
  * re-parsing it out of the composed `message`. */
+/**
+ * How long a storefront render may serve a cached `/grove/api/v1/shipping/rates`
+ * payload: one hour (GOL-3344). The backend rate-checker rewrites the table at
+ * most daily, but Odoo can also be hot-fixed mid-day, and on 2026-10-14 the PDP
+ * kept quoting the pre-hotfix table for hours behind the old 6-hour window.
+ *
+ * This IS honoured on a `dynamic = "force-dynamic"` page. Next 15.5
+ * (`server/lib/patch-fetch`) opts a fetch out of the Data Cache under
+ * `forceDynamic` only when the fetch sets NO cache option and NO explicit
+ * `revalidate`; an explicit `next.revalidate` keeps its own window. That is
+ * why the stale table was observed on production, and why lowering this value
+ * is a real change and not a no-op. Every shipping accessor shares this init so
+ * Next dedupes the three calls per render into one backend round-trip. The
+ * `shipping-rates` tag lets a future `revalidateTag` route bust the cache on
+ * promote without touching the window.
+ */
+export const SHIPPING_RATES_REVALIDATE_SECONDS = 3600;
+export const SHIPPING_RATES_CACHE_TAG = "shipping-rates";
+const SHIPPING_RATES_FETCH_INIT: RequestInit & {
+  next: { revalidate: number; tags: string[] };
+} = {
+  next: { revalidate: SHIPPING_RATES_REVALIDATE_SECONDS, tags: [SHIPPING_RATES_CACHE_TAG] },
+};
+
 export class OdooApiError extends Error {
   constructor(
     readonly status: number,
@@ -252,14 +276,13 @@ export function createOdooClient(config: TenantConfig): OdooClient {
 
     shipping: {
       async rates(): Promise<ShippingRateTable | null> {
-        // Read-only feed (GOL-952). Cache reasonably: the backend rate-checker
-        // rewrites the table at most daily, so a 6-hour revalidate keeps the
-        // storefront estimate fresh without hammering Odoo on every product view.
+        // Read-only feed (GOL-952), cached for SHIPPING_RATES_REVALIDATE_SECONDS
+        // (see the constant for why one hour, not six).
         try {
           const raw = await api<ApiShippingRatesResponse>(
             config,
             "/grove/api/v1/shipping/rates",
-            { next: { revalidate: 21600 } }
+            SHIPPING_RATES_FETCH_INIT
           );
           // Box Engine v2 (schema 2) re-keys `zones` by box id, not ShippingTier.
           // A tier-keyed caller (resolveRateTable) would read every tier as
@@ -286,7 +309,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           const raw = await api<ShippingRateFeed>(
             config,
             "/grove/api/v1/shipping/rates",
-            { next: { revalidate: 21600 } }
+            SHIPPING_RATES_FETCH_INIT
           );
           // Only a well-formed schema-2 feed is usable as a box feed. A schema-1
           // feed (Odoo not yet upgraded) has no `packing` and tier-keyed zones,
@@ -327,7 +350,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           const raw = await api<ApiShippingRatesResponse>(
             config,
             "/grove/api/v1/shipping/rates",
-            { next: { revalidate: 21600 } }
+            SHIPPING_RATES_FETCH_INIT
           );
           const zoneByState = raw?.zone_by_state;
           // Empty/absent map → null so the caller's resolveZoneMap() keeps the

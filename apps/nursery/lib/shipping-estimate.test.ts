@@ -12,7 +12,8 @@ import {
   estimatePottedShipping,
   estimatePottedFloor,
   estimateTierFloor,
-  handlingFee,
+  boxOptions,
+  formatUsd,
   isPickupOnly,
   shipsTo,
   tierFor,
@@ -616,58 +617,32 @@ describe("shipScope — derived ship-scope wording (GOL-2941)", () => {
   });
 });
 
-// GOL-2923: the backend moved the flat S&H fee out of every rate cell (cells are
-// raw carrier cost) and publishes it once as `shipping_handling_fee`. An estimate
-// built from a cell must add it once, or the PDP under-quotes checkout by exactly
-// that fee. A backend that predates GOL-2923 omits the field and its cells already
-// include handling, so the estimate must stay unchanged there.
-describe("shipping_handling_fee (GOL-2923): estimates add the per-order fee once", () => {
-  const WITH_FEE: ShippingRateFeed = { ...SCHEMA2_FEED, shipping_handling_fee: 5 };
+// GOL-3344 (Josh 2026-10-13 ruling, grove-odoo-modules #343): every rate cell
+// is the carrier label plus the flat $2.50 handling, to the cent, and checkout
+// charges exactly that cell per box. So an estimate is the cell itself: nothing
+// is rounded and nothing is added on top, even if a stray payload still carries
+// the retired `shipping_handling_fee` field.
+describe("estimates are the exact feed cell: no rounding, no handling added (GOL-3344)", () => {
+  const CENTS: ShippingRateFeed = {
+    ...SCHEMA2_FEED,
+    zones: {
+      ...SCHEMA2_FEED.zones,
+      zone_1: { small: { base: 14.33 }, large: { base: 16.06 } },
+    },
+  };
 
-  it("handlingFee is the published fee, and 0 when absent or malformed", () => {
-    expect(handlingFee(WITH_FEE)).toBe(5);
-    expect(handlingFee(SCHEMA2_FEED)).toBe(0);
-    expect(handlingFee(null)).toBe(0);
-    expect(handlingFee({ ...SCHEMA2_FEED, shipping_handling_fee: -3 })).toBe(0);
-    expect(handlingFee({ ...SCHEMA2_FEED, shipping_handling_fee: Number.NaN })).toBe(0);
+  it("a cents cell is quoted to the cent, never ceiled or rounded", () => {
+    expect(estimateBoxShipping("WV", CENTS)).toBe(14.33);
+    expect(estimateTierShipping("WV", "bareroot", { feed: CENTS })).toBe(14.33);
+    expect(estimateBoxFloor(CENTS)).toBe(14.33);
+    expect(estimateTierFloor("bareroot", CENTS)).toBe(14.33);
   });
 
-  it("per-state estimate = cheapest carrier cell + the fee, once", () => {
-    expect(estimateBoxShipping("WV", SCHEMA2_FEED)).toBe(22); // legacy cell, no fee field
-    expect(estimateBoxShipping("WV", WITH_FEE)).toBe(27);
-    expect(estimateBoxShipping("ME", WITH_FEE)).toBe(46);
-  });
-
-  it("the stateless floor carries the fee and still never exceeds a state estimate", () => {
-    expect(estimateBoxFloor(WITH_FEE)).toBe(27);
-    for (const state of Object.keys(ZONE_BY_STATE)) {
-      const est = estimateBoxShipping(state, WITH_FEE);
-      if (est != null) expect(estimateBoxFloor(WITH_FEE)!).toBeLessThanOrEqual(est);
-    }
-  });
-
-  it("potted estimates add it too, and the tier seam routes through it", () => {
-    const pottedWithFee: ShippingRateFeed = { ...SCHEMA2_POTTED_FEED, shipping_handling_fee: 5 };
-    expect(estimatePottedShipping("WV", pottedWithFee)).toBe(25);
-    expect(estimatePottedFloor(pottedWithFee)).toBe(25);
-    expect(estimateTierShipping("WV", "bareroot", { feed: WITH_FEE })).toBe(27);
-    expect(estimateTierFloor("bareroot", WITH_FEE)).toBe(27);
-  });
-});
-
-// GOL-3188: every fee-carrying estimate rounds the carrier + fee total UP, never
-// to nearest, so a fractional fee (or cell) can never quote below checkout.
-describe("estimates round carrier + fee UP to whole dollars (GOL-3188)", () => {
-  it("a fractional fee rounds the bareroot estimate and floor up, not to nearest", () => {
-    const quarterFee: ShippingRateFeed = { ...SCHEMA2_FEED, shipping_handling_fee: 4.25 };
-    // 22 + 4.25 = 26.25: Math.round would quote $26, under checkout's $26.25.
-    expect(estimateBoxShipping("WV", quarterFee)).toBe(27);
-    expect(estimateBoxFloor(quarterFee)).toBe(27);
-    expect(estimateTierShipping("WV", "bareroot", { feed: quarterFee })).toBe(27);
-  });
-
-  it("a fractional potted cell is not rounded down before the fee is added", () => {
-    const feed: ShippingRateFeed = {
+  it("a retired shipping_handling_fee field changes nothing: handling is in the cell", () => {
+    const stray: ShippingRateFeed = { ...CENTS, shipping_handling_fee: 2.5 };
+    expect(estimateBoxShipping("WV", stray)).toBe(14.33);
+    expect(estimateBoxFloor(stray)).toBe(14.33);
+    const pottedStray: ShippingRateFeed = {
       ...SCHEMA2_POTTED_FEED,
       shipping_handling_fee: 5,
       zones: {
@@ -675,8 +650,114 @@ describe("estimates round carrier + fee UP to whole dollars (GOL-3188)", () => {
         zone_1: { ...SCHEMA2_POTTED_FEED.zones.zone_1, p24x10x4: { base: 20.4 } },
       },
     };
-    // 20.4 + 5 = 25.4: rounding the cell first would quote $25.
-    expect(estimatePottedShipping("WV", feed)).toBe(26);
-    expect(estimatePottedFloor(feed)).toBe(26);
+    expect(estimatePottedShipping("WV", pottedStray)).toBe(20.4);
+    expect(estimatePottedFloor(pottedStray)).toBeLessThanOrEqual(20.4);
+  });
+
+  it("formatUsd: whole dollars stay whole, cents show two places, nothing rounds", () => {
+    expect(formatUsd(14)).toBe("$14");
+    expect(formatUsd(14.33)).toBe("$14.33");
+    expect(formatUsd(16.06)).toBe("$16.06");
+    expect(formatUsd(14.5)).toBe("$14.50");
+  });
+});
+
+// GOL-3344: trees per box. Capacities come from the feed's packing block and
+// prices from the state's zone row; the live 2026-10-14 prod shape is the
+// GOL-3285 one, where bareroot packs into the p24x10x4 / p24x10x6 cartons.
+const LIVE_FEED: ShippingRateFeed = {
+  ...SCHEMA2_FEED,
+  zones: {
+    zone_1: { p24x10x4: { base: 14.33 }, p24x10x6: { base: 16.06 } },
+    zone_2: { p24x10x4: { base: 13.04 }, p24x10x6: { base: 14.81 } },
+    zone_5: { p24x10x4: { base: 18.9 }, p24x10x6: { base: 21.2 } },
+  },
+  packing: {
+    boxes: {
+      p24x10x4: { length: 24, width: 10, height: 4, capacity: { dormant: 10, leafed: 10 } },
+      p24x10x6: { length: 24, width: 10, height: 6, capacity: { dormant: 20, leafed: 20 } },
+    },
+    length_classes: [16, 20],
+    modes: ["dormant", "leafed"],
+  },
+};
+
+describe("boxOptions — trees per box from the feed (GOL-3344)", () => {
+  it("bareroot to WV: 10 trees for $14.33, then 20 trees for $16.06, the bulk box best per tree", () => {
+    expect(boxOptions("WV", "bareroot", LIVE_FEED)).toEqual([
+      { boxId: "p24x10x4", capacity: 10, rate: 14.33, bestPerTree: false },
+      { boxId: "p24x10x6", capacity: 20, rate: 16.06, bestPerTree: true },
+    ]);
+  });
+
+  it("the first option is the single-box 'from' price the estimators return", () => {
+    for (const state of ["WV", "MD", "ME"]) {
+      const opts = boxOptions(state, "bareroot", LIVE_FEED)!;
+      expect(opts[0]?.rate).toBe(estimateBoxShipping(state, LIVE_FEED));
+    }
+  });
+
+  it("capacities are read from the feed, not a literal: a re-cut carton re-words the rows", () => {
+    const recut: ShippingRateFeed = {
+      ...LIVE_FEED,
+      packing: {
+        ...LIVE_FEED.packing,
+        boxes: {
+          ...LIVE_FEED.packing.boxes,
+          p24x10x6: { length: 24, width: 10, height: 6, capacity: { dormant: 25, leafed: 25 } },
+        },
+      },
+    };
+    expect(boxOptions("WV", "bareroot", recut)!.map((b) => b.capacity)).toEqual([10, 25]);
+  });
+
+  it("a carton too short for the tree, or with no rate for the zone, is not offered", () => {
+    const short: ShippingRateFeed = {
+      ...LIVE_FEED,
+      packing: {
+        ...LIVE_FEED.packing,
+        boxes: {
+          ...LIVE_FEED.packing.boxes,
+          p24x10x4: { length: 16, width: 10, height: 4, capacity: { dormant: 10, leafed: 10 } },
+        },
+      },
+    };
+    expect(boxOptions("WV", "bareroot", short)!.map((b) => b.boxId)).toEqual(["p24x10x6"]);
+    const unrated: ShippingRateFeed = {
+      ...LIVE_FEED,
+      zones: { ...LIVE_FEED.zones, zone_1: { p24x10x4: { base: 14.33 } } },
+    };
+    expect(boxOptions("WV", "bareroot", unrated)!.map((b) => b.boxId)).toEqual(["p24x10x4"]);
+  });
+
+  it("a dominated carton (no more trees for at least as much money) is dropped, and a lone box carries no chip", () => {
+    const dominated: ShippingRateFeed = {
+      ...LIVE_FEED,
+      zones: { ...LIVE_FEED.zones, zone_1: { p24x10x4: { base: 17 }, p24x10x6: { base: 16.06 } } },
+    };
+    expect(boxOptions("WV", "bareroot", dominated)).toEqual([
+      { boxId: "p24x10x6", capacity: 20, rate: 16.06, bestPerTree: false },
+    ]);
+  });
+
+  it("not shippable → null, exactly like the single-box estimators", () => {
+    expect(boxOptions("CA", "bareroot", LIVE_FEED)).toBeNull();
+    expect(boxOptions("WV", "bareroot", null)).toBeNull();
+  });
+
+  it("peat & bagged reads packing.potted_boxes when published, and is price-only (empty) until then", () => {
+    // Today's rate_feed() publishes the bareroot catalog only: never invent 5 / 10.
+    expect(boxOptions("WV", "potted", LIVE_FEED)).toEqual([]);
+    const withPotted: ShippingRateFeed = {
+      ...LIVE_FEED,
+      packing: {
+        ...LIVE_FEED.packing,
+        potted_boxes: { p24x10x4: { capacity: 5 }, p24x10x6: { capacity: 10 } },
+      },
+    };
+    expect(boxOptions("WV", "potted", withPotted)).toEqual([
+      { boxId: "p24x10x4", capacity: 5, rate: 14.33, bestPerTree: false },
+      { boxId: "p24x10x6", capacity: 10, rate: 16.06, bestPerTree: true },
+    ]);
   });
 });

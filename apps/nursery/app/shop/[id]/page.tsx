@@ -66,10 +66,18 @@ function odooBaseUrl(): string {
  * `cache()`-wrapped because `generateMetadata` and the page component both
  * need the product and Next runs them in the same request. Without it this
  * route would make two full detail round-trips to the single Odoo droplet per
- * page view: `dynamic = "force-dynamic"` sets `fetchCache: "force-no-store"`,
- * so the client's own `next.revalidate` cannot dedupe them. React's per-request
- * memoization does, and it also guarantees the title and the <h1> describe the
- * same product even if the catalog changes mid-render.
+ * page view: the product fetch sets no `next.revalidate`, and under
+ * `dynamic = "force-dynamic"` a fetch with no explicit cache option or
+ * revalidate is opted out of the Data Cache, so nothing dedupes it. React's
+ * per-request memoization does, and it also guarantees the title and the <h1>
+ * describe the same product even if the catalog changes mid-render.
+ *
+ * Note `force-dynamic` does NOT disable the Data Cache for a fetch that sets
+ * its own `next.revalidate` (Next 15.5 `server/lib/patch-fetch`: the
+ * `forceDynamic` opt-out applies only when the fetch has no cache config and
+ * no revalidate). The shipping feed below sets one, and production proved it:
+ * the PDP served a stale rate table for hours after an Odoo hot-fix (GOL-3344).
+ * Its window is `SHIPPING_RATES_REVALIDATE_SECONDS` in `@grove/odoo-client`.
  */
 const loadProduct = cache(async (productId: number): Promise<Product | null> => {
   try {

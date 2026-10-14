@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ShippingRateFeed } from "@grove/odoo-client";
 import { ShippingEstimator, type EstimatorTier } from "./shipping-estimator";
@@ -260,59 +260,125 @@ describe("ShippingEstimator — eligibility branches", () => {
   });
 });
 
-// GOL-3188: the per-unit quote now includes the once-per-order S&H fee
-// (GOL-2923). The panel says so in words so a shopper adding a second tree
-// knows the fee doesn't repeat.
-function feedWith(fee?: number): ShippingRateFeed {
+// GOL-3344 (Josh 2026-10-14): the quoting line names how many trees the price
+// covers. The fixture is the live 2026-10-14 prod feed shape after GOL-3285 and
+// the 10-13 rate ruling: bareroot packs into the p24x10x4 / p24x10x6 cartons
+// (10 / 20 trees), zone_1 (WV) cells $14.33 / $16.06 with handling inside.
+function liveFeed(extra: Partial<ShippingRateFeed> = {}): ShippingRateFeed {
   return {
     schema: 2,
-    zones: { zone_1: { small: { base: 16 }, large: { base: 22 } } },
+    zones: {
+      zone_1: { p24x10x4: { base: 14.33 }, p24x10x6: { base: 16.06 } },
+      zone_2: { p24x10x4: { base: 13.04 }, p24x10x6: { base: 14.81 } },
+    },
     zone_by_state: { ...ZONE_BY_STATE },
     green_states: Object.keys(ZONE_BY_STATE),
     packing: {
       boxes: {
-        small: { length: 24, width: 6, height: 4, capacity: { dormant: 5, leafed: 5 } },
-        large: { length: 24, width: 9, height: 6, capacity: { dormant: 10, leafed: 10 } },
+        p24x10x4: { length: 24, width: 10, height: 4, capacity: { dormant: 10, leafed: 10 } },
+        p24x10x6: { length: 24, width: 10, height: 6, capacity: { dormant: 20, leafed: 20 } },
       },
       length_classes: [16, 20],
       modes: ["dormant", "leafed"],
     },
     calendar: {
       preorder_open: { fall: [8, 15], spring: [11, 1] },
-      leafed_window: [[5, 6], [8, 14]],
+      leafed_window: [[5, 1], [10, 15]],
       fulfillment_days: [5, 10],
       zones: {},
     },
-    ...(fee === undefined ? {} : { shipping_handling_fee: fee }),
+    ...extra,
   } as ShippingRateFeed;
 }
 
-describe("ShippingEstimator — once-per-order handling fee (GOL-3188)", () => {
-  it("folds the fee into the quote and says it is charged once per order", () => {
-    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith(5) });
-    expect(panel.textContent).toMatch(/from \$21/); // small 16 + $5
-    expect(panel.textContent).toMatch(/Includes our \$5 handling fee, charged once per order\./);
+const PEAT: EstimatorTier = {
+  tier: "potted",
+  label: "Peat & bagged",
+  fulfillment: "Ships in 5–10 business days",
+  badge: null,
+};
+
+function boxRows(panel: HTMLElement) {
+  return [...panel.querySelectorAll("[data-estimator-box]")].map((li) => li.textContent ?? "");
+}
+
+describe("ShippingEstimator — trees per box (GOL-3344)", () => {
+  it("WV bareroot: the current feed price to the cent, up to 10 trees, then the 20-tree box", () => {
+    const panel = at("WV", { botanicalName: "Castanea spp.", feed: liveFeed() });
+    const line = panel.querySelector("[data-estimator-line]")?.textContent ?? "";
+    expect(line).toMatch(/^Bareroot pre-orderPre-order ·\sFall wave/);
+    expect(line).toMatch(/from \$14\.33$/); // the cell, not a ceiled $15
+    expect(boxRows(panel)).toEqual([
+      "Up to 10 trees in one box$14.33",
+      "Up to 20 trees in one boxBest per tree$16.06",
+    ]);
+    // The bulk chip is on the larger carton only, in words.
+    const rows = panel.querySelectorAll("[data-estimator-box]");
+    expect(rows[0].textContent).not.toMatch(/Best per tree/);
+    expect(rows[1].textContent).toMatch(/Best per tree/);
+    // A list, so the count of options is announced.
+    expect(panel.querySelector("ul[data-estimator-boxes]")).not.toBeNull();
+  });
+
+  it("another zone re-prices both rows from that zone's cells", () => {
+    const panel = at("MD", { botanicalName: "Castanea spp.", feed: liveFeed() });
+    expect(boxRows(panel)).toEqual([
+      "Up to 10 trees in one box$13.04",
+      "Up to 20 trees in one boxBest per tree$14.81",
+    ]);
+  });
+
+  it("no double handling: a stray shipping_handling_fee adds nothing and no fee line is written", () => {
+    const panel = at("WV", {
+      botanicalName: "Castanea spp.",
+      feed: liveFeed({ shipping_handling_fee: 2.5 }),
+    });
+    expect(panel.textContent).toMatch(/from \$14\.33/);
+    expect(panel.textContent).not.toMatch(/\$16\.83|\$17\b/);
+    expect(panel.textContent).not.toMatch(/handling fee/);
+    expect(panel.textContent).toMatch(/handling included/);
     expect(panel.textContent).toMatch(/exact rate is confirmed at checkout/);
   });
 
-  it("a fractional fee shows in cents and the quote rounds up, never down", () => {
-    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith(4.25) });
-    expect(panel.textContent).toMatch(/from \$21/); // 16 + 4.25 = 20.25: up to $21, never down to $20
-    expect(panel.textContent).toMatch(/Includes our \$4\.25 handling fee, charged once per order\./);
+  it("'Potted' never appears in shipping copy", () => {
+    for (const tier of [TIER, PEAT]) {
+      cleanup();
+      const panel = at("WV", { botanicalName: "Castanea spp.", feed: liveFeed(), tier });
+      expect(panel.textContent).not.toMatch(/Potted/);
+    }
   });
 
-  it("a pre-GOL-2923 feed (no fee field) quotes the cell and adds no fee line", () => {
-    const panel = at("WV", { botanicalName: "Castanea spp.", feed: feedWith() });
-    expect(panel.textContent).toMatch(/from \$16/);
-    expect(panel.textContent).not.toMatch(/handling fee/);
+  it("peat & bagged stays price-only until the feed publishes potted capacities, then reads 5 / 10", () => {
+    const bare = at("WV", { botanicalName: "Castanea spp.", feed: liveFeed(), tier: PEAT });
+    expect(bare.textContent).toMatch(/^.*Peat & bagged.*from \$14\.33/s);
+    expect(boxRows(bare)).toEqual([]); // never a hard-coded 5 / 10
+    const withPotted = liveFeed({
+      packing: {
+        ...liveFeed().packing,
+        potted_boxes: { p24x10x4: { capacity: 5 }, p24x10x6: { capacity: 10 } },
+      },
+    });
+    cleanup();
+    const published = at("MD", { botanicalName: "Castanea spp.", feed: withPotted, tier: PEAT });
+    expect(boxRows(published)).toEqual([
+      "Up to 5 trees in one box$13.04",
+      "Up to 10 trees in one boxBest per tree$14.81",
+    ]);
   });
 
-  it("no fee line when nothing on the panel is quoted (pickup only)", () => {
+  it("a pickup-only format quotes no price and no rows", () => {
     const panel = at("WV", {
       botanicalName: "Castanea spp.",
-      feed: feedWith(5),
+      feed: liveFeed(),
       tier: { ...TIER, pickupOnly: true },
     });
-    expect(panel.textContent).not.toMatch(/handling fee/);
+    expect(panel.textContent).not.toMatch(DOLLARS);
+    expect(boxRows(panel)).toEqual([]);
+  });
+
+  it("the legacy per-tree snapshot (no box feed) keeps the single whole-dollar line", () => {
+    const panel = at("WV", { botanicalName: "Castanea spp." });
+    expect(panel.querySelector("[data-estimator-line]")?.textContent).toMatch(/from \$\d+$/);
+    expect(boxRows(panel)).toEqual([]);
   });
 });

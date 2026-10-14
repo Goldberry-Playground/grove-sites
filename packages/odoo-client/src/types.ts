@@ -422,8 +422,12 @@ export interface ShippingZoneMap {
  * Two-SKU bareroot catalog (CEO directive 2026-09-07): `small` (24×6×4, holds
  * 1-5 trees) and `large` (24×9×6, holds 6-10). Both are 24" long, so the packer
  * selects by tree count, not height. A union so a fetched feed is checked
- * against the known catalog — the backend rate-checker only ever emits these. */
-export type ShippingBoxId = "small" | "large";
+ * against the known catalog — the backend rate-checker only ever emits these.  *
+ * GOL-3285 (grove-odoo-modules #335, 2026-10-13): bareroot now packs into the
+ * SAME `p24x10x4` / `p24x10x6` cartons as peat & bagged, so the live feed's
+ * `packing.boxes` and bareroot rate rows are keyed by the potted ids; `small` /
+ * `large` are kept only so a backend predating the change still parses. */
+export type ShippingBoxId = "small" | "large" | PottedBoxId;
 
 /** Box-catalog id from grove_headless `models/shipping_boxes.py` POTTED_BOXES —
  * the potted / peat-and-bagged engine (GOL-2031, go-live GOL-2199 2026-09-08).
@@ -470,12 +474,32 @@ export interface ShippingBoxSpec {
   width: number;
   height: number;
   capacity: Partial<Record<PackingMode, number>>;
+  /** Packed-weight model the rate quote is priced at (GOL-3201). Optional:
+   * absent on a backend predating the weight calibration. */
+  billable_weight_lb?: number;
+  weight_basis?: "verified" | "unverified";
+}
+
+/** One peat & bagged carton as the feed's optional `packing.potted_boxes`
+ * block publishes it (GOL-3344 follow-up): the unit count the potted packer
+ * holds per carton, a SINGLE axis (no season mode, unlike bareroot). The
+ * storefront reads trees-per-box from here and never hard-codes it; a feed
+ * without the block leaves the peat & bagged quote price-only. */
+export interface ShippingPottedBoxSpec {
+  capacity: number;
+  length?: number;
+  width?: number;
+  height?: number;
 }
 
 /** The `packing` block of the schema-2 feed (`rate_feed().packing`): the box
  * catalog plus the constants a client needs to mirror `pack_order` exactly. */
 export interface ShippingPackingSpec {
+  /** The BAREROOT catalog (`shipping_boxes.BOXES`): trees-per-box by mode. */
   boxes: Partial<Record<ShippingBoxId, ShippingBoxSpec>>;
+  /** The peat & bagged catalog (`shipping_boxes.POTTED_BOXES`), unit count per
+   * carton. Optional: `rate_feed()` does not publish it yet (GOL-3344). */
+  potted_boxes?: Partial<Record<PottedBoxId, ShippingPottedBoxSpec>> | null;
   /** Minimum box length (in) a tree's height class can require: e.g. [16,20]. */
   length_classes: number[];
   modes: PackingMode[];
@@ -626,11 +650,11 @@ export interface ShippingRateFeed {
   zone_by_state: Record<string, string>;
   green_states: string[];
   packing: ShippingPackingSpec;
-  /** Flat shipping-and-handling fee the ORDER pays ONCE on top of the packed
-   * carrier cost (grove-odoo-modules GOL-2923). When present, every `zones` cell
-   * is RAW carrier cost with no handling in it, so any estimate built from a cell
-   * must add this once per order (not per box). Absent on a backend predating
-   * GOL-2923, whose cells already carry the handling: treat absent as 0. */
+  /** @deprecated Never published by the current backend and IGNORED by the
+   * storefront. Josh's 2026-10-13 ruling (grove-odoo-modules #343): every
+   * `zones` cell is the carrier label plus the flat $2.50 handling, so a quote
+   * built from a cell is the full charge and nothing may be added on top
+   * (GOL-3344). Kept optional only so a stray payload still parses. */
   shipping_handling_fee?: number;
   /** Per-USDA-zone twice-yearly ship calendar (GOL-1172). Replaces the old
    * single global `dormant_window`. */
