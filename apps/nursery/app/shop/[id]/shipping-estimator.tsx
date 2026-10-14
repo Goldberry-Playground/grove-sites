@@ -360,10 +360,14 @@ export function ShippingEstimator({
                     data-estimator-box
                     className="flex items-baseline justify-between gap-3 text-sm"
                   >
-                    <span className="text-foreground">
-                      Up to {box.capacity} trees in one box
+                    {/* Flex-wrap, not inline: at 375px the label plus chip
+                        overflow the column, and inline wrapping orphaned
+                        "box" on its own line under the chip. As flex items
+                        the sentence stays whole and the chip drops as a unit. */}
+                    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-foreground">
+                      <span>Up to {box.capacity} trees in one box</span>
                       {box.bestPerTree && (
-                        <span className="ml-1.5 rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium align-middle text-foreground whitespace-nowrap">
+                        <span className="rounded-full border border-primary/25 bg-secondary/15 px-1.5 py-px text-[0.65rem] font-medium text-foreground whitespace-nowrap">
                           Best per tree
                         </span>
                       )}
