@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 
@@ -55,7 +56,7 @@ export default function VisitPage() {
               persimmon in September. Mulberries, serviceberries, and
               elderberries through summer.
             </p>
-            <span className="cta">Opening Fall 2028 →</span>
+            <span className="cta">Opening Fall 2028 <GlyphIcon name="arrow-right" /></span>
           </Link>
 
           <Link href="/visit/events" className="come-see-us__card events">
@@ -77,7 +78,7 @@ export default function VisitPage() {
               Korean Natural Farming intensives. Open-gate days a few times a
               year.
             </p>
-            <span className="cta">Opening Spring 2027 →</span>
+            <span className="cta">Opening Spring 2027 <GlyphIcon name="arrow-right" /></span>
           </Link>
 
           <Link href="/visit/seminars" className="come-see-us__card seminars">
@@ -96,7 +97,7 @@ export default function VisitPage() {
               ginseng. Native plant ID. Grafting in spring. Foraging walks
               through every season.
             </p>
-            <span className="cta">Opening Spring 2027 →</span>
+            <span className="cta">Opening Spring 2027 <GlyphIcon name="arrow-right" /></span>
           </Link>
 
           <Link href="/visit/private" className="come-see-us__card private">
@@ -113,7 +114,7 @@ export default function VisitPage() {
               forty. Weddings, retreats, milestone gatherings. We provide the
               land; you provide the people.
             </p>
-            <span className="cta">Opening Spring 2028 →</span>
+            <span className="cta">Opening Spring 2028 <GlyphIcon name="arrow-right" /></span>
           </Link>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -39,8 +40,8 @@ export default function ShopPage() {
           now — walnut, cherry, and white oak.
         </p>
         <nav className="timber-coming-soon__links" aria-label="While you wait">
-          <Link href="/blog">Follow the build in the journal →</Link>
-          <Link href="/">Back to the homestead →</Link>
+          <Link href="/blog">Follow the build in the journal <GlyphIcon name="arrow-right" /></Link>
+          <Link href="/">Back to the homestead <GlyphIcon name="arrow-right" /></Link>
         </nav>
       </section>
     </div>

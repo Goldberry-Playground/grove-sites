@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import { assetPath } from "@grove/ui";
 
 // Goldberry Grove homepage. Corrected positioning per project owner (2026-05-29):
@@ -124,7 +125,7 @@ export default function HomePage() {
               through summer. Bring a basket and an afternoon — we'll post
               dates the week before the gate opens.
             </p>
-            <span className="grows-card__cta">See the season →</span>
+            <span className="grows-card__cta">See the season <GlyphIcon name="arrow-right" /></span>
           </Link>
           <Link href="/visit/seminars" className="grows-card">
             <span className="grows-card__kicker">Mushrooms · ~9 acres</span>
@@ -133,7 +134,7 @@ export default function HomePage() {
               Inoculated on hardwood logs under the canopy. Spring inoculation
               workshops. Wild-simulated medicinals along the woodland edge.
             </p>
-            <span className="grows-card__cta">Inoculation workshop →</span>
+            <span className="grows-card__cta">Inoculation workshop <GlyphIcon name="arrow-right" /></span>
           </Link>
           <Link href="/visit/seminars" className="grows-card">
             <span className="grows-card__kicker">Medicinal forest farming</span>
@@ -142,7 +143,7 @@ export default function HomePage() {
               Wild-simulated in the wooded understory. Long horizons, slow
               returns, the way Appalachian herbalists worked these ridges.
             </p>
-            <span className="grows-card__cta">Forest-farming walk →</span>
+            <span className="grows-card__cta">Forest-farming walk <GlyphIcon name="arrow-right" /></span>
           </Link>
           <Link href="/visit/seminars" className="grows-card">
             <span className="grows-card__kicker">Foraging education</span>
@@ -151,7 +152,7 @@ export default function HomePage() {
               Half-day seasonal walks led by Josh, Abigail, and guest
               herbalists from the Appalachian-foraging community.
             </p>
-            <span className="grows-card__cta">Browse the walks →</span>
+            <span className="grows-card__cta">Browse the walks <GlyphIcon name="arrow-right" /></span>
           </Link>
         </div>
       </section>
@@ -172,7 +173,7 @@ export default function HomePage() {
             weekends, and the WWOOFers who pass through round out who you'll
             meet when you visit.
           </p>
-          <Link href="/about" className="btn btn-ghost">Read our story →</Link>
+          <Link href="/about" className="btn btn-ghost">Read our story <GlyphIcon name="arrow-right" /></Link>
         </div>
         <div className="family-slideshow" aria-label="Photos from family events and farm work at Goldberry Grove">
           {familySlideDescriptions.map((label, i) => {
@@ -274,7 +275,7 @@ export default function HomePage() {
               fruit through summer. The gate opens by appointment when
               something is actually ripe.
             </p>
-            <span className="cta">See the season →</span>
+            <span className="cta">See the season <GlyphIcon name="arrow-right" /></span>
           </Link>
 
           <Link href="/visit/events" className="come-see-us__card events">
@@ -296,7 +297,7 @@ export default function HomePage() {
               fermentation workshops. We open the gate a few times a year for
               everyone — bring a friend and a flashlight.
             </p>
-            <span className="cta">Upcoming events →</span>
+            <span className="cta">Upcoming events <GlyphIcon name="arrow-right" /></span>
           </Link>
 
           <Link href="/visit/seminars" className="come-see-us__card seminars">
@@ -315,7 +316,7 @@ export default function HomePage() {
               JADAM deep-dives. Small groups, hands on the tools, on the land.
               Most run a half-day to a weekend.
             </p>
-            <span className="cta">Browse seminars →</span>
+            <span className="cta">Browse seminars <GlyphIcon name="arrow-right" /></span>
           </Link>
 
           <Link href="/visit/private" className="come-see-us__card private">
@@ -332,11 +333,11 @@ export default function HomePage() {
               Weddings, retreats, family reunions — the kind of gathering that
               wants hickory canopy overhead and no Wi-Fi.
             </p>
-            <span className="cta">Inquire →</span>
+            <span className="cta">Inquire <GlyphIcon name="arrow-right" /></span>
           </Link>
         </div>
         <div style={{ marginTop: "3rem", textAlign: "center" }}>
-          <Link href="/visit" className="btn btn-gold">All ways to visit →</Link>
+          <Link href="/visit" className="btn btn-gold">All ways to visit <GlyphIcon name="arrow-right" /></Link>
         </div>
       </section>
 
@@ -360,7 +361,7 @@ export default function HomePage() {
               weeks ahead of last year — and the canopy-down rotation had
               to compress…
             </p>
-            <Link href="/blog" className="continue">Continue reading →</Link>
+            <Link href="/blog" className="continue">Continue reading <GlyphIcon name="arrow-right" /></Link>
           </div>
         </article>
       </section>

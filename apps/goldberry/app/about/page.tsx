@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 
@@ -151,7 +152,7 @@ export default function StoryPage() {
           sounds like your kind of place, the gate is open.
         </p>
         <Link href="/visit" className="btn btn-gold visit-cta">
-          Come see us →
+          Come see us <GlyphIcon name="arrow-right" />
         </Link>
       </article>
     </article>
