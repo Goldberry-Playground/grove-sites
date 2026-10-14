@@ -117,7 +117,7 @@ export const BRAND_TRUST: Record<GroveBrand, BrandTrust> = {
   goldberry: {
     // The farm shop sells Printify shirts (GOL-3315): printed to order and
     // shipped by the print partner, so the strip says that and not farm food.
-    // No em dash (GOL-589). Copy pending Josh's edit; ships as written.
+    // No em dash (GOL-589). Approved by Josh 2026-10-13.
     cart: [
       { icon: "sparkle", text: "Printed to order for you" },
       { icon: "half-circle", text: "Ships from our print partner" },
