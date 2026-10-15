@@ -7,6 +7,7 @@ import { LinksTipJar } from "../../components/links/LinksTipJar";
 import { TrackedLink } from "../../components/links/TrackedLink";
 import {
   ALLIANCE_CANONICAL,
+  ALLIANCE_PROMO,
   ALLIANCE_INTRO,
   allianceJsonLd,
   allianceMembers,
@@ -33,6 +34,22 @@ export const metadata: Metadata = {
   },
 };
 
+function TeeIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8.5 4 3 6.5l1.8 4.2 2.7-1V20h9V9.7l2.7 1L21 6.5 15.5 4a3.6 3.6 0 0 1-7 0z" />
+    </svg>
+  );
+}
+
+function ArrowIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 export default async function AlliancePage({
   searchParams,
 }: {
@@ -47,6 +64,19 @@ export default async function AlliancePage({
   return (
     <main className="hub-links">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+
+      {ALLIANCE_PROMO && (
+        <div className="hub-links__promo-wrap">
+          <TrackedLink className="hub-links__promo" href={withUtm(ALLIANCE_PROMO.href, source)} track="promo_shirts" source={source}>
+            <TeeIcon size={28} />
+            <span className="hub-links__promo-text">
+              <strong>{ALLIANCE_PROMO.title}</strong>
+              <span>{ALLIANCE_PROMO.blurb}</span>
+            </span>
+            <ArrowIcon size={22} />
+          </TrackedLink>
+        </div>
+      )}
 
       <div className="hub-links__hero">
         <Image
@@ -122,6 +152,15 @@ export default async function AlliancePage({
                 </li>
               ))}
             </ul>
+          )}
+          {m.shop && (
+            <div className="hub-links__shop-row">
+              <TrackedLink className="hub-links__shop" href={withUtm(m.shop.href, source)} track={`${m.key}_shop`} source={source}>
+                <TeeIcon size={18} />
+                <span>{m.shop.label}</span>
+                <ArrowIcon size={16} />
+              </TrackedLink>
+            </div>
           )}
           </div>
         ))}

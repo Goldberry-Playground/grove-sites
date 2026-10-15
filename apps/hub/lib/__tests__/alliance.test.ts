@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { siblingSitesForHost } from "@grove/ui";
 
 import nextConfig from "../../next.config";
 import {
   ALLIANCE_CANONICAL,
+  ALLIANCE_PROMO,
   SOCIAL_LINKS,
   allianceJsonLd,
   allianceMembers,
@@ -188,5 +191,43 @@ describe("withUtm", () => {
 
   it("leaves mailto links alone", () => {
     expect(withUtm("mailto:sales@goldberrygrove.farm", "threads")).toBe("mailto:sales@goldberrygrove.farm");
+  });
+});
+
+describe("merch promo (Option B)", () => {
+  it("ALLIANCE_PROMO links to the goldberrygrove.farm shirts page over https", () => {
+    expect(ALLIANCE_PROMO).not.toBeNull();
+    const url = new URL(ALLIANCE_PROMO!.href);
+    expect(url.protocol).toBe("https:");
+    expect(url.hostname).toBe("goldberrygrove.farm");
+    expect(url.pathname).toBe("/shirts");
+    expect(ALLIANCE_PROMO!.title).toBe("New: native tree tees");
+  });
+
+  it("carries a shop link on goldberry only", () => {
+    for (const m of prodMembers()) {
+      if (m.key === "goldberry") {
+        expect(m.shop).toEqual({ label: "Shop tees & hoodies", href: "https://goldberrygrove.farm/shirts" });
+      } else {
+        expect(m.shop).toBeUndefined();
+      }
+    }
+  });
+
+  it("keeps shop out of the JSON-LD", () => {
+    expect(JSON.stringify(allianceJsonLd(prodMembers()))).not.toContain("shirts");
+  });
+
+  it("renders the banner and chip in the page and uses no em dashes in new copy", () => {
+    const page = readFileSync(join(__dirname, "../../app/alliance/page.tsx"), "utf8");
+    expect(page).toContain("ALLIANCE_PROMO");
+    expect(page).toContain("hub-links__promo");
+    expect(page).toContain("hub-links__shop");
+    const strings = [
+      ALLIANCE_PROMO!.title,
+      ALLIANCE_PROMO!.blurb,
+      ...prodMembers().flatMap((m) => (m.shop ? [m.shop.label] : [])),
+    ];
+    for (const str of strings) expect(str).not.toMatch(/[\u2014\u2013]/);
   });
 });
