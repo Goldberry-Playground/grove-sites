@@ -75,8 +75,10 @@ describe("POST /api/newsletter/subscribe", () => {
     });
 
     // Exactly one Ghost write, to the nursery instance, with the form label.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0]!;
+    // (Each write is preceded by an integrity-token GET; Ghost 5.x+ needs it.)
+    const writes = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith("/send-magic-link/"));
+    expect(writes).toHaveLength(1);
+    const [url, init] = writes[0]!;
     expect(url).toBe("https://nursery.test/members/api/send-magic-link/");
     expect(JSON.parse(init!.body!).labels).toEqual(["nursery-footer", "interest-produce"]);
   });

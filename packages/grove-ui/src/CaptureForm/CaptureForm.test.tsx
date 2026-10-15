@@ -105,7 +105,7 @@ describe("<CaptureForm />", () => {
     expect(screen.queryByRole("button", { name: "Send me TreeFacts" })).toBeNull();
   });
 
-  it("surfaces a 503 not-configured state as a friendly error", async () => {
+  it("surfaces a 503 as an honest try-again error (2026-10-15: never a fake 'not open yet')", async () => {
     mockFetch({ ok: false, status: 503 });
     const user = userEvent.setup();
     render(<CaptureForm brand="goldberry" submitLabel="Sign up" />);
@@ -113,13 +113,14 @@ describe("<CaptureForm />", () => {
     await user.click(screen.getByRole("button", { name: "Sign up" }));
 
     await waitFor(() =>
-      expect(screen.getByRole("alert").textContent).toContain("check back soon"),
+      expect(screen.getByRole("alert").textContent).toContain("Please try again in a few minutes"),
     );
   });
 
-  it("surfaces an edge-wrapped 504 (DO x-do-orig-status: 503) as the same friendly error", async () => {
-    // Prod returns a clean 503 from the app, but DigitalOcean's edge shows the
-    // browser a 504. Both must read as "not open yet", not a retry prompt.
+  it("surfaces an edge-wrapped 504 the same way", async () => {
+    // DigitalOcean's edge shows the browser a 504 for BOTH an app 503 and an app
+    // 502 (a real backend failure). "Not open yet" hid the 2026-10-15 Ghost
+    // outage for days, so every 5xx now reads as a temporary failure.
     mockFetch({ ok: false, status: 504 });
     const user = userEvent.setup();
     render(<CaptureForm brand="nursery" submitLabel="Sign up" />);
@@ -127,7 +128,7 @@ describe("<CaptureForm />", () => {
     await user.click(screen.getByRole("button", { name: "Sign up" }));
 
     await waitFor(() =>
-      expect(screen.getByRole("alert").textContent).toContain("check back soon"),
+      expect(screen.getByRole("alert").textContent).toContain("Please try again in a few minutes"),
     );
   });
 
@@ -142,5 +143,30 @@ describe("<CaptureForm />", () => {
 
     await waitFor(() => expect(screen.getByRole("status")).toBeDefined());
     expect(fetchFn).not.toHaveBeenCalled();
+  });
+  it("collects and sends an optional note when collectMessage is set", async () => {
+    const fetchMock = mockFetch({ ok: true });
+    const user = userEvent.setup();
+    render(
+      <CaptureForm brand="nursery" collectMessage messageLabel="What are you planting?" submitLabel="Send inquiry" endpoint="/api/leads?kind=wholesale" />,
+    );
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.type(screen.getByLabelText("What are you planting?"), "200 pawpaws, zone 6");
+    await user.click(screen.getByRole("button", { name: "Send inquiry" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/leads?kind=wholesale");
+    expect(JSON.parse(init.body).message).toBe("200 pawpaws, zone 6");
+  });
+
+  it("does not render or send a note by default", async () => {
+    const fetchMock = mockFetch({ ok: true });
+    const user = userEvent.setup();
+    render(<CaptureForm brand="nursery" submitLabel="Sign up" />);
+    expect(screen.queryByRole("textbox", { name: /note/i })).toBeNull();
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect("message" in JSON.parse(fetchMock.mock.calls[0][1].body)).toBe(false);
   });
 });

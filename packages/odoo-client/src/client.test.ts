@@ -78,3 +78,48 @@ describe("checkout.quote shipping state (GOL-3315 Printify live quote)", () => {
     expect("shipping" in lastBody()).toBe(false);
   });
 });
+
+describe("capture → Odoo (2026-10-15 hotfix: leads + back-in-stock)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        String(url).endsWith("/leads")
+          ? new Response(JSON.stringify({ lead_id: 41, partner_id: 7, created: true }), { status: 200 })
+          : new Response(JSON.stringify({ partner_id: 7, variant_ids: [3, 4] }), { status: 200 }),
+      ),
+    );
+  });
+
+  it("capture.lead posts the snake_case body and normalizes the result", async () => {
+    const c = createOdooClient(config);
+    const out = await c.capture.lead({
+      email: "a@b.co",
+      kind: "food_forest_consult",
+      name: "Ada",
+      message: "Half acre, south slope",
+      productId: 134,
+      source: "nursery pdp",
+    });
+    const call = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(String(call[0]).endsWith("/grove/api/v1/leads")).toBe(true);
+    expect(lastBody()).toEqual({
+      email: "a@b.co",
+      kind: "food_forest_consult",
+      name: "Ada",
+      message: "Half acre, south slope",
+      product_id: 134,
+      source: "nursery pdp",
+    });
+    expect(out).toEqual({ leadId: 41, created: true });
+  });
+
+  it("capture.restock posts to the template route with an optional variant", async () => {
+    const c = createOdooClient(config);
+    const out = await c.capture.restock(93, { email: "a@b.co", variantId: 4 });
+    const call = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(String(call[0]).endsWith("/grove/api/v1/products/93/notify-restock")).toBe(true);
+    expect(lastBody()).toEqual({ email: "a@b.co", variant_id: 4 });
+    expect(out).toEqual({ variantIds: [3, 4] });
+  });
+});

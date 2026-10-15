@@ -103,6 +103,8 @@ export default function SeminarsPage() {
         <CaptureForm
           brand="goldberry"
           source="notify-me"
+          // Farm visit interest -> Odoo CRM lead (2026-10-15 hotfix).
+          endpoint="/api/leads?kind=farm_visit"
           label="seminars-opening"
           interests={["seminars"]}
           eyebrow="Seminars opening"
@@ -111,7 +113,7 @@ export default function SeminarsPage() {
           submitLabel="Notify me"
           successMessage="Done. You'll hear first when the seminar calendar opens."
           consentText="Seminar announcements only. Unsubscribe anytime."
-          hubOptIn
+          collectName
         />
 
         <Link href="/visit" className="btn btn-gold visit-cta">

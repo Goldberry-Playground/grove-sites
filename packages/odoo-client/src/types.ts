@@ -1489,6 +1489,59 @@ export interface NewsletterSubscribeResult {
   created?: boolean;
 }
 
+/**
+ * Storefront capture routed to Odoo (2026-10-15 hotfix): consult / wholesale /
+ * farm-visit / new-state-waitlist requests become CRM leads
+ * (`POST /grove/api/v1/leads`), and back-in-stock alerts subscribe to Odoo's own
+ * stock notifications (`POST /grove/api/v1/products/<template>/notify-restock`).
+ */
+export type CaptureLeadKind = "food_forest_consult" | "wholesale" | "farm_visit" | "state_waitlist";
+
+export interface CaptureLeadInput {
+  email: string;
+  kind: CaptureLeadKind;
+  name?: string;
+  phone?: string;
+  /** Free-text note from the visitor (species, quantities, visit date...). */
+  message?: string;
+  /** Per-form handle, e.g. "upick", "seminars" (becomes a CRM tag). */
+  label?: string;
+  /** Two-letter ship-to state, required for `state_waitlist`. */
+  state?: string;
+  /** Product template the request is about (food forest consults). */
+  productId?: number;
+  /** Where on the site it was captured, for the lead's notes. */
+  source?: string;
+}
+
+export interface ApiCaptureLeadResponse {
+  lead_id: number;
+  partner_id?: number;
+  created: boolean;
+}
+
+export interface CaptureLeadResult {
+  leadId: number;
+  /** False when the same email + kind within 24 h was appended to an open lead. */
+  created: boolean;
+}
+
+export interface RestockAlertInput {
+  email: string;
+  name?: string;
+  /** Watch one variant only; omitted = every variant of the template. */
+  variantId?: number;
+}
+
+export interface ApiRestockAlertResponse {
+  partner_id?: number;
+  variant_ids: number[];
+}
+
+export interface RestockAlertResult {
+  variantIds: number[];
+}
+
 export interface OdooClient {
   health(): Promise<{ status: string }>;
   products: {
@@ -1577,6 +1630,14 @@ export interface OdooClient {
      *  backend predates it, or no automatic program is live — the storefront
      *  then simply shows no nudge. */
     auto(): Promise<PromotionTier[]>;
+  };
+  capture: {
+    /** Record a consult / wholesale / farm-visit / state-waitlist request as an
+     *  Odoo CRM lead. Throws {@link OdooApiError} on a non-2xx (400 validation). */
+    lead(input: CaptureLeadInput): Promise<CaptureLeadResult>;
+    /** Subscribe an email to the template's back-in-stock alert. 404 when the
+     *  product is not published on this tenant. */
+    restock(templateId: number, input: RestockAlertInput): Promise<RestockAlertResult>;
   };
   newsletter: {
     /** Best-effort CRM opt-in (GOL-221): upsert a tagged `res.partner` for the

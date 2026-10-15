@@ -1049,6 +1049,8 @@ export function ProductView({
                 <CaptureForm
                   brand="nursery"
                   source="notify-me"
+                  // Odoo back-in-stock alert: Odoo emails once when it is restocked.
+                  endpoint={`/api/notify/restock?product=${productId}`}
                   label={`nursery-restock-${productId}`}
                   interests={["nursery", "restock"]}
                   eyebrow={buy.mode === "coming-soon" ? "Coming soon" : "Back-in-stock alert"}
@@ -1064,6 +1066,29 @@ export function ProductView({
                 />
               </div>
             </CaptureSlot>
+          )}
+
+          {consultBuilt && (
+            // Consult-built food forest packages (134/135): the mix is designed
+            // with the buyer, so the ask is a conversation, not a cart. Lands in
+            // Odoo CRM as a "Food forest consult" lead (2026-10-15 hotfix).
+            <div className="mt-6 rounded-lg border border-primary/10 bg-secondary/10 p-5">
+              <CaptureForm
+                brand="nursery"
+                source="consult-request"
+                endpoint={`/api/leads?kind=food_forest_consult&product=${productId}`}
+                label={`nursery-consult-${productId}`}
+                eyebrow="Plan it with us"
+                heading="Request a food forest consult"
+                description="Tell us about your site and we'll help you shape the mix before anything ships."
+                collectName
+                collectMessage
+                messageLabel="Your site (acreage, slope, sun, zone, timeline)"
+                submitLabel="Request a consult"
+                successMessage="Thanks. We'll reach out to set up your consult."
+                consentText="We'll only use this to plan your food forest with you."
+              />
+            </div>
           )}
 
           <p className="mt-4 text-xs text-ink-soft">

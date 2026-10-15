@@ -149,6 +149,7 @@ export function ProductGrid({
                     <CaptureForm
                       brand="nursery"
                       source="notify-me"
+                      endpoint={`/api/notify/restock?product=${product.id}`}
                       label={`nursery-restock-${product.id}`}
                       interests={["nursery", "restock"]}
                       description="One email when it's ready. That's it."

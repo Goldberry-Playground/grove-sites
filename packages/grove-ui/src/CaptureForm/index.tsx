@@ -12,7 +12,10 @@ export type CaptureSource =
   | "checkout"
   | "notify-me"
   | "footer"
-  | "import";
+  | "import"
+  // Odoo CRM lead captures (2026-10-15 hotfix): recorded in the lead's notes.
+  | "consult-request"
+  | "wholesale-inquiry";
 
 export interface CaptureFormProps {
   /** Brand whose Ghost instance is the list of record for this signup. */
@@ -39,6 +42,11 @@ export interface CaptureFormProps {
   successMessage?: string;
   /** Collect an optional display name alongside the email. */
   collectName?: boolean;
+  /** Collect an optional free-text note (wholesale / consult / visit requests
+   *  that land in Odoo CRM). Sent as `message`. */
+  collectMessage?: boolean;
+  /** Label for the note field. */
+  messageLabel?: string;
   /** Render the "Also get news from Gathering at the Grove" hub opt-in checkbox. */
   hubOptIn?: boolean;
   /** Label for the hub opt-in checkbox. */
@@ -115,6 +123,8 @@ export function CaptureForm({
   submitLabel = "Sign up",
   successMessage = "Thanks — check your inbox to confirm.",
   collectName = false,
+  collectMessage = false,
+  messageLabel = "Note (optional)",
   hubOptIn = false,
   hubOptInLabel = "Also send me news from Gathering at the Grove — the community behind the farm.",
   consentText = "We'll only email you what you signed up for. Unsubscribe anytime.",
@@ -133,6 +143,7 @@ export function CaptureForm({
   const emailId = useId();
   const errorId = useId();
   const nameId = useId();
+  const messageId = useId();
   const hubId = useId();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -169,6 +180,7 @@ export function CaptureForm({
 
     const name = collectName ? String(data.get("name") ?? "").trim() : undefined;
     const wantsHub = hubOptIn && data.get("hubOptIn") === "on";
+    const message = collectMessage ? String(data.get("message") ?? "").trim() : "";
 
     setStatus("submitting");
     setError("");
@@ -180,6 +192,7 @@ export function CaptureForm({
         body: JSON.stringify({
           email,
           name: name || undefined,
+          ...(message ? { message } : {}),
           brand,
           source,
           label,
@@ -197,17 +210,16 @@ export function CaptureForm({
         return;
       }
 
-      // The app returns a clean 503 when the newsletter backend isn't
-      // provisioned, but DigitalOcean's edge surfaces that to the browser as a
-      // 504 (x-do-orig-status: 503). Map the whole 5xx family to the same
-      // "temporarily unavailable" message so the visitor gets accurate,
-      // non-misleading feedback instead of a "try again" that keeps failing
-      // (GOL-1881).
-      let reason = "Something went wrong on our end — mind trying that again?";
+      // DigitalOcean's edge shows the browser a 504 for an app 503 AND for an
+      // app 502 (a real backend failure), so the status can't tell "not wired"
+      // from "broken". The old "Signups aren't open just yet" copy hid the
+      // 2026-10-15 Ghost outage for days; every 5xx now reads as a temporary
+      // failure, which is true in both cases.
+      let reason = "Something went wrong on our end. Mind trying that again?";
       if (res.status === 400) {
         reason = "That email doesn't look right. Mind checking it?";
       } else if (res.status >= 500) {
-        reason = "Signups aren't open just yet — please check back soon.";
+        reason = "We couldn't save that just now. Please try again in a few minutes.";
       }
       setStatus("error");
       setError(reason);
@@ -291,6 +303,15 @@ export function CaptureForm({
             }}
           />
         </div>
+
+        {collectMessage ? (
+          <div className="grove-capture__field grove-capture__field--message">
+            <label htmlFor={messageId} className="grove-capture__label">
+              {messageLabel}
+            </label>
+            <textarea id={messageId} name="message" rows={3} maxLength={2000} className="grove-capture__input" />
+          </div>
+        ) : null}
 
         {/* Honeypot — visually hidden, off the tab order, ignored by humans. */}
         <div className="grove-capture__hp" aria-hidden="true">
