@@ -105,6 +105,8 @@ export default function UPickPage() {
         <CaptureForm
           brand="goldberry"
           source="notify-me"
+          // Farm visit interest -> Odoo CRM lead (2026-10-15 hotfix).
+          endpoint="/api/leads?kind=farm_visit"
           label="upick-opening"
           interests={["upick"]}
           eyebrow="U-Pick opening"
@@ -113,7 +115,7 @@ export default function UPickPage() {
           submitLabel="Notify me"
           successMessage="Done. You'll hear from us the season u-pick opens."
           consentText="U-pick opening news only. Unsubscribe anytime."
-          hubOptIn
+          collectName
         />
 
         <Link href="/visit" className="btn btn-gold visit-cta">

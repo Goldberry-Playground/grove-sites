@@ -469,6 +469,8 @@ export function ShippingEstimator({
               <CaptureForm
                 brand="nursery"
                 source="notify-me"
+                // New-state waitlist -> Odoo CRM lead tagged with the state.
+                endpoint={`/api/leads?kind=state_waitlist&state=${state}`}
                 label={
                   verdict.kind === "restricted"
                     ? `nursery-carveout-${state}-${verdict.taxonKey}`
@@ -524,6 +526,8 @@ export function ShippingEstimator({
               <CaptureForm
                 brand="nursery"
                 source="notify-me"
+                // New-state waitlist -> Odoo CRM lead tagged with the state.
+                endpoint={`/api/leads?kind=state_waitlist&state=${state}`}
                 label={`nursery-ship-request-${state}`}
                 interests={["nursery", "ship-request"]}
                 heading={`Notify me when you ship to ${stateName}`}

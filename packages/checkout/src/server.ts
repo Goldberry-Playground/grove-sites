@@ -32,3 +32,8 @@ export {
   PROMO_PREVIEW_UNAVAILABLE,
   type PromoRouteOptions,
 } from "./api/createPromoRoutes";
+export {
+  createLeadCaptureRoute,
+  createRestockCaptureRoute,
+  type CaptureRouteOptions,
+} from "./api/createCaptureRoutes";

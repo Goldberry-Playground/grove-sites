@@ -97,6 +97,8 @@ export default function PrivatePage() {
         <CaptureForm
           brand="goldberry"
           source="notify-me"
+          // Farm visit interest -> Odoo CRM lead (2026-10-15 hotfix).
+          endpoint="/api/leads?kind=farm_visit"
           label="private-events-opening"
           interests={["private-events"]}
           eyebrow="Private bookings opening"
@@ -105,7 +107,7 @@ export default function PrivatePage() {
           submitLabel="Notify me"
           successMessage="Done. We'll be in touch as private bookings open for spring 2028."
           consentText="Private-event news only. Unsubscribe anytime."
-          hubOptIn
+          collectName
         />
 
         <Link href="/visit" className="btn btn-gold visit-cta">

@@ -40,6 +40,12 @@ export function createGhostNewsletterProvider(
       if (instance.newsletters?.length) {
         body.newsletters = instance.newsletters.map((id) => ({ id }));
       }
+      // Ghost 5.x+ rejects send-magic-link without an anti-spam integrity
+      // token (400 "The request could not be understood."), which broke every
+      // signup form on every storefront. Fetch one first; an older Ghost with no
+      // token route still gets the plain POST.
+      const integrityToken = await fetchIntegrityToken(instance, fetchImpl);
+      if (integrityToken) body.integrityToken = integrityToken;
 
       let response: Response;
       try {
@@ -74,6 +80,23 @@ export function createGhostNewsletterProvider(
       return id ? { ok: true, id } : { ok: true };
     },
   };
+}
+
+async function fetchIntegrityToken(
+  instance: GhostInstance,
+  fetchImpl: typeof fetch,
+): Promise<string | undefined> {
+  try {
+    const res = await fetchImpl(`${instance.url}/members/api/integrity-token/`, {
+      method: "GET",
+      headers: { Accept: "text/plain" },
+    });
+    if (!res.ok) return undefined;
+    const token = (await res.text()).trim();
+    return token || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function extractId(response: Response): Promise<string | undefined> {

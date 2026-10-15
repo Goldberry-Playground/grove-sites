@@ -29,6 +29,12 @@ import type {
   ShippingRateFeed,
   ShippingZoneMap,
   ShippingCalendar,
+  CaptureLeadInput,
+  CaptureLeadResult,
+  ApiCaptureLeadResponse,
+  RestockAlertInput,
+  RestockAlertResult,
+  ApiRestockAlertResponse,
   NewsletterSubscribeInput,
   NewsletterSubscribeResult,
   ApiNewsletterSubscribeResponse,
@@ -520,6 +526,34 @@ export function createOdooClient(config: TenantConfig): OdooClient {
       },
     },
 
+    capture: {
+      async lead(input: CaptureLeadInput): Promise<CaptureLeadResult> {
+        const body: Record<string, unknown> = { email: input.email, kind: input.kind };
+        if (input.name) body.name = input.name;
+        if (input.phone) body.phone = input.phone;
+        if (input.message) body.message = input.message;
+        if (input.label) body.label = input.label;
+        if (input.state) body.state = input.state;
+        if (input.productId != null) body.product_id = input.productId;
+        if (input.source) body.source = input.source;
+        const raw = await api<ApiCaptureLeadResponse>(config, "/grove/api/v1/leads", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        return { leadId: raw.lead_id, created: raw.created };
+      },
+      async restock(templateId: number, input: RestockAlertInput): Promise<RestockAlertResult> {
+        const body: Record<string, unknown> = { email: input.email };
+        if (input.name) body.name = input.name;
+        if (input.variantId != null) body.variant_id = input.variantId;
+        const raw = await api<ApiRestockAlertResponse>(
+          config,
+          `/grove/api/v1/products/${encodeURIComponent(String(templateId))}/notify-restock`,
+          { method: "POST", body: JSON.stringify(body) },
+        );
+        return { variantIds: raw.variant_ids ?? [] };
+      },
+    },
     newsletter: {
       async subscribe(
         input: NewsletterSubscribeInput
