@@ -1,7 +1,9 @@
 // Lead-seller curation for the At The Grove Nursery homepage (GOL-659).
 //
-// Josh's direction: feature our main sellers — currently Fig, Apple,
-// Serviceberry, Mulberry — but "this set changes over time," so it must be
+// Josh's direction: feature our main sellers (2026-10-15: the Chestnut Grove,
+// Mountain Mama and Walnut Holler 5-tree bundles first, then Fig and Apple;
+// Serviceberry and Mulberry were out of stock), but "this set changes over
+// time," so it must be
 // data-driven, not hardcoded markup. This module is the single, swappable
 // source of truth: edit LEAD_SELLERS to reshape the hero line-up and the
 // homepage re-selects from whatever the live catalog returns. Nothing in the
@@ -16,7 +18,7 @@ import type { Product } from "@grove/odoo-client";
  * edit this list to change the featured row with demand/season; no component
  * changes required.
  */
-export const LEAD_SELLERS = ["fig", "apple", "serviceberry", "mulberry"] as const;
+export const LEAD_SELLERS = ["chestnut grove", "mountain mama", "walnut holler", "fig", "apple"] as const;
 
 /** How many cards the featured row shows. */
 export const FEATURED_LIMIT = 4;
