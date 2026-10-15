@@ -14,6 +14,15 @@ export const ALLIANCE_CANONICAL = "https://gatheringatthegrove.com/alliance";
 export const ALLIANCE_INTRO =
   "Gather at the Grove is a regenerative alliance of Appalachian agroforestry farms and value-added producers. We share land, knowledge, and resources to strengthen our community.";
 
+/**
+ * Slim promo banner at the top of /alliance (Option B). Set to null to hide it.
+ */
+export const ALLIANCE_PROMO: { title: string; blurb: string; href: string } | null = {
+  title: "New: native tree tees",
+  blurb: "Chestnut, pawpaw and black walnut prints",
+  href: "https://goldberrygrove.farm/shirts",
+};
+
 export type SocialLink = { key: string; label: string; href: string };
 
 // Hidden on the page for now (Josh, 2026-09-29); kept so they can come back.
@@ -44,6 +53,8 @@ export type AllianceMember = {
   /** Public path of the member's logo; null renders a monogram tile. */
   logo: string | null;
   monogram: string;
+  /** Optional shop chip under the card (merch). Not part of the JSON-LD. */
+  shop?: { label: string; href: string };
 };
 
 type MemberSpec = Omit<AllianceMember, "href"> &
@@ -86,6 +97,7 @@ const MEMBERS: MemberSpec[] = [
     ],
     logo: "/brand/alliance/goldberry-wreath.png", // 2026-10 wreath logo (wolf, goldberries, morels), wordless
     monogram: "GB",
+    shop: { label: "Shop tees & hoodies", href: "https://goldberrygrove.farm/shirts" },
   },
   {
     key: "sweetpotomac",
@@ -130,8 +142,8 @@ export function allianceMembers(sites: Site[]): AllianceMember[] {
   return MEMBERS.flatMap((spec) => {
     const href = "url" in spec ? spec.url : sites.find((s) => s.name === spec.siteName)?.href;
     if (!href) return [];
-    const { key, group, title, blurb, socials, logo, monogram } = spec;
-    return [{ key, group, title, blurb, socials, logo, monogram, href }];
+    const { key, group, title, blurb, socials, logo, monogram, shop } = spec;
+    return [{ key, group, title, blurb, socials, logo, monogram, href, ...(shop ? { shop } : {}) }];
   });
 }
 

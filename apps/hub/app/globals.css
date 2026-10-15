@@ -1304,6 +1304,23 @@ body:has(.hub-links)::before { display: none; }
   font-family: 'Newsreader', Georgia, serif;
   color: var(--ink);
 }
+/* Slim merch banner above the hero (ALLIANCE_PROMO). Hub "warm bark" brown. */
+.hub-links__promo-wrap { padding: 12px 20px 0; }
+.hub-links__promo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: #5c3a1f;
+  color: #fff7e6;
+  transition: transform 0.15s, filter 0.15s;
+}
+.hub-links__promo:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.hub-links__promo:focus-visible { outline: 3px solid var(--moss-deep); outline-offset: 3px; }
+.hub-links__promo-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.hub-links__promo-text strong { font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 600; line-height: 1.15; }
+.hub-links__promo-text span { font-size: 14px; line-height: 1.3; color: #f2e3a0; }
 .hub-links__hero {
   position: relative;
   height: 300px;
@@ -1431,6 +1448,22 @@ body:has(.hub-links)::before { display: none; }
   color: #f2e3a0;
 }
 .hub-links__farm-social a:hover { background: rgba(255, 247, 230, 0.14); color: #fff7e6; }
+/* Shop chip: its own link under the card, aligned with the socials row. */
+.hub-links__shop-row { padding: 0 18px 14px 74px; }
+.hub-links__shop {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #fff7e6;
+  color: #5a2a4b; /* Goldberry plum on ivory */
+  font-size: 15px;
+  font-weight: 600;
+}
+.hub-links__shop:hover { filter: brightness(0.96); }
+.hub-links__shop:focus-visible { outline: 3px solid var(--moss-deep); outline-offset: 3px; }
 /* Every member logo: the same 56px circle with one Harvest Gold ring —
    a single accent that clears 3:1 on all six card colours. */
 .hub-links__farm-logo {
