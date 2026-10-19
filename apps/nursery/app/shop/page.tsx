@@ -13,10 +13,18 @@ import { tenantConfig } from "../../tenant.config";
 // route to `fetchCache: 'force-no-store'` and force a fresh full-catalog Odoo
 // round-trip on every search submit, category-pill click, and `?all=1` reveal —
 // hammering the single 4GB droplet — because `odoo.products.list()` carries its
-// own 60s `next.revalidate`. Without `force-dynamic`, that revalidate is honored:
-// the browse fetch is served from the shared Data Cache and refreshed at most
-// once a minute (per facet URL), and the publish webhook's
-// `revalidatePath('/shop')` still flushes it immediately on a new/edited product.
+// own 30s `next.revalidate` (GOL-1896 lowered it from 60s). Without
+// `force-dynamic`, that revalidate is honored: the browse fetch is served from
+// the shared Data Cache and refreshed at most once every 30s (per facet URL),
+// and the publish webhook's `revalidatePath('/shop')` still flushes it
+// immediately on a new/edited product.
+//
+// Multi-instance note (GOL-3446): DO App Platform load-balances with no shared
+// ISR cache and no sticky routing, so a single publish-webhook POST reaches
+// only ONE instance. The other instance keeps its cache until this 30s window
+// fires. That is acceptable precisely because the window is bounded: the webhook
+// is the fast path, the 30s TTL is the floor that holds on every instance. See
+// docs/runbooks/isr-multi-instance.md before scaling any storefront past 1.
 
 // Catalog index metadata (GOL-2878 Phase 1).
 //
