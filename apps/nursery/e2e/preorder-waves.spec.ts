@@ -6,6 +6,7 @@ import {
   fulfillmentToggle,
   pottedSeasonToday,
   submitAndCaptureSession,
+  usdaZoneSelect,
 } from "./helpers";
 
 /**
@@ -37,7 +38,7 @@ test.describe("pre-order waves", () => {
 
     await page.goto(product.href);
     await fulfillmentToggle(page, "ship").click();
-    await page.locator("#usda-zone").selectOption("8");
+    await usdaZoneSelect(page).selectOption("8");
     await page.getByRole("button", { name: /^Bareroot pre-order/ }).first().click();
     const spring = page.getByRole("button", { name: /^Spring wave/ });
     test.skip(
@@ -102,7 +103,7 @@ test.describe("pre-order waves", () => {
 
     await page.goto(product.href);
     await fulfillmentToggle(page, "ship").click();
-    await page.locator("#usda-zone").selectOption("8");
+    await usdaZoneSelect(page).selectOption("8");
     await page.getByRole("button", { name: /^Bareroot pre-order/ }).first().click();
     const fall = page.getByRole("button", { name: /^Fall wave/ });
     test.skip((await fall.count()) === 0, `${product.name} shows no Fall wave button for zone 8`);

@@ -182,6 +182,15 @@ describe("ProductView: Farm pickup / Shipped gate", () => {
     expect(localStorage.getItem("grove:usda-zone")).toBe("8");
   });
 
+  it("the zone select's id is per-instance, so two buy boxes never share it (GOL-3451)", () => {
+    renderPdp();
+    renderPdp();
+    const selects = screen.getAllByRole("combobox", { name: "Your USDA zone" });
+    expect(selects).toHaveLength(2);
+    expect(new Set(selects.map((s) => s.id)).size).toBe(2);
+    expect(document.querySelectorAll('[id="usda-zone"]')).toHaveLength(0);
+  });
+
   it("with Peat & bagged selected, no wave reads as chosen; picking a wave moves the selection", async () => {
     const user = userEvent.setup();
     renderPdp();

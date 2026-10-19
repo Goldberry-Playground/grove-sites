@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type {
   GrowingFacts,
   ShipWave,
@@ -336,6 +336,10 @@ export function ProductView({
   // Shipped pre-orders resolve their waves for the shopper's USDA zone (null
   // until chosen; remembered in `grove:usda-zone`). Pickup uses the farm zone.
   const [usdaZone, setUsdaZone] = useState<number | null>(null);
+  // Per-instance id for the zone select's <label htmlFor>: a hard-coded
+  // "usda-zone" was duplicated in the DOM on the PDP (GOL-3451), leaving the
+  // label/control pairing ambiguous for assistive tech.
+  const zoneSelectId = useId();
   const [chosenWave, setChosenWave] = useState<ShipWave | null>(null);
 
   // Restore the shopper's remembered ship-vs-pickup intent (GOL-2089) as the
@@ -710,11 +714,11 @@ export function ProductView({
 
           {method === "ship" && hasBareroot && !pickupOnly && (
             <div className="mb-5">
-              <label htmlFor="usda-zone" className="block text-sm font-semibold text-foreground mb-2">
+              <label htmlFor={zoneSelectId} className="block text-sm font-semibold text-foreground mb-2">
                 Your USDA zone
               </label>
               <select
-                id="usda-zone"
+                id={zoneSelectId}
                 value={usdaZone ?? ""}
                 onChange={(e) => {
                   if (e.target.value) chooseZone(Number(e.target.value));
