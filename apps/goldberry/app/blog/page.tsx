@@ -172,7 +172,7 @@ export default async function BlogPage() {
         <p className="journal-recipes__body">
           {RECIPES.length} recipes from five West Virginia community cookbooks, typed up to cook from and credited to
           the cooks who wrote them down.{" "}
-          <Link href="/recipes" className="journal-state__link">
+          <Link href="/recipes" className="journal-recipes__link">
             Browse the recipes
           </Link>
         </p>

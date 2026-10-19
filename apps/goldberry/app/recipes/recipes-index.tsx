@@ -3,19 +3,11 @@
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import {
-  BOOKS,
-  BOOK_KEYS,
-  COURSE_ORDER,
-  STATE_ABBR,
-  TAG,
-  TAGS,
-  isCourse,
-  type BookKey,
-  type Course,
-  type RecipeSummary,
-  type TagKey,
-} from "../../data/recipes";
+// Client bundle: import the small modules directly, never the barrel, which
+// would pull all 158 recipes' method text into the browser.
+import { BOOKS, BOOK_KEYS, COURSE_ORDER, STATE_ABBR, isCourse } from "../../data/recipes/books";
+import { TAG, TAGS } from "../../data/recipes/tags";
+import type { BookKey, Course, RecipeSummary, TagKey } from "../../data/recipes/types";
 import { RecipeFace } from "./recipe-face";
 import { RuleSnap } from "./rule-snap";
 

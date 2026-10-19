@@ -2622,6 +2622,13 @@ h1 em, h2 em, h3 em, h4 em {
   font-size: 0.95rem;
   margin: 0;
 }
+.journal-recipes__link {
+  color: var(--chestnut-reserve);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+.journal-recipes__link:hover { color: var(--forest-command-deep); }
 
 .journal-capture {
   max-width: 36rem;

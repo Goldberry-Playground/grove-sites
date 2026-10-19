@@ -115,3 +115,24 @@ export interface Tag {
    */
   nurserySlug?: string;
 }
+
+/** Card-sized summary the client index filters over (no method text). */
+export interface RecipeSummary {
+  id: string;
+  title: string;
+  category: Course;
+  book: BookKey;
+  /** Card eyebrow: "Mrs. C. Edwin Watkins · Beckley, WV". */
+  vendor: string;
+  /** Card face word: the lead nut or fruit, else the course. */
+  faceWord: string;
+  grown: boolean;
+  tip: string | null;
+  ingredientCount: number;
+  stepCount: number;
+  ovenTemp: string | null;
+  tags: TagKey[];
+  placeKey: string;
+  /** Lower-cased search haystack: title, cook, town, course, ingredients, book. */
+  hay: string;
+}

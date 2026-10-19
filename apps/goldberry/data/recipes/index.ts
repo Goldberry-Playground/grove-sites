@@ -5,10 +5,10 @@
 import { BOOKS, COURSE_ORDER, STATE_ABBR } from "./books";
 import { RECIPES } from "./recipes.data";
 import { NUT_KEYS, TAG, TAGS } from "./tags";
-import type { BookKey, Course, Recipe, TagKey } from "./types";
+import type { BookKey, Recipe, RecipeSummary, TagKey } from "./types";
 
 export * from "./types";
-export { BOOKS, BOOK_KEYS, COURSE_ORDER, STATE_ABBR } from "./books";
+export { BOOKS, BOOK_KEYS, COURSE_ORDER, STATE_ABBR, isCourse } from "./books";
 export { TAG, TAGS, UPICK } from "./tags";
 export { RECIPES };
 
@@ -120,27 +120,6 @@ export function attribution(r: Recipe): string {
   return `The cook's name wasn't printed with this one.${home ? ` ${end(home)}` : ""}`;
 }
 
-/** Card-sized summary the client index filters over (no method text). */
-export interface RecipeSummary {
-  id: string;
-  title: string;
-  category: Course;
-  book: BookKey;
-  /** Card eyebrow: "Mrs. C. Edwin Watkins · Beckley, WV". */
-  vendor: string;
-  /** Card face word: the lead nut or fruit, else the course. */
-  faceWord: string;
-  grown: boolean;
-  tip: string | null;
-  ingredientCount: number;
-  stepCount: number;
-  ovenTemp: string | null;
-  tags: TagKey[];
-  placeKey: string;
-  /** Lower-cased search haystack: title, cook, town, course, ingredients, book. */
-  hay: string;
-}
-
 export function recipeSummary(r: Recipe): RecipeSummary {
   const f = recipeFacts(r);
   return {
@@ -164,8 +143,4 @@ export function recipeSummary(r: Recipe): RecipeSummary {
         .toLowerCase(),
     ),
   };
-}
-
-export function isCourse(v: string): v is Course {
-  return (COURSE_ORDER as readonly string[]).includes(v);
 }

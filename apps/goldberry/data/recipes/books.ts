@@ -47,3 +47,7 @@ export const STATE_ABBR: Record<string, string> = {
   Ohio: "OH",
   Kentucky: "KY",
 };
+
+export function isCourse(v: string): v is Course {
+  return (COURSE_ORDER as readonly string[]).includes(v);
+}
