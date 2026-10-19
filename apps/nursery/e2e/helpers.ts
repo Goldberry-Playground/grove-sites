@@ -125,7 +125,7 @@ export async function prepareWavePreorder(
   page: Page,
   { method = "ship", zone = 6, wave }: WavePreorderOpts = {},
 ): Promise<"fall" | "spring" | null> {
-  const toggle = page.getByRole("group", { name: "Fulfillment" });
+  const toggle = fulfillmentGroup(page);
   await toggle.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
   if ((await page.locator("[data-preorder-card]").count()) === 0) return null;
   const methodButton = fulfillmentToggle(page, method);
@@ -529,10 +529,15 @@ export async function expectCartNotEmpty(page: Page): Promise<void> {
   await expect(page.locator(".grove-cart__line").first()).toBeVisible();
 }
 
+/** The PDP fulfillment group. Its accessible name comes from the visible
+ *  "How do you want it?" heading (`aria-labelledby="pdp-method-label"`). */
+export function fulfillmentGroup(page: Page): Locator {
+  return page.getByRole("group", { name: "How do you want it?" });
+}
+
 /** The Farm pickup / Shipped toggle on the PDP ("How do you want it?"). */
 export function fulfillmentToggle(page: Page, method: "pickup" | "ship"): Locator {
-  return page
-    .getByRole("group", { name: "Fulfillment" })
+  return fulfillmentGroup(page)
     .getByRole("button", { name: method === "pickup" ? /^Farm pickup/ : /^Shipped/ });
 }
 
@@ -566,7 +571,7 @@ export async function findPairedProduct(
   for (const href of hrefs.slice(0, limit)) {
     scanned++;
     await page.goto(href);
-    const toggle = page.getByRole("group", { name: "Fulfillment" });
+    const toggle = fulfillmentGroup(page);
     await toggle.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
     if ((await page.locator("[data-preorder-card]").count()) === 0) continue;
     if (needPotted) {
