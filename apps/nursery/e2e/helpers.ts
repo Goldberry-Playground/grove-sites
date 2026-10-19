@@ -131,7 +131,7 @@ export async function prepareWavePreorder(
   const methodButton = fulfillmentToggle(page, method);
   if ((await methodButton.count()) > 0) await methodButton.first().click();
   if (method === "ship") {
-    const zoneSelect = page.locator("#usda-zone");
+    const zoneSelect = usdaZoneSelect(page);
     if ((await zoneSelect.count()) > 0) await zoneSelect.selectOption(String(zone));
   }
   const format = page.getByRole("button", { name: /^Bareroot pre-order/ }).first();
@@ -533,6 +533,12 @@ export async function expectCartNotEmpty(page: Page): Promise<void> {
  *  "How do you want it?" heading (`aria-labelledby="pdp-method-label"`). */
 export function fulfillmentGroup(page: Page): Locator {
   return page.getByRole("group", { name: "How do you want it?" });
+}
+
+/** The PDP's "Your USDA zone" select, by role + accessible name. Its id is a
+ *  per-instance `useId()` (GOL-3451), so never locate it by id. */
+export function usdaZoneSelect(page: Page): Locator {
+  return page.getByRole("combobox", { name: "Your USDA zone", exact: true });
 }
 
 /** The Farm pickup / Shipped toggle on the PDP ("How do you want it?"). */
