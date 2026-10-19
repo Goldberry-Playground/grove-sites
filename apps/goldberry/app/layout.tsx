@@ -120,6 +120,7 @@ export default async function RootLayout({
                     "Come See Us" dropdown trigger stays app-local (ui-kit
                     NavLink has no dropdown affordance). — GOL-137 */}
                 <NavLink href="/shop">Shop</NavLink>
+                <NavLink href="/recipes">Recipes</NavLink>
                 <NavLink href="/about">Our Story</NavLink>
                 <NavLink href="/blog">Journal</NavLink>
                 <span className="brand-header__cart"><CartNavLink /></span>

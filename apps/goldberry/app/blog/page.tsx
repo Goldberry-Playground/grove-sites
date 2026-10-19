@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
 import { CaptureForm } from "@grove/ui-kit";
 import { ghost } from "../../lib/ghost";
+import { RECIPES } from "../../data/recipes";
 
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
@@ -160,6 +161,22 @@ export default async function BlogPage() {
           ))}
         </div>
       )}
+
+      {/* GOL-3435: the journal's sister archive. Always shown, so it is also a
+          useful next step from the empty and error states above. */}
+      <aside className="journal-recipes" aria-labelledby="journal-recipes-head">
+        <p className="journal-recipes__eyebrow">From the recipe box</p>
+        <h2 id="journal-recipes-head" className="journal-recipes__title">
+          Nut &amp; Fruit Dishes
+        </h2>
+        <p className="journal-recipes__body">
+          {RECIPES.length} recipes from five West Virginia community cookbooks, typed up to cook from and credited to
+          the cooks who wrote them down.{" "}
+          <Link href="/recipes" className="journal-state__link">
+            Browse the recipes
+          </Link>
+        </p>
+      </aside>
 
       <div className="journal-capture">
         <CaptureForm

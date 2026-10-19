@@ -2594,6 +2594,35 @@ h1 em, h2 em, h3 em, h4 em {
 .journal-error .journal-state__icon { color: var(--plum); }
 .journal-error .journal-state__title { color: var(--plum-deep); }
 
+/* GOL-3435: recipe-box pointer between the journal grid and the signup. */
+.journal-recipes {
+  max-width: 36rem;
+  margin: clamp(2.5rem, 5vw, 3.5rem) auto 0;
+  padding: 1.25rem 1.4rem;
+  background: var(--ivory-mist-soft);
+  border-left: 3px solid var(--harvest-gold);
+}
+.journal-recipes__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chestnut-reserve);
+  margin: 0 0 0.35rem;
+}
+.journal-recipes__title {
+  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
+  line-height: 1.15;
+  color: var(--chestnut-reserve-deep);
+  margin: 0 0 0.5rem;
+}
+.journal-recipes__body {
+  color: color-mix(in srgb, var(--ink) 82%, var(--ivory-mist));
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
 .journal-capture {
   max-width: 36rem;
   margin: clamp(2.5rem, 5vw, 3.5rem) auto 0;
