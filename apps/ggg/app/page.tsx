@@ -46,8 +46,8 @@ export default function HomePage() {
             <Link href="/shop" className="btn">
               Browse the Catalog
             </Link>
-            <Link href="/about" className="btn btn-bone">
-              Visit the Shop
+            <Link href="/blog" className="btn btn-bone">
+              Follow the build
             </Link>
           </div>
         </div>
@@ -85,7 +85,12 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Catalog — current pieces (6 of 12 shown) */}
+      {/* Catalog preview — six of the planned first-run pieces. Every card
+          lands on the coming-soon /shop page on purpose: the shop has no
+          inventory in Odoo yet, product routes are numeric Odoo ids (never a
+          slug), and a card that looks like a product link must land
+          somewhere real (GOL-3478). Re-point to /shop/<odoo-id> once the
+          first run is entered. Guarded by ./page.test.tsx. */}
       <section className="catalog">
         <div className="cat-header">
           <h2>
@@ -93,14 +98,14 @@ export default function HomePage() {
             <span>Spring &amp; Summer 2026</span>
           </h2>
           <div className="meta">
-            Six of twelve pieces shown
+            Six of the first twelve pieces
             <br />
-            Built one at a time
+            Workshop opens October 2026
           </div>
         </div>
         <div className="cat-grid">
           <Link
-            href="/shop/the-lower-hollow-walnut-table"
+            href="/shop"
             className="cat-card"
           >
             <div className="cat-img">
@@ -127,7 +132,7 @@ export default function HomePage() {
             </div>
           </Link>
 
-          <Link href="/shop/holler-dining-chair" className="cat-card">
+          <Link href="/shop" className="cat-card">
             <div className="cat-img">
               <span className="cat-num">№ 03-22</span>
               <PhotoPending />
@@ -150,7 +155,7 @@ export default function HomePage() {
           </Link>
 
           <Link
-            href="/shop/end-grain-cutting-board"
+            href="/shop"
             className="cat-card"
           >
             <div className="cat-img">
@@ -169,13 +174,13 @@ export default function HomePage() {
               </div>
               <div className="cat-foot">
                 <span className="cat-price">$280</span>
-                <span className="cat-meta">In stock</span>
+                <span className="cat-meta">First run</span>
               </div>
             </div>
           </Link>
 
           <Link
-            href="/shop/mantle-shelf-cherry"
+            href="/shop"
             className="cat-card"
           >
             <div className="cat-img">
@@ -199,7 +204,7 @@ export default function HomePage() {
             </div>
           </Link>
 
-          <Link href="/shop/the-ridge-bench" className="cat-card">
+          <Link href="/shop" className="cat-card">
             <div className="cat-img">
               <span className="cat-num">№ 03-09</span>
               <PhotoPending />
@@ -222,7 +227,7 @@ export default function HomePage() {
           </Link>
 
           <Link
-            href="/shop/three-leg-workshop-stool"
+            href="/shop"
             className="cat-card"
           >
             <div className="cat-img">
@@ -243,14 +248,14 @@ export default function HomePage() {
               </div>
               <div className="cat-foot">
                 <span className="cat-price">$420</span>
-                <span className="cat-meta">In stock</span>
+                <span className="cat-meta">First run</span>
               </div>
             </div>
           </Link>
         </div>
         <div style={{ textAlign: "center", marginTop: "3rem" }}>
           <Link href="/shop" className="btn btn-outline">
-            See all twelve pieces <GlyphIcon name="arrow-right" />
+            About the first run <GlyphIcon name="arrow-right" />
           </Link>
         </div>
       </section>
