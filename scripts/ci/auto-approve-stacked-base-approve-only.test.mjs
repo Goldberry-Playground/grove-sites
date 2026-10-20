@@ -130,7 +130,7 @@ case "\${1:-} \${2:-}" in
     case "\${2:-}" in
       *check-runs*) emit '{"check_runs":[{"name":"agent-review/ada","status":"completed","conclusion":"success"}]}' ;;
       *reviews*)    emit '[]' ;;
-      *actions/runs*) emit '{"total_count":1}' ;;
+      *actions/runs*) emit '{"total_count":1,"workflow_runs":[{"name":"CI","status":"completed","conclusion":"success","created_at":"2026-10-20T00:00:00Z"}]}' ;;
       *) emit '{}' ;;
     esac ;;
   *)
