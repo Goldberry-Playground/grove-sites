@@ -16,7 +16,9 @@ import { IBM_Plex_Mono, Libre_Baskerville } from "next/font/google";
  * and 700 italic for the semibold-italic headings (`.about-family h2`,
  * `.about-vision h2`, the home page's `.story-strip-card h3` — all weight 600
  * italic, which resolves to the 700 italic face). Dropping it would make the
- * browser fake-bold the 400 italic on those headings (GOL-3479).
+ * browser fake-bold the 400 italic on those headings. It also costs nothing:
+ * Google now serves Libre Baskerville as two variable files (roman + italic,
+ * wght 400–700), so 400 and 700 of a style share one woff2 (GOL-3479).
  * Latin only: next/font preloads every listed subset.
  *
  * The nursery / hub / ggg trio lives in @grove/ui/fonts/editorial; this file
