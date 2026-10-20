@@ -3,6 +3,7 @@ import {
   BOOKS,
   RECIPES,
   SORTED_RECIPES,
+  TAG,
   TAGS,
   attribution,
   bookCounts,
@@ -94,5 +95,27 @@ describe("cook-with tags", () => {
     const f = recipeFacts(r!);
     expect(f.tags).toContain("black-walnut");
     expect(f.grown).toContain("black-walnut");
+  });
+
+  it("does not tag water chestnuts as chestnut (GOL-3486)", () => {
+    for (const id of ["super-ramaki", "chinese-omelet", "rice-broccoli-casserole"]) {
+      const r = RECIPES.find((x) => x.id === id);
+      expect(r, id).toBeDefined();
+      const f = recipeFacts(r!);
+      expect(f.tags, id).not.toContain("chestnut");
+      expect(f.grown, id).not.toContain("chestnut");
+    }
+    const water = RECIPES.filter((r) => /water chestnut/i.test(r.ingredientGroups.flatMap((g) => g.items.map((i) => i.item)).join(" ")));
+    expect(water.map((r) => r.id).sort()).toEqual(["chinese-omelet", "rice-broccoli-casserole", "super-ramaki"]);
+  });
+
+  it("marks pecan as grown at the Grove without a nursery listing (GOL-3486)", () => {
+    expect(TAG.pecan.grow).toBe(true);
+    expect(TAG.pecan.nurserySlug).toBeUndefined();
+    const r = RECIPES.find((x) => x.id === "pecan-pie");
+    expect(r).toBeDefined();
+    const f = recipeFacts(r!);
+    expect(f.tags).toContain("pecan");
+    expect(f.grown).toContain("pecan");
   });
 });
