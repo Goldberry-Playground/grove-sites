@@ -42,12 +42,19 @@
   --color-background: #FFF7E6;          /* Ivory Mist */
   --color-foreground: #3D2810;          /* deep chestnut body text */
 
-  /* Type — single-family per brand guide. Baskerville Classico is paid (URW);
-     Libre Baskerville is the Google-Fonts-hosted near-identical substitute.
-     If you self-host Baskerville Classico, the stack picks it up first. */
-  --font-sans: "Baskerville Classico", "Libre Baskerville", "Baskerville Old Face", Baskerville, "Bookman Old Style", Georgia, serif;
-  --font-display: "Baskerville Classico", "Libre Baskerville", "Baskerville Old Face", Baskerville, "Bookman Old Style", Georgia, serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Type — single-family per brand guide. Baskerville Classico is paid (URW);
+   Libre Baskerville is the Google-Fonts-hosted near-identical substitute, now
+   self-hosted via next/font (app/fonts.ts). The Tailwind font tokens read the
+   --grove-font-* roles set in :root above — never a literal family name, which
+   would match the self-hosted face but skip its metric-matched
+   "Libre Baskerville Fallback" and shift layout on swap (GOL-3479). `inline`
+   so the utilities emit the var() instead of a build-time snapshot of it. */
+@theme inline {
+  --font-sans: var(--grove-font-body);
+  --font-display: var(--grove-font-display);
+  --font-mono: var(--grove-font-mono);
 }
 
 :root {

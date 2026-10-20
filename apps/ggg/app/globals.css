@@ -10,7 +10,7 @@
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/ggg.css";
 
-/* Self-hosted faces (app/fonts.ts). Re-point the three font roles at the
+/* Self-hosted faces (@grove/ui/fonts/editorial). Re-point the three font roles at the
    next/font faces (which carry metric-matched fallbacks), after the theme
    import so this wins; the theme's own fallbacks stay behind them. */
 :root {
@@ -39,10 +39,17 @@
   --color-accent: #B17839;              /* amber */
   --color-background: #EFE6D3;          /* bone */
   --color-foreground: #1F1611;          /* deep walnut */
+}
 
-  --font-sans: "Newsreader", "Cardo", Georgia, serif;
-  --font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+/* Font tokens read the --grove-font-* roles set in :root above (the next/font
+   faces + their metric-matched "<Face> Fallback"). A literal "Fraunces" here
+   would still match the self-hosted face but skip the fallback face, so the
+   swap would shift layout (GOL-3479). `inline` so the utilities emit the var()
+   rather than a build-time snapshot of it. */
+@theme inline {
+  --font-sans: var(--grove-font-body);
+  --font-display: var(--grove-font-display);
+  --font-mono: var(--grove-font-mono);
 }
 
 :root {
