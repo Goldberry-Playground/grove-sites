@@ -10,6 +10,17 @@
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/nursery.css";
 
+/* Self-hosted faces (app/fonts.ts). next/font registers each face under a
+   generated family name exposed as --font-nf-*, so the theme's literal
+   "Fraunces" / "Newsreader" / "IBM Plex Mono" would no longer match anything.
+   Re-point the three font roles here, after the theme import so this wins;
+   the theme's own fallbacks are kept behind the self-hosted face. */
+:root {
+  --grove-font-display: var(--font-nf-fraunces), "Cormorant Garamond", Georgia, serif;
+  --grove-font-body: var(--font-nf-newsreader), "Cardo", Georgia, serif;
+  --grove-font-mono: var(--font-nf-plex-mono), ui-monospace, monospace;
+}
+
 /* Tailwind v4 doesn't auto-scan files outside the app workspace. Tell it
    to also scan shared package source so classes used only in @grove/checkout
    components (MiniCartDrawer, StickyAddToCartBar, etc.) actually compile. */

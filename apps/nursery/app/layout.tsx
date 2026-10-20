@@ -17,6 +17,7 @@ import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
 import { resolveLivechatConfig } from "./livechat-config";
+import { fontVariables } from "./fonts";
 import "./globals.css";
 
 // Site-wide metadata defaults (GOL-2878 Phase 1).
@@ -77,15 +78,9 @@ export default async function RootLayout({
   const sites = siblingSitesForHost(host);
   const livechat = resolveLivechatConfig(process.env);
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=IBM+Plex+Mono:wght@400&display=swap"
-        />
-      </head>
+    // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
+    // fonts.googleapis.com <link> cost ~850 ms before first paint on mobile.
+    <html lang="en" className={fontVariables}>
       <body
         className="min-h-screen bg-background text-foreground font-sans antialiased"
         data-tenant={tenantConfig.tenantId}

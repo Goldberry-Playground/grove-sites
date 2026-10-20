@@ -9,6 +9,15 @@
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/hub.css";
 
+/* Self-hosted faces (app/fonts.ts). Re-point the three font roles at the
+   next/font faces (which carry metric-matched fallbacks), after the theme
+   import so this wins; the theme's own fallbacks stay behind them. */
+:root {
+  --grove-font-display: var(--font-nf-fraunces), "Cormorant Garamond", Georgia, serif;
+  --grove-font-body: var(--font-nf-newsreader), "Cardo", Georgia, serif;
+  --grove-font-mono: var(--font-nf-plex-mono), ui-monospace, monospace;
+}
+
 /* ─────────────────────────────────────────────
    Gather at the Grove — The Village Hub
    Editorial port of wireframes/hub/styles.css
