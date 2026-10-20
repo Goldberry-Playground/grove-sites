@@ -48,6 +48,7 @@
    rather than a build-time snapshot of it. */
 @theme inline {
   --font-sans: var(--grove-font-body);
+  --font-body: var(--grove-font-body); /* .hero-lead + .spec-strip read this; it was never defined */
   --font-display: var(--grove-font-display);
   --font-mono: var(--grove-font-mono);
 }
