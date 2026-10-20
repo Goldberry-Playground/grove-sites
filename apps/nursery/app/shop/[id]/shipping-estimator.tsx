@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
 import { CaptureForm } from "@grove/ui-kit";
 import {
@@ -145,6 +145,12 @@ export function ShippingEstimator({
   shipsAllGreenStates,
   consultBuilt,
 }: ShippingEstimatorProps) {
+  // Per-instance ids for the section label and the state select: a hard-coded
+  // "ship-est-label" was duplicated in the PDP DOM (the GOL-3451 pattern),
+  // leaving aria-labelledby / <label for> pairing ambiguous for assistive tech.
+  const baseId = useId();
+  const labelId = `${baseId}-label`;
+  const selectId = `${baseId}-state`;
   // Restore a previously entered state on mount (client-only; SSR renders "none").
   useEffect(() => {
     if (state) return;
@@ -232,18 +238,18 @@ export function ShippingEstimator({
 
   return (
     <section
-      aria-labelledby="ship-est-label"
+      aria-labelledby={labelId}
       className="mb-5 rounded-lg border border-primary/15 bg-white/60 p-4"
     >
       <label
-        id="ship-est-label"
-        htmlFor="ship-est-state"
+        id={labelId}
+        htmlFor={selectId}
         className="block text-sm font-semibold text-foreground mb-2"
       >
         Estimate shipping to your state
       </label>
       <select
-        id="ship-est-state"
+        id={selectId}
         value={state}
         onChange={(e) => choose(e.target.value)}
         className="w-full rounded border border-primary/20 bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"

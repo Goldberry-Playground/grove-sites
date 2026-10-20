@@ -382,3 +382,17 @@ describe("ShippingEstimator — trees per box (GOL-3344)", () => {
     expect(boxRows(panel)).toEqual([]);
   });
 });
+
+describe("ShippingEstimator — ids", () => {
+  it("label and select ids are per-instance, so two estimators never share them", () => {
+    cleanup();
+    renderEstimator();
+    renderEstimator();
+    const panels = screen.getAllByRole("region", { name: "Estimate shipping to your state" });
+    expect(panels).toHaveLength(2);
+    const selects = screen.getAllByRole("combobox", { name: "Estimate shipping to your state" });
+    expect(selects).toHaveLength(2);
+    expect(new Set(selects.map((s) => s.id)).size).toBe(2);
+    expect(document.querySelectorAll('[id^="ship-est"]')).toHaveLength(0);
+  });
+});

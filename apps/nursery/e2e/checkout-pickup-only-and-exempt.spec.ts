@@ -7,6 +7,7 @@ import {
   findProductByCtaOrNull,
   fulfillmentToggle,
   pottedSeasonToday,
+  shippingEstimator,
   submitAndCaptureSession,
   uniqueBuyerEmail,
 } from "./helpers";
@@ -91,7 +92,7 @@ test.describe("GOL-2588 — compliance-exempt ships to OH, pickup-only locks ful
     // PDP: no state estimator (there is no rate to estimate, and a dead state
     // select would imply we might ship), and the pickup treatment is stated in
     // words, not by colour.
-    await expect(page.locator('[aria-labelledby="ship-est-label"]')).toHaveCount(0);
+    await expect(shippingEstimator(page)).toHaveCount(0);
     await expect(page.getByText("Farm pickup only.", { exact: false }).first()).toBeVisible();
     await expect(page.getByText(/Ships to \d+ states/)).toHaveCount(0);
 

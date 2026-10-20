@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { GREEN_STATE_COUNT, ZONE_BY_STATE } from "../lib/shipping-estimate";
-import { addCurrentProductToCart, findProductByCta } from "./helpers";
+import { addCurrentProductToCart, findProductByCta, shippingEstimator } from "./helpers";
 import { catalogCards, readShopGrid } from "./qa-helpers";
 
 /**
@@ -63,7 +63,7 @@ test.describe("checkout — ship-to green list mirror", () => {
     expect(first).toBeTruthy();
     await page.goto(first.href);
 
-    const estimator = page.locator('[aria-labelledby="ship-est-label"]');
+    const estimator = shippingEstimator(page);
     test.skip((await estimator.count()) === 0, "this product renders no shipping estimator");
     const stateSelect = estimator.locator("select").first();
     await expect(stateSelect).toBeVisible();
@@ -89,7 +89,7 @@ test.describe("checkout — ship-to green list mirror", () => {
     expect(first).toBeTruthy();
     await page.goto(first.href);
 
-    const estimator = page.locator('[aria-labelledby="ship-est-label"]');
+    const estimator = shippingEstimator(page);
     test.skip((await estimator.count()) === 0, "this product renders no shipping estimator");
     const stateSelect = estimator.locator("select").first();
 
@@ -121,7 +121,7 @@ test.describe("checkout — ship-to green list mirror", () => {
     const res = await page.goto("/shop/22");
     test.skip(!res || res.status() >= 400, "template 22 is not published here");
 
-    const estimator = page.locator('[aria-labelledby="ship-est-label"]');
+    const estimator = shippingEstimator(page);
     test.skip((await estimator.count()) === 0, "template 22 renders no shipping estimator");
     const stateSelect = estimator.locator("select").first();
 
