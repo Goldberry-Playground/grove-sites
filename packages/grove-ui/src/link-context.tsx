@@ -26,8 +26,17 @@ export type GroveLinkProps = {
 export type GroveImageProps = {
   src: string;
   alt: string;
+  /** Intrinsic size. Reserves the box before the bytes arrive (CLS) and lets a
+   *  `next/image` adapter build a resized `srcset` instead of shipping the
+   *  upload as-is. */
   width?: number;
   height?: number;
+  /** `sizes` hint for a responsive `srcset` (ignored by the plain default). */
+  sizes?: string;
+  /** Above-the-fold image: load eagerly at high fetch priority so the browser
+   *  does not deprioritize the very image that paints LCP (GOL-3477). Default
+   *  (false) keeps lazy loading. */
+  priority?: boolean;
   className?: string;
 };
 
@@ -37,9 +46,21 @@ const DefaultLink: ComponentType<GroveLinkProps> = ({ href, children, ...rest })
   </a>
 );
 
-const DefaultImage: ComponentType<GroveImageProps> = ({ src, alt, ...rest }) => (
+const DefaultImage: ComponentType<GroveImageProps> = ({
+  src,
+  alt,
+  priority,
+  sizes: _sizes, // no srcset on the plain default, so nothing to size
+  ...rest
+}) => (
   // eslint-disable-next-line @next/next/no-img-element
-  <img src={src} alt={alt} {...rest} />
+  <img
+    src={src}
+    alt={alt}
+    loading={priority ? "eager" : "lazy"}
+    fetchPriority={priority ? "high" : undefined}
+    {...rest}
+  />
 );
 
 const GroveLinkContext = createContext<ComponentType<GroveLinkProps>>(DefaultLink);
