@@ -441,6 +441,16 @@ Per ADR-007 ("Level 3", in the odoocker repo's `docs/ADR/`), the QA and producti
 
 ### Production Build (manual)
 
+> **Build-time network.** The storefront faces are self-hosted through
+> `next/font/google` (`@grove/ui/fonts/editorial` for nursery / hub / ggg,
+> `apps/goldberry/app/fonts.ts` for goldberry). `next build` downloads the
+> woff2 files from `fonts.googleapis.com` / `fonts.gstatic.com` once and bakes
+> them into `.next/static/media`, so every build — local, CI (`docker.yml`),
+> and the DO App Platform Dockerfile builds — needs outbound HTTPS to those two
+> hosts. The runtime image makes no font requests. On an egress-blocked builder
+> the build fails with `Failed to fetch font …`; the fix is to vendor the woff2
+> files and switch the module to `next/font/local`, not to retry.
+
 ```bash
 # Build all apps
 pnpm build

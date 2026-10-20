@@ -92,6 +92,14 @@ ENV NEXT_PUBLIC_OO_RUM_ORG=$NEXT_PUBLIC_OO_RUM_ORG
 ARG NEXT_PUBLIC_OO_RUM_INSECURE="false"
 ENV NEXT_PUBLIC_OO_RUM_INSECURE=$NEXT_PUBLIC_OO_RUM_INSECURE
 
+# Build-time network: `next/font/google` (app/fonts.ts, @grove/ui/fonts/editorial)
+# downloads the brand woff2 files from fonts.googleapis.com / fonts.gstatic.com
+# DURING `next build` and bakes them into .next/static/media. The builder stage
+# therefore needs outbound HTTPS to those two hosts (GitHub Actions and DO App
+# Platform builders both have it); behind an egress-blocked builder the build
+# fails with "Failed to fetch font …" — the fix is to vendor the woff2 files and
+# switch the module to `next/font/local`, not to retry. The runtime image makes
+# no font requests. (GOL-3479)
 # Build the ui-kit first — pnpm --filter does NOT build workspace deps,
 # and @grove/ui-kit resolves to dist/ which only exists after tsup runs.
 RUN pnpm --filter @grove/ui-kit build && pnpm --filter @grove/nursery build
