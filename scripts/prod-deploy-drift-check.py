@@ -150,6 +150,7 @@ EXIT
 """
 import base64
 import datetime
+import http.client
 import json
 import os
 import sys
@@ -232,11 +233,22 @@ def monitor_failure(detail, app_names=()):
 
 
 def _get(url, headers, want_header=None):
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        if want_header:
-            return resp.headers.get(want_header)
-        return json.loads(resp.read().decode())
+    # One retry on a truncated body. 2026-10-20 17:01Z: DigitalOcean cut the
+    # chunked /v2/apps response mid-stream (http.client.IncompleteRead), which
+    # is an HTTPException, not an OSError, so it escaped the caller's except,
+    # crashed the run with no report, and paged a MONITOR OUTAGE for a blip
+    # the next run (5 min later) didn't see. Only read errors are retried;
+    # HTTP status errors (401 on a dead token) still surface on the first try.
+    for attempt in (1, 2):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                if want_header:
+                    return resp.headers.get(want_header)
+                return json.loads(resp.read().decode())
+        except http.client.IncompleteRead:
+            if attempt == 2:
+                raise
 
 
 def ghcr_digest(owner, repo, ref, bearer_b64):
@@ -477,7 +489,10 @@ def main():
     # the socket TIMEOUT that urlopen raises, which the old tuple let escape as an
     # uncaught traceback. ValueError covers a non-JSON body, KeyError a missing
     # "apps" key. Nothing here may crash the run without writing a report.
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+    # http.client.HTTPException covers a truncated body (IncompleteRead) that
+    # survives _get's one retry.
+    except (urllib.error.URLError, OSError, http.client.HTTPException,
+            ValueError, KeyError) as exc:
         # The GOL-3138 streak lived here: a rotated/expired DO token 401s and the
         # old code returned 1 with no report, which the workflow then dressed up
         # as a prod drift alarm. A dead monitoring credential is an OPS problem
