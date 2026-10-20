@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { GlyphIcon } from "@grove/ui-kit";
 import { ProductCard } from "../../../../../components/ProductCard";
+import { firstPhotoIndex } from "../../../../../lib/odoo-image";
 import { fetchVendorCatalog } from "../../../../../lib/marketplace";
 import { findVendor } from "../../../../../data/marketplace";
 
@@ -64,8 +65,14 @@ export default async function VendorProfilePage({
           </p>
         ) : (
           <div className="marketplace__grid">
-            {catalog.products.map((p) => (
-              <ProductCard key={p.product.slug} product={p} />
+            {catalog.products.map((p, i) => (
+              // GOL-3477: first card with a photo is the LCP element — eager;
+              // the rest lazy.
+              <ProductCard
+                key={p.product.slug}
+                product={p}
+                priority={i === firstPhotoIndex(catalog.products)}
+              />
             ))}
           </div>
         )}
