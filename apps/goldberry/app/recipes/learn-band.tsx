@@ -11,7 +11,8 @@ export function LearnBand() {
             Come learn the trees <em>behind these recipes.</em>
           </h2>
           <p>
-            Black walnut, hickory, persimmon, American plum, pawpaw, apple. We&rsquo;re growing them on twenty acres
+            Black walnut, hickory, pecan, persimmon, American plum, pawpaw, apple. We&rsquo;re growing them on twenty
+            acres
             above Summersville and teaching what we learn as we go: native plant ID, grafting, foraging walks. Sit in
             on a workshop, pick in season, or take a few trees home from our sister nursery.
           </p>
