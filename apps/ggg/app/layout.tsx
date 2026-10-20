@@ -8,7 +8,7 @@ import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import "./globals.css";
-import { fontVariables } from "./fonts";
+import { fontVariables } from "@grove/ui/fonts/editorial";
 
 export const metadata: Metadata = {
   title: tenantConfig.name,
@@ -23,7 +23,7 @@ export default async function RootLayout({
   const host = (await headers()).get("host");
   const sites = siblingSitesForHost(host);
   return (
-    // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
+    // Fonts are self-hosted via next/font (@grove/ui/fonts/editorial); the old render-blocking
     // fonts.googleapis.com <link> cost ~850 ms before first paint on mobile.
     <html lang="en" className={fontVariables}>
       <body

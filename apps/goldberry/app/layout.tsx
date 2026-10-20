@@ -132,15 +132,20 @@ export default async function RootLayout({
           <footer className="brand-footer">
             <div className="brand-footer__inner">
               {/* Black-and-white Goldberry Grove logo per brand guide
-                  "Logomark" / dark-background usage. The wordmark is
-                  already inside this SVG so no separate text. */}
+                  "Logomark" / dark-background usage. The wordmark is already
+                  inside the mark so no separate text. A 400 px transparent PNG
+                  (29 KB): the mark renders at ≤ 200 CSS px (see
+                  .brand-footer__logo), so that is 2× for retina. It replaced a
+                  1.3 MB "SVG" that was a Canva export wrapping a 3000 px
+                  raster — no vector source exists (GOL-3479). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={assetPath("goldberry", "photos/logo-bw.svg")}
+                src={assetPath("goldberry", "photos/logo-bw.png")}
                 alt="Goldberry Grove"
-                width={2250}
-                height={2250}
+                width={400}
+                height={400}
                 loading="lazy"
+                decoding="async"
                 className="brand-footer__logo"
               />
               <SocialLinks links={GOLDBERRY_SOCIALS} owner="Goldberry Grove" ringed className="brand-footer__social" />

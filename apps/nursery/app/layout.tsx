@@ -17,7 +17,7 @@ import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
 import { resolveLivechatConfig } from "./livechat-config";
-import { fontVariables } from "./fonts";
+import { fontVariables } from "@grove/ui/fonts/editorial";
 import "./globals.css";
 
 // Site-wide metadata defaults (GOL-2878 Phase 1).
@@ -78,7 +78,7 @@ export default async function RootLayout({
   const sites = siblingSitesForHost(host);
   const livechat = resolveLivechatConfig(process.env);
   return (
-    // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
+    // Fonts are self-hosted via next/font (@grove/ui/fonts/editorial); the old render-blocking
     // fonts.googleapis.com <link> cost ~850 ms before first paint on mobile.
     <html lang="en" className={fontVariables}>
       <body

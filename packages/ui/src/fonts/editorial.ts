@@ -1,25 +1,39 @@
 import { Fraunces, IBM_Plex_Mono, Newsreader } from "next/font/google";
 
 /**
- * The storefront's three faces, self-hosted through next/font.
+ * The editorial trio — Fraunces (display), Newsreader (body), IBM Plex Mono
+ * (labels) — self-hosted through next/font. ONE copy, shared by nursery, hub
+ * and ggg (`import { fontVariables } from "@grove/ui/fonts/editorial"`); the
+ * three apps used to carry byte-identical `app/fonts.ts` files (GOL-3479).
+ * Goldberry has its own faces (Libre Baskerville) in `apps/goldberry/app/fonts.ts`.
+ *
+ * next/font is happy to be called from a workspace package as long as the app
+ * lists it in `transpilePackages` (all four do for @grove/ui). The loader runs at
+ * BUILD time: it downloads the woff2 files from Google once, serves them from
+ * the app's own origin with immutable caching, inlines the @font-face rules
+ * (including a metric-matched "<Face> Fallback" so the swap does not shift
+ * layout), and preloads only the display face that above-the-fold headings
+ * paint in. ⚠️ That download means `next build` — local, CI, and the Docker
+ * image builds — needs egress to fonts.googleapis.com / fonts.gstatic.com; see
+ * the Dockerfiles and README "Production Build".
  *
  * They used to load from a render-blocking fonts.googleapis.com stylesheet in
  * the layout <head>: one cross-origin CSS request, then the woff2 files from a
  * second origin (fonts.gstatic.com), all before first paint. Lighthouse
  * (mobile, prod, 2026-10-20) put that chain at ~850 ms of render-blocking
- * time on every page. next/font downloads the same Google files at BUILD time,
- * serves them from this origin with immutable caching, inlines the @font-face
- * rules, and preloads only the display face (Fraunces, ~66 KB) that the
- * above-the-fold headings paint in.
+ * time on every page.
  *
  * Axes and styles match the old URL: Fraunces roman with the opsz axis,
  * Newsreader roman + italic with opsz, IBM Plex Mono 400. Subset is latin only:
  * next/font preloads every listed subset, and latin-ext doubled the preloads
  * (6 woff2) for glyphs the English catalog never uses; latin already covers
- * accented names (é, ñ), curly quotes, dashes, € and U+2212. The CSS variables
- * feed the --grove-font-*
- * tokens in globals.css, so every existing `font-display` / `font-sans` /
- * `font-mono` user is unchanged.
+ * accented names (é, ñ), curly quotes, dashes, € and U+2212.
+ *
+ * Wiring: `fontVariables` goes on <html>; it defines --font-nf-fraunces /
+ * --font-nf-newsreader / --font-nf-plex-mono. Each app's globals.css points
+ * the --grove-font-display / -body / -mono roles at those variables, and every
+ * other font token (Tailwind --font-*, the hub's --font-*) reads the role —
+ * never the literal family name, which would skip the metric fallback face.
  */
 export const fraunces = Fraunces({
   subsets: ["latin"],

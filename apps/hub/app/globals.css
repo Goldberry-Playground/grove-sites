@@ -9,7 +9,7 @@
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/hub.css";
 
-/* Self-hosted faces (app/fonts.ts). Re-point the three font roles at the
+/* Self-hosted faces (@grove/ui/fonts/editorial). Re-point the three font roles at the
    next/font faces (which carry metric-matched fallbacks), after the theme
    import so this wins; the theme's own fallbacks stay behind them. */
 :root {
@@ -42,9 +42,13 @@
   --nu-forest: #1F3F2B;
   --gg-walnut: #3A2418;
 
-  --font-display: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
-  --font-body: 'Newsreader', 'Cardo', Georgia, serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Font tokens read the --grove-font-* roles set above (the next/font faces +
+     their metric-matched "<Face> Fallback"). A literal 'Fraunces' here would
+     still match the self-hosted face but skip the fallback, so the swap would
+     shift layout (GOL-3479). Rules below must use these, not family names. */
+  --font-display: var(--grove-font-display);
+  --font-body: var(--grove-font-body);
+  --font-mono: var(--grove-font-mono);
 
   --grid: clamp(1rem, 4vw, 2.5rem);
 }
@@ -1310,7 +1314,7 @@ body:has(.hub-links)::before { display: none; }
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: 'Newsreader', Georgia, serif;
+  font-family: var(--font-body);
   color: var(--ink);
 }
 /* Slim merch banner above the hero (ALLIANCE_PROMO). Hub "warm bark" brown. */
@@ -1328,7 +1332,7 @@ body:has(.hub-links)::before { display: none; }
 .hub-links__promo:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .hub-links__promo:focus-visible { outline: 3px solid var(--moss-deep); outline-offset: 3px; }
 .hub-links__promo-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.hub-links__promo-text strong { font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 600; line-height: 1.15; }
+.hub-links__promo-text strong { font-family: var(--font-display); font-size: 17px; font-weight: 600; line-height: 1.15; }
 .hub-links__promo-text span { font-size: 14px; line-height: 1.3; color: #f2e3a0; }
 .hub-links__hero {
   position: relative;
@@ -1355,7 +1359,7 @@ body:has(.hub-links)::before { display: none; }
   height: auto;
 }
 .hub-links__eyebrow {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1371,7 +1375,7 @@ body:has(.hub-links)::before { display: none; }
 }
 .hub-links__intro h1 {
   margin: 0;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 38px;
   line-height: 1.05;
@@ -1409,14 +1413,14 @@ body:has(.hub-links)::before { display: none; }
 }
 .hub-links__section-head h2 {
   margin: 0;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 24px;
   line-height: 1.15;
   color: var(--moss-deep);
 }
 .hub-links__section-head span {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1490,12 +1494,12 @@ body:has(.hub-links)::before { display: none; }
   justify-content: center;
   background: #f4efe3;
   color: #2f5d3a;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 19px;
   font-weight: 600;
 }
 .hub-links__farm-text { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.hub-links__farm-text strong { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600; line-height: 1.15; }
+.hub-links__farm-text strong { font-family: var(--font-display); font-size: 20px; font-weight: 600; line-height: 1.15; }
 .hub-links__farm-text span { font-size: 15px; line-height: 1.35; color: #f2e3a0; /* pale Harvest Gold */ }
 .hub-links__farm--hub { background: #5c3a1f; } /* hub primary "warm bark" */
 .hub-links__farm--hub .hub-links__farm-logo { object-fit: contain; padding: 6px; }
@@ -1519,7 +1523,7 @@ body:has(.hub-links)::before { display: none; }
 }
 .hub-links__tip h2 {
   margin: 0;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 600;
   font-size: 26px;
   line-height: 1.15;
@@ -1530,7 +1534,7 @@ body:has(.hub-links)::before { display: none; }
 .hub-links__amounts button {
   min-height: 48px;
   border-radius: 12px;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 17px;
   font-weight: 600;
   cursor: pointer;
@@ -1547,17 +1551,17 @@ body:has(.hub-links)::before { display: none; }
   border-radius: 26px;
   background: var(--moss-deep);
   color: var(--paper);
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
 }
 .hub-links__tip-cta:hover { background: var(--moss); }
-.hub-links__fine { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--moss-soft); text-align: center; }
+.hub-links__fine { font-family: var(--font-mono); font-size: 10.5px; color: var(--moss-soft); text-align: center; }
 .hub-links__footer {
   margin-top: auto;
   padding: 28px 20px 30px;
   text-align: center;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
