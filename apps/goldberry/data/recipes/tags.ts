@@ -5,14 +5,18 @@ import type { Tag, TagKey } from "./types";
  * ingredient text. Order matters: specific before generic ("black walnut"
  * before "walnut", any named nut before "nuts").
  *
+ * `strip` removes look-alike phrases before a tag's `re` runs: "black walnut"
+ * must not trip English walnut, and "water chestnuts" (a sedge corm, not a
+ * nut) must not trip chestnut (GOL-3486).
+ *
  * `nurserySlug` maps the trees we grow to the At The Grove Nursery listing's
- * `grove_slug` (prod catalog, 2026-10-19). Hazelnut and elderberry have no
- * listing yet, so their link-out falls back to the nursery shop.
+ * `grove_slug` (prod catalog, 2026-10-19). Hazelnut, elderberry and pecan have
+ * no listing yet, so their link-out falls back to the nursery shop.
  */
 export const TAGS: readonly Tag[] = [
   { k: "black-walnut", label: "Black walnut", re: /black walnut/i, grow: true, nurserySlug: "black-walnut" },
   { k: "hickory", label: "Hickory nut", re: /hickory/i, grow: true, nurserySlug: "shagbark-hickory" },
-  { k: "chestnut", label: "Chestnut", re: /chestnut/i, grow: true, nurserySlug: "american-chestnut" },
+  { k: "chestnut", label: "Chestnut", re: /chestnut/i, strip: /water chestnuts?/gi, grow: true, nurserySlug: "american-chestnut" },
   { k: "hazelnut", label: "Hazelnut", re: /hazelnut|filbert/i, grow: true },
   { k: "persimmon", label: "Persimmon", re: /persimmon/i, grow: true, nurserySlug: "american-persimmon" },
   { k: "pawpaw", label: "Pawpaw", re: /paw ?paw/i, grow: true, nurserySlug: "pawpaw" },
@@ -22,8 +26,8 @@ export const TAGS: readonly Tag[] = [
   { k: "serviceberry", label: "Serviceberry", re: /serviceberr|juneberr/i, grow: true, nurserySlug: "serviceberry" },
   { k: "elderberry", label: "Elderberry", re: /elderberr/i, grow: true },
   { k: "fig", label: "Fig", re: /\bfigs?\b/i, grow: true, nurserySlug: "fig" },
-  { k: "walnut", label: "English walnut", re: /walnut/i, stripBlack: true },
-  { k: "pecan", label: "Pecan", re: /pecan/i },
+  { k: "walnut", label: "English walnut", re: /walnut/i, strip: /black walnuts?/gi },
+  { k: "pecan", label: "Pecan", re: /pecan/i, grow: true },
   { k: "almond", label: "Almond", re: /almond/i },
   { k: "peanut", label: "Peanut", re: /peanut/i },
   { k: "coconut", label: "Coconut", re: /coconut/i },

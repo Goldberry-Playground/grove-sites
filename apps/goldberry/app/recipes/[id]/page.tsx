@@ -79,12 +79,37 @@ function joinList(a: string[]): string {
   return a.length < 2 ? a.join("") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`;
 }
 
-/** "The black walnut in this one grows on our hill", linking to the live nursery listing. */
+const treeName = (k: TagKey) => TAG[k].label.toLowerCase().replace(" nut", "");
+
+/**
+ * Which trees the sister nursery actually lists. Pecan, hazelnut and elderberry
+ * grow on the hill but have no listing, so the copy must not say the nursery
+ * sells them (GOL-3486).
+ */
+function nurseryLine(grown: TagKey[]): string {
+  const names = grown.map(treeName);
+  const listed = grown.filter((k) => TAG[k].nurserySlug).map(treeName);
+  const unlisted = grown.filter((k) => !TAG[k].nurserySlug).map(treeName);
+  const growing = `We\u2019re growing ${joinList(names)} at Goldberry Grove`;
+  if (!unlisted.length) return `${growing}, and our sister nursery sells the same native stock for planting at home.`;
+  if (!listed.length) {
+    return `${growing}. Our sister nursery doesn\u2019t list ${unlisted.length > 1 ? "them" : "it"} yet, but it grows plenty of other native trees for planting at home.`;
+  }
+  const rest = joinList(unlisted);
+  return `${growing}. Our sister nursery sells ${joinList(listed)} for planting at home. ${rest[0].toUpperCase()}${rest.slice(1)} ${unlisted.length > 1 ? "aren\u2019t" : "isn\u2019t"} listed there yet.`;
+}
+
+/**
+ * "The black walnut in this one grows on our hill", linking to the live nursery
+ * listing. The card leads with the first tree the nursery lists; when none is
+ * listed it points at the nursery shop without naming a product (GOL-3486).
+ */
 function GrowEmbed({ grown }: { grown: TagKey[] }) {
   if (!grown.length) return null;
-  const names = grown.map((k) => TAG[k].label.toLowerCase().replace(" nut", ""));
-  const lead = grown[0];
+  const names = grown.map(treeName);
+  const lead = grown.find((k) => TAG[k].nurserySlug) ?? grown[0];
   const leadLabel = TAG[lead].label;
+  const listed = Boolean(TAG[lead].nurserySlug);
   const pick = grown.some((k) => UPICK.has(k));
   return (
     <aside className="journal-product-embed journal-product-embed--inline" aria-label="Grown at the Grove">
@@ -96,9 +121,9 @@ function GrowEmbed({ grown }: { grown: TagKey[] }) {
           </div>
           <div className="product-card__body">
             <div className="product-card__vendor">At The Grove Nursery</div>
-            <h3 className="product-card__name">{leadLabel} trees</h3>
+            <h3 className="product-card__name">{listed ? `${leadLabel} trees` : "Native trees"}</h3>
             <div className="product-card__price">
-              <span>See what&rsquo;s in stock</span>
+              <span>{listed ? "See what\u2019s in stock" : "Browse the nursery"}</span>
               <GlyphIcon name="arrow-right" />
             </div>
           </div>
@@ -108,10 +133,7 @@ function GrowEmbed({ grown }: { grown: TagKey[] }) {
         <h3>
           The {joinList(names)} in this one {names.length > 1 ? "grow" : "grows"} on our hill.
         </h3>
-        <p>
-          We&rsquo;re growing {joinList(names)} at Goldberry Grove, and our sister nursery sells the same native stock
-          for planting at home.
-        </p>
+        <p>{nurseryLine(grown)}</p>
         <div className="cta-row">
           <LinkButton href="/visit/seminars">Learn it at a workshop</LinkButton>
           {pick ? (

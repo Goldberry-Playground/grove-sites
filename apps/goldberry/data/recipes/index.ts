@@ -63,7 +63,7 @@ export function recipeFacts(r: Recipe): RecipeFacts {
   const found = new Set<TagKey>();
   for (const t of TAGS) {
     if (t.onlyIfNoNut && [...found].some((k) => NUT_KEYS.has(k))) continue;
-    const text = t.stripBlack ? ingText.replace(/black walnuts?/gi, "") : ingText;
+    const text = t.strip ? ingText.replace(t.strip, "") : ingText;
     if (t.re.test(text)) found.add(t.k);
   }
   const tags = TAGS.filter((t) => found.has(t.k)).map((t) => t.k);

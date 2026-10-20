@@ -100,10 +100,10 @@ export interface Tag {
   k: TagKey;
   label: string;
   re: RegExp;
-  /** Grown at Goldberry Grove and sold by the sister nursery. */
+  /** Grown at Goldberry Grove. Sold by the sister nursery only when `nurserySlug` is set. */
   grow?: boolean;
-  /** Match "walnut" only after removing "black walnut". */
-  stripBlack?: boolean;
+  /** Removed from the ingredient text before `re` runs ("black walnut" for walnut, "water chestnut" for chestnut). */
+  strip?: RegExp;
   /** Generic "nuts": only when no specific nut matched. */
   onlyIfNoNut?: boolean;
   /** Citrus: never headlines a dish on its own. */

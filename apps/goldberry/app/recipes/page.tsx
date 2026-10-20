@@ -31,8 +31,8 @@ export default function RecipesPage() {
               <p className="shop-subheader__lede">
                 We&rsquo;ve been working through a stack of West Virginia community cookbooks, the oldest put together
                 by the Woman&rsquo;s Club of Logan in 1963, and typing every recipe up so it&rsquo;s easy to cook from.
-                A lot of them lean on the trees we&rsquo;re growing on the hill: black walnut, hickory, persimmon, plum,
-                apple. Every cook&rsquo;s name and hometown is kept as printed.
+                A lot of them lean on the trees we&rsquo;re growing on the hill: black walnut, hickory, pecan, persimmon,
+                plum, apple. Every cook&rsquo;s name and hometown is kept as printed.
               </p>
               <p className="sig">Josh and Abigail</p>
               <div className="cta-row">
