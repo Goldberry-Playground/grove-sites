@@ -10,11 +10,12 @@
 @import "@grove/ui-kit/styles.css";
 @import "@grove/tokens/themes/nursery.css";
 
-/* Self-hosted faces (app/fonts.ts). next/font registers each face under a
-   generated family name exposed as --font-nf-*, so the theme's literal
-   "Fraunces" / "Newsreader" / "IBM Plex Mono" would no longer match anything.
-   Re-point the three font roles here, after the theme import so this wins;
-   the theme's own fallbacks are kept behind the self-hosted face. */
+/* Self-hosted faces (@grove/ui/fonts/editorial). next/font exposes each face
+   plus its metric-matched "<Face> Fallback" through --font-nf-*; the theme's
+   literal "Fraunces" / "Newsreader" / "IBM Plex Mono" would still match the
+   face but skip the fallback, so the swap would shift layout. Re-point the
+   three font roles here, after the theme import so this wins; the theme's own
+   fallbacks are kept behind the self-hosted face. */
 :root {
   --grove-font-display: var(--font-nf-fraunces), "Cormorant Garamond", Georgia, serif;
   --grove-font-body: var(--font-nf-newsreader), "Cardo", Georgia, serif;

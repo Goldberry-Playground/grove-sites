@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { fontVariables } from "./fonts";
+import { fontVariables } from "@grove/ui/fonts/editorial";
 import { AnalyticsProvider } from "@grove/analytics";
 import { GroveProviders } from "@grove/ui";
 
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 // can render without it. Route groups don't change any URL.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
+    // Fonts are self-hosted via next/font (@grove/ui/fonts/editorial); the old render-blocking
     // fonts.googleapis.com <link> cost ~850 ms before first paint on mobile.
     <html lang="en" className={fontVariables}>
       <body>
