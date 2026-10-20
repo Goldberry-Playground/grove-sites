@@ -72,6 +72,7 @@
   --color-caution: var(--stock-reserve);
 
   --font-sans: var(--grove-font-body);
+  --font-body: var(--grove-font-body); /* .qsearch controls, .btn, .catalog-search__input read this; it was never defined */
   --font-display: var(--grove-font-display);
   --font-mono: var(--grove-font-mono);
 }
