@@ -541,6 +541,13 @@ export function usdaZoneSelect(page: Page): Locator {
   return page.getByRole("combobox", { name: "Your USDA zone", exact: true });
 }
 
+/** The PDP shipping estimator panel, by role + accessible name. Its label id is
+ *  a per-instance `useId()`, so never locate it by id. Role queries skip the
+ *  hidden duplicate buy box the PDP renders (GOL-3451). */
+export function shippingEstimator(page: Page): Locator {
+  return page.getByRole("region", { name: "Estimate shipping to your state", exact: true });
+}
+
 /** The Farm pickup / Shipped toggle on the PDP ("How do you want it?"). */
 export function fulfillmentToggle(page: Page, method: "pickup" | "ship"): Locator {
   return fulfillmentGroup(page)
