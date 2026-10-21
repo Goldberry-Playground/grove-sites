@@ -8,6 +8,7 @@ import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import "./globals.css";
+import { fontVariables } from "./fonts";
 
 export const metadata: Metadata = {
   title: tenantConfig.name,
@@ -33,20 +34,9 @@ export default async function RootLayout({
   const host = (await headers()).get("host");
   const sites = siblingSitesForHost(host);
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Goldberry Brand Guideline (Feb 2026): Baskerville Classico, semibold.
-            Baskerville Classico is a paid URW family — Libre Baskerville
-            is the free Google Fonts substitute. IBM Plex Mono retained for
-            small editorial labels (eyebrows, SKU tags) where mono reads
-            better than serif italic. */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400&display=swap"
-        />
-      </head>
+    // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
+    // fonts.googleapis.com <link> cost ~850 ms before first paint on mobile.
+    <html lang="en" className={fontVariables}>
       <body
         className="min-h-screen bg-background text-foreground font-sans antialiased"
         data-tenant={tenantConfig.tenantId}
@@ -66,8 +56,19 @@ export default async function RootLayout({
           <header className="brand-header">
             <div className="brand-header__inner brand-header__inner--wordmark">
               <Link href="/" className="brand-header__wordmark" aria-label="Goldberry Grove — home">
+                {/* Intrinsic size (the PNG is 1472x464) so the browser reserves the
+                    wordmark's box before it loads; without it the header
+                    collapsed and the nav below jumped (CLS 0.30 on mobile,
+                    Lighthouse goldberry.qa 2026-10-20). CSS still sets the
+                    rendered width; height follows the aspect ratio. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={assetPath("goldberry", "photos/logo-wordmark.png")} alt="Goldberry Grove" />
+                <img
+                  src={assetPath("goldberry", "photos/logo-wordmark.png")}
+                  alt="Goldberry Grove"
+                  width={1472}
+                  height={464}
+                  fetchPriority="high"
+                />
               </Link>
               <nav className="brand-header__nav" aria-label="Primary">
                 <div className="nav-item has-dropdown">
@@ -131,12 +132,20 @@ export default async function RootLayout({
           <footer className="brand-footer">
             <div className="brand-footer__inner">
               {/* Black-and-white Goldberry Grove logo per brand guide
-                  "Logomark" / dark-background usage. The wordmark is
-                  already inside this SVG so no separate text. */}
+                  "Logomark" / dark-background usage. The wordmark is already
+                  inside the mark so no separate text. A 400 px transparent PNG
+                  (29 KB): the mark renders at ≤ 200 CSS px (see
+                  .brand-footer__logo), so that is 2× for retina. It replaced a
+                  1.3 MB "SVG" that was a Canva export wrapping a 3000 px
+                  raster — no vector source exists (GOL-3479). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={assetPath("goldberry", "photos/logo-bw.svg")}
+                src={assetPath("goldberry", "photos/logo-bw.png")}
                 alt="Goldberry Grove"
+                width={400}
+                height={400}
+                loading="lazy"
+                decoding="async"
                 className="brand-footer__logo"
               />
               <SocialLinks links={GOLDBERRY_SOCIALS} owner="Goldberry Grove" ringed className="brand-footer__social" />

@@ -4,6 +4,10 @@ import { marketplace } from "../../data/marketplace";
 
 export const revalidate = 600;
 
+const HERO_SRC = (w: number) =>
+  `https://images.unsplash.com/photo-1729624111264-4689d2cc8193?w=${w}&auto=format&fit=crop&q=80`;
+const HERO_WIDTHS = [640, 828, 1200, 1600, 2000];
+
 // Hub homepage — port of wireframes/hub/index.html structure.
 // Sections in wireframe order: hero → manifesto → portals → journal → almanac.
 export default function HomePage() {
@@ -16,9 +20,16 @@ export default function HomePage() {
       {/* Hero — NRG aerial backdrop; aerial drone footage will replace later. */}
       <section className="hero">
         <div className="hero-media">
+          {/* Responsive + high priority: this is the LCP image. A single
+              w=2000 URL sent every phone ~416 KB (Lighthouse mobile,
+              hub.qa 2026-10-20); Unsplash resizes on its CDN by `w`, so the
+              srcset lets the browser pick ~800px on a phone. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://images.unsplash.com/photo-1729624111264-4689d2cc8193?w=2000&auto=format&fit=crop&q=80"
+            src={HERO_SRC(2000)}
+            srcSet={HERO_WIDTHS.map((w) => `${HERO_SRC(w)} ${w}w`).join(", ")}
+            sizes="100vw"
+            fetchPriority="high"
             alt="New River Gorge aerial — placeholder for property aerial"
           />
         </div>
