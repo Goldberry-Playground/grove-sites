@@ -5,10 +5,10 @@ import { expect, test } from "@playwright/test";
  * Virginia ZIP, open ground, food forest at 20 trees, mixed timing, Build my
  * order, and the cart holds the planned lines.
  *
- * Runs against a target whose image was built with NEXT_PUBLIC_PLANNER on
- * (the §F kill switch); on a target with the flag off `/plan` is a 404 and
- * the spec skips rather than fails, so the QA gate stays green until Josh
- * flips it.
+ * Runs against a target with `PLANNER_ENABLED=1` in its runtime env (the §F
+ * kill switch, GOL-3527; QA sets it, prod leaves it unset); on a target with
+ * the flag off `/plan` is a 404 and the spec skips rather than fails, so the
+ * prod gate stays green until Josh flips it.
  */
 
 const MOBILE = { width: 390, height: 844 };
@@ -16,7 +16,7 @@ const MOBILE = { width: 390, height: 844 };
 test.describe("Order builder", () => {
   test.beforeEach(async ({ page }) => {
     const res = await page.goto("/plan");
-    test.skip(res?.status() === 404, "NEXT_PUBLIC_PLANNER is off on this target");
+    test.skip(res?.status() === 404, "PLANNER_ENABLED is off on this target");
   });
 
   test("WV ZIP, open ground, food forest 20, mixed → Build my order → cart has the lines", async ({ page }) => {
