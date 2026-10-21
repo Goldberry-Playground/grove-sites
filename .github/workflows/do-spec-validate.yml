@@ -3,6 +3,17 @@ name: DO App Spec — validate
 # Lint every infra/do/*.yaml spec on PRs and pushes that touch them.
 # Catches malformed App Platform specs before they reach DigitalOcean.
 #
+# Two validation modes (GOL-3508):
+#   full   — DIGITALOCEAN_ACCESS_TOKEN authenticates; `doctl apps spec validate`
+#            POSTs the spec to /v2/apps/propose so DigitalOcean also checks
+#            semantics (regions, image refs, env bindings).
+#   schema — the secret is unset or rejected (revoked token, GOL-3503); we
+#            fall back to `--schema-only`, a purely local parse that still
+#            fails on unknown/mistyped fields. The run stays green on a valid
+#            spec and surfaces a warning annotation + step summary so the
+#            degraded mode is visible, instead of failing every push that
+#            touches infra/do/** until the secret is rotated.
+#
 # Security note: this workflow uses only secrets.* and repo-controlled
 # file paths. It does NOT consume any untrusted event payload fields
 # (PR title/body/branch name) in run: blocks.
@@ -38,18 +49,46 @@ jobs:
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
-          # DIGITALOCEAN_ACCESS_TOKEN is a repo secret. `spec validate` is a
-          # local parser call but doctl still requires a configured token.
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          # Auth is handled in the next step so a missing/revoked token
+          # degrades to schema-only validation instead of failing the job.
+          no_auth: true
+
+      - name: Authenticate doctl (best effort)
+        id: auth
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DIGITALOCEAN_ACCESS_TOKEN:-}" ]; then
+            echo "::warning title=DO token missing::DIGITALOCEAN_ACCESS_TOKEN repo secret is unset; validating schema only (see GOL-3503)."
+            echo "mode=schema" >> "$GITHUB_OUTPUT"
+          elif doctl auth init -t "$DIGITALOCEAN_ACCESS_TOKEN" >/dev/null 2>&1; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=DO token rejected::DIGITALOCEAN_ACCESS_TOKEN repo secret was rejected by DigitalOcean (revoked?); validating schema only. Rotate the secret (see GOL-3503)."
+            echo "mode=schema" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate every spec
+        env:
+          MODE: ${{ steps.auth.outputs.mode }}
         run: |
           set -euo pipefail
           shopt -s nullglob
+          flags=()
+          if [ "$MODE" != "full" ]; then
+            flags=(--schema-only)
+            {
+              echo "### DO App Spec — validate ran in **schema-only** mode"
+              echo
+              echo "\`DIGITALOCEAN_ACCESS_TOKEN\` is unset or revoked, so DigitalOcean-side semantic checks were skipped. Rotate the repo secret (GOL-3503) to restore full validation."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "-- mode: $MODE"
           fail=0
           for spec in infra/do/*.yaml; do
             echo "-- validating $spec"
-            if ! doctl apps spec validate "$spec"; then
+            if ! doctl apps spec validate ${flags[@]+"${flags[@]}"} "$spec"; then
               echo "::error file=$spec::spec failed validation"
               fail=1
             fi
