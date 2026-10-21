@@ -292,6 +292,21 @@ export interface ApiFacts {
   chill_hours?: string;
   pollination?: string;
   years_to_fruit?: string;
+  // Planner facts (grove-odoo-modules order-builder spec §A, GOL-3378): the
+  // scoreable subset plus the computed ready flag. Optional so a backend that
+  // predates the order builder still type-checks. Integers serialize null when
+  // 0, `harvest_months` is a comma month list ("9,10,11") or "", booleans are
+  // booleans, the selection is null when unset.
+  years_to_fruit_min?: number | null;
+  pollination_min?: number | null;
+  harvest_months?: string;
+  tolerates_wet?: boolean;
+  tolerates_poor_soil?: boolean;
+  tolerates_shade?: boolean;
+  /** Selection: "high" | "medium" | "low". */
+  wildlife_value?: string | null;
+  planner_priority?: number | null;
+  planner_ready?: boolean;
 }
 
 /** Raw product detail from /grove/api/v1/products/:id.
@@ -1085,6 +1100,83 @@ export interface GrowingFacts {
   chillHours: string | null;
   pollination: string | null;
   yearsToFruit: string | null;
+  // Planner facts (order-builder spec §A, GOL-3378 / GOL-3383): camelCase twins
+  // of the nine `_serialize_facts` planner keys. `normalizeFacts` always emits
+  // them (a backend without them yields null / false / []); they are optional
+  // on the type so hand-built fixtures that predate the order builder still
+  // type-check.
+  /** Years to the first crop, the planner's "fast / patient" lever. */
+  yearsToFruitMin?: number | null;
+  /** Minimum plants for pollination (1 = self-fertile). */
+  pollinationMin?: number | null;
+  /** Harvest / drop months as 1..12, parsed from the comma list; [] when unset. */
+  harvestMonths?: number[];
+  toleratesWet?: boolean;
+  toleratesPoorSoil?: boolean;
+  toleratesShade?: boolean;
+  /** "high" | "medium" | "low" (deer-track value). */
+  wildlifeValue?: string | null;
+  /** Planner priority, lower sorts first (default 50 in Odoo). */
+  plannerPriority?: number | null;
+  /** Odoo's computed ready flag: the plant can be recommended by the planner. */
+  plannerReady?: boolean;
+}
+
+// ── Planner catalog feed (order-builder spec §B, GOL-3379) ──────────────────
+
+/** One plant row of `GET /grove/api/v1/planner/catalog`, exactly as
+ * grove_headless `_serialize_planner_plant` emits it (snake_case; integers null
+ * when 0, selections null when unset). `@grove/planner` consumes this shape
+ * directly. `variant_id` is NOT in the feed: the storefront BFF resolves it. */
+export interface ApiPlannerPlant {
+  id: number;
+  slug: string;
+  name: string;
+  botanical_name: string;
+  genus: string;
+  price: number;
+  tier: ShippingTier | null;
+  pickup_only: boolean;
+  in_stock: boolean;
+  preorder_cap_reached: boolean;
+  layer: string | null;
+  zone_min: number | null;
+  zone_max: number | null;
+  years_to_fruit_min: number | null;
+  pollination_min: number | null;
+  harvest_months: number[];
+  tolerates: { wet: boolean; poor_soil: boolean; shade: boolean };
+  wildlife_value: "high" | "medium" | "low" | null;
+  priority: number | null;
+  blocked_states: string[];
+  substitute_id: number | null;
+  image: string | null;
+  variant_id?: number | null;
+}
+
+/** One bundle row of the planner feed: a Food Forest Packages template with its
+ * exploded BoM component template ids (empty when consult-built). */
+export interface ApiPlannerBundle {
+  id: number;
+  slug: string;
+  name: string;
+  price: number;
+  component_ids: number[];
+  consult_built: boolean;
+  tree_count?: number;
+  image?: string | null;
+  variant_id?: number | null;
+}
+
+/** `GET /grove/api/v1/planner/catalog`: one cached JSON document the storefront
+ * planner runs over. `states` is `GREEN_STATES` sorted; `state_zones` the
+ * `[cold, warm]` USDA band per green state for the unknown-ZIP fallback. */
+export interface ApiPlannerCatalog {
+  generated_at?: string;
+  states: string[];
+  state_zones: Record<string, [number, number]>;
+  plants: ApiPlannerPlant[];
+  bundles: ApiPlannerBundle[];
 }
 
 /** ZIP → USDA hardiness zone lookup result (GET /grove/api/v1/zone). Powers
@@ -1604,6 +1696,13 @@ export interface OdooClient {
   /** Resolve a US ZIP to its USDA hardiness zone. Returns null for a ZIP the
    * USDA matrix doesn't cover (the endpoint 404s) or a malformed ZIP. */
   zone(zip: string): Promise<ZoneLookupResult | null>;
+  planner: {
+    /** The planner catalog feed (order-builder spec §B), cached for the feed's
+     * own 5-minute TTL. Returns null on a backend that predates the route (404)
+     * so the storefront can fall back to its fixture catalog in development;
+     * any other failure throws. */
+    catalog(): Promise<ApiPlannerCatalog | null>;
+  };
   shipping: {
     /** Legacy schema-1 tier-keyed rate table (GOL-952): a read-only mirror of
      * the per-tree engine that priced checkout before Box Engine v2. Feed the
