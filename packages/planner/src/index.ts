@@ -1,10 +1,36 @@
-export { plan, score, SHIPPABLE_TIERS, CONSULT_SUBTOTAL } from "./plan";
+export {
+  plan,
+  score,
+  eligible,
+  explain,
+  explainScore,
+  nextFor,
+  countTrees,
+  SHIPPABLE_TIERS,
+  CONSULT_SUBTOTAL,
+  type Candidate,
+  type Eligibility,
+} from "./plan";
+export { DEFAULT_RULES, RULE_KEYS, RULE_LABELS, resolveRules } from "./rules";
+export {
+  suggested,
+  stratumOf,
+  orderLines,
+  naturalSlot,
+  manualLine,
+  survivingManual,
+  STRATA,
+  type SuggestedPlant,
+  type SuggestedGroups,
+} from "./suggested";
 export { zoneFit, stateBand } from "./zone";
 export {
   slotsFor,
   fitsSlot,
   deerSeason,
   isSupport,
+  isFungal,
+  MUSHROOM_SLOT,
   seasonMonths,
   FOOD_FOREST_SLOTS,
   AGRO_SLOTS,
@@ -33,6 +59,13 @@ export type {
   Timing,
   Layer,
   Slot,
+  Stratum,
+  PlannerRole,
+  Succession,
+  RuleKey,
+  PlannerRules,
+  ScorePart,
+  ScoreExplanation,
   ZoneFit,
   ZoneInput,
   WildlifeValue,

@@ -1,11 +1,15 @@
 import { matchBundle } from "./bundle";
-import { fitsSlot, deerSeason, seasonMonths, slotsFor } from "./slots";
+import { resolveRules } from "./rules";
+import { fitsSlot, deerSeason, isFungal, seasonMonths, slotsFor } from "./slots";
 import type {
   PlanInput,
   PlanLine,
   PlanResult,
   PlannerCatalog,
   PlannerPlant,
+  PlannerRules,
+  ScoreExplanation,
+  ScorePart,
   Slot,
   Substitution,
   ZoneFit,
@@ -25,9 +29,20 @@ export const CONSULT_SUBTOTAL = 500;
 /** Priority the score assumes when the feed carries none (§A default is 50). */
 const DEFAULT_PRIORITY = 50;
 
-interface Candidate {
+export interface Candidate {
   plant: PlannerPlant;
   zoneFit: ZoneFit;
+}
+
+/** Everything the filter decided about a catalog for one set of answers. */
+export interface Eligibility {
+  /** Available plants that pass every filter, keyed by template id. */
+  pool: Map<number, Candidate>;
+  /** Passed every filter but out of stock or cap-reached. */
+  notify: Map<number, PlannerPlant>;
+  substitutions: Substitution[];
+  /** Shippable plants the zone or site filter hid (the "hidden for this site" count). */
+  hidden: number;
 }
 
 function shippable(plant: PlannerPlant): boolean {
@@ -51,6 +66,48 @@ function available(plant: PlannerPlant): boolean {
   return plant.in_stock && !plant.preorder_cap_reached;
 }
 
+/** The score as a list of terms (§C.2), so the tester bench can show it. */
+export function explainScore(
+  plant: PlannerPlant,
+  fit: ZoneFit,
+  slot: Slot,
+  slotQty: number,
+  input: Pick<PlanInput, "track" | "timing">,
+  rules: PlannerRules,
+): ScoreExplanation {
+  const priority = plant.priority ?? DEFAULT_PRIORITY;
+  const years = plant.years_to_fruit_min ?? 0;
+  const parts: ScorePart[] = [{ key: "base", label: "Start", value: 100 }];
+  parts.push({ key: "priority_weight", label: `Priority ${priority}`, value: -rules.priority_weight * priority });
+  if (years) parts.push({ key: "years_weight", label: `${years} years to fruit`, value: -rules.years_weight * years });
+  if (fit === "marginal") parts.push({ key: "marginal_penalty", label: "Marginal zone", value: -rules.marginal_penalty });
+  if (input.track !== "deer") {
+    if (input.timing === "fast" && years) {
+      parts.push({ key: "timing_fast", label: "You want it fast", value: -rules.timing_fast * years });
+    } else if (input.timing === "patient" && years) {
+      parts.push({ key: "timing_patient", label: "You are patient", value: rules.timing_patient * years });
+    }
+    if (slot === "support" && plant.nitrogen_fixer) {
+      parts.push({ key: "nitrogen_bonus", label: "Fixes nitrogen", value: rules.nitrogen_bonus });
+    }
+  } else {
+    const inSeason = seasonMonths(slot);
+    const months = plant.harvest_months.filter((m) => inSeason.includes(m)).length;
+    if (months) parts.push({ key: "season_bonus", label: `${months} drop months in season`, value: rules.season_bonus * months });
+    if (plant.wildlife_value === "high") parts.push({ key: "wildlife_bonus", label: "High wildlife value", value: rules.wildlife_bonus });
+    // A plant that drops in both seasons fills either slot, scored 10 lower in
+    // early so a true early tree wins there (Whitetail's rule, kept).
+    if (slot === "early" && deerSeason(plant) === "both") {
+      parts.push({ key: "season_bonus", label: "Drops in both seasons", value: -10 });
+    }
+  }
+  if ((plant.pollination_min ?? 1) > slotQty + 2) {
+    parts.push({ key: "pollination", label: `Needs ${plant.pollination_min} to pollinate`, value: -20 });
+  }
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  return { total, parts };
+}
+
 /** Score per candidate within a slot (§C.2); higher wins. */
 export function score(
   plant: PlannerPlant,
@@ -58,32 +115,18 @@ export function score(
   slot: Slot,
   slotQty: number,
   input: Pick<PlanInput, "track" | "timing">,
+  rules: PlannerRules = resolveRules(undefined),
 ): number {
-  const priority = plant.priority ?? DEFAULT_PRIORITY;
-  const years = plant.years_to_fruit_min ?? 0;
-  let s = 100 - 2 * priority - 1.5 * years;
-  if (fit === "marginal") s -= 40;
-  if (input.track !== "deer") {
-    if (input.timing === "fast") s -= 3 * years;
-    else if (input.timing === "patient") s += 2 * years;
-  } else {
-    const inSeason = seasonMonths(slot);
-    s += 4 * plant.harvest_months.filter((m) => inSeason.includes(m)).length;
-    if (plant.wildlife_value === "high") s += 10;
-    // A plant that drops in both seasons fills either slot, scored 10 lower in
-    // early so a true early tree wins there (Whitetail's rule, kept).
-    if (slot === "early" && deerSeason(plant) === "both") s -= 10;
-  }
-  if ((plant.pollination_min ?? 1) > slotQty + 2) s -= 20;
-  return s;
+  return explainScore(plant, fit, slot, slotQty, input, rules).total;
 }
 
 /**
- * `plan(input, catalog)`: the whole order builder as one pure function.
- * Same input and catalog give the same result; ties break on `id`. No Date,
- * no random, no network.
+ * The §C.2 filter, once, for one set of answers: shippable, carve-out
+ * substitution for the state, zone fit, site, the deer and riparian gates.
+ * `plan`, `nextFor` and `suggested` all read the same pool, so a hand add is
+ * eligible exactly when the engine could have picked it.
  */
-export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
+export function eligible(input: PlanInput, catalog: PlannerCatalog): Eligibility {
   const byId = new Map<number, PlannerPlant>();
   for (const p of catalog.plants) byId.set(p.id, p);
 
@@ -91,6 +134,7 @@ export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
   const notify = new Map<number, PlannerPlant>();
   const substitutions: Substitution[] = [];
   const state = input.state;
+  let hidden = 0;
 
   // Filter in id order so every later tie-break is stable.
   const plants = [...catalog.plants].sort((a, b) => a.id - b.id);
@@ -106,8 +150,10 @@ export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
       }
     }
     const fit = zoneFit(plant, input.zone);
-    if (!fit) continue;
-    if (!siteOk(plant, input.site)) continue;
+    if (!fit || !siteOk(plant, input.site)) {
+      hidden += 1;
+      continue;
+    }
     if (input.track === "deer" && plant.wildlife_value !== "high" && plant.wildlife_value !== "medium") {
       continue;
     }
@@ -118,31 +164,64 @@ export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
       notify.set(plant.id, plant);
     }
   }
+  return { pool, notify, substitutions, hidden };
+}
 
-  const slots = slotsFor(input.track, input.subgoal, input.timing).filter((s) => s.share > 0);
+function slotQtyFor(total: number, share: number): number {
+  // A slot with fewer than 2 trees' share still gets 1 line if a candidate exists.
+  return Math.max(1, Math.round(total * share));
+}
+
+/** Best candidate for `slot` from `pool`, skipping `exclude`; null when none fits. */
+function bestFor(
+  pool: Iterable<Candidate>,
+  slot: Slot,
+  slotQty: number,
+  input: PlanInput,
+  rules: PlannerRules,
+  exclude: ReadonlySet<number>,
+): Candidate | null {
+  const ranked = [...pool]
+    .filter((c) => !exclude.has(c.plant.id) && fitsSlot(c.plant, slot, input.track))
+    .map((c) => ({ c, s: score(c.plant, c.zoneFit, slot, slotQty, input, rules) }))
+    .sort((a, b) => b.s - a.s || a.c.plant.id - b.c.plant.id);
+  return ranked[0]?.c ?? null;
+}
+
+function lineFor(c: Candidate, slot: Slot, slotQty: number): PlanLine {
+  const floor = c.plant.pollination_min ?? 1;
+  const qty = Math.max(slotQty, floor);
+  const line: PlanLine = { plant: c.plant, qty, slot, zoneFit: c.zoneFit };
+  if (qty > slotQty) line.note = `needs ${floor} to pollinate`;
+  return line;
+}
+
+/**
+ * `plan(input, catalog)`: the whole order builder as one pure function.
+ * Same input and catalog give the same result; ties break on `id`. No Date,
+ * no random, no network. Rule values come from the feed (`catalog.rules`)
+ * with the shipped constants as the fallback for any missing key.
+ */
+export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
+  const rules = resolveRules(catalog);
+  const { pool, notify, substitutions } = eligible(input, catalog);
+
+  const slots = slotsFor(input.track, input.subgoal, input.timing);
   const lines: PlanLine[] = [];
   const unfilled: Slot[] = [];
   const used = new Set<number>();
   const total = Math.max(0, Math.floor(input.size));
 
   for (const { slot, share } of slots) {
-    // A slot with fewer than 2 trees' share still gets 1 line if a candidate exists.
-    const slotQty = Math.max(1, Math.round(total * share));
-    const ranked = [...pool.values()]
-      .filter((c) => !used.has(c.plant.id) && fitsSlot(c.plant, slot, input.track))
-      .map((c) => ({ c, s: score(c.plant, c.zoneFit, slot, slotQty, input) }))
-      .sort((a, b) => b.s - a.s || a.c.plant.id - b.c.plant.id);
-    const best = ranked[0]?.c;
+    const slotQty = slotQtyFor(total, share);
+    const best = bestFor(pool.values(), slot, slotQty, input, rules, used);
     if (!best) {
-      unfilled.push(slot);
+      // A share-0 slot (mushroom) is optional: nothing to fill is not a gap.
+      if (share > 0) unfilled.push(slot);
       continue;
     }
     used.add(best.plant.id);
-    const floor = best.plant.pollination_min ?? 1;
-    const qty = Math.max(slotQty, floor);
-    const line: PlanLine = { plant: best.plant, qty, slot, zoneFit: best.zoneFit };
-    if (qty > slotQty) line.note = `needs ${floor} to pollinate`;
-    lines.push(line);
+    lines.push(lineFor(best, slot, slotQty));
   }
 
   // Only substitutions that actually ended up in the plan are worth saying.
@@ -158,7 +237,7 @@ export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
   const status: PlanResult["status"] =
     lines.length === 0 ? "empty" : unfilled.length === 0 ? "ok" : "partial";
   const subtotal = round2(lines.reduce((sum, l) => sum + l.qty * l.plant.price, 0));
-  const treeCount = lines.reduce((sum, l) => sum + l.qty, 0);
+  const treeCount = countTrees(lines);
   const consult = subtotal >= CONSULT_SUBTOTAL || input.track === "agro" || status === "partial";
   const harvestMonths = [...new Set(lines.flatMap((l) => l.plant.harvest_months))].sort(
     (a, b) => a - b,
@@ -178,6 +257,46 @@ export function plan(input: PlanInput, catalog: PlannerCatalog): PlanResult {
   const bundle = matchBundle(lines, catalog, input, subtotal);
   if (bundle) result.bundle = bundle;
   return result;
+}
+
+/** Trees in a set of lines: spawn is not a tree. */
+export function countTrees(lines: readonly PlanLine[]): number {
+  return lines.reduce((sum, l) => sum + (isFungal(l.plant) ? 0 : l.qty), 0);
+}
+
+/**
+ * Swap (§C.1): the next best candidate for `slot` that is not in `exclude`
+ * (every plant already on the card plus the one being swapped out), as a
+ * line sized for that slot. Null when the pool has nothing else for it.
+ */
+export function nextFor(
+  input: PlanInput,
+  catalog: PlannerCatalog,
+  slot: Slot,
+  exclude: Iterable<number>,
+): PlanLine | null {
+  const rules = resolveRules(catalog);
+  const { pool } = eligible(input, catalog);
+  const share = slotsFor(input.track, input.subgoal, input.timing).find((s) => s.slot === slot)?.share ?? 0;
+  const slotQty = slotQtyFor(Math.max(0, Math.floor(input.size)), share);
+  const best = bestFor(pool.values(), slot, slotQty, input, rules, new Set(exclude));
+  return best ? lineFor(best, slot, slotQty) : null;
+}
+
+/**
+ * Why a line scored what it did (§C.4), using the rules the catalog carries
+ * (or `overrides` from the bench's what-if sliders). Pure.
+ */
+export function explain(
+  input: PlanInput,
+  catalog: PlannerCatalog,
+  line: PlanLine,
+  overrides?: Partial<PlannerRules>,
+): ScoreExplanation {
+  const rules = resolveRules(catalog, overrides);
+  const share = slotsFor(input.track, input.subgoal, input.timing).find((s) => s.slot === line.slot)?.share ?? 0;
+  const slotQty = slotQtyFor(Math.max(0, Math.floor(input.size)), share);
+  return explainScore(line.plant, line.zoneFit, line.slot, slotQty, input, rules);
 }
 
 function round2(n: number): number {

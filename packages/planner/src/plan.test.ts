@@ -18,27 +18,30 @@ describe("plan(): golden results per track (fixture catalog, zone 6 WV)", () => 
     const r = plan(WV, FIXTURE_CATALOG);
     expect(r.status).toBe("ok");
     // canopy 4 → chestnut (priority 10); understory 6 → persimmon (20);
-    // shrub 8 → hazelnut (20); support 2 → redbud (ties with buttonbush, lower id).
+    // shrub 8 → hazelnut (20); support 2 → redbud (ties with buttonbush, lower id);
+    // mushroom (share 0) → one wine cap spawn (winter beta), not a tree.
     expect(lineIds(r)).toEqual([
       [101, 4, "canopy"],
       [102, 6, "understory"],
       [104, 8, "shrub"],
       [108, 2, "support"],
+      [117, 1, "mushroom"],
     ]);
     expect(r.treeCount).toBe(20);
-    expect(r.subtotal).toBe(4 * 28 + 6 * 18 + 8 * 12 + 2 * 14);
+    expect(r.subtotal).toBe(4 * 28 + 6 * 18 + 8 * 12 + 2 * 14 + 24);
     expect(r.consult).toBe(false);
-    expect(r.harvestMonths).toEqual([8, 9, 10, 11]);
+    expect(r.harvestMonths).toEqual([5, 6, 8, 9, 10, 11]);
     // Sold-out sawtooth oak and cap-reached crabapple would have qualified.
     expect(r.notify.map((p) => p.id)).toEqual([110, 114]);
     // Pickup-only black walnut is never in the pool nor in notify.
     expect(r.notify.some((p) => p.id === 115)).toBe(false);
   });
 
-  it("food forest 5 (Corner) gives 3 to 4 lines, not 5", () => {
+  it("food forest 5 (Corner) gives 3 to 4 tree lines, not 5", () => {
     const r = plan({ ...WV, size: 5 }, FIXTURE_CATALOG);
-    expect(r.lines.length).toBeGreaterThanOrEqual(3);
-    expect(r.lines.length).toBeLessThanOrEqual(4);
+    const treeLines = r.lines.filter((l) => l.slot !== "mushroom");
+    expect(treeLines.length).toBeGreaterThanOrEqual(3);
+    expect(treeLines.length).toBeLessThanOrEqual(4);
     // canopy 1 → chestnut raised to its pollination floor of 2.
     const canopy = r.lines.find((l) => l.slot === "canopy")!;
     expect(canopy.qty).toBe(2);
@@ -59,23 +62,24 @@ describe("plan(): golden results per track (fixture catalog, zone 6 WV)", () => 
 
   it("agroforestry: each sub-goal uses its slot table and always asks for the consult", () => {
     const alley = plan({ ...WV, track: "agro", subgoal: "alley", size: 50 }, FIXTURE_CATALOG);
-    expect(alley.lines.map((l) => l.slot)).toEqual(["canopy", "shrub"]);
-    expect(alley.lines.map((l) => l.qty)).toEqual([25, 25]);
+    expect(alley.lines.map((l) => l.slot)).toEqual(["canopy", "shrub", "mushroom"]);
+    expect(alley.lines.map((l) => l.qty)).toEqual([25, 25, 1]);
+    expect(alley.treeCount).toBe(50);
     expect(alley.consult).toBe(true);
 
     const silvo = plan({ ...WV, track: "agro", subgoal: "silvo", size: 50 }, FIXTURE_CATALOG);
-    expect(silvo.lines.map((l) => [l.slot, l.qty])).toEqual([["canopy", 35], ["understory", 15]]);
+    expect(silvo.lines.map((l) => [l.slot, l.qty])).toEqual([["canopy", 35], ["understory", 15], ["mushroom", 1]]);
 
     const windbreak = plan({ ...WV, track: "agro", subgoal: "windbreak", size: 100 }, FIXTURE_CATALOG);
     expect(windbreak.lines.map((l) => [l.slot, l.qty])).toEqual([
-      ["canopy", 40], ["understory", 30], ["shrub", 30],
+      ["canopy", 40], ["understory", 30], ["shrub", 30], ["mushroom", 1],
     ]);
 
     // Riparian buffer: wet-tolerant plants only (persimmon, pawpaw / elderberry, aronia, buttonbush).
     const riparian = plan({ ...WV, track: "agro", subgoal: "riparian", size: 50 }, FIXTURE_CATALOG);
     expect(riparian.lines.every((l) => l.plant.tolerates.wet)).toBe(true);
     expect(riparian.lines.map((l) => [l.plant.id, l.slot, l.qty])).toEqual([
-      [102, "understory", 20], [105, "shrub", 30],
+      [102, "understory", 20], [105, "shrub", 30], [117, "mushroom", 1],
     ]);
   });
 
@@ -262,8 +266,8 @@ describe("plan(): bundle match", () => {
     expect(hundred.bundle).toMatchObject({ id: 135, covers: 100 });
     const agro = plan({ ...WV, track: "agro", subgoal: "alley", size: 50 }, FIXTURE_CATALOG);
     expect(agro.bundle).toMatchObject({ id: 134, consultBuilt: true });
-    // The planned mix still rides along as the starting point.
-    expect(agro.lines.length).toBe(2);
+    // The planned mix still rides along as the starting point (plus the spawn line).
+    expect(agro.lines.length).toBe(3);
   });
 });
 

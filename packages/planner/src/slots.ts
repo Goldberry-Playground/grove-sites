@@ -5,31 +5,44 @@ export interface SlotShare {
   share: number;
 }
 
+/**
+ * The spawn slot (winter-beta spec, decisions): share 0, so the tree shares
+ * are untouched and the plan takes one spawn line when the catalog has a
+ * fungal plant that fits. Food forest and agroforestry only, never deer. A
+ * share-0 slot is optional: an empty one is not an unfilled layer.
+ */
+export const MUSHROOM_SLOT: SlotShare = { slot: "mushroom", share: 0 };
+
 /** Slot tables from §C.2, keyed by track / sub-goal / deer timing. */
 export const FOOD_FOREST_SLOTS: SlotShare[] = [
   { slot: "canopy", share: 0.2 },
   { slot: "understory", share: 0.3 },
   { slot: "shrub", share: 0.4 },
   { slot: "support", share: 0.1 },
+  MUSHROOM_SLOT,
 ];
 
 export const AGRO_SLOTS: Record<Subgoal, SlotShare[]> = {
   alley: [
     { slot: "canopy", share: 0.5 },
     { slot: "shrub", share: 0.5 },
+    MUSHROOM_SLOT,
   ],
   silvo: [
     { slot: "canopy", share: 0.7 },
     { slot: "understory", share: 0.3 },
+    MUSHROOM_SLOT,
   ],
   riparian: [
     { slot: "understory", share: 0.4 },
     { slot: "shrub", share: 0.6 },
+    MUSHROOM_SLOT,
   ],
   windbreak: [
     { slot: "canopy", share: 0.4 },
     { slot: "understory", share: 0.3 },
     { slot: "shrub", share: 0.3 },
+    MUSHROOM_SLOT,
   ],
 };
 
@@ -93,8 +106,13 @@ export function deerSeason(plant: Pick<PlannerPlant, "harvest_months">): DeerSea
 }
 
 /** A support plant is any layer with an empty `harvest_months` (pollinator and nurse plants). */
-export function isSupport(plant: Pick<PlannerPlant, "harvest_months">): boolean {
-  return (plant.harvest_months ?? []).length === 0;
+export function isSupport(plant: Pick<PlannerPlant, "harvest_months" | "layer">): boolean {
+  return !isFungal(plant) && (plant.harvest_months ?? []).length === 0;
+}
+
+/** Mushroom spawn: the `fungal` layer (winter-beta spec §A). */
+export function isFungal(plant: Pick<PlannerPlant, "layer">): boolean {
+  return plant.layer === "fungal";
 }
 
 /**
@@ -103,6 +121,9 @@ export function isSupport(plant: Pick<PlannerPlant, "harvest_months">): boolean 
  * takes the canopy share meant for a chestnut.
  */
 export function fitsSlot(plant: PlannerPlant, slot: Slot, track: Track): boolean {
+  // Spawn fills the mushroom slot and nothing else; a harvest month on a
+  // shiitake must never land it in a deer plot or a fruiting layer.
+  if (isFungal(plant)) return slot === "mushroom" && track !== "deer";
   switch (slot) {
     case "canopy":
     case "understory":
@@ -110,6 +131,8 @@ export function fitsSlot(plant: PlannerPlant, slot: Slot, track: Track): boolean
       return plant.layer === slot && (track !== "food" || !isSupport(plant));
     case "support":
       return isSupport(plant);
+    case "mushroom":
+      return false;
     case "early": {
       const s = deerSeason(plant);
       return s === "early" || s === "both";
