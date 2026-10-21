@@ -59,10 +59,9 @@ export function PrivacyNotice({
       </header>
 
       <p className="grove-privacy__lede">
-        {brandName} is one of four Grove websites. {joinNames([brandName, ...others])} are run
-        by the same family from one farm in Summersville, West Virginia. This page explains what
-        we collect when you use any of our websites, why we collect it, and what you can do about
-        it.
+        {brandName} is run by the same family as {joinNames(others)}, from one farm in
+        Summersville, West Virginia. This page explains what we collect when you use any of our
+        websites, why we collect it, and what you can do about it.
       </p>
 
       <nav className="grove-privacy__toc" aria-label="On this page">

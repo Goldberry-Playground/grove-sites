@@ -8,8 +8,8 @@ import { PrivacyNotice, GROVE_BRAND_NAMES } from "./index";
 describe("<PrivacyNotice /> (GOL-3456)", () => {
   it("leads with the host brand and names all four Grove brands", () => {
     render(<PrivacyNotice brandName="At The Grove Nursery" />);
-    const lede = screen.getByText(/is one of four Grove websites/);
-    expect(lede.textContent?.startsWith("At The Grove Nursery is one of four Grove websites.")).toBe(true);
+    const lede = screen.getByText(/is run by the same family as/);
+    expect(lede.textContent?.startsWith("At The Grove Nursery is run by the same family as")).toBe(true);
     for (const name of GROVE_BRAND_NAMES) expect(lede.textContent).toContain(name);
   });
 

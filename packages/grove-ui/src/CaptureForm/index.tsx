@@ -278,6 +278,22 @@ export function CaptureForm({
     }
   }
 
+  const extras = (
+    <>
+      {optInLine ? (
+        <p id={optInLineId} className="grove-capture__optin">
+          {optInLine}
+        </p>
+      ) : null}
+      {multibrandOptIn ? (
+        <label htmlFor={multibrandId} className="grove-capture__multibrand">
+          <input id={multibrandId} name="multibrand" type="checkbox" />
+          <span>{multibrandLabel}</span>
+        </label>
+      ) : null}
+    </>
+  );
+
   if (status === "success") {
     return (
       <div
@@ -375,23 +391,18 @@ export function CaptureForm({
           />
         </div>
 
+        {/* Stacked: the opt-in line and the multibrand choice sit between the
+            field and the button, so reading order, DOM order and tab order
+            agree (field → what you get → optional add-on → action). Inline:
+            the field + button stay one row and the extras follow it. */}
+        {layout === "stacked" ? extras : null}
+
         <Button type="submit" disabled={status === "submitting"}>
           {status === "submitting" ? submittingLabel : submitLabel}
         </Button>
       </div>
 
-      {optInLine ? (
-        <p id={optInLineId} className="grove-capture__optin">
-          {optInLine}
-        </p>
-      ) : null}
-
-      {multibrandOptIn ? (
-        <label htmlFor={multibrandId} className="grove-capture__multibrand">
-          <input id={multibrandId} name="multibrand" type="checkbox" />
-          <span>{multibrandLabel}</span>
-        </label>
-      ) : null}
+      {layout === "inline" ? extras : null}
 
       <p className="grove-capture__consent">
         {consentText}{" "}
