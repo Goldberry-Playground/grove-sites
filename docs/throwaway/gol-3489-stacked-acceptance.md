@@ -6,3 +6,8 @@ acceptance evidence is captured on GOL-3489.
 
 - parent: this branch, based on `main`
 - child: an edit to this file, based on the parent branch
+
+## Child edit
+
+This line is the child PR's change. Its base is the parent branch, so the
+workflow must approve it and stop with the GOL-3489 notice instead of merging.
