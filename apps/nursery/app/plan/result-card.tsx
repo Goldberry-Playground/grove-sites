@@ -562,6 +562,7 @@ function LineRow({
       className="grid grid-cols-[4rem_1fr] gap-4 py-4 sm:grid-cols-[4rem_1fr_auto]"
       data-testid="plan-line"
       data-plan-line={p.id}
+      data-tier={tierOf(p)}
       data-manual={line.manual ? "true" : undefined}
     >
       <div className="relative h-16 w-16 overflow-hidden rounded bg-paper-deep">
