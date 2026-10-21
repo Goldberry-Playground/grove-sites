@@ -7,6 +7,7 @@ import {
   searchProducts,
 } from "../../../lib/marketplace";
 import { marketplace } from "../../../data/marketplace";
+import { firstPhotoIndex } from "../../../lib/odoo-image";
 
 export const revalidate = 3600;
 
@@ -22,6 +23,7 @@ export default async function MarketplacePage({
 
   if (query) {
     const matches = await searchProducts(query);
+    const lcpIndex = firstPhotoIndex(matches);
     return (
       <main className="marketplace">
         <header className="marketplace__head">
@@ -30,8 +32,12 @@ export default async function MarketplacePage({
           <Link href="/marketplace"><GlyphIcon name="arrow-left" /> Back to the marketplace</Link>
         </header>
         <section className="marketplace__grid">
-          {matches.map((m) => (
-            <ProductCard key={`${m.vendor.slug}-${m.product.slug}`} product={m} />
+          {matches.map((m, i) => (
+            <ProductCard
+              key={`${m.vendor.slug}-${m.product.slug}`}
+              product={m}
+              priority={i === lcpIndex}
+            />
           ))}
         </section>
       </main>
@@ -45,6 +51,21 @@ export default async function MarketplacePage({
       catalog: await fetchVendorCatalog(v.slug),
     })),
   );
+
+  // GOL-3477: exactly one card photo on the page is the LCP candidate — the
+  // first card in render order that has a photo. With picks that is in the
+  // featured row; otherwise it is in the first vendor row that has one. That
+  // image loads eager + fetchpriority=high; every other card stays lazy.
+  const featuredLcpIndex = firstPhotoIndex(featured);
+  const vendorLcp =
+    featuredLcpIndex >= 0
+      ? null
+      : byVendor
+          .map(({ vendor, catalog }) => ({
+            vendorSlug: vendor.slug,
+            index: catalog.state === "ok" ? firstPhotoIndex(catalog.products.slice(0, 4)) : -1,
+          }))
+          .find((c) => c.index >= 0) ?? null;
 
   return (
     <main className="marketplace">
@@ -74,11 +95,12 @@ export default async function MarketplacePage({
         <section className="marketplace__featured">
           <h2>Featured this week</h2>
           <div className="marketplace__grid">
-            {featured.map((f) => (
+            {featured.map((f, i) => (
               <ProductCard
                 key={`${f.vendor.slug}-${f.product.slug}`}
                 product={{ product: f.product, vendor: f.vendor }}
                 editorialNote={f.editorialNote}
+                priority={i === featuredLcpIndex}
               />
             ))}
           </div>
@@ -116,8 +138,12 @@ export default async function MarketplacePage({
 
           {catalog.state === "ok" ? (
             <div className="marketplace__grid">
-              {catalog.products.slice(0, 4).map((p) => (
-                <ProductCard key={p.product.slug} product={p} />
+              {catalog.products.slice(0, 4).map((p, i) => (
+                <ProductCard
+                  key={p.product.slug}
+                  product={p}
+                  priority={vendor.slug === vendorLcp?.vendorSlug && i === vendorLcp.index}
+                />
               ))}
             </div>
           ) : catalog.state === "coming-soon" ? (

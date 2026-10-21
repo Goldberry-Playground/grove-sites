@@ -8,7 +8,12 @@ export { NavLink, type NavLinkProps } from "./NavLink";
 export { CartNavLink, type CartNavLinkProps } from "./CartNavLink";
 
 // Hub cards
-export { ProductCard, type ProductCardProps, type ProductCardData } from "./ProductCard";
+export {
+  ProductCard,
+  PRODUCT_CARD_IMAGE_SIZE,
+  type ProductCardProps,
+  type ProductCardData,
+} from "./ProductCard";
 export { VendorCard, type VendorCardProps } from "./VendorCard";
 export { BuyAtVendorForm, type BuyAtVendorFormProps } from "./BuyAtVendorForm";
 export {
