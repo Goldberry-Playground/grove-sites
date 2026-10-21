@@ -1,0 +1,20 @@
+{
+  "//": "Lighthouse lab audit of the deployed QA storefronts (release-train window). Same GOL-864 §1a/§1b budget as lighthouserc.json, but as WARN, not error: on 2026-10-20 every QA page missed it (LCP 3.3-5.7 s, nursery TBT 200-290 ms, goldberry CLS 0.32), so a hard gate would only ever be red. The run still reports every breach; flip the workflow's `enforce` input to use lighthouserc.json's errors instead. Keep the thresholds in sync with lighthouserc.json and perf-budget.config.json.",
+  "ci": {
+    "collect": {
+      "numberOfRuns": 3,
+      "//settings": "Mobile is the Lighthouse default (simulated Slow-4G + 4x CPU). NEVER set preset: 'mobile' (the CLI rejects it); see lighthouserc.json."
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 2000, "aggregationMethod": "median" }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.05, "aggregationMethod": "median" }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 200, "aggregationMethod": "median" }],
+        "total-byte-weight": ["warn", { "maxNumericValue": 552960, "aggregationMethod": "median" }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}

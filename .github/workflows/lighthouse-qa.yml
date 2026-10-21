@@ -1,0 +1,121 @@
+name: lighthouse-qa
+
+###############################################################################
+# Lighthouse (mobile) against the DEPLOYED QA storefronts: all four apps.
+#
+# lighthouse-ci.yml audits per-PR preview droplets; nothing audited QA, which
+# is where every release train actually runs (Mon up -> Wed promote). This is
+# the QA counterpart: one matrix leg per storefront, median of 3 runs per page,
+# the same GOL-864 budget as lighthouserc.json. Budget breaches WARN by default
+# (lighthouserc.qa.json) because today's baseline misses them on every page;
+# set enforce=true to fail on them (lighthouserc.json).
+#
+# MANUAL (workflow_dispatch) and not a required check: it needs the QA window
+# up. RELEASE TRAIN: dispatch it alongside e2e-nursery after the final pins, and
+# compare against the previous train's run before promoting:
+#   gh workflow run lighthouse-qa.yml --repo Goldberry-Playground/grove-sites --ref main
+#
+# Each leg's report links (temporary public storage) and the raw .lighthouseci
+# JSON are uploaded as artifacts.
+###############################################################################
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Storefront domain suffix (QA by default); each app is <app>.<domain>"
+        required: false
+        default: "qa.gatheringatthegrove.com"
+        type: string
+      enforce:
+        description: "Fail the run on a budget breach (lighthouserc.json) instead of warning"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: lighthouse-qa-${{ inputs.domain }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Lighthouse ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Home, the main listing, and one representative detail/long page per
+          # app. Keep paths that exist on QA; a 404 page audits as "fast".
+          - app: nursery
+            paths: "/ /shop /shop/29"
+          - app: goldberry
+            paths: "/ /shop /recipes"
+          - app: hub
+            paths: "/ /marketplace"
+          - app: ggg
+            paths: "/ /shop"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the URL list
+        id: urls
+        env:
+          APP: ${{ matrix.app }}
+          DOMAIN: ${{ inputs.domain }}
+          PATHS: ${{ matrix.paths }}
+        run: |
+          {
+            echo "list<<EOF"
+            for p in $PATHS; do echo "https://${APP}.${DOMAIN}${p}"; done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          # Fail fast if the storefront is down (QA outside the train window).
+          code=$(curl -s -o /dev/null -w '%{http_code}' -m 20 "https://${APP}.${DOMAIN}/")
+          if [ "$code" != "200" ]; then
+            echo "::error::https://${APP}.${DOMAIN}/ answered ${code}; is the QA train window up?"
+            exit 1
+          fi
+
+      - name: Run Lighthouse
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12.6.2
+        with:
+          urls: ${{ steps.urls.outputs.list }}
+          configPath: ${{ inputs.enforce && './lighthouserc.json' || './lighthouserc.qa.json' }}
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Summarize medians
+        if: always()
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, json, os, statistics
+          rows = {}
+          for f in glob.glob(".lighthouseci/lhr-*.json"):
+              d = json.load(open(f))
+              if d["categories"]["performance"]["score"] is None:
+                  continue
+              a = d["audits"]
+              rows.setdefault(d["requestedUrl"], []).append((
+                  d["categories"]["performance"]["score"] * 100,
+                  a["first-contentful-paint"]["numericValue"] / 1000,
+                  a["largest-contentful-paint"]["numericValue"] / 1000,
+                  a["total-blocking-time"]["numericValue"],
+                  a["cumulative-layout-shift"]["numericValue"],
+                  a["total-byte-weight"]["numericValue"] / 1024,
+              ))
+          print(f"### {os.environ['APP']} (median of runs)\n")
+          print("| URL | n | Score | FCP | LCP | TBT | CLS | Weight |")
+          print("|---|---|---|---|---|---|---|---|")
+          for url in sorted(rows):
+              v = rows[url]
+              m = lambda i: statistics.median(x[i] for x in v)
+              print(f"| {url} | {len(v)} | {m(0):.0f} | {m(1):.1f} s | {m(2):.1f} s | {m(3):.0f} ms | {m(4):.3f} | {m(5):.0f} KB |")
+          print()
+          PY

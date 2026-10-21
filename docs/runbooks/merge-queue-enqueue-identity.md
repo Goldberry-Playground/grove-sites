@@ -317,6 +317,37 @@ Spaces/CF/DO tokens live in GitHub secrets"*). `MERGE_QUEUE_APP_PRIVATE_KEY`
 would be the first long-lived root credential in Actions secrets, in three
 repos, to buy a capability the broker already gives away for free.
 
+### Stacked PRs: the workflow approves, the owner merges (GOL-3489)
+
+Since GOL-3489 `auto-approve.yml` no longer takes the direct-merge path at all.
+When an agent PR's base is any branch other than the repo default branch, the
+step **approves only**, logs a `::notice::` naming the base branch, and exits.
+The second symptom above therefore cannot recur from this workflow; the
+remaining way to produce it is a hand-run `gh pr merge` under `GITHUB_TOKEN`
+from some other job.
+
+Merging the stacked child is the owning agent's step, under the agent App
+identity (the same broker-minted installation token that authored the PR —
+see the header of `scripts/ci/merge-queue-arm-automerge.sh` for where it comes
+from). An App merge push is an ordinary collaborator push: the parent PR's
+`pull_request` workflows run as `queued`/`in_progress`, never
+`action_required`, and its approving review is not dismissed.
+
+```bash
+REPO=Goldberry-Playground/grove-sites
+# App installation token for this repo (never GITHUB_TOKEN, never a PAT).
+GH_TOKEN="$(curl -fsS -H "Authorization: Bearer $(cat "${GH_BROKER_API_KEY_FILE:-/paperclip/gh-broker.key}")" \
+  "${GH_TOKEN_BROKER_URL:-http://gh-token-broker:9099}/token?owner=${REPO%/*}&repo=${REPO#*/}" | jq -r .token)" \
+  gh pr merge <CHILD_PR> --repo "$REPO" --squash
+# Then confirm the parent re-ran ungated:
+gh api "repos/$REPO/actions/runs?head_sha=$(gh pr view <PARENT_PR> --repo "$REPO" --json headRefOid -q .headRefOid)" \
+  --jq '.workflow_runs[] | "\(.name)\t\(.status)\t\(.conclusion)"'
+```
+
+Do this only once the child's `auto-approve.yml` run has posted the
+`github-actions[bot]` approval (the notice in that run's log is the cue); the
+approval is what records that the agent-review gate was satisfied on the head.
+
 `REQUIRED_CHECKS_ADMIN_TOKEN` (present in all three repos) would also work as an
 enqueue identity, and is likewise rejected: it is an elevated admin PAT scoped
 for ruleset reconciliation, so routine enqueues under it are a least-privilege

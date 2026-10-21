@@ -30,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Dependency Review
-        uses: actions/dependency-review-action@2f920dad77d7f4f2ea876b66287b896de40dda79 # v4.5.0
+        uses: actions/dependency-review-action@907a6e9569212033966bc0b69d32473b046dd66b # v4.5.0
         with:
           fail-on-severity: high
           # GPL-3.0 + AGPL conflict with our private commercial use; flag them.
