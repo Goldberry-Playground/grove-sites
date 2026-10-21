@@ -348,6 +348,14 @@ Do this only once the child's `auto-approve.yml` run has posted the
 `github-actions[bot]` approval (the notice in that run's log is the cue); the
 approval is what records that the agent-review gate was satisfied on the head.
 
+> **Acceptance record 2026-10-21 (GOL-3489):** throwaway child gs#1143 (base
+> `throwaway/gol-3489-stacked-parent`) was approved by auto-approve runs
+> 39624322445 / 39624321903, which logged the notice above and did not merge;
+> its parent gs#1142 then went through the queue on its own. The App-token
+> child merge was exercised on a second pair, parent gs#1149 / child = the PR
+> that added this paragraph; the parent's runs on the post-merge head are
+> recorded on GOL-3489.
+
 `REQUIRED_CHECKS_ADMIN_TOKEN` (present in all three repos) would also work as an
 enqueue identity, and is likewise rejected: it is an elevated admin PAT scoped
 for ruleset reconciliation, so routine enqueues under it are a least-privilege
