@@ -18,6 +18,7 @@ import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
 import { resolveLivechatConfig } from "./livechat-config";
 import { fontVariables } from "@grove/ui/fonts/editorial";
+import { NURSERY_OPT_IN_LINE, POSTAL_ADDRESS_LINE } from "../lib/newsletter-copy";
 import "./globals.css";
 
 // Site-wide metadata defaults (GOL-2878 Phase 1).
@@ -131,23 +132,26 @@ export default async function RootLayout({
                   Homepage keeps it because nothing higher applies — GOL-931
                   superseded by generalisation, not reverted. */}
               <CaptureSlot priority="newsletter">
+                {/* Newsletter list of record = Odoo Email Marketing (GOL-3456).
+                    Copy under the field, the multibrand box, the fine print and
+                    the privacy link are Josh's approved consent copy, verbatim. */}
                 <CaptureForm
                   brand="nursery"
                   source="footer"
                   label="nursery-general"
                   eyebrow="Newsletter"
                   heading="News from the nursery"
-                  description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
+                  optInLine={NURSERY_OPT_IN_LINE}
                   submitLabel="Sign up"
-                  successMessage="Thanks — you'll hear from us when there's something worth sending."
-                  consentText="Unsubscribe anytime."
                   layout="inline"
-                  hubOptIn
+                  multibrandOptIn
                 />
               </CaptureSlot>
               <FooterContact
                 phone={tenantConfig.contact.phone}
                 email={tenantConfig.contact.email}
+                address={POSTAL_ADDRESS_LINE}
+                privacyHref="/privacy"
                 className="text-center"
               />
               <p className="text-center">

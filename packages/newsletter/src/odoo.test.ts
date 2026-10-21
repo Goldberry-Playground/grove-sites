@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createOdooCrmSync, resolveOdooCrmConfig } from "./odoo";
+import { createOdooNewsletterProvider, resolveOdooNewsletterTarget } from "./odoo";
 import { validateOptIn } from "./capture";
 import type { OptInRequest } from "./types";
 
@@ -8,16 +8,14 @@ const req: OptInRequest = validateOptIn({
   name: " Sam ",
   brand: "nursery",
   interests: ["produce", "events"],
-  source: "checkout",
+  source: "footer",
+  label: "nursery-general",
+  multibrand: true,
   consent: true,
   attribution: { utm_source: "ig" },
 });
 
-const target = {
-  odooUrl: "https://odoo.test",
-  tenantId: "nursery",
-  apiKey: "key-123",
-};
+const target = { odooUrl: "https://odoo.test", tenantId: "nursery", apiKey: "key-123" };
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -26,95 +24,77 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-describe("resolveOdooCrmConfig", () => {
+describe("resolveOdooNewsletterTarget", () => {
   it("resolves a target from env + tenant, stripping the trailing slash", () => {
-    const t = resolveOdooCrmConfig("nursery", {
-      ODOO_URL: "https://odoo.test/",
-      ODOO_API_KEY: "key-123",
-    });
-    expect(t).toEqual({
-      odooUrl: "https://odoo.test",
-      tenantId: "nursery",
-      apiKey: "key-123",
-    });
+    expect(
+      resolveOdooNewsletterTarget("nursery", { ODOO_URL: "https://odoo.test/", ODOO_API_KEY: "key-123" }),
+    ).toEqual(target);
   });
 
-  it("returns null when the URL or API key is missing", () => {
-    expect(resolveOdooCrmConfig("nursery", { ODOO_URL: "https://odoo.test" })).toBeNull();
-    expect(resolveOdooCrmConfig("nursery", { ODOO_API_KEY: "k" })).toBeNull();
-    expect(resolveOdooCrmConfig("", { ODOO_URL: "u", ODOO_API_KEY: "k" })).toBeNull();
+  it("accepts the hub's GROVE_ODOO_URL name", () => {
+    expect(
+      resolveOdooNewsletterTarget("hub", { GROVE_ODOO_URL: "https://odoo.test", ODOO_API_KEY: "k" }),
+    ).toEqual({ odooUrl: "https://odoo.test", tenantId: "hub", apiKey: "k" });
+  });
+
+  it("returns null when the URL, the API key, or the tenant is missing", () => {
+    expect(resolveOdooNewsletterTarget("nursery", { ODOO_URL: "https://odoo.test" })).toBeNull();
+    expect(resolveOdooNewsletterTarget("nursery", { ODOO_API_KEY: "k" })).toBeNull();
+    expect(resolveOdooNewsletterTarget("", { ODOO_URL: "u", ODOO_API_KEY: "k" })).toBeNull();
   });
 });
 
-// createOdooCrmSync now delegates the transport to `@grove/odoo-client`, whose
-// shared `api()` helper uses the global `fetch`. So the tests stub the global
-// rather than injecting a fetch impl — proving the adapter still shapes headers,
-// body, and errors correctly through the real client.
-describe("createOdooCrmSync", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+// The provider delegates transport to `@grove/odoo-client`, whose shared `api()`
+// helper uses the global `fetch`, so the tests stub the global and prove the
+// adapter still shapes headers, body and errors through the real client.
+describe("createOdooNewsletterProvider", () => {
+  afterEach(() => vi.unstubAllGlobals());
 
-  it("POSTs a consented opt-in with tenant + bearer headers and returns the partner id", async () => {
-    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
-      void init;
-      return jsonResponse({ partner_id: 42, created: true });
-    });
+  it("POSTs the opt-in with tenant + bearer headers, explicit lists, and the form label", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ partner_id: 42, created: true, lists: ["nursery", "farm", "digest"], welcomed: true }),
+    );
     vi.stubGlobal("fetch", fetchMock);
-    const sync = createOdooCrmSync(target);
 
-    const outcome = await sync.subscribe(req);
+    const out = await createOdooNewsletterProvider(target).subscribe(req, ["nursery", "farm", "digest"]);
+    expect(out).toEqual({ ok: true, partnerId: "42", lists: ["nursery", "farm", "digest"], welcomed: true });
 
-    expect(outcome).toEqual({ ok: true, id: "42" });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://odoo.test/grove/api/v1/newsletter/subscribe");
-    expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;
     expect(headers["X-Grove-Tenant"]).toBe("nursery");
     expect(headers["Authorization"]).toBe("Bearer key-123");
-    const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({
-      email: "sam@example.com", // normalized by validateOptIn
+    expect(JSON.parse(String(init.body))).toEqual({
+      email: "sam@example.com",
       name: "Sam",
       brand: "nursery",
       interests: ["produce", "events"],
-      source: "checkout",
+      source: "footer",
       consent: true,
-      attribution: { utm_source: "ig" },
+      lists: ["nursery", "farm", "digest"],
+      multibrand: true,
+      attribution: { utm_source: "ig", form: "nursery-general" },
     });
   });
 
-  it("succeeds even when the response carries no partner id", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ email: "sam@example.com", created: true })),
-    );
-    const sync = createOdooCrmSync(target);
-    expect(await sync.subscribe(req)).toEqual({ ok: true });
+  it("drops unknown list keys Odoo might echo and treats a missing welcomed as false", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ partner_id: 1, lists: ["nursery", "zzz"] })));
+    const out = await createOdooNewsletterProvider(target).subscribe(req, ["nursery"]);
+    expect(out).toEqual({ ok: true, partnerId: "1", lists: ["nursery"], welcomed: false });
   });
 
-  it("reports a non-2xx as a best-effort failure without throwing", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ error: "boom" }, 500)),
-    );
-    const sync = createOdooCrmSync(target);
-    const outcome = await sync.subscribe(req);
-    expect(outcome.ok).toBe(false);
-    expect(outcome.error).toContain("odoo 500");
+  it("returns ok:false with the upstream status on a non-2xx instead of throwing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: "unknown list key" }, 400)));
+    const out = await createOdooNewsletterProvider(target).subscribe(req, ["nursery"]);
+    expect(out.ok).toBe(false);
+    expect(out.status).toBe(400);
+    expect(out.error).toMatch(/^odoo 400/);
   });
 
-  it("reports a network error as a best-effort failure without throwing", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("ECONNREFUSED");
-      }),
-    );
-    const sync = createOdooCrmSync(target);
-    const outcome = await sync.subscribe(req);
-    expect(outcome.ok).toBe(false);
-    expect(outcome.error).toContain("ECONNREFUSED");
+  it("returns ok:false on a network failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ECONNREFUSED"); }));
+    const out = await createOdooNewsletterProvider(target).subscribe(req, ["nursery"]);
+    expect(out.ok).toBe(false);
+    expect(out.error).toContain("ECONNREFUSED");
   });
 });

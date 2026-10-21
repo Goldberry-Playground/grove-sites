@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { CategoryBar } from "../category-bar";
 
 // At The Grove Nursery — Wholesale & Trade landing.
@@ -186,7 +186,7 @@ export default function WholesalePage() {
           description="Leave your name and email and a one-line note about what you're planting — species, rough quantities, ship-to zone, and target window. Wesley reads these directly and replies with trade pricing and a lift date. (A full trade order form is on the way.)"
           submitLabel="Send inquiry"
           successMessage="Got it, thanks. Wesley will be in touch with trade pricing and next steps."
-          consentText="We'll only use this to answer your wholesale inquiry. No list, no spam."
+          consentText={REQUEST_CONSENT_TEXT}
         />
       </section>
     </>

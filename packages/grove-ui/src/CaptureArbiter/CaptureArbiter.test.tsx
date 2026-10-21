@@ -54,6 +54,21 @@ describe("<CaptureSlot /> arbitration", () => {
     });
   });
 
+  it("lets a page's own newsletter form suppress the shared site-wide one (GOL-3456)", async () => {
+    render(
+      <CaptureArbiterProvider>
+        <CaptureSlot priority="page-newsletter">
+          <p>treefacts</p>
+        </CaptureSlot>
+        <CaptureSlot priority="newsletter">
+          <p>footer newsletter</p>
+        </CaptureSlot>
+      </CaptureArbiterProvider>,
+    );
+    await waitFor(() => expect(screen.queryByText("footer newsletter")).toBeNull());
+    expect(screen.getByText("treefacts")).toBeDefined();
+  });
+
   it("lets restock win over state when both qualify", async () => {
     render(
       <CaptureArbiterProvider>

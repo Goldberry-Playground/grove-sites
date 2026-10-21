@@ -1,46 +1,43 @@
 /**
- * @grove/newsletter — shared opt-in capture for the Grove brand family.
+ * @grove/newsletter — shared newsletter opt-in capture for the Grove brands.
  *
- * Implements the GOL-245 decision (Ghost-native, drop MailerLite): each brand's
- * own Ghost instance is that brand's **list of record**. Signups POST a Ghost
- * member (the `data-members-email` / send-magic-link pattern), so Ghost owns
- * confirmation (double opt-in via magic link), the member database, and
- * segmentation labels — no external ESP audience, no CSV export/import.
+ * Odoo Email Marketing (`mass_mailing`, grove_headless GOL-3454) is the list of
+ * record for every Grove newsletter; Ghost is blog-only (Josh, "option C",
+ * 2026-10-19). A signup is a single opt-in: the storefront BFF posts the
+ * address to `POST /grove/api/v1/newsletter/subscribe`, Odoo adds it to the
+ * chosen `mailing.list`s on submit and sends one welcome email with a one-click
+ * unsubscribe. Nobody has to click a confirmation link.
  *
- * Three sender instances back the brands:
+ * Three lists back the four brands:
  *
- *   - grove     → Gathering at the Grove (the hub) — the Grove Digest
- *   - nursery   → At the Grove Nursery
- *   - goldberry → Goldberry Grove (the farm)
+ *   nursery → Nursery News   (At The Grove Nursery)
+ *   farm    → Farm News      (Goldberry Grove)
+ *   digest  → Grove Digest   (the hub; GGG rides the Digest)
  *
- * GGG has no dedicated newsletter yet — its opt-ins ride the hub Digest, so the
- * `ggg` brand maps onto the `grove` sender/instance (see BRAND_TO_SENDER).
- *
- * Dual-write: a signup form may offer an explicit "Also get news from Gathering
- * at the Grove" checkbox. When checked (`hubOptIn`), the opt-in is written to
- * BOTH the brand instance and the hub (`grove`) instance. Two Ghost member
- * databases, two confirmations, one explicit consent.
+ * Every form carries one unticked "Also send me news from the other Grove
+ * brands" checkbox (`multibrand`). Ticked, the submit subscribes to every list
+ * the primary brand is not — the storefront expands that into the explicit
+ * `lists` array Odoo validates (spec §2).
  */
 
-/** A brand a visitor can opt in to. `ggg` is deferred and rides the Digest. */
+/** A brand a visitor can opt in to. `ggg` rides the Digest. */
 export type Brand = "grove" | "nursery" | "goldberry" | "ggg";
 
-/** The three Ghost instances that back newsletters. `ggg` collapses onto `grove`. */
-export type Sender = "grove" | "nursery" | "goldberry";
+/** Odoo `mailing.list` keys, as seeded by grove_headless `data/mailing_lists.xml`. */
+export type ListKey = "nursery" | "farm" | "digest";
 
-/**
- * Interest tags applied on top of the brand, materialized as Ghost labels.
- * Free-form by design — the set grows as the marketplace does — but these are
- * the ones wired at launch.
- */
-export type Interest =
-  | "produce"
-  | "nursery"
-  | "woodworking"
-  | "events"
-  | "farm-updates";
+/** Every seeded list, in the order Odoo reports them. */
+export const LIST_KEYS: readonly ListKey[] = ["nursery", "farm", "digest"];
 
-/** Where the opt-in was captured, for the per-form segmentation label. */
+/** The list a brand's own form subscribes to first (spec §1, §2). */
+export const PRIMARY_LIST: Record<Brand, ListKey> = {
+  grove: "digest",
+  nursery: "nursery",
+  goldberry: "farm",
+  ggg: "digest",
+};
+
+/** Where the opt-in was captured; becomes a `source:<x>` contact tag in Odoo. */
 export type OptInSource =
   | "newsletter-signup"
   | "checkout"
@@ -51,94 +48,60 @@ export type OptInSource =
 /** A single opt-in event, normalized across every capture surface. */
 export interface OptInRequest {
   email: string;
-  /** Optional display name. */
+  /** Optional display name for the `res.partner`. */
   name?: string;
-  /** Brand the visitor opted into. Drives which Ghost instance is the list of record. */
+  /**
+   * Brand whose site the form is on. PINNED SERVER-SIDE by the app's route
+   * (never trusted from the request body), so a nursery form can only ever
+   * subscribe someone to the nursery list as its primary.
+   */
   brand: Brand;
-  /** Additional interest tags, applied as Ghost labels. */
-  interests?: Interest[];
+  /** Free-form interest slugs, applied as `interest:<x>` contact tags. */
+  interests?: string[];
   /** Where this opt-in happened. */
   source: OptInSource;
   /**
    * Explicit consent flag. Opt-in must be affirmative — a request with
-   * `consent !== true` is rejected before any Ghost call.
+   * `consent !== true` is rejected before any Odoo call.
    */
   consent: boolean;
   /**
-   * Explicit hub opt-in — the "Also get news from Gathering at the Grove"
-   * checkbox. When true, the opt-in is dual-written to the hub (`grove`)
-   * instance in addition to the brand instance. Requires its own affirmative
-   * check on the form; never implied.
+   * The "Also send me news from the other Grove brands" checkbox. Unticked by
+   * default; true adds every other list (spec §2). Never implied.
    */
-  hubOptIn?: boolean;
+  multibrand?: boolean;
   /**
-   * Per-form segmentation label applied to the Ghost member at signup (e.g.
-   * `nursery-footer`, `checkout`, `notify-me-oak`). This is the segmentation
-   * handle the CMO slices audiences by. Falls back to `<brand>-<source>` when
-   * absent (see labelsFor).
+   * Per-form segmentation handle (`nursery-footer`, `treefacts-content`).
+   * Recorded in the Odoo attribution note so the CMO can still slice signups
+   * by form after the Ghost labels went away.
    */
   label?: string;
   /** Marketing attribution captured at signup (utm_*, referrer, etc.). */
   attribution?: Record<string, string>;
 }
 
-/** Result of a single Ghost member write. */
-export interface SyncOutcome {
+/** Result of the Odoo subscribe write. */
+export interface SubscribeOutcome {
   ok: boolean;
-  /** Ghost member id when the instance returns one (send-magic-link often doesn't). */
-  id?: string;
+  /** `res.partner` id when Odoo returns one. */
+  partnerId?: string;
+  /** Lists the address is now subscribed to, as Odoo confirmed them. */
+  lists?: ListKey[];
+  /** True when Odoo queued the welcome email on this submit. */
+  welcomed?: boolean;
   /** Human-readable failure reason when `ok` is false. */
   error?: string;
-  /** True when the target instance is not configured / not applicable and the call was skipped. */
+  /** Upstream HTTP status when the failure came from Odoo. */
+  status?: number;
+  /** True when Odoo isn't configured for this app and no call was made. */
   skipped?: boolean;
 }
 
-/** Aggregate result returned to the API route. */
-export interface OptInResult {
-  /**
-   * Overall success from the visitor's perspective: true when the write to the
-   * brand's own Ghost instance (the list of record — the thing they asked for)
-   * succeeded. The hub dual-write is best-effort and never blocks the opt-in.
-   */
-  ok: boolean;
-  /** Write to the brand's own Ghost instance (the list of record). */
-  brand: SyncOutcome;
-  /**
-   * Optional dual-write to the hub (`grove`) instance. `skipped` when the
-   * visitor didn't opt into the hub, or when the brand instance *is* the hub
-   * (grove/ggg) so a second write would be redundant.
-   */
-  hub: SyncOutcome;
-  /**
-   * Best-effort sync of the opt-in into Odoo CRM (a tagged `res.partner`) for
-   * order/lead attribution. `skipped` when Odoo isn't configured for the app or
-   * the primary brand write failed (we only record confirmed opt-ins). Its
-   * failure never blocks the opt-in.
-   */
-  odoo: SyncOutcome;
-}
-
 /**
- * Newsletter provider seam. A provider is bound to a single Ghost instance;
- * the capture orchestrator holds one for the brand and (optionally) one for the
- * hub. The app only ever depends on this interface.
+ * Newsletter provider seam. Production binds the Odoo adapter; tests bind a
+ * fake. `lists` is already resolved (see `listsFor`), so a provider only
+ * transports it.
  */
 export interface NewsletterProvider {
-  /**
-   * Create/confirm a Ghost member on this instance, applying the segmentation
-   * labels. Idempotent by email — re-subscribing an existing address re-sends
-   * the magic link and merges labels rather than duplicating the member.
-   */
-  subscribe(request: OptInRequest): Promise<SyncOutcome>;
+  subscribe(request: OptInRequest, lists: ListKey[]): Promise<SubscribeOutcome>;
 }
-
-/** The hub instance every brand can cross-subscribe into. */
-export const HUB_SENDER: Sender = "grove";
-
-/** `ggg` newsletter is deferred — it rides the Grove Digest (hub instance). */
-export const BRAND_TO_SENDER: Record<Brand, Sender> = {
-  grove: "grove",
-  nursery: "nursery",
-  goldberry: "goldberry",
-  ggg: "grove",
-};

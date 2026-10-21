@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import { CaptureForm } from "@grove/ui-kit";
 import { CategoryBar } from "../category-bar";
+import { NURSERY_OPT_IN_LINE } from "../../lib/newsletter-copy";
 
 // At The Grove Nursery — dedicated newsletter signup landing (GOL-336).
 //
@@ -13,10 +14,9 @@ import { CategoryBar } from "../category-bar";
 // inline footer form and never the dedicated landing route the QR retarget
 // assumes.
 //
-// Copy is reused VERBATIM from the board-approved footer capture form in
-// `layout.tsx` (heading, description, success message) so this introduces no
-// new brand voice — same list of record (nursery Ghost), same `nursery-general`
-// label. Attribution (`src=qr-onsite` and any `utm_*`) is captured client-side
+// Copy is the approved GOL-3456 consent copy, the same as the footer form in
+// `layout.tsx` — same list of record (Odoo "Nursery News"), same
+// `nursery-general` label. Attribution (`src=qr-onsite` and any `utm_*`) is captured client-side
 // by CaptureForm's `collectAttribution()` at submit time; no route param
 // plumbing is needed here.
 //
@@ -30,7 +30,7 @@ import { CategoryBar } from "../category-bar";
 export const metadata: Metadata = {
   title: "News from the nursery",
   description:
-    "Sign up for news from At the Grove Nursery: new tree stock, growing tips for Appalachian ground, and a note when something's ready to plant.",
+    "Sign up for news from At The Grove Nursery: planting reminders, new arrivals and restock news, about twice a month.",
 };
 
 export default function NotifyPage() {
@@ -64,11 +64,9 @@ export default function NotifyPage() {
             brand="nursery"
             source="newsletter-signup"
             label="nursery-general"
-            description="New tree stock, growing tips for Appalachian ground, and a note when something's ready to plant. A few emails a season, not a flood."
+            optInLine={NURSERY_OPT_IN_LINE}
             submitLabel="Sign up"
-            successMessage="Thanks — you'll hear from us when there's something worth sending."
-            consentText="We'll only email you what you signed up for. Unsubscribe anytime."
-            hubOptIn
+            multibrandOptIn
           />
         </div>
       </section>

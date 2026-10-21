@@ -2,7 +2,8 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
+import { FARM_OPT_IN_LINE } from "../../../lib/newsletter-copy";
 import { OpeningNotice } from "../_components/OpeningNotice";
 
 export const metadata: Metadata = {
@@ -87,18 +88,21 @@ export default function EventsPage() {
           will sell online; open-gate days are free.
         </p>
 
-        <CaptureForm
-          brand="goldberry"
-          source="newsletter-signup"
-          label="events-workshops"
-          interests={["events"]}
-          heading="Hear when the next workshop opens"
-          description="We run a handful of hands-on workshops and farm-to-table nights each season. Seats are limited and the list gets first word — add your email to hear when the next one opens."
-          submitLabel="Add my email"
-          successMessage="Done — you'll get first word when the next workshop opens."
-          consentText="Event announcements only. Unsubscribe anytime."
-          hubOptIn
-        />
+        {/* Farm News signup (events are announced there). One tier above the
+            site-wide newsletter band so this page shows one form (GOL-3456). */}
+        <CaptureSlot priority="page-newsletter">
+          <CaptureForm
+            brand="goldberry"
+            source="newsletter-signup"
+            label="events-workshops"
+            interests={["events"]}
+            heading="Hear when the next workshop opens"
+            description="We run a handful of hands-on workshops and farm-to-table nights each season. Seats are limited and the list gets first word, so add your email to hear when the next one opens."
+            optInLine={FARM_OPT_IN_LINE}
+            submitLabel="Add my email"
+            multibrandOptIn
+          />
+        </CaptureSlot>
 
         <Link href="/visit" className="btn btn-gold visit-cta">
           <GlyphIcon name="arrow-left" /> Back to all visits

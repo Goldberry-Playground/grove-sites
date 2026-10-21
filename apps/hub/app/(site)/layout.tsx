@@ -1,8 +1,9 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { siblingSitesForHost, FooterContact } from "@grove/ui";
-import { SiblingStrip } from "@grove/ui-kit";
+import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../../tenant.config";
+import { HUB_OPT_IN_LINE, POSTAL_ADDRESS_LINE } from "../../lib/newsletter-copy";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   // Resolve cross-tenant URLs once at the server. Same image runs in prod,
@@ -30,6 +31,28 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
 
       {children}
 
+      {/* Grove Digest signup, site-wide (GOL-3456). The hub rendered no
+          capture form at all before this. A paper band above the ink footer
+          so the shared CaptureForm renders in hub tokens without re-theming;
+          the newsletter tier yields to any higher-priority capture a page
+          registers. */}
+      <CaptureSlot priority="newsletter">
+        <section className="hub-newsletter" aria-label="Newsletter signup">
+          <CaptureForm
+            brand="grove"
+            source="footer"
+            label="hub-digest"
+            eyebrow="The Grove Digest"
+            heading="News from all our farms and makers"
+            optInLine={HUB_OPT_IN_LINE}
+            submitLabel="Sign up"
+            layout="inline"
+            multibrandOptIn
+            className="hub-newsletter__form"
+          />
+        </section>
+      </CaptureSlot>
+
       <footer className="hub-footer">
         <div>
           <strong>Gather at the Grove</strong>
@@ -43,7 +66,12 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             <a key={site.name} href={site.href}>{site.name}</a>
           ))}
         </nav>
-        <FooterContact phone={tenantConfig.contact.phone} className="hub-footer__contact" />
+        <FooterContact
+          phone={tenantConfig.contact.phone}
+          address={POSTAL_ADDRESS_LINE}
+          privacyHref="/privacy"
+          className="hub-footer__contact"
+        />
         <p className="hub-footer__small">
           © 2026 Gather at the Grove · The hub never takes a cut.
         </p>

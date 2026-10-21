@@ -2878,3 +2878,27 @@ h1 em, h2 em, h3 em, h4 em {
   outline-offset: var(--focus-ring-offset);
 }
 .journal-card__link:focus-visible { outline: none; }
+
+/* ── Site-wide newsletter band + privacy page (GOL-3456) ─────────────── */
+/* A light ivory band between <main> and the chestnut footer. The shared
+   CaptureForm renders in brand tokens here (ivory background, chestnut
+   primary) so nothing is re-themed; the band's top rule separates it from the
+   page content it follows. */
+.brand-newsletter {
+  background: var(--ivory-mist);
+  border-top: 1px solid rgba(127, 79, 29, 0.18);
+  padding: clamp(2rem, 4vw, 3rem) clamp(1rem, 3vw, 2.4rem);
+}
+.brand-newsletter__inner {
+  max-width: 1300px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+.brand-newsletter__form {
+  max-width: 40rem;
+  width: 100%;
+}
+.privacy-page {
+  padding: 0 clamp(1rem, 3vw, 2.4rem);
+}

@@ -1,165 +1,79 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { POST } from "./route";
 
-function post(body: unknown): Request {
+// The handler itself is covered in @grove/newsletter (route.test.ts). This
+// pins what the HUB mounts: brand `grove` → Grove Digest primary, tenant
+// `hub`, the hub's Origin allowlist, and the hub's GROVE_ODOO_URL env name.
+
+const ORIGIN = "https://gatheringatthegrove.com";
+
+function post(body: unknown, origin = ORIGIN): Request {
   return new Request("http://localhost/api/newsletter/subscribe", {
     method: "POST",
-    body: typeof body === "string" ? body : JSON.stringify(body),
+    headers: { "content-type": "application/json", origin },
+    body: JSON.stringify(body),
   });
 }
 
-const INSTANCES = JSON.stringify({
-  grove: { url: "https://hub.test" },
-  nursery: { url: "https://nursery.test" },
-});
-
-const validBody = {
-  email: "sam@example.com",
-  brand: "nursery",
-  interests: ["produce"],
-  label: "nursery-footer",
-  consent: true,
-};
+const validBody = { email: "sam@example.com", label: "hub-digest", source: "footer", consent: true };
 
 function clearEnv() {
-  delete process.env.GHOST_NEWSLETTER_INSTANCES;
-  delete process.env.GHOST_URL;
-  // Keep the Odoo CRM leg off unless a test opts in, so `crmSynced` is
-  // deterministically null and the Ghost-only call count holds.
   delete process.env.ODOO_URL;
+  delete process.env.GROVE_ODOO_URL;
   delete process.env.ODOO_API_KEY;
+  delete process.env.CAPTURE_ALERT_WEBHOOK_URL;
 }
 
-describe("POST /api/newsletter/subscribe", () => {
+describe("hub POST /api/newsletter/subscribe", () => {
   beforeEach(clearEnv);
   afterEach(() => {
     vi.unstubAllGlobals();
     clearEnv();
   });
 
-  it("returns 400 on invalid JSON", async () => {
-    const res = await POST(post("{not json"));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("invalid_json");
-  });
-
-  it("returns 400 without consent", async () => {
-    const res = await POST(post({ ...validBody, consent: false }));
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error).toBe("validation_error");
-    expect(json.field).toBe("consent");
-  });
-
-  it("returns 503 when Ghost is not provisioned", async () => {
+  it("returns 503 when Odoo is not provisioned for the hub", async () => {
     const res = await POST(post(validBody));
     expect(res.status).toBe(503);
     expect((await res.json()).error).toBe("newsletter_not_configured");
   });
 
-  it("writes the brand member and reports no hub sync without opt-in", async () => {
-    process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
-    const fetchMock = vi.fn(
-      async (_url: string, _init?: { body?: string }) =>
-        new Response("Created.", { status: 201 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const res = await POST(post(validBody));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      ok: true,
-      subscriberId: null,
-      hubSynced: null,
-      crmSynced: null,
-    });
-
-    // Exactly one Ghost write, to the nursery instance, with the form label.
-    // (Each write is preceded by an integrity-token GET; Ghost 5.x+ needs it.)
-    const writes = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith("/send-magic-link/"));
-    expect(writes).toHaveLength(1);
-    const [url, init] = writes[0]!;
-    expect(url).toBe("https://nursery.test/members/api/send-magic-link/");
-    expect(JSON.parse(init!.body!).labels).toEqual(["nursery-footer", "interest-produce"]);
-  });
-
-  it("dual-writes to the hub on explicit hub opt-in", async () => {
-    process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
-    const fetchMock = vi.fn(
-      async (_url: string) => new Response("Created.", { status: 201 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const res = await POST(post({ ...validBody, hubOptIn: true }));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      ok: true,
-      subscriberId: null,
-      hubSynced: true,
-      crmSynced: null,
-    });
-
-    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls).toContain("https://nursery.test/members/api/send-magic-link/");
-    expect(urls).toContain("https://hub.test/members/api/send-magic-link/");
-  });
-
-  it("returns 200 (subscriber kept) when only the hub dual-write fails", async () => {
-    process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url.startsWith("https://hub.test")) {
-        return new Response("boom", { status: 500, statusText: "Server Error" });
-      }
-      return new Response("Created.", { status: 201 });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const res = await POST(post({ ...validBody, hubOptIn: true }));
-    expect(res.status).toBe(200);
-    expect((await res.json()).hubSynced).toBe(false);
-  });
-
-  it("syncs the opt-in to Odoo CRM and reports crmSynced when Odoo is wired", async () => {
-    process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
-    process.env.ODOO_URL = "https://odoo.test";
+  it("subscribes to the Grove Digest as tenant `hub` via GROVE_ODOO_URL, ignoring a body brand", async () => {
+    process.env.GROVE_ODOO_URL = "https://odoo.test";
     process.env.ODOO_API_KEY = "key-123";
-    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
-      void init;
-      if (url.includes("/grove/api/v1/newsletter/subscribe")) {
-        return new Response(JSON.stringify({ partner_id: 7 }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      return new Response("Created.", { status: 201 });
-    });
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ partner_id: 7, lists: ["digest"], welcomed: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await POST(post(validBody));
+    const res = await POST(post({ ...validBody, brand: "nursery" }));
     expect(res.status).toBe(200);
-    expect((await res.json()).crmSynced).toBe(true);
+    expect(await res.json()).toEqual({ ok: true, lists: ["digest"], welcomed: true, subscriberId: "7" });
 
-    const odooCall = fetchMock.mock.calls.find((c) =>
-      String(c[0]).includes("/grove/api/v1/newsletter/subscribe"),
-    );
-    expect(odooCall).toBeDefined();
-    const init = odooCall![1];
-    const headers = init.headers as Record<string, string>;
-    expect(headers["X-Grove-Tenant"]).toBe("hub");
-    expect(headers["Authorization"]).toBe("Bearer key-123");
-    const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ brand: "nursery", consent: true });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://odoo.test/grove/api/v1/newsletter/subscribe");
+    expect((init!.headers as Record<string, string>)["X-Grove-Tenant"]).toBe("hub");
+    expect(JSON.parse(String(init!.body))).toMatchObject({ brand: "grove", lists: ["digest"], multibrand: false });
   });
 
-  it("returns 502 when the brand write fails", async () => {
-    process.env.GHOST_NEWSLETTER_INSTANCES = INSTANCES;
-    const fetchMock = vi.fn(
-      async () => new Response("bad", { status: 500, statusText: "Server Error" }),
+  it("expands the multibrand box to Digest + Nursery News + Farm News", async () => {
+    process.env.GROVE_ODOO_URL = "https://odoo.test";
+    process.env.ODOO_API_KEY = "key-123";
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ partner_id: 7, lists: ["digest", "nursery", "farm"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
+    await POST(post({ ...validBody, multibrand: true }));
+    const init = fetchMock.mock.calls[0]![1]!;
+    expect(JSON.parse(String(init.body)).lists).toEqual(["digest", "nursery", "farm"]);
+  });
 
-    const res = await POST(post(validBody));
-    expect(res.status).toBe(502);
-    expect((await res.json()).error).toBe("subscribe_failed");
+  it("refuses a foreign Origin", async () => {
+    expect((await POST(post(validBody, "https://evil.example"))).status).toBe(403);
   });
 });

@@ -534,6 +534,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         if (input.message) body.message = input.message;
         if (input.label) body.label = input.label;
         if (input.state) body.state = input.state;
+        if (input.department) body.department = input.department;
         if (input.productId != null) body.product_id = input.productId;
         if (input.source) body.source = input.source;
         const raw = await api<ApiCaptureLeadResponse>(config, "/grove/api/v1/leads", {
@@ -569,6 +570,10 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         };
         if (input.name) body.name = input.name;
         if (input.attribution) body.attribution = input.attribution;
+        // List of record (GOL-3454): explicit keys win; `multibrand` is the
+        // "other Grove brands" box for callers that let Odoo expand it.
+        if (input.lists) body.lists = input.lists;
+        if (input.multibrand != null) body.multibrand = input.multibrand;
 
         const raw = await api<ApiNewsletterSubscribeResponse>(
           config,
@@ -578,6 +583,8 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         return {
           partnerId: raw.partner_id != null ? String(raw.partner_id) : undefined,
           created: raw.created,
+          lists: raw.lists,
+          welcomed: raw.welcomed,
         };
       },
     },

@@ -66,31 +66,28 @@ services:
         # Variables. The placeholder is rejected at runtime by ghost-client.
         value: REPLACE_ME
 
-      # @grove/newsletter — Ghost-native opt-in capture + hub dual-write
-      # (GOL-249 / GOL-333). JSON map of sender → Ghost instance; the capture
-      # route (apps/hub/app/api/newsletter/subscribe) resolves this and POSTs
-      # members to `${url}/members/api/send-magic-link/`. Public members
-      # endpoint — no API key, so these are plain URLs, NOT a secret. Absent →
+      # @grove/newsletter → grove_headless (GOL-3456): the hub signup form POSTs
+      # to its /api/newsletter/subscribe route, which calls Odoo
+      # `POST /grove/api/v1/newsletter/subscribe` with this bearer key (hub reads
+      # its Odoo URL from GROVE_ODOO_URL above). Same res.users.apikeys family as
+      # the tenants' ODOO_API_KEY, minted as the `hub` entry
+      # (odoocker scripts/mint_storefront_keys_shell.py, TENANTS=hub). Absent →
       # the route returns 503 newsletter_not_configured (safe go-live gate).
-      #
-      # MUST point at each instance's canonical Ghost `url` host — the members
-      # frontend routes (/members/api/*) mount on `url` only, never on a split
-      # `admin__url` vhost. Members is ENABLED on all four Ghost 6.51 instances
-      # (verified GOL-333/GOL-337); the earlier "grove/goldberry disabled" note
-      # was a misdiagnosis: blog.{gatheringatthegrove.com,goldberrygrove.farm}
-      # are those two instances' `admin__url` today, so they 404 the members
-      # route by design, while their `url` (the apex) returns 400 as expected.
-      #
-      # LAUNCH-COUPLED: the values below are the POST-cutover state. At the
-      # brand-apex launch cutover (GOL-287), the apex becomes the Next.js site
-      # and Ghost's `url` for hub + goldberry moves to blog.{domain} — at which
-      # point these values are correct. This spec must be applied on the prod
-      # hub as part of / after that cutover (GOL-286 → GOL-287), NOT before it,
-      # or hub/goldberry capture will hit the admin vhost and 404. nursery/ggg
-      # have no split (`url` == blog.{domain}) so they are correct throughout.
-      - key: GHOST_NEWSLETTER_INSTANCES
-        scope: RUN_AND_BUILD_TIME
-        value: '{"grove":{"url":"https://blog.gatheringatthegrove.com"},"nursery":{"url":"https://blog.atthegrovenursery.com"},"goldberry":{"url":"https://blog.goldberrygrove.farm"}}'
+      - key: ODOO_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_ME
+
+      # Capture-outage alert (GOL-3456 / GOL-3495). When /api/newsletter/subscribe
+      # answers 5xx, @grove/newsletter logs `[grove-capture] ALERT …` and, if
+      # this is set, posts to the Discord webhook (throttled: one post per
+      # app+route per 10 min). Optional — absent means log-only. Bare Discord
+      # webhook URL, no /slack suffix. Real value:
+      # op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL (the #grove-ops hook).
+      - key: CAPTURE_ALERT_WEBHOOK_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_ME
 
       - key: GROVE_REVALIDATE_SECRET
         scope: RUN_AND_BUILD_TIME

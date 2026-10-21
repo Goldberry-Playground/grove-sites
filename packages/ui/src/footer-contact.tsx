@@ -6,6 +6,10 @@
 // plus a standing underline so they read as actionable even where the link
 // color matches the surrounding footer text (color alone never signals it).
 // — GOL-2492
+//
+// GOL-3456 adds the optional postal line (the CAN-SPAM address every brand
+// shares) and the "Privacy notice" link, so a footer that mounts the newsletter
+// form carries the address and the notice link next to it.
 import type { CSSProperties } from "react";
 
 export interface FooterContactProps {
@@ -13,6 +17,10 @@ export interface FooterContactProps {
   phone: string;
   /** Support/orders email for this business. Omitted on the aggregator hub. */
   email?: string;
+  /** Postal address, one line (e.g. "2291 Armstrong Road, Summersville, WV 26651"). */
+  address?: string;
+  /** Where the "Privacy notice" link points. Omit to render no link. */
+  privacyHref?: string;
   className?: string;
 }
 
@@ -29,14 +37,14 @@ const linkStyle: CSSProperties = {
   textUnderlineOffset: "0.2em",
 };
 
-export function FooterContact({ phone, email, className }: FooterContactProps) {
+export function FooterContact({ phone, email, address, privacyHref, className }: FooterContactProps) {
   const digits = phone.replace(/\D/g, "");
   // Only add the +1 country code when we recognise a US 10-digit number, the
   // same shape formatPhone renders; otherwise dial the raw digits so the href
   // and the visible text never disagree (e.g. a config carrying a leading 1).
   const telHref = digits.length === 10 ? `tel:+1${digits}` : `tel:${digits}`;
   return (
-    <address className={className} style={{ fontStyle: "normal" }}>
+    <address className={className} style={{ fontStyle: "normal", lineHeight: 1.7 }}>
       <a href={telHref} style={linkStyle}>
         {formatPhone(phone)}
       </a>
@@ -45,6 +53,20 @@ export function FooterContact({ phone, email, className }: FooterContactProps) {
           {" · "}
           <a href={`mailto:${email}`} style={linkStyle}>
             {email}
+          </a>
+        </>
+      ) : null}
+      {address ? (
+        <>
+          <br />
+          <span>{address}</span>
+        </>
+      ) : null}
+      {privacyHref ? (
+        <>
+          {address ? " · " : <br />}
+          <a href={privacyHref} style={linkStyle}>
+            Privacy notice
           </a>
         </>
       ) : null}

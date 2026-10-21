@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { assetPath, siblingSitesForHost, GroveProviders, FooterContact, SocialLinks, type SocialLink } from "@grove/ui";
-import { SiblingStrip } from "@grove/ui-kit";
+import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
+import { FARM_OPT_IN_LINE, POSTAL_ADDRESS_LINE } from "../lib/newsletter-copy";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
@@ -129,6 +130,31 @@ export default async function RootLayout({
             </div>
           </header>
           <main>{children}</main>
+          {/* Farm newsletter, site-wide (GOL-3456). Odoo "Farm News" is the list
+              of record; the spec's farm primary line exists for exactly this
+              form. A light band above the chestnut footer so the shared
+              CaptureForm renders in brand tokens without re-theming. The
+              newsletter tier yields to a page's own capture (blog TreeFacts,
+              events) through the capture arbiter, so no page shows two
+              newsletter forms. */}
+          <CaptureSlot priority="newsletter">
+            <section className="brand-newsletter" aria-labelledby="brand-newsletter-heading">
+              <div className="brand-newsletter__inner">
+                <CaptureForm
+                  brand="goldberry"
+                  source="footer"
+                  label="goldberry-general"
+                  eyebrow="Newsletter"
+                  heading="News from the farm"
+                  optInLine={FARM_OPT_IN_LINE}
+                  submitLabel="Sign up"
+                  layout="inline"
+                  multibrandOptIn
+                  className="brand-newsletter__form"
+                />
+              </div>
+            </section>
+          </CaptureSlot>
           <footer className="brand-footer">
             <div className="brand-footer__inner">
               {/* Black-and-white Goldberry Grove logo per brand guide
@@ -152,6 +178,8 @@ export default async function RootLayout({
               <FooterContact
                 phone={tenantConfig.contact.phone}
                 email={tenantConfig.contact.email}
+                address={POSTAL_ADDRESS_LINE}
+                privacyHref="/privacy"
                 className="brand-footer__contact"
               />
               <p className="brand-footer__small">

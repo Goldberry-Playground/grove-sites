@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
-import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { ProductImage } from "../product-image";
 import { varietyCountLabel } from "../../lib/catalog-labels";
 import { showsDealBadge } from "../../lib/deals";
@@ -155,7 +155,7 @@ export function ProductGrid({
                       description="One email when it's ready. That's it."
                       submitLabel="Notify me"
                       successMessage="You're on the list."
-                      consentText="We'll only email you about this. Unsubscribe anytime."
+                      consentText={REQUEST_CONSENT_TEXT}
                       layout="stacked"
                     />
                   </div>

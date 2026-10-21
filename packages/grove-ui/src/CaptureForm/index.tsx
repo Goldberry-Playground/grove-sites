@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type FormEvent } from "react";
 import { Button } from "../Button";
+import { useGroveLink } from "../link-context";
 
 /** Brands a visitor can opt into — mirrors `@grove/newsletter` `Brand`. */
 export type CaptureBrand = "grove" | "nursery" | "goldberry" | "ggg";
@@ -17,14 +18,37 @@ export type CaptureSource =
   | "consult-request"
   | "wholesale-inquiry";
 
+/**
+ * Josh's 2026-10-20 ruling (GOL-3456): one unticked checkbox on EVERY
+ * newsletter form, hub included. Ticked, Odoo subscribes the address to every
+ * other Grove list as well. Wording is verbatim from the approved consent copy.
+ */
+export const MULTIBRAND_OPT_IN_LABEL =
+  "Also send me news from the other Grove brands (farm, nursery and the Grove Digest).";
+
+/** Fine print under every newsletter form (approved consent copy, GOL-3456). */
+export const NEWSLETTER_CONSENT_TEXT =
+  "We'll send a confirmation email right away. Unsubscribe anytime with one click.";
+
+/** Fine print under every request form that is NOT a newsletter signup. */
+export const REQUEST_CONSENT_TEXT = "We'll only use your email to answer this request.";
+
+/** Success copy for a newsletter signup (single opt-in + welcome email). */
+export const NEWSLETTER_SUCCESS_MESSAGE =
+  "You're on the list. Check your inbox for a welcome note.";
+
 export interface CaptureFormProps {
-  /** Brand whose Ghost instance is the list of record for this signup. */
+  /**
+   * Brand whose site the form is on. Informational on the wire: the
+   * newsletter BFF pins the list of record from the app it runs in and never
+   * trusts this field (GOL-3456).
+   */
   brand: CaptureBrand;
   /** Where this opt-in is captured (drives the fallback segmentation label). */
   source?: CaptureSource;
-  /** Per-form Ghost label applied at signup (e.g. `nursery-restock`). */
+  /** Per-form segmentation handle (e.g. `nursery-footer`), kept in Odoo's attribution note. */
   label?: string;
-  /** Interest tags applied as Ghost labels on top of the brand. */
+  /** Interest slugs applied as contact tags on top of the brand. */
   interests?: string[];
   /**
    * Small kicker/eyebrow above the heading, e.g. "Newsletter" vs "Back-in-stock
@@ -36,8 +60,16 @@ export interface CaptureFormProps {
   heading?: string;
   /** Supporting copy under the heading. */
   description?: string;
+  /**
+   * The per-brand "what you're signing up for and how often" line, rendered
+   * under the email field and read to screen readers as the field's
+   * description. Approved per-brand wording lives with each app's layout.
+   */
+  optInLine?: string;
   /** Submit-button label. */
   submitLabel?: string;
+  /** Submit-button label while the request is in flight. */
+  submittingLabel?: string;
   /** Message shown after a successful subscribe. */
   successMessage?: string;
   /** Collect an optional display name alongside the email. */
@@ -47,12 +79,20 @@ export interface CaptureFormProps {
   collectMessage?: boolean;
   /** Label for the note field. */
   messageLabel?: string;
-  /** Render the "Also get news from Gathering at the Grove" hub opt-in checkbox. */
-  hubOptIn?: boolean;
-  /** Label for the hub opt-in checkbox. */
-  hubOptInLabel?: string;
-  /** Fine-print consent line under the button. */
+  /**
+   * Render the single unticked "Also send me news from the other Grove brands"
+   * checkbox (newsletter forms only; never on a lead/restock/waitlist form).
+   */
+  multibrandOptIn?: boolean;
+  /** Label for the multibrand checkbox. Defaults to the approved wording. */
+  multibrandLabel?: string;
+  /**
+   * Fine-print consent line under the button. The privacy-notice link is
+   * appended to it on every form (Josh 2026-10-20).
+   */
   consentText?: string;
+  /** Where the "Privacy notice" link points. Every app serves `/privacy`. */
+  privacyHref?: string;
   /**
    * BFF endpoint the form POSTs to. Defaults to the per-app newsletter route;
    * every app mounts `@grove/newsletter`'s handler at this path.
@@ -108,9 +148,10 @@ function collectAttribution(): Record<string, string> {
  * Grove email-capture form. Presentational + submit logic; the network target
  * is a prop (`endpoint`), so no app route is baked in. POSTs the shape
  * `@grove/newsletter`'s BFF route validates: `{ email, name?, brand, source,
- * label, interests, hubOptIn, consent, attribution }`. Submitting the form —
- * with the consent line visible — is the affirmative `consent`; Ghost then
- * double-opts-in via magic link. A honeypot field silently drops bots.
+ * label, interests, multibrand, consent, attribution }`. Submitting the form
+ * with the consent line visible is the affirmative `consent`; Odoo subscribes
+ * on submit (single opt-in) and sends one welcome email. A honeypot field
+ * silently drops bots.
  */
 export function CaptureForm({
   brand,
@@ -120,14 +161,17 @@ export function CaptureForm({
   eyebrow,
   heading,
   description,
+  optInLine,
   submitLabel = "Sign up",
-  successMessage = "Thanks — check your inbox to confirm.",
+  submittingLabel = "Signing you up…",
+  successMessage = NEWSLETTER_SUCCESS_MESSAGE,
   collectName = false,
   collectMessage = false,
   messageLabel = "Note (optional)",
-  hubOptIn = false,
-  hubOptInLabel = "Also send me news from Gathering at the Grove — the community behind the farm.",
-  consentText = "We'll only email you what you signed up for. Unsubscribe anytime.",
+  multibrandOptIn = false,
+  multibrandLabel = MULTIBRAND_OPT_IN_LABEL,
+  consentText = NEWSLETTER_CONSENT_TEXT,
+  privacyHref = "/privacy",
   endpoint = "/api/newsletter/subscribe",
   invalidEmailMessage = "That email doesn't look right. Mind checking it?",
   layout = "stacked",
@@ -144,7 +188,9 @@ export function CaptureForm({
   const errorId = useId();
   const nameId = useId();
   const messageId = useId();
-  const hubId = useId();
+  const multibrandId = useId();
+  const optInLineId = useId();
+  const Link = useGroveLink();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -179,7 +225,7 @@ export function CaptureForm({
     setInvalidEmail(false);
 
     const name = collectName ? String(data.get("name") ?? "").trim() : undefined;
-    const wantsHub = hubOptIn && data.get("hubOptIn") === "on";
+    const wantsMultibrand = multibrandOptIn && data.get("multibrand") === "on";
     const message = collectMessage ? String(data.get("message") ?? "").trim() : "";
 
     setStatus("submitting");
@@ -197,7 +243,7 @@ export function CaptureForm({
           source,
           label,
           interests,
-          hubOptIn: wantsHub,
+          multibrand: wantsMultibrand,
           consent: true,
           attribution: collectAttribution(),
         }),
@@ -231,6 +277,22 @@ export function CaptureForm({
       onResult?.({ ok: false, error: reason });
     }
   }
+
+  const extras = (
+    <>
+      {optInLine ? (
+        <p id={optInLineId} className="grove-capture__optin">
+          {optInLine}
+        </p>
+      ) : null}
+      {multibrandOptIn ? (
+        <label htmlFor={multibrandId} className="grove-capture__multibrand">
+          <input id={multibrandId} name="multibrand" type="checkbox" />
+          <span>{multibrandLabel}</span>
+        </label>
+      ) : null}
+    </>
+  );
 
   if (status === "success") {
     return (
@@ -290,7 +352,11 @@ export function CaptureForm({
             // Associates the message below with the field, so a screen reader
             // reads the reason when focus lands here — the <p role="alert"> on
             // its own announces once and is then orphaned from the input.
-            aria-describedby={status === "error" ? errorId : undefined}
+            aria-describedby={
+              [status === "error" ? errorId : null, optInLine ? optInLineId : null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             // Clear the inline error as soon as the visitor starts fixing it;
             // leaving a stale "that's wrong" under a corrected field is the
             // forgiveness failure that makes inline validation feel hostile.
@@ -325,19 +391,25 @@ export function CaptureForm({
           />
         </div>
 
+        {/* Stacked: the opt-in line and the multibrand choice sit between the
+            field and the button, so reading order, DOM order and tab order
+            agree (field → what you get → optional add-on → action). Inline:
+            the field + button stay one row and the extras follow it. */}
+        {layout === "stacked" ? extras : null}
+
         <Button type="submit" disabled={status === "submitting"}>
-          {status === "submitting" ? "Signing you up…" : submitLabel}
+          {status === "submitting" ? submittingLabel : submitLabel}
         </Button>
       </div>
 
-      {hubOptIn ? (
-        <label htmlFor={hubId} className="grove-capture__hub">
-          <input id={hubId} name="hubOptIn" type="checkbox" />
-          <span>{hubOptInLabel}</span>
-        </label>
-      ) : null}
+      {layout === "inline" ? extras : null}
 
-      <p className="grove-capture__consent">{consentText}</p>
+      <p className="grove-capture__consent">
+        {consentText}{" "}
+        <Link href={privacyHref} className="grove-capture__privacy">
+          Privacy notice
+        </Link>
+      </p>
 
       <p
         id={errorId}

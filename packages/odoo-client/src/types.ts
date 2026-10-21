@@ -1469,6 +1469,14 @@ export interface NewsletterSubscribeInput {
   source: string;
   /** Affirmative consent — the endpoint re-checks it and 400s without a truthy value. */
   consent: boolean;
+  /**
+   * Odoo `mailing.list` keys to subscribe to (`nursery` | `farm` | `digest`),
+   * primary first (GOL-3454 §2). Omitted = the calling tenant's own list.
+   * Unknown keys are a 400.
+   */
+  lists?: string[];
+  /** The "other Grove brands" checkbox; Odoo adds every other list when `lists` is absent. */
+  multibrand?: boolean;
   /** Marketing attribution captured at signup (utm_*, referrer, etc.). */
   attribution?: Record<string, string>;
 }
@@ -1479,14 +1487,22 @@ export interface ApiNewsletterSubscribeResponse {
   email?: string;
   tags?: string[];
   created?: boolean;
+  /** List keys the contact is now actively subscribed to. */
+  lists?: string[];
+  /** True when the single-opt-in welcome email was queued on this call. */
+  welcomed?: boolean;
 }
 
-/** Normalized result of a CRM newsletter opt-in. */
+/** Normalized result of a newsletter opt-in. */
 export interface NewsletterSubscribeResult {
   /** `res.partner` id the opt-in upserted, when the backend returns one. */
   partnerId?: string;
   /** True when a new partner was created (vs. tags merged onto an existing one). */
   created?: boolean;
+  /** List keys the contact is now actively subscribed to. */
+  lists?: string[];
+  /** True when the welcome email was queued on this call (GOL-3454 §3). */
+  welcomed?: boolean;
 }
 
 /**
@@ -1495,7 +1511,14 @@ export interface NewsletterSubscribeResult {
  * (`POST /grove/api/v1/leads`), and back-in-stock alerts subscribe to Odoo's own
  * stock notifications (`POST /grove/api/v1/products/<template>/notify-restock`).
  */
-export type CaptureLeadKind = "food_forest_consult" | "wholesale" | "farm_visit" | "state_waitlist";
+export type CaptureLeadKind =
+  | "food_forest_consult"
+  | "wholesale"
+  | "farm_visit"
+  | "state_waitlist"
+  // Department "coming soon" waitlist (GOL-3456, spec §8): a restock-style
+  // request tagged `Waitlist: <Department>` on the partner, never a list.
+  | "dept_waitlist";
 
 export interface CaptureLeadInput {
   email: string;
@@ -1508,6 +1531,8 @@ export interface CaptureLeadInput {
   label?: string;
   /** Two-letter ship-to state, required for `state_waitlist`. */
   state?: string;
+  /** Department slug (`mycoforestry`), required for `dept_waitlist`. */
+  department?: string;
   /** Product template the request is about (food forest consults). */
   productId?: number;
   /** Where on the site it was captured, for the lead's notes. */

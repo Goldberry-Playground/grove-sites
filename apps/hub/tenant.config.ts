@@ -24,9 +24,12 @@ export const tenantConfig = {
   contact: {
     phone: "4457875140",
   },
+  /** Exact Origin values accepted on state-changing BFF POSTs (newsletter
+   *  signup). Prod hostnames + the QA host (sibling-sites.ts) + the dev port. */
   allowedOrigins: [
     "https://gatheringatthegrove.com",
     "https://www.gatheringatthegrove.com",
+    "https://hub.qa.gatheringatthegrove.com",
     "http://localhost:3000",
   ],
 } as const;
