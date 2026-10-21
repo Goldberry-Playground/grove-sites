@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { tenantConfig } from "../tenant.config";
-import { PLANNER_ENABLED } from "../lib/planner-flag";
+import { plannerEnabled } from "../lib/planner-flag";
 import { HOME_TEASER_HEADING, HOME_TEASER_LEDE, PLAN_EYEBROW } from "./plan/copy";
 import { Planner } from "./plan/planner";
 
@@ -8,11 +8,11 @@ import { Planner } from "./plan/planner";
  * Home-page section (order-builder spec §C.3): the same component collapsed
  * to the four questions under "Need help choosing trees?". The answers hand
  * off to /plan, where the result renders. Renders nothing while the planner
- * flag is off, so the homepage is byte-identical to today in prod until Josh
- * flips it.
+ * flag (`PLANNER_ENABLED`, read per request) is off, so the homepage is
+ * byte-identical to today in prod until Josh flips it.
  */
 export function PlanTeaser() {
-  if (!PLANNER_ENABLED) return null;
+  if (!plannerEnabled()) return null;
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   return (
     <section className="section plan-teaser" aria-labelledby="plan-teaser-heading">

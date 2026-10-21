@@ -209,7 +209,7 @@ export default async function HomePage() {
       </form>
 
       {/* Order builder (GOL-3383): four questions, handed to /plan. Behind
-          NEXT_PUBLIC_PLANNER; renders nothing while the flag is off. */}
+          PLANNER_ENABLED (runtime env); renders nothing while the flag is off. */}
       <PlanTeaser />
 
       <FeaturedLeadSellers products={products} total={total} />

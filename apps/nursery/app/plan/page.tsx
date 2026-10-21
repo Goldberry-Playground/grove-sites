@@ -3,14 +3,15 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CategoryBar } from "../category-bar";
 import { tenantConfig } from "../../tenant.config";
-import { PLANNER_ENABLED } from "../../lib/planner-flag";
+import { plannerEnabled } from "../../lib/planner-flag";
 import * as copy from "./copy";
 import { Planner } from "./planner";
 
 /**
  * /plan: the order builder (order-builder spec §C, GOL-3383). Four questions,
- * a planned order, Build my order. Behind `NEXT_PUBLIC_PLANNER` (§F kill
- * switch): off, the route is a 404 like any other unknown path.
+ * a planned order, Build my order. Behind `PLANNER_ENABLED` (§F kill switch,
+ * a runtime env read per request): off, the route is a 404 like any other
+ * unknown path.
  */
 export const metadata: Metadata = {
   title: "Build my order",
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default function PlanPage() {
-  if (!PLANNER_ENABLED) notFound();
+  if (!plannerEnabled()) notFound();
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   return (
     <>
