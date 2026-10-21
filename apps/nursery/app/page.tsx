@@ -4,6 +4,8 @@ import { GlyphIcon } from "@grove/ui-kit";
 import Image from "next/image";
 import { assetPath } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
+import { DepartmentNav } from "./department-nav";
+import { getCatalogNav } from "../lib/catalog-nav";
 import { NURSERY_CATEGORIES } from "../data/categories";
 import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
 import { PlanTeaser } from "./plan-teaser";
@@ -57,6 +59,10 @@ export default async function HomePage() {
   // the data-driven lead-seller row so their counts always agree.
   const { products, total } = await fetchCatalog();
 
+  // Department tree for the tab row (GOL-2745). Same seam /shop uses, so the
+  // homepage and the shop always show the same departments and Guilds link.
+  const { nav } = await getCatalogNav();
+
   // Live per-USDA-zone bareroot calendar (GOL-1172/1177), same feed + resolver
   // the product page uses (lib/fulfillment-mode.ts). Previously this section
   // hand-typed a spring calendar (Mar 7-30, zones 6/7 "now shipping") that went
@@ -86,6 +92,9 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Departments above the Orchard pills, as on /shop. The homepage is
+          not a department, so no tab is marked current. */}
+      <DepartmentNav nav={nav} activeSlug="" />
       <CategoryBar />
 
       <section className="pano-hero">
