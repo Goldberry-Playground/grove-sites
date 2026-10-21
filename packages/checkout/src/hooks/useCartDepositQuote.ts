@@ -25,6 +25,11 @@ export interface CartDepositQuote {
    * shows exactly this or nothing: never an estimate (gom printify spec §5).
    */
   shippingAmount?: number | null;
+  /** Odoo offers the free planting consult on this cart (GOL-3384, spec D.2);
+   *  absent on older backends and on the storefront's own estimates. */
+  consultEligible?: boolean;
+  /** The consult product's variant id to add (GOL-3541); null/absent = none. */
+  consultVariantId?: number | null;
 }
 
 export type QuoteFulfillment = "ship" | "pickup";

@@ -24,10 +24,13 @@ import {
 import { BRAND_TRUST, type GroveBrand } from "../brand-trust";
 import { dueTodayFor } from "../due-today";
 import { quotableState, quotableZip, useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { useConsultOffer } from "../hooks/useConsultOffer";
 import { useSeedHarvestSync } from "../hooks/useSeedHarvestSync";
 import { useTierNudge } from "../hooks/useTierNudge";
+import { CONSULT_LINE_NAME, consultSessionLine } from "../consult";
 import { seedHarvestConfirmLabel, seedHarvestMovedMessage } from "../seed";
 import { tierFor, tierLabel } from "../tier-nudge";
+import { ConsultOffer } from "./ConsultOffer";
 import { WithGroveNext } from "./grove-next-seam";
 import { CHECKOUT_HANDOFF_COOKIE, encodeHandoff } from "../checkout-handoff";
 import { SEED_SHIP_TO_STATES, SHIP_TO_STATES, SHIP_TO_COUNTRIES, US_SHIP_TO_STATES } from "../ship-to-states";
@@ -162,7 +165,8 @@ export function CheckoutPage({
     items: readonly CartItem[],
   ) => React.ReactNode;
 } = {}) {
-  const { items, hydrated, subtotal, setWave, moveSeedHarvest, confirmSeedHarvest } = useCart();
+  const { items, hydrated, subtotal, setWave, moveSeedHarvest, confirmSeedHarvest, consultRequested, setConsultRequested } =
+    useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   // Mirrors the form's ship/pickup radio so the "due today" quote follows the
@@ -228,6 +232,13 @@ export function CheckoutPage({
   // $1 then reserves next fall's harvest. The lines move to the quoted year and
   // checkout holds until the shopper confirms the change.
   useSeedHarvestSync({ kind, items, quote: depositQuote, settled: depositSettled, onMove: moveSeedHarvest });
+  // The free consult (GOL-3384, spec D.2): the quote offers it, the shopper's
+  // tick is kept beside the cart, and the $0 line joins the session payload
+  // below only while the quote still says yes. If the backend still refuses it
+  // (a race: the cart changed under the quote), its 400 lands in the form's
+  // error box like any other refusal.
+  const consult = useConsultOffer(depositQuote, depositSettled, consultRequested, setConsultRequested);
+  const consultLine = consultSessionLine(consultRequested, depositQuote);
   const seedMove = hydrated ? unconfirmedSeedMove(items) : null;
   function confirmSeedMove() {
     confirmSeedHarvest();
@@ -344,7 +355,11 @@ export function CheckoutPage({
           promoCode: order.promoCode,
           // The pre-order wave (one per order); null for an immediate order.
           shipWave,
-          items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+          // Goods lines, then the $0 consult line when offered and ticked.
+          items: [
+            ...items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+            ...(consultLine ? [consultLine] : []),
+          ],
           successUrl: `${origin}/checkout/success`,
           cancelUrl: `${origin}/checkout/cancel`,
         }),
@@ -388,12 +403,20 @@ export function CheckoutPage({
     return (
       <WithGroveNext>
         <CheckoutReview
-          items={items.map((i) => ({
-            variantId: i.variantId,
-            name: i.name,
-            quantity: i.quantity,
-            price: i.price,
-          }))}
+          items={[
+            ...items.map((i) => ({
+              variantId: i.variantId,
+              name: i.name,
+              quantity: i.quantity,
+              price: i.price,
+            })),
+            // The review lists the backend's itemised lines when it has them
+            // (the consult arrives there as its own $0 line); this is the
+            // fallback list for an older build, kept in step with what was sent.
+            ...(consultLine
+              ? [{ variantId: consultLine.variantId, name: CONSULT_LINE_NAME, quantity: 1, price: 0 }]
+              : []),
+          ]}
           lineItems={session.lineItems}
           amountDueToday={session.amountDueToday}
           amountTotal={session.amountTotal}
@@ -520,6 +543,7 @@ export function CheckoutPage({
         allowPromoCode={brand === "nursery"}
         onApplyPromo={promoPreviewHref ? previewPromo : undefined}
         tierNudge={nudge?.message ?? null}
+        summaryExtra={<ConsultOffer offer={consult} />}
         paymentMethods={STRIPE_PAYMENT_METHOD}
         hidePaymentMethods
         // No arrow in this string: the CTA draws its own (GOL-3123). A typed

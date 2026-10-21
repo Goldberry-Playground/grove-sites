@@ -14,6 +14,7 @@ import {
   acknowledgeSeedHarvest,
   addItem,
   cartStorageKey,
+  consultStorageKey,
   removeItem,
   setItemQuantity,
   setOrderWave,
@@ -30,6 +31,7 @@ import {
 // testing both locally. NEXT_PUBLIC_TENANT_ID is baked at build time
 // in each app's container, so this resolves per-tenant.
 const STORAGE_KEY = cartStorageKey(process.env.NEXT_PUBLIC_TENANT_ID);
+const CONSULT_KEY = consultStorageKey(process.env.NEXT_PUBLIC_TENANT_ID);
 
 export type { CartItem };
 
@@ -47,6 +49,14 @@ type CartContextValue = {
   /** The shopper confirmed the harvest-year change; nothing left to show. */
   confirmSeedHarvest: () => void;
   clear: () => void;
+  /**
+   * The shopper ticked "Add a free 15-minute planting consult" (GOL-3384). A
+   * choice, not a line: the checkout adds the $0 consult line to the order only
+   * while the quote still offers it, and `useConsultOffer` drops the choice when
+   * the quote says the cart no longer qualifies.
+   */
+  consultRequested: boolean;
+  setConsultRequested: (requested: boolean) => void;
   totalQuantity: number;
   subtotal: number;
   // ── Mini-cart drawer state ─────────────────────────────────────────
@@ -74,14 +84,25 @@ function loadFromStorage(): CartItem[] {
   }
 }
 
+function loadConsultFromStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(CONSULT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [consultRequested, setConsultRequestedState] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [lastAddedVariantId, setLastAddedVariantId] = useState<number | null>(null);
 
   useEffect(() => {
     setItems(loadFromStorage());
+    setConsultRequestedState(loadConsultFromStorage());
     setHydrated(true);
   }, []);
 
@@ -89,6 +110,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (consultRequested) window.localStorage.setItem(CONSULT_KEY, "1");
+    else window.localStorage.removeItem(CONSULT_KEY);
+  }, [consultRequested, hydrated]);
 
   const add = useCallback(
     (item: Omit<CartItem, "quantity">, quantity = 1) => {
@@ -117,7 +144,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((current) => acknowledgeSeedHarvest(current));
   }, []);
 
-  const clear = useCallback(() => setItems([]), []);
+  const setConsultRequested = useCallback((requested: boolean) => {
+    setConsultRequestedState(requested);
+  }, []);
+
+  const clear = useCallback(() => {
+    setItems([]);
+    setConsultRequestedState(false);
+  }, []);
 
   const openDrawer = useCallback((justAddedVariantId?: number) => {
     if (justAddedVariantId !== undefined) {
@@ -146,6 +180,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       moveSeedHarvest,
       confirmSeedHarvest,
       clear,
+      consultRequested,
+      setConsultRequested,
       totalQuantity,
       subtotal,
       drawerOpen,
@@ -154,6 +190,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       lastAddedVariantId,
     }),
     [items, hydrated, add, setQuantity, remove, setWave, moveSeedHarvest, confirmSeedHarvest, clear,
+     consultRequested, setConsultRequested,
      totalQuantity, subtotal, drawerOpen, openDrawer, closeDrawer, lastAddedVariantId]
   );
 
