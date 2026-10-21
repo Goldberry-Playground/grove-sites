@@ -10,7 +10,7 @@ import type {
   ShippingZoneMap,
 } from "@grove/odoo-client";
 import { AddToCartButton, StickyAddToCartBar } from "@grove/checkout";
-import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { ProductGallery, galleryThumbs, type ViewImage } from "./product-gallery";
 import {
   cultivarOptions,
@@ -1066,7 +1066,7 @@ export function ProductView({
                   description="We'll send one email when it's ready to ship. That's it."
                   submitLabel="Notify me"
                   successMessage="You're on the list. We'll email you when it's ready."
-                  consentText="We'll only email you about this. Unsubscribe anytime."
+                  consentText={REQUEST_CONSENT_TEXT}
                 />
               </div>
             </CaptureSlot>
@@ -1090,7 +1090,7 @@ export function ProductView({
                 messageLabel="Your site (acreage, slope, sun, zone, timeline)"
                 submitLabel="Request a consult"
                 successMessage="Thanks. We'll reach out to set up your consult."
-                consentText="We'll only use this to plan your food forest with you."
+                consentText={REQUEST_CONSENT_TEXT}
               />
             </div>
           )}

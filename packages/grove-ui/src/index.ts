@@ -14,10 +14,23 @@ export { BuyAtVendorForm, type BuyAtVendorFormProps } from "./BuyAtVendorForm";
 export {
   CaptureForm,
   isPlausibleEmail,
+  MULTIBRAND_OPT_IN_LABEL,
+  NEWSLETTER_CONSENT_TEXT,
+  REQUEST_CONSENT_TEXT,
+  NEWSLETTER_SUCCESS_MESSAGE,
   type CaptureFormProps,
   type CaptureBrand,
   type CaptureSource,
 } from "./CaptureForm";
+// Shared privacy notice, mounted at /privacy on every Grove site (GOL-3456).
+export {
+  PrivacyNotice,
+  GROVE_BRAND_NAMES,
+  GROVE_POSTAL_ADDRESS,
+  GROVE_PRIVACY_EMAIL,
+  GROVE_PRIVACY_PHONE,
+  type PrivacyNoticeProps,
+} from "./PrivacyNotice";
 export { JournalProductEmbed, type JournalProductEmbedProps } from "./JournalProductEmbed";
 
 // One-CTA-per-page arbitration (GOL-2178): footer newsletter suppresses itself

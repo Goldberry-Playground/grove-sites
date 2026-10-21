@@ -1,6 +1,6 @@
 "use client";
 
-import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { waitlistInterest } from "../../lib/departments";
 
 export interface NotifyMeProps {
@@ -20,14 +20,17 @@ export interface NotifyMeProps {
  * proof, the submitting/success/error states and — as of GOL-2745 — inline
  * email validation. What this adds is the department's identity.
  *
- * It posts to the existing `/api/newsletter/subscribe` BFF with
- * `interests: ["waitlist:<dept>"]` and `source: "notify-me"`, which
- * `@grove/newsletter` turns into an Odoo contact tag (e.g.
- * "Waitlist: Mycoforestry") the launch email can filter on.
+ * It posts to `/api/leads?kind=dept_waitlist&dept=<slug>` (GOL-3456, spec §8):
+ * a restock-style REQUEST, not a newsletter. Odoo tags the contact
+ * "Waitlist: <Department>" so Josh can pull the launch list, and never adds
+ * it to a mailing list — the newsletter route now subscribes on submit, so a
+ * waitlist signup there would have become a standing Nursery News opt-in the
+ * visitor never asked for.
  *
  * Data minimization: email only. A waitlist needs an address to mail and
- * nothing else, so there is no name field and no pre-checked hub opt-in — the
- * cross-brand opt-in stays an explicit, separate decision elsewhere.
+ * nothing else, so there is no name field and no multibrand box — the
+ * cross-brand opt-in stays an explicit, separate decision on the newsletter
+ * forms.
  *
  * Registered at the `restock` tier of the capture arbiter (GOL-2178), which
  * suppresses the shared footer newsletter for the whole page. Without that, a
@@ -41,6 +44,7 @@ export function NotifyMe({ deptSlug, deptName, description }: NotifyMeProps) {
     <CaptureForm
       brand="nursery"
       source="notify-me"
+      endpoint={`/api/leads?kind=dept_waitlist&dept=${encodeURIComponent(deptSlug)}`}
       // Per-form segmentation handle, so the CMO can slice one family's
       // waitlist out of the wider nursery list.
       label={`nursery-waitlist-${deptSlug}`}
@@ -53,7 +57,7 @@ export function NotifyMe({ deptSlug, deptName, description }: NotifyMeProps) {
       }
       submitLabel="Notify me"
       successMessage="You're on the list. We'll email once when these are ready to order."
-      consentText="We'll only email you about this family. Unsubscribe anytime."
+      consentText={REQUEST_CONSENT_TEXT}
       invalidEmailMessage="Enter an email address like you@example.com"
       layout="stacked"
     />

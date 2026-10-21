@@ -69,21 +69,71 @@ describe("<CaptureForm />", () => {
       label: "nursery-restock",
       interests: ["nursery"],
       consent: true,
-      hubOptIn: false,
+      multibrand: false,
     });
+    expect("hubOptIn" in body).toBe(false);
   });
 
-  it("sends hubOptIn: true only when the hub checkbox is checked", async () => {
+  it("renders the multibrand box UNTICKED with the approved label and sends multibrand: true only when ticked (GOL-3456)", async () => {
     const fetchFn = mockFetch({ ok: true });
     const user = userEvent.setup();
-    render(<CaptureForm brand="nursery" hubOptIn submitLabel="Sign up" />);
+    render(<CaptureForm brand="nursery" multibrandOptIn submitLabel="Sign up" />);
+    const box = screen.getByRole("checkbox", {
+      name: "Also send me news from the other Grove brands (farm, nursery and the Grove Digest).",
+    }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body as string).multibrand).toBe(false);
+  });
+
+  it("sends multibrand: true when the box is ticked", async () => {
+    const fetchFn = mockFetch({ ok: true });
+    const user = userEvent.setup();
+    render(<CaptureForm brand="nursery" multibrandOptIn submitLabel="Sign up" />);
     await user.type(screen.getByLabelText("Email"), "sam@example.com");
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "Sign up" }));
-
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
-    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string);
-    expect(body.hubOptIn).toBe(true);
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body as string).multibrand).toBe(true);
+  });
+
+  it("does not render the multibrand box by default (lead / restock / waitlist forms)", () => {
+    render(<CaptureForm brand="nursery" submitLabel="Ask us" />);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("renders the opt-in line as the email field's description and the privacy link in the fine print", () => {
+    render(
+      <CaptureForm
+        brand="goldberry"
+        optInLine="U-pick openings, workshops and farm news from Goldberry Grove, about twice a month."
+        consentText="We'll send a confirmation email right away. Unsubscribe anytime with one click."
+      />,
+    );
+    const email = screen.getByLabelText("Email");
+    const line = screen.getByText(
+      "U-pick openings, workshops and farm news from Goldberry Grove, about twice a month.",
+    );
+    expect(email.getAttribute("aria-describedby")).toContain(line.id);
+    const link = screen.getByRole("link", { name: "Privacy notice" }) as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("/privacy");
+    expect(link.closest("p")?.textContent).toContain("Unsubscribe anytime with one click.");
+  });
+
+  it("uses the ruled single-opt-in success copy by default", async () => {
+    mockFetch({ ok: true });
+    const user = userEvent.setup();
+    render(<CaptureForm brand="nursery" submitLabel="Sign up" />);
+    await user.type(screen.getByLabelText("Email"), "sam@example.com");
+    await user.click(screen.getByRole("button", { name: "Sign up" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain(
+        "You're on the list. Check your inbox for a welcome note.",
+      ),
+    );
   });
 
   it("shows the success message and stops rendering the form after a 200", async () => {

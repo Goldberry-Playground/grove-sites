@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { OpeningNotice } from "../_components/OpeningNotice";
 
 export const metadata: Metadata = {
@@ -112,7 +112,7 @@ export default function SeminarsPage() {
           description="Seminars open in spring 2027 with a full calendar. Add your email and the newsletter list hears first, before dates go public."
           submitLabel="Notify me"
           successMessage="Done. You'll hear first when the seminar calendar opens."
-          consentText="Seminar announcements only. Unsubscribe anytime."
+          consentText={REQUEST_CONSENT_TEXT}
           collectName
         />
 

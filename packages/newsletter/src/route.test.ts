@@ -25,7 +25,7 @@ const validBody = {
 };
 
 function odooOk(lists: string[]) {
-  return vi.fn(async () =>
+  return vi.fn<typeof fetch>(async () =>
     new Response(JSON.stringify({ partner_id: 7, created: true, lists, welcomed: true }), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -64,12 +64,12 @@ describe("createNewsletterSubscribeRoute (GOL-3456)", () => {
   });
 
   it("returns 503 + fires the alert when Odoo is not provisioned", async () => {
-    const alertHook = vi.fn(async () => new Response("", { status: 204 }));
+    const alertHook = vi.fn<typeof fetch>(async () => new Response("", { status: 204 }));
     const { POST } = createNewsletterSubscribeRoute({
       brand: "nursery",
       tenantId: "nursery",
       env: { CAPTURE_ALERT_WEBHOOK_URL: "https://hooks.test/x" },
-      fetchImpl: alertHook as unknown as typeof fetch,
+      fetchImpl: alertHook,
     });
     const res = await POST(post(validBody));
     expect(res.status).toBe(503);
@@ -108,7 +108,7 @@ describe("createNewsletterSubscribeRoute (GOL-3456)", () => {
     const { POST } = route();
     const res = await POST(post({ ...validBody, multibrand: true }));
     expect((await res.json()).lists).toEqual(["nursery", "farm", "digest"]);
-    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    const init = fetchMock.mock.calls[0]![1]!;
     expect(JSON.parse(String(init.body))).toMatchObject({
       lists: ["nursery", "farm", "digest"],
       multibrand: true,
@@ -117,18 +117,18 @@ describe("createNewsletterSubscribeRoute (GOL-3456)", () => {
 
   it("returns 502 + alerts when Odoo rejects or is unreachable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
-    const alertHook = vi.fn(async () => new Response("", { status: 204 }));
+    const alertHook = vi.fn<typeof fetch>(async () => new Response("", { status: 204 }));
     const { POST } = createNewsletterSubscribeRoute({
       brand: "goldberry",
       tenantId: "goldberry",
       env: { ...ENV, CAPTURE_ALERT_WEBHOOK_URL: "https://hooks.test/x" },
-      fetchImpl: alertHook as unknown as typeof fetch,
+      fetchImpl: alertHook,
     });
     const res = await POST(post(validBody));
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe("subscribe_failed");
     expect(alertHook).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(String((alertHook.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    const body = JSON.parse(String(alertHook.mock.calls[0]![1]!.body));
     expect(body.content).toContain("ALERT goldberry /api/newsletter/subscribe -> 502");
   });
 });

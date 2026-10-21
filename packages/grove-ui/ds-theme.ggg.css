@@ -394,25 +394,63 @@
   overflow: hidden;
 }
 
-.grove-capture__hub {
+/* The per-brand "what you get and how often" line (GOL-3456). Sits under the
+   field row so the fields + button stay one tight cluster; the email input
+   names it via aria-describedby so it is read on focus. */
+.grove-capture__optin {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--grove-color-foreground);
+  opacity: 0.85;
+}
+
+/* "Also send me news from the other Grove brands" (GOL-3456). The whole label
+   is the hit area, so the row clears the 44px floor on every brand's
+   line-height; the box itself is scaled so it is findable at arm's length. */
+.grove-capture__multibrand {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 0.6rem;
+  min-height: 2.75rem;
   font-size: 0.9rem;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--grove-color-foreground);
   cursor: pointer;
 }
 
-.grove-capture__hub input {
-  margin-top: 0.2rem;
+.grove-capture__multibrand input {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--grove-color-primary);
+}
+
+.grove-capture__multibrand input:focus-visible {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: 2px;
 }
 
 .grove-capture__consent {
   margin: 0;
   font-size: 0.8rem;
+  line-height: 1.45;
   color: var(--grove-color-foreground);
-  opacity: 0.7;
+  opacity: 0.8;
+}
+
+/* The privacy-notice link must read as a link without relying on colour:
+   standing underline, inherited ink (GOL-2492 footer rule). */
+.grove-capture__privacy {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.grove-capture__privacy:focus-visible {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: 2px;
 }
 
 .grove-capture__success {
@@ -1997,6 +2035,114 @@
 .grove-nav-link.is-active {
   color: var(--grove-color-primary);
   font-weight: 600;
+}
+/* PrivacyNotice — the shared Grove privacy notice (GOL-3456). Token-mapped so it
+   reads as the host brand on every site; the app only supplies page chrome. */
+
+.grove-privacy {
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) 1.25rem clamp(3rem, 6vw, 4.5rem);
+  color: var(--grove-color-foreground);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.grove-privacy__header {
+  margin-bottom: 1.5rem;
+}
+
+.grove-privacy__title {
+  margin: 0 0 0.35rem;
+  font-family: var(--grove-font-display, inherit);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--grove-color-foreground);
+}
+
+.grove-privacy__updated {
+  margin: 0;
+  font-family: var(--grove-font-mono, inherit);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--grove-color-foreground);
+  opacity: 0.7;
+}
+
+.grove-privacy__lede {
+  margin: 0 0 1.5rem;
+  font-size: 1.15rem;
+  line-height: 1.55;
+}
+
+/* In-page contents: a wrapping row of mono labels, each a 44px-tall target. */
+.grove-privacy__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0 0 2rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid color-mix(in oklab, var(--grove-color-foreground) 15%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--grove-color-foreground) 15%, transparent);
+  font-family: var(--grove-font-mono, inherit);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.grove-privacy__toc a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--grove-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.grove-privacy__section {
+  margin: 0 0 2rem;
+}
+
+.grove-privacy__section h2 {
+  margin: 0 0 0.6rem;
+  font-family: var(--grove-font-display, inherit);
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--grove-color-foreground);
+}
+
+.grove-privacy__section p {
+  margin: 0 0 0.9rem;
+}
+
+.grove-privacy__section ul {
+  margin: 0 0 0.9rem;
+  padding-left: 1.25rem;
+}
+
+.grove-privacy__section li {
+  margin: 0 0 0.6rem;
+}
+
+.grove-privacy__section a {
+  color: var(--grove-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.grove-privacy__section a:focus-visible,
+.grove-privacy__toc a:focus-visible {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.grove-privacy__address {
+  font-style: normal;
+  line-height: 1.6;
 }
 .product-card-wrap {
   display: contents;

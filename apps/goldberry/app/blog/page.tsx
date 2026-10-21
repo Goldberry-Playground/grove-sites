@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
+import { FARM_OPT_IN_LINE } from "../../lib/newsletter-copy";
 import { ghost } from "../../lib/ghost";
 import { RECIPES } from "../../data/recipes";
 
@@ -178,20 +179,24 @@ export default async function BlogPage() {
         </p>
       </aside>
 
-      <div className="journal-capture">
-        <CaptureForm
-          brand="goldberry"
-          source="newsletter-signup"
-          label="treefacts-content"
-          interests={["farm-updates"]}
-          heading="Get the next #TreeFacts in your inbox"
-          description="Every week we dig up one well-sourced fact about the trees we grow — the kind of thing that changes how you look at a hillside. We send the best ones out by email."
-          submitLabel="Send me TreeFacts"
-          successMessage="You're in. First one lands next week."
-          consentText="About an email a week. Unsubscribe anytime."
-          hubOptIn
-        />
-      </div>
+      {/* The journal's own Farm News signup. Registered one tier above the
+          shared site-wide newsletter band so this page shows one form, not
+          two for the same list (GOL-3456). */}
+      <CaptureSlot priority="page-newsletter">
+        <div className="journal-capture">
+          <CaptureForm
+            brand="goldberry"
+            source="newsletter-signup"
+            label="treefacts-content"
+            interests={["farm-updates"]}
+            heading="Get the next #TreeFacts in your inbox"
+            description="Every week we dig up one well-sourced fact about the trees we grow, the kind of thing that changes how you look at a hillside. The best ones go out in Farm News."
+            optInLine={FARM_OPT_IN_LINE}
+            submitLabel="Send me TreeFacts"
+            multibrandOptIn
+          />
+        </div>
+      </CaptureSlot>
     </section>
   );
 }

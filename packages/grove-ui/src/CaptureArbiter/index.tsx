@@ -13,8 +13,12 @@
  *                   "when we ship to your state" capture is built separately in
  *                   GOL-2174 and registers here once it exists — do NOT invent
  *                   its data model in this module)
- *   3. newsletter — the general goldberrygrove / blog subscribe line (the shared
- *                   footer form in each app's layout)
+ *   3. page-newsletter — a page's OWN newsletter form for the same list (the
+ *                   farm journal's #TreeFacts signup, the events signup). It
+ *                   outranks the shared site-wide form so a page never shows
+ *                   two signups for one list (GOL-3456).
+ *   4. newsletter — the general site-wide subscribe form (the shared footer /
+ *                   pre-footer form in each app's layout)
  *
  * The footer `CaptureForm` is a SHARED layout concern, so suppression can never
  * be a per-page delete of a call site — it is driven from context here. A
@@ -41,13 +45,14 @@ import {
 } from "react";
 
 /** Capture tiers, highest priority first. Extend the ladder here, never inline. */
-export type CapturePriority = "restock" | "state" | "newsletter";
+export type CapturePriority = "restock" | "state" | "page-newsletter" | "newsletter";
 
 /** Lower rank = higher priority. Kept private so callers speak in tier names. */
 const RANK: Record<CapturePriority, number> = {
   restock: 1,
   state: 2,
-  newsletter: 3,
+  "page-newsletter": 3,
+  newsletter: 4,
 };
 
 interface ArbiterValue {

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo } from "react";
 import type { ShippingTier, ShippingRateFeed } from "@grove/odoo-client";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import {
   GREEN_STATE_COUNT,
   shipScope,
@@ -495,7 +495,7 @@ export function ShippingEstimator({
                 }
                 submitLabel="Ask us"
                 successMessage={`Got it. We’ll email you about ${stateName}, usually within a business day.`}
-                consentText="We’ll only email you about this request. Unsubscribe anytime."
+                consentText={REQUEST_CONSENT_TEXT}
               />
             </div>
           </div>
@@ -540,7 +540,7 @@ export function ShippingEstimator({
                 description="One email when we open your state. Nothing else."
                 submitLabel="Notify me"
                 successMessage={`You’re on the list. We’ll email you the moment ${stateName} opens up.`}
-                consentText="We’ll only email you about shipping to your state. Unsubscribe anytime."
+                consentText={REQUEST_CONSENT_TEXT}
               />
             </div>
           </div>

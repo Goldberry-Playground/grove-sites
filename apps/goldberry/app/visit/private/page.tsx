@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { OpeningNotice } from "../_components/OpeningNotice";
 
 export const metadata: Metadata = {
@@ -106,7 +106,7 @@ export default function PrivatePage() {
           description="Private bookings open in spring 2028. Add your email now and we'll reach out with availability and a quote before dates fill up."
           submitLabel="Notify me"
           successMessage="Done. We'll be in touch as private bookings open for spring 2028."
-          consentText="Private-event news only. Unsubscribe anytime."
+          consentText={REQUEST_CONSENT_TEXT}
           collectName
         />
 

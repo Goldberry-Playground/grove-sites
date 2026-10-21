@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
-import { CaptureForm } from "@grove/ui-kit";
+import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { OpeningNotice } from "../_components/OpeningNotice";
 
 export const metadata: Metadata = {
@@ -114,7 +114,7 @@ export default function UPickPage() {
           description="We are aiming to open u-pick around Fall 2028. Add your email and you'll get first word the season the first rows are ready to pick."
           submitLabel="Notify me"
           successMessage="Done. You'll hear from us the season u-pick opens."
-          consentText="U-pick opening news only. Unsubscribe anytime."
+          consentText={REQUEST_CONSENT_TEXT}
           collectName
         />
 

@@ -56,8 +56,11 @@ describe("listsFor (spec §2, Josh 2026-10-20)", () => {
 
 describe("captureOptIn", () => {
   it("writes once to the provider with the resolved lists", async () => {
-    const subscribe = vi.fn(async () => ({ ok: true, lists: ["farm", "nursery", "digest"] as const }));
-    const provider: NewsletterProvider = { subscribe: subscribe as NewsletterProvider["subscribe"] };
+    const subscribe = vi.fn<NewsletterProvider["subscribe"]>(async () => ({
+      ok: true,
+      lists: ["farm", "nursery", "digest"],
+    }));
+    const provider: NewsletterProvider = { subscribe };
     const req = validateOptIn({ ...base, brand: "goldberry", multibrand: true });
     const out = await captureOptIn(req, provider);
     expect(out.ok).toBe(true);
