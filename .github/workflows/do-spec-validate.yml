@@ -3,9 +3,14 @@ name: DO App Spec — validate
 # Lint every infra/do/*.yaml spec on PRs and pushes that touch them.
 # Catches malformed App Platform specs before they reach DigitalOcean.
 #
-# Security note: this workflow uses only secrets.* and repo-controlled
-# file paths. It does NOT consume any untrusted event payload fields
-# (PR title/body/branch name) in run: blocks.
+# Tokenless: `doctl apps spec validate --schema-only` parses the spec
+# locally and needs no DigitalOcean credentials, so this workflow holds no
+# secrets. The API-side correctness check (region, instance size, ...) is
+# left to App Platform at deploy time.
+#
+# Security note: this workflow uses only repo-controlled file paths. It
+# does NOT consume any untrusted event payload fields (PR title/body/branch
+# name) in run: blocks.
 
 on:
   pull_request:
@@ -38,9 +43,8 @@ jobs:
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
-          # DIGITALOCEAN_ACCESS_TOKEN is a repo secret. `spec validate` is a
-          # local parser call but doctl still requires a configured token.
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          # No token: --schema-only below never calls the API.
+          no_auth: true
 
       - name: Validate every spec
         run: |
@@ -49,7 +53,7 @@ jobs:
           fail=0
           for spec in infra/do/*.yaml; do
             echo "-- validating $spec"
-            if ! doctl apps spec validate "$spec"; then
+            if ! doctl apps spec validate --schema-only "$spec" >/dev/null; then
               echo "::error file=$spec::spec failed validation"
               fail=1
             fi
