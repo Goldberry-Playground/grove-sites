@@ -41,6 +41,10 @@ import type {
   CatalogNav,
   ApiCatalogNavResponse,
   ApiPlannerCatalog,
+  ApiPlannerSignalInput,
+  ApiPlannerSuggestInput,
+  ApiPlannerSaveInput,
+  ApiPlannerSaveResponse,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -296,6 +300,30 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           if (err instanceof OdooApiError && err.status === 404) return null;
           throw err;
         }
+      },
+
+      // Learning-loop writes (GOL-3550 / GOL-3549): plain POST passthroughs,
+      // never cached. The BFF maps the status codes; nothing is swallowed here.
+      async signal(input: ApiPlannerSignalInput) {
+        return api<{ ok: true }>(config, "/grove/api/v1/planner/signal", {
+          method: "POST",
+          body: JSON.stringify(input),
+          cache: "no-store",
+        });
+      },
+      async suggest(input: ApiPlannerSuggestInput) {
+        return api<{ ok: true }>(config, "/grove/api/v1/planner/suggest", {
+          method: "POST",
+          body: JSON.stringify(input),
+          cache: "no-store",
+        });
+      },
+      async save(input: ApiPlannerSaveInput) {
+        return api<ApiPlannerSaveResponse>(config, "/grove/api/v1/planner/save", {
+          method: "POST",
+          body: JSON.stringify(input),
+          cache: "no-store",
+        });
       },
     },
 

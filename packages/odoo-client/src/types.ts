@@ -1152,6 +1152,18 @@ export interface ApiPlannerPlant {
   substitute_id: number | null;
   image: string | null;
   variant_id?: number | null;
+  /** The cart variant's `lst_price`; `price` carries the same value (GOL-3524). */
+  variant_price?: number | null;
+  // Winter-beta keys (GOL-3548 §A.3). Optional on the type so a feed that
+  // predates planner beta A still type-checks; `@grove/planner` treats a
+  // missing key as unset.
+  role?: "anchor" | "companion" | null;
+  succession?: "fast" | "mid" | "long" | null;
+  stratum?: "overstory" | "understory" | "mushroom" | null;
+  living_mulch?: boolean;
+  substrate?: string | null;
+  flagged?: boolean;
+  nitrogen_fixer?: boolean;
 }
 
 /** One bundle row of the planner feed: a Food Forest Packages template with its
@@ -1177,6 +1189,64 @@ export interface ApiPlannerCatalog {
   state_zones: Record<string, [number, number]>;
   plants: ApiPlannerPlant[];
   bundles: ApiPlannerBundle[];
+  /** Bumped by any write to a planner field or rule (GOL-3548); signals record it. */
+  catalog_version?: number;
+  /** Retail rule values keyed by rule key (planner beta B, GOL-3549). */
+  rules?: Record<string, number>;
+}
+
+// ── Planner learning loop (winter-beta spec §B, GOL-3549) ───────────────────
+// Bodies for the three public write routes, exactly as grove_headless
+// `services/planner/rules.py` validates them (snake_case). The storefront BFF
+// forwards them; the browser never calls Odoo.
+
+export type ApiPlannerSignalKind = "removed" | "swapped" | "added" | "built" | "saved";
+
+/** `POST /grove/api/v1/planner/signal` body. `product_tmpl_id` is required
+ * except for `built` and `saved`. No personal data. */
+export interface ApiPlannerSignalInput {
+  kind: ApiPlannerSignalKind;
+  /** A random id the page keeps in localStorage (max 64 chars). */
+  browser_id: string;
+  product_tmpl_id?: number | null;
+  zone?: number | null;
+  /** "3-5" | "6-7" | "8-9"; derived from `zone` server-side when omitted. */
+  zone_band?: string | null;
+  track?: string | null;
+  site?: string | null;
+  timing?: string | null;
+  plan_url?: string | null;
+  catalog_version?: number | null;
+}
+
+/** `POST /grove/api/v1/planner/suggest` body (name, stratum, why). */
+export interface ApiPlannerSuggestInput {
+  name: string;
+  stratum?: "overstory" | "understory" | "mushroom" | null;
+  note?: string | null;
+  browser_id: string;
+}
+
+export interface ApiPlannerSaveLine {
+  product_tmpl_id: number;
+  qty: number;
+  role?: string | null;
+  stratum?: string | null;
+}
+
+/** `POST /grove/api/v1/planner/save` body. */
+export interface ApiPlannerSaveInput {
+  name: string;
+  plan_url?: string | null;
+  lines: ApiPlannerSaveLine[];
+  zone?: number | null;
+  track?: string | null;
+  browser_id: string;
+}
+
+export interface ApiPlannerSaveResponse {
+  ok: true;
+  id: number;
 }
 
 /** ZIP → USDA hardiness zone lookup result (GET /grove/api/v1/zone). Powers
@@ -1702,6 +1772,13 @@ export interface OdooClient {
      * so the storefront can fall back to its fixture catalog in development;
      * any other failure throws. */
     catalog(): Promise<ApiPlannerCatalog | null>;
+    /** Learning-loop writes (winter-beta spec §B.2, §B.6, §B.7). Each throws
+     * `OdooApiError` on a non-2xx: 400 malformed, 429 over the per-browser
+     * limit, 503 when `planner_learning_enabled` is off (the BFF turns that
+     * into a silent no-op for the page). */
+    signal(input: ApiPlannerSignalInput): Promise<{ ok: true }>;
+    suggest(input: ApiPlannerSuggestInput): Promise<{ ok: true }>;
+    save(input: ApiPlannerSaveInput): Promise<ApiPlannerSaveResponse>;
   };
   shipping: {
     /** Legacy schema-1 tier-keyed rate table (GOL-952): a read-only mirror of

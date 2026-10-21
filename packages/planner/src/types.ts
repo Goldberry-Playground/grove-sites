@@ -27,8 +27,34 @@ export type Timing = "fast" | "patient" | "mixed" | "early" | "late" | "all" | "
 /** Feed `layer` values the planner places (ground cover and vines have no slot). */
 export type Layer = "canopy" | "understory" | "shrub";
 
-/** A slot is a layer (or a deer season) with a share of the total tree count. */
-export type Slot = Layer | "support" | "early" | "late" | "offseason";
+/**
+ * A slot is a layer (or a deer season) with a share of the total tree count.
+ * `mushroom` is the spawn slot (winter-beta spec, decisions): share 0, one
+ * line when the catalog has a fungal plant, never on the deer track.
+ */
+export type Slot = Layer | "support" | "mushroom" | "early" | "late" | "offseason";
+
+/** The three retail strata (winter-beta spec §A.1), projections of the consultant vocabulary. */
+export type Stratum = "overstory" | "understory" | "mushroom";
+
+/** Anchor: a long-lived tree the system is built around. Companion: feeds soil, pollinators and people while anchors grow. */
+export type PlannerRole = "anchor" | "companion";
+
+/** fast / mid / long-lived; ordering and copy only. */
+export type Succession = "fast" | "mid" | "long";
+
+/** The eight retail rule keys (winter-beta spec §B.1), seeded from the shipped constants. */
+export type RuleKey =
+  | "priority_weight"
+  | "years_weight"
+  | "marginal_penalty"
+  | "season_bonus"
+  | "wildlife_bonus"
+  | "nitrogen_bonus"
+  | "timing_fast"
+  | "timing_patient";
+
+export type PlannerRules = Record<RuleKey, number>;
 
 export type ZoneFit = "safe" | "marginal";
 
@@ -65,6 +91,21 @@ export interface PlannerPlant {
   image: string | null;
   /** product.product id for the cart line; resolved by the storefront BFF. */
   variant_id?: number | null;
+  // ── Winter-beta keys (spec §A.3, GOL-3548). Optional on the type so the
+  // pre-beta fixtures and a feed that predates A still type-check; the engine
+  // treats a missing key as unset.
+  /** `anchor` | `companion`; null when unset. */
+  role?: PlannerRole | null;
+  /** `fast` | `mid` | `long`; null when unset. */
+  succession?: Succession | null;
+  /** Derived in Odoo from `layer` (§A.1); null when the layer is unset. */
+  stratum?: Stratum | null;
+  living_mulch?: boolean;
+  /** "oak or maple logs from your thinnings"; shown on spawn lines. */
+  substrate?: string | null;
+  /** Set by the nightly audit when a fact has three open contradictions ("Needs review"). */
+  flagged?: boolean;
+  nitrogen_fixer?: boolean;
 }
 
 export interface PlannerBundle {
@@ -89,6 +130,10 @@ export interface PlannerCatalog {
   state_zones: Record<string, [number, number]>;
   plants: PlannerPlant[];
   bundles: PlannerBundle[];
+  /** Bumped by any write to a planner field or rule; signals record it. */
+  catalog_version?: number;
+  /** Retail rule values (§B.1); any missing key falls back to the shipped constant. */
+  rules?: Partial<Record<RuleKey, number>>;
 }
 
 /**
@@ -116,6 +161,20 @@ export interface PlanLine {
   zoneFit: ZoneFit;
   /** "needs N to pollinate" when the pollination floor raised the quantity. */
   note?: string;
+  /** The customer's own pick from the suggested list, not the engine's. */
+  manual?: boolean;
+}
+
+/** One term of a line's score, for the tester bench (`explain`). */
+export interface ScorePart {
+  key: RuleKey | "base" | "pollination";
+  label: string;
+  value: number;
+}
+
+export interface ScoreExplanation {
+  total: number;
+  parts: ScorePart[];
 }
 
 export interface Substitution {
@@ -148,6 +207,7 @@ export interface PlanResult {
   notify: PlannerPlant[];
   bundle?: BundleOffer;
   subtotal: number;
+  /** Trees in the plan; spawn (mushroom) lines are not trees and are not counted. */
   treeCount: number;
   /** Drives only the "Talk it through first" link; checkout decides the $0 line. */
   consult: boolean;
