@@ -350,6 +350,9 @@ importers:
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
+      '@grove/planner':
+        specifier: workspace:*
+        version: link:../../packages/planner
       '@grove/otel':
         specifier: workspace:*
         version: link:../../packages/otel
@@ -600,6 +603,12 @@ importers:
         version: 5.9.3
 
   packages/odoo-client:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/planner:
     devDependencies:
       typescript:
         specifier: ^5.7.0

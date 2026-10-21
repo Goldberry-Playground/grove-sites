@@ -40,6 +40,7 @@ import type {
   ApiNewsletterSubscribeResponse,
   CatalogNav,
   ApiCatalogNavResponse,
+  ApiPlannerCatalog,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -278,6 +279,24 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         if (err instanceof OdooApiError && err.status === 404) return null;
         throw err;
       }
+    },
+
+    planner: {
+      async catalog(): Promise<ApiPlannerCatalog | null> {
+        // One document per quiz run, served through the BFF (never from the
+        // browser). The feed sets `Cache-Control: public, max-age=300`; mirror
+        // that in the Next Data Cache so a burst of quiz runs is one Odoo hit.
+        try {
+          return await api<ApiPlannerCatalog>(config, "/grove/api/v1/planner/catalog", {
+            next: { revalidate: 300 },
+          });
+        } catch (err) {
+          // A backend that predates the order builder 404s the route: that is
+          // "no feed", not a failure. Anything else (network, 5xx) re-throws.
+          if (err instanceof OdooApiError && err.status === 404) return null;
+          throw err;
+        }
+      },
     },
 
     shipping: {

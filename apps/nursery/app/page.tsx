@@ -6,6 +6,7 @@ import { assetPath } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
 import { NURSERY_CATEGORIES } from "../data/categories";
 import { FeaturedLeadSellers, fetchCatalog } from "./featured-lead-sellers";
+import { PlanTeaser } from "./plan-teaser";
 import type { ShippingCalendar } from "@grove/odoo-client";
 import { odoo } from "../lib/clients";
 import {
@@ -206,6 +207,10 @@ export default async function HomePage() {
           Browse <GlyphIcon name="arrow-right" />
         </button>
       </form>
+
+      {/* Order builder (GOL-3383): four questions, handed to /plan. Behind
+          NEXT_PUBLIC_PLANNER; renders nothing while the flag is off. */}
+      <PlanTeaser />
 
       <FeaturedLeadSellers products={products} total={total} />
 

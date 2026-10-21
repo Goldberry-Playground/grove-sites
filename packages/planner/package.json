@@ -1,0 +1,19 @@
+{
+  "name": "@grove/planner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Order-builder planning engine: a pure function from four quiz answers and the planner catalog feed to a planned order (order-builder spec §C.2).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "echo 'lint placeholder'"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

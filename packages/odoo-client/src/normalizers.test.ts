@@ -269,6 +269,16 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
       chillHours: null,
       pollination: null,
       yearsToFruit: null,
+      // Planner facts (GOL-3383): absent on a pre-order-builder payload.
+      yearsToFruitMin: null,
+      pollinationMin: null,
+      harvestMonths: [],
+      toleratesWet: false,
+      toleratesPoorSoil: false,
+      toleratesShade: false,
+      wildlifeValue: null,
+      plannerPriority: null,
+      plannerReady: false,
     });
   });
 
@@ -304,6 +314,16 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
       chillHours: null,
       pollination: null,
       yearsToFruit: null,
+      // Planner facts (GOL-3383): absent on a pre-order-builder payload.
+      yearsToFruitMin: null,
+      pollinationMin: null,
+      harvestMonths: [],
+      toleratesWet: false,
+      toleratesPoorSoil: false,
+      toleratesShade: false,
+      wildlifeValue: null,
+      plannerPriority: null,
+      plannerReady: false,
     });
   });
 
@@ -362,6 +382,58 @@ describe("normalizeProductDetail — stock module absent (production today)", ()
       chillHours: null,
       pollination: null,
       yearsToFruit: null,
+    });
+  });
+
+  it("maps the nine planner facts to camelCase twins (order-builder §A, GOL-3383)", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      facts: {
+        ...honeycrispDetail.facts,
+        years_to_fruit_min: 3,
+        pollination_min: 2,
+        harvest_months: "9,10, 11",
+        tolerates_wet: false,
+        tolerates_poor_soil: true,
+        tolerates_shade: false,
+        wildlife_value: "high",
+        planner_priority: 20,
+        planner_ready: true,
+      },
+    });
+    expect(result.facts).toMatchObject({
+      yearsToFruitMin: 3,
+      pollinationMin: 2,
+      harvestMonths: [9, 10, 11],
+      toleratesWet: false,
+      toleratesPoorSoil: true,
+      toleratesShade: false,
+      wildlifeValue: "high",
+      plannerPriority: 20,
+      plannerReady: true,
+    });
+  });
+
+  it("collapses unset planner facts (0 → null, '' → [], null selection) and drops bad months", () => {
+    const result = normalizeProductDetail({
+      ...honeycrispDetail,
+      facts: {
+        ...honeycrispDetail.facts,
+        years_to_fruit_min: null,
+        pollination_min: null,
+        harvest_months: "0,13,abc,12,12",
+        wildlife_value: null,
+        planner_priority: null,
+        planner_ready: false,
+      },
+    });
+    expect(result.facts).toMatchObject({
+      yearsToFruitMin: null,
+      pollinationMin: null,
+      harvestMonths: [12],
+      wildlifeValue: null,
+      plannerPriority: null,
+      plannerReady: false,
     });
   });
 

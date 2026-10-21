@@ -357,6 +357,21 @@ export function normalizePromotionTiers(raw: unknown): PromotionTier[] {
     .sort((a, b) => a.minQty - b.minQty);
 }
 
+/**
+ * "9,10,11" → [9, 10, 11]. The planner facts store harvest months as a comma
+ * list on a Char field (§A); anything that is not a month 1..12 is dropped so a
+ * typo in Odoo never becomes a bogus season on the storefront.
+ */
+export function parseHarvestMonths(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  const months: number[] = [];
+  for (const part of raw.split(",")) {
+    const n = Number(part.trim());
+    if (Number.isInteger(n) && n >= 1 && n <= 12 && !months.includes(n)) months.push(n);
+  }
+  return months;
+}
+
 export function normalizeFacts(raw: ApiFacts): GrowingFacts {
   return {
     botanicalName: emptyToNull(raw.botanical_name),
@@ -376,6 +391,15 @@ export function normalizeFacts(raw: ApiFacts): GrowingFacts {
     chillHours: emptyToNull(raw.chill_hours),
     pollination: emptyToNull(raw.pollination),
     yearsToFruit: emptyToNull(raw.years_to_fruit),
+    yearsToFruitMin: raw.years_to_fruit_min ?? null,
+    pollinationMin: raw.pollination_min ?? null,
+    harvestMonths: parseHarvestMonths(raw.harvest_months),
+    toleratesWet: raw.tolerates_wet === true,
+    toleratesPoorSoil: raw.tolerates_poor_soil === true,
+    toleratesShade: raw.tolerates_shade === true,
+    wildlifeValue: emptyToNull(raw.wildlife_value),
+    plannerPriority: raw.planner_priority ?? null,
+    plannerReady: raw.planner_ready === true,
   };
 }
 

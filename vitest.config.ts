@@ -38,6 +38,8 @@ export default defineConfig({
     alias: {
       "@grove/brand": path.resolve(__dirname, "packages/grove-brand/src"),
       "@grove/odoo-client": path.resolve(__dirname, "packages/odoo-client/src"),
+      "@grove/planner/fixtures": path.resolve(__dirname, "packages/planner/src/fixtures.ts"),
+      "@grove/planner": path.resolve(__dirname, "packages/planner/src"),
       "@grove/ghost-client": path.resolve(__dirname, "packages/ghost-client/src"),
       "@grove/newsletter": path.resolve(__dirname, "packages/newsletter/src"),
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),
