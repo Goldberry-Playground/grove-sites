@@ -39,6 +39,7 @@ const nextConfig: NextConfig = {
     "@grove/ui",
     "@grove/checkout",
     "@grove/odoo-client",
+    "@grove/planner",
     "@grove/ghost-client",
     "@grove/analytics",
     "@grove/config",

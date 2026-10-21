@@ -955,6 +955,10 @@ h1 em, h2 em, h3 em {
 .btn-outline:hover { background: var(--orange); color: var(--forest-deep); }
 .btn-forest { background: var(--forest); color: var(--parchment); border-color: var(--forest); }
 .btn-forest:hover { background: transparent; color: var(--forest); }
+/* Secondary action beside a .btn-forest (order builder, GOL-3383): forest on
+   parchment measures 9.8:1 where .btn-outline's orange text is 3.34:1. */
+.btn-forest-outline { background: transparent; color: var(--forest); border-color: var(--forest); }
+.btn-forest-outline:hover { background: var(--forest); color: var(--parchment); }
 
 /* ─── GOL-659 — homepage lead-seller redesign ─── */
 
