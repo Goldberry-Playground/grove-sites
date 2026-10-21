@@ -3,6 +3,14 @@
 Four App Platform spec files, one per business. Each spec wires GitHub →
 Dockerfile build → DO App Platform with auto-redeploy on push to `main`.
 
+> **Where the live apps are actually defined.** The running QA (`grove-*-qa`)
+> and production (`grove-*-prod`) apps are Terraform-managed in odoocker
+> (`infra/terraform/environments/qa-app-platform/apps.tf` and
+> `environments/production/apps.tf`) from GHCR images with 1Password-sourced
+> secrets. The specs here are the standalone GitHub-source shape (first-time
+> create / local validation); keep their env lists in step with the Terraform
+> ones when an app gains or loses an env var.
+
 | Spec | App name | Domain | Source Dockerfile |
 |------|----------|--------|-------------------|
 | `hub.yaml` | `grove-hub` | gatheringatthegrove.com | `apps/hub/Dockerfile` |
@@ -49,7 +57,7 @@ doctl apps update <APP_ID> --spec infra/do/hub.yaml
 > *every* env var, so the `REPLACE_ME` placeholders reset the app's live
 > secrets (`ODOO_API_KEY`, `GHOST_CONTENT_KEY`, RUM token, …) to `REPLACE_ME`
 > and break the running app. Only apply a file verbatim on **first create**.
-> To change a **non-secret** env var (e.g. `GHOST_NEWSLETTER_INSTANCES`) on a
+> To change a **non-secret** env var (e.g. `NEXT_PUBLIC_RUM_ENV`) on a
 > live app, use one of these instead:
 >
 > - **DO Console (simplest, zero-risk):** App → Settings → the service →
@@ -62,10 +70,10 @@ doctl apps update <APP_ID> --spec infra/do/hub.yaml
 >   ```bash
 >   APP_ID=$(doctl apps list --format ID,Spec.Name --no-header \
 >     | awk '$2=="grove-nursery"{print $1}')
->   NEW=$(yq -r '.services[0].envs[] | select(.key=="GHOST_NEWSLETTER_INSTANCES") | .value' \
+>   NEW=$(yq -r '.services[0].envs[] | select(.key=="NEXT_PUBLIC_RUM_ENV") | .value' \
 >     infra/do/nursery.yaml)
 >   doctl apps spec get "$APP_ID" \
->     | yq '.services[0].envs += [{"key":"GHOST_NEWSLETTER_INSTANCES","scope":"RUN_AND_BUILD_TIME","value":env(NEW)}]' \
+>     | yq '.services[0].envs += [{"key":"NEXT_PUBLIC_RUM_ENV","scope":"RUN_AND_BUILD_TIME","value":env(NEW)}]' \
 >     | doctl apps update "$APP_ID" --spec -
 >   ```
 >   (If the key already exists, replace the `+=` append with a `map(...)`
@@ -78,8 +86,9 @@ to `main` that touches the relevant app paths triggers an auto-redeploy
 ## Setting secrets
 
 All specs ship with `REPLACE_ME` placeholders for secret env vars
-(`ODOO_API_KEY`, `GHOST_CONTENT_KEY`, `GROVE_REVALIDATE_SECRET`,
-`HUB_GHOST_CONTENT_API_KEY`). Set real values either in the DO Console
+(`ODOO_API_KEY` — tenants *and*, since GOL-3456, the hub — `GHOST_CONTENT_KEY`,
+`GROVE_REVALIDATE_SECRET`, `HUB_GHOST_CONTENT_API_KEY`, and the optional
+`CAPTURE_ALERT_WEBHOOK_URL` on hub/nursery/goldberry). Set real values either in the DO Console
 (**App → Settings → service → Environment Variables**) or via CLI:
 
 ```bash
