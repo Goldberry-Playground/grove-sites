@@ -195,9 +195,17 @@ jobs:
 
       # gitleaks-action requires a paid license for org accounts; trufflehog
       # is still free and equivalent in coverage for our use case.
+      # GOL-2534: the action auto-scopes pull_request (base..head) and push
+      # (before..after) itself, but has no merge_group branch -- it falls
+      # through to an empty BASE/HEAD, i.e. every ref in the fetch-depth:0
+      # clone. A hit parked on any unrelated branch would then red every
+      # merge-queue run. Pin merge_group to the queue entry's own range; on
+      # other events both are empty and the action's own scoping applies.
       - name: Run trufflehog
         uses: trufflesecurity/trufflehog@e76dff8a7e57d6df0c60ad8cbf5d5cba505a8fc9 # v3.99.2
         with:
+          base: ${{ github.event.merge_group.base_sha || '' }}
+          head: ${{ github.event.merge_group.head_sha || '' }}
           extra_args: --only-verified
 
   ci-scripts:
