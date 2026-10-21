@@ -20,7 +20,14 @@ export interface CaptureRouteOptions {
   allowedOrigins: readonly string[];
 }
 
-const LEAD_KINDS: readonly CaptureLeadKind[] = ["food_forest_consult", "wholesale", "farm_visit", "state_waitlist"];
+const LEAD_KINDS: readonly CaptureLeadKind[] = [
+  "food_forest_consult",
+  "wholesale",
+  "farm_visit",
+  "state_waitlist",
+  "dept_waitlist",
+];
+const MAX_DEPT = 60;
 const MAX_EMAIL = 254;
 const MAX_NAME = 200;
 const MAX_MESSAGE = 2000;
@@ -60,7 +67,13 @@ function guard(request: Request, allowedOrigins: readonly string[]): Response | 
   return requireJsonContentType(request);
 }
 
-/** `POST /api/leads?kind=<kind>[&state=XX][&product=<template id>]` */
+/**
+ * `POST /api/leads?kind=<kind>[&state=XX][&product=<template id>][&dept=<slug>]`
+ *
+ * `dept` carries the department slug for `kind=dept_waitlist` — the shop
+ * "coming soon" waitlist moved here from the newsletter route (GOL-3456, spec
+ * §8) so a waitlist signup never becomes a mailing-list membership.
+ */
 export function createLeadCaptureRoute(odoo: OdooClient, { allowedOrigins }: CaptureRouteOptions) {
   async function POST(request: Request) {
     const rejected = guard(request, allowedOrigins);
@@ -79,11 +92,16 @@ export function createLeadCaptureRoute(odoo: OdooClient, { allowedOrigins }: Cap
     const label = text(body.label, MAX_LABEL);
     const source = text(body.source, MAX_LABEL);
     const state = text(query.get("state"), 2)?.toUpperCase();
+    const department = text(query.get("dept"), MAX_DEPT)?.toLowerCase();
     const productId = positiveInt(query.get("product"));
+    if (kind === "dept_waitlist" && !department) {
+      return NextResponse.json({ error: "dept is required for dept_waitlist" }, { status: 400 });
+    }
     if (name) input.name = name;
     if (message) input.message = message;
     if (label) input.label = label;
     if (state) input.state = state;
+    if (department) input.department = department;
     if (productId) input.productId = productId;
     if (source) input.source = source;
 

@@ -1,33 +1,36 @@
 export type {
   Brand,
-  Sender,
-  Interest,
+  ListKey,
   OptInSource,
   OptInRequest,
-  OptInResult,
-  SyncOutcome,
+  SubscribeOutcome,
   NewsletterProvider,
 } from "./types";
-export { BRAND_TO_SENDER, HUB_SENDER } from "./types";
+export { LIST_KEYS, PRIMARY_LIST } from "./types";
 
-export type { GhostInstance, GhostNewsletterConfig, EnvMap } from "./config";
-export {
-  resolveGhostConfig,
-  resolveBrandInstance,
-  resolveHubInstance,
-  labelsFor,
-} from "./config";
-
-export { createGhostNewsletterProvider } from "./ghost";
-export {
-  createOdooCrmSync,
-  resolveOdooCrmConfig,
-  type OdooCrmTarget,
-} from "./odoo";
 export {
   captureOptIn,
   validateOptIn,
-  ghostCaptureDeps,
+  listsFor,
   OptInValidationError,
-  type CaptureDeps,
 } from "./capture";
+
+export {
+  createOdooNewsletterProvider,
+  resolveOdooNewsletterTarget,
+  type OdooNewsletterTarget,
+  type EnvMap,
+} from "./odoo";
+
+export {
+  reportCaptureFailure,
+  resetCaptureAlertThrottle,
+  CAPTURE_ALERT_THROTTLE_MS,
+  type CaptureFailure,
+  type CaptureAlertOptions,
+} from "./alert";
+
+export {
+  createNewsletterSubscribeRoute,
+  type NewsletterRouteOptions,
+} from "./route";

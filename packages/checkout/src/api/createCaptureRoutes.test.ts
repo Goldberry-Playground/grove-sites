@@ -20,7 +20,7 @@ const formBody = {
   source: "notify-me",
   label: "nursery-wholesale",
   interests: ["nursery"],
-  hubOptIn: false,
+  multibrand: false,
   consent: true,
 };
 
@@ -49,6 +49,17 @@ describe("POST /api/leads (createLeadCaptureRoute)", () => {
     expect(lead.mock.calls[0][0]).toMatchObject({ kind: "state_waitlist", state: "CA" });
     await POST(post("/api/leads?kind=food_forest_consult&product=134", formBody));
     expect(lead.mock.calls[1][0]).toMatchObject({ kind: "food_forest_consult", productId: 134 });
+  });
+
+  it("passes the department slug for the shop waitlist and requires it (GOL-3456 §8)", async () => {
+    const lead = vi.fn(async (_input: unknown) => ({ leadId: 1, created: true }));
+    const { POST } = createLeadCaptureRoute({ capture: { lead } } as unknown as OdooClient, { allowedOrigins: [ORIGIN] });
+    const ok = await POST(post("/api/leads?kind=dept_waitlist&dept=Mycoforestry", formBody));
+    expect(ok.status).toBe(200);
+    expect(lead.mock.calls[0][0]).toMatchObject({ kind: "dept_waitlist", department: "mycoforestry" });
+    const missing = await POST(post("/api/leads?kind=dept_waitlist", formBody));
+    expect(missing.status).toBe(400);
+    expect(lead).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an unknown kind and a foreign origin without calling Odoo", async () => {

@@ -1,14 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  captureOptIn,
-  validateOptIn,
-  ghostCaptureDeps,
-  OptInValidationError,
-} from "./capture";
-import { resolveGhostConfig } from "./config";
+import { captureOptIn, listsFor, validateOptIn, OptInValidationError } from "./capture";
 import type { NewsletterProvider, OptInRequest } from "./types";
 
-const valid: OptInRequest = {
+const base: OptInRequest = {
   email: "Sam@Example.com ",
   brand: "nursery",
   source: "footer",
@@ -16,147 +10,63 @@ const valid: OptInRequest = {
 };
 
 describe("validateOptIn", () => {
-  it("lowercases + trims the email and defaults optional fields", () => {
-    const out = validateOptIn(valid);
+  it("normalizes the email, trims the name, defaults the flags", () => {
+    const out = validateOptIn({ ...base, name: " Sam ", label: " nursery-footer " });
     expect(out.email).toBe("sam@example.com");
-    expect(out.interests).toEqual([]);
-    expect(out.hubOptIn).toBe(false);
-  });
-
-  it("normalizes hubOptIn + label", () => {
-    const out = validateOptIn({ ...valid, hubOptIn: true, label: " nursery-footer " });
-    expect(out.hubOptIn).toBe(true);
+    expect(out.name).toBe("Sam");
     expect(out.label).toBe("nursery-footer");
+    expect(out.multibrand).toBe(false);
+    expect(out.interests).toEqual([]);
   });
 
-  it("rejects a missing/garbage email", () => {
-    expect(() => validateOptIn({ ...valid, email: "nope" })).toThrow(
-      OptInValidationError,
+  it("drops blank and non-string interests", () => {
+    const out = validateOptIn({
+      ...base,
+      interests: ["produce", " ", 7 as unknown as string, "events"],
+    });
+    expect(out.interests).toEqual(["produce", "events"]);
+  });
+
+  it("rejects a bad email, missing consent, or an unknown brand", () => {
+    expect(() => validateOptIn({ ...base, email: "nope" })).toThrow(OptInValidationError);
+    expect(() => validateOptIn({ ...base, consent: false })).toThrowError(
+      expect.objectContaining({ field: "consent" }),
     );
-  });
-
-  it("rejects a request without affirmative consent", () => {
-    expect(() => validateOptIn({ ...valid, consent: false })).toThrow(/consent/i);
-  });
-
-  it("rejects a missing brand", () => {
     expect(() =>
-      validateOptIn({ ...valid, brand: undefined as unknown as OptInRequest["brand"] }),
-    ).toThrow(OptInValidationError);
+      validateOptIn({ ...base, brand: "etsy" as unknown as OptInRequest["brand"] }),
+    ).toThrowError(expect.objectContaining({ field: "brand" }));
   });
 });
 
-const okBrand: NewsletterProvider = {
-  subscribe: vi.fn().mockResolvedValue({ ok: true, id: "m_brand" }),
-};
-const failBrand: NewsletterProvider = {
-  subscribe: vi.fn().mockResolvedValue({ ok: false, error: "boom" }),
-};
-const okHub: NewsletterProvider = {
-  subscribe: vi.fn().mockResolvedValue({ ok: true, id: "m_hub" }),
-};
-const failHub: NewsletterProvider = {
-  subscribe: vi.fn().mockResolvedValue({ ok: false, error: "hub down" }),
-};
-const okOdoo: NewsletterProvider = {
-  subscribe: vi.fn().mockResolvedValue({ ok: true, id: "42" }),
-};
-const failOdoo: NewsletterProvider = {
-  subscribe: vi.fn().mockResolvedValue({ ok: false, error: "odoo 500" }),
-};
+describe("listsFor (spec §2, Josh 2026-10-20)", () => {
+  it("defaults to the brand's own list", () => {
+    expect(listsFor("nursery")).toEqual(["nursery"]);
+    expect(listsFor("goldberry")).toEqual(["farm"]);
+    expect(listsFor("grove")).toEqual(["digest"]);
+    expect(listsFor("ggg")).toEqual(["digest"]);
+  });
+
+  it("adds EVERY other list when the multibrand box is ticked, primary first", () => {
+    expect(listsFor("nursery", true)).toEqual(["nursery", "farm", "digest"]);
+    expect(listsFor("goldberry", true)).toEqual(["farm", "nursery", "digest"]);
+    // The hub's primary is the Digest; its box adds Nursery News + Farm News.
+    expect(listsFor("grove", true)).toEqual(["digest", "nursery", "farm"]);
+  });
+});
 
 describe("captureOptIn", () => {
-  const req = validateOptIn(valid);
-  const reqHub = validateOptIn({ ...valid, hubOptIn: true });
-
-  it("succeeds when the brand write succeeds; hub + odoo skipped when absent", async () => {
-    const res = await captureOptIn(req, { brand: okBrand, hub: okHub });
-    expect(res.ok).toBe(true);
-    expect(res.brand.ok).toBe(true);
-    expect(res.hub.skipped).toBe(true);
-    expect(res.odoo.skipped).toBe(true);
+  it("writes once to the provider with the resolved lists", async () => {
+    const subscribe = vi.fn(async () => ({ ok: true, lists: ["farm", "nursery", "digest"] as const }));
+    const provider: NewsletterProvider = { subscribe: subscribe as NewsletterProvider["subscribe"] };
+    const req = validateOptIn({ ...base, brand: "goldberry", multibrand: true });
+    const out = await captureOptIn(req, provider);
+    expect(out.ok).toBe(true);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(subscribe.mock.calls[0]![1]).toEqual(["farm", "nursery", "digest"]);
   });
 
-  it("syncs to Odoo CRM on a successful brand write", async () => {
-    const res = await captureOptIn(req, { brand: okBrand, odoo: okOdoo });
-    expect(res.ok).toBe(true);
-    expect(res.odoo.ok).toBe(true);
-    expect(res.odoo.id).toBe("42");
-    expect(okOdoo.subscribe).toHaveBeenCalledWith(req);
-  });
-
-  it("stays ok when only the Odoo CRM sync fails (best-effort)", async () => {
-    const res = await captureOptIn(req, { brand: okBrand, odoo: failOdoo });
-    expect(res.ok).toBe(true);
-    expect(res.odoo.ok).toBe(false);
-    expect(res.odoo.error).toBe("odoo 500");
-  });
-
-  it("does not sync to Odoo when the brand write fails", async () => {
-    const odoo: NewsletterProvider = {
-      subscribe: vi.fn().mockResolvedValue({ ok: true, id: "42" }),
-    };
-    const res = await captureOptIn(req, { brand: failBrand, odoo });
-    expect(res.ok).toBe(false);
-    expect(res.odoo.skipped).toBe(true);
-    expect(odoo.subscribe).not.toHaveBeenCalled();
-  });
-
-  it("dual-writes to the hub on explicit hub opt-in", async () => {
-    const res = await captureOptIn(reqHub, { brand: okBrand, hub: okHub });
-    expect(res.ok).toBe(true);
-    expect(res.hub.ok).toBe(true);
-    expect(res.hub.id).toBe("m_hub");
-  });
-
-  it("stays ok when only the hub dual-write fails (best-effort)", async () => {
-    const res = await captureOptIn(reqHub, { brand: okBrand, hub: failHub });
-    expect(res.ok).toBe(true);
-    expect(res.hub.ok).toBe(false);
-    expect(res.hub.error).toBe("hub down");
-  });
-
-  it("does not write to the hub when opted in but no hub provider exists", async () => {
-    const res = await captureOptIn(reqHub, { brand: okBrand, hub: null });
-    expect(res.ok).toBe(true);
-    expect(res.hub.skipped).toBe(true);
-  });
-
-  it("fails overall when the brand write fails", async () => {
-    const res = await captureOptIn(req, { brand: failBrand });
-    expect(res.ok).toBe(false);
-    expect(res.brand.error).toBe("boom");
-  });
-
-  it("marks brand skipped when the instance is not provisioned", async () => {
-    const res = await captureOptIn(req, { brand: null });
-    expect(res.ok).toBe(false);
-    expect(res.brand.skipped).toBe(true);
-  });
-});
-
-describe("ghostCaptureDeps", () => {
-  const cfg = resolveGhostConfig({
-    GHOST_NEWSLETTER_INSTANCES: JSON.stringify({
-      grove: { url: "https://hub.test" },
-      nursery: { url: "https://nursery.test" },
-    }),
-  })!;
-
-  it("wires a brand provider and a hub provider for a tenant brand", () => {
-    const deps = ghostCaptureDeps(cfg, "nursery");
-    expect(deps.brand).not.toBeNull();
-    expect(deps.hub).not.toBeNull();
-  });
-
-  it("wires no hub provider when the brand is the hub itself", () => {
-    const deps = ghostCaptureDeps(cfg, "grove");
-    expect(deps.brand).not.toBeNull();
-    expect(deps.hub).toBeNull();
-  });
-
-  it("leaves the brand provider null when that instance is unconfigured", () => {
-    const deps = ghostCaptureDeps(cfg, "goldberry");
-    expect(deps.brand).toBeNull();
+  it("reports skipped + not ok when Odoo is not configured", async () => {
+    const out = await captureOptIn(validateOptIn(base), null);
+    expect(out).toMatchObject({ ok: false, skipped: true });
   });
 });

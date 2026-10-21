@@ -1,15 +1,11 @@
 import type {
+  Brand,
+  ListKey,
   NewsletterProvider,
   OptInRequest,
-  OptInResult,
-  SyncOutcome,
+  SubscribeOutcome,
 } from "./types";
-import {
-  resolveBrandInstance,
-  resolveHubInstance,
-  type GhostNewsletterConfig,
-} from "./config";
-import { createGhostNewsletterProvider } from "./ghost";
+import { LIST_KEYS, PRIMARY_LIST } from "./types";
 
 export class OptInValidationError extends Error {
   constructor(
@@ -22,7 +18,7 @@ export class OptInValidationError extends Error {
 }
 
 // Pragmatic email check — rejects obvious garbage without pretending to be a
-// full RFC 5322 parser (Ghost does the authoritative validation).
+// full RFC 5322 parser (Odoo normalizes and re-validates the address).
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
@@ -40,103 +36,52 @@ export function validateOptIn(input: OptInRequest): OptInRequest {
       "consent",
     );
   }
-  if (!input.brand) {
+  if (!input.brand || !(input.brand in PRIMARY_LIST)) {
     throw new OptInValidationError("A brand is required.", "brand");
   }
   return {
     ...input,
     email,
     name: input.name?.trim() || undefined,
-    interests: input.interests ?? [],
-    hubOptIn: input.hubOptIn === true,
+    interests: (input.interests ?? []).filter(
+      (i): i is string => typeof i === "string" && i.trim().length > 0,
+    ),
+    multibrand: input.multibrand === true,
     label: input.label?.trim() || undefined,
   };
 }
 
-export interface CaptureDeps {
-  /**
-   * Provider for the brand's own Ghost instance (the list of record), or null
-   * when that instance isn't configured yet.
-   */
-  brand: NewsletterProvider | null;
-  /**
-   * Provider for the hub (`grove`) instance. Only used on explicit
-   * `hubOptIn`. Null when the hub isn't configured or the brand already *is*
-   * the hub (grove/ggg).
-   */
-  hub?: NewsletterProvider | null;
-  /**
-   * Best-effort Odoo CRM sync. When present, a successful brand opt-in is also
-   * recorded as a tagged `res.partner` for attribution. Null when Odoo isn't
-   * wired for the app. Never blocks the opt-in.
-   */
-  odoo?: NewsletterProvider | null;
+/**
+ * The ordered list keys a submit subscribes to (spec §2, Josh 2026-10-20):
+ * the brand's own list always, then — only when the "other Grove brands" box
+ * is ticked — every seeded list the primary is not. Primary first, each key at
+ * most once, never empty. The storefront owns this expansion so the ticked box
+ * means "every other brand", not just the Digest.
+ */
+export function listsFor(brand: Brand, multibrand = false): ListKey[] {
+  const primary = PRIMARY_LIST[brand];
+  if (!multibrand) return [primary];
+  return [primary, ...LIST_KEYS.filter((key) => key !== primary)];
 }
 
-const NOT_CONFIGURED: SyncOutcome = {
+const NOT_CONFIGURED: SubscribeOutcome = {
   ok: false,
   skipped: true,
   error: "newsletter not configured",
 };
 
 /**
- * Capture an opt-in: write the member to the brand's Ghost instance (the thing
- * the visitor asked for) and, on explicit hub opt-in, dual-write to the hub.
- *
- * Contract:
- *   - The brand write is primary. Its failure fails the whole capture
- *     (`ok: false`).
- *   - The hub dual-write is best-effort and only attempted when the visitor
- *     explicitly opted in (`hubOptIn`) AND a hub provider is present. Its
- *     failure is reported but never blocks the primary opt-in — losing the
- *     cross-subscribe must not cost us the subscriber.
- *   - When the brand provider is null (not provisioned), the brand outcome is
- *     `skipped` and `ok` is false, so the route can return 503 cleanly.
+ * Capture an opt-in: one write to Odoo, the list of record. There is no second
+ * destination any more — the Ghost member write and the hub dual-write are
+ * gone (GOL-3456). When the provider is null (Odoo not wired for the app) the
+ * outcome is `skipped` and `ok` is false, so the route can return 503 cleanly.
  *
  * Input is assumed already validated via {@link validateOptIn}.
  */
 export async function captureOptIn(
   request: OptInRequest,
-  deps: CaptureDeps,
-): Promise<OptInResult> {
-  const brand = deps.brand
-    ? await deps.brand.subscribe(request)
-    : NOT_CONFIGURED;
-
-  let hub: SyncOutcome = { ok: false, skipped: true };
-  if (request.hubOptIn && deps.hub) {
-    hub = await deps.hub.subscribe(request);
-  }
-
-  // CRM sync is best-effort and only fires for a confirmed opt-in — a failed
-  // brand write returns 502 to the visitor, so we must not record them in CRM.
-  let odoo: SyncOutcome = { ok: false, skipped: true };
-  if (brand.ok && deps.odoo) {
-    odoo = await deps.odoo.subscribe(request);
-  }
-
-  return { ok: brand.ok, brand, hub, odoo };
-}
-
-/**
- * Build {@link CaptureDeps} from resolved Ghost config for a given brand: a
- * provider for the brand's list-of-record instance, and — when the brand isn't
- * itself the hub — a provider for the hub instance for dual-write. The route
- * only needs to call this once and pass the result to {@link captureOptIn}.
- */
-export function ghostCaptureDeps(
-  config: GhostNewsletterConfig,
-  brand: OptInRequest["brand"],
-  fetchImpl: typeof fetch = fetch,
-): CaptureDeps {
-  const brandTarget = resolveBrandInstance(config, brand);
-  const hubInstance = resolveHubInstance(config, brand);
-  return {
-    brand: brandTarget
-      ? createGhostNewsletterProvider(brandTarget.instance, fetchImpl)
-      : null,
-    hub: hubInstance
-      ? createGhostNewsletterProvider(hubInstance, fetchImpl)
-      : null,
-  };
+  provider: NewsletterProvider | null,
+): Promise<SubscribeOutcome> {
+  if (!provider) return NOT_CONFIGURED;
+  return provider.subscribe(request, listsFor(request.brand, request.multibrand));
 }

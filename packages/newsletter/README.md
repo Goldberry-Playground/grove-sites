@@ -1,76 +1,70 @@
 # @grove/newsletter
 
-Shared opt-in capture for the Grove brand family. **Ghost-native** per the
-GOL-245 decision (drop MailerLite): each brand's own Ghost instance is that
-brand's **list of record**. Signups POST a Ghost member (the
-`data-members-email` / `send-magic-link` pattern), so Ghost owns confirmation
-(double opt-in via magic link), the member database, and segmentation labels —
-no external ESP audience, no CSV export/import.
+Shared newsletter opt-in capture for the Grove brands. **Odoo Email Marketing
+(`mass_mailing`) is the list of record** for every Grove newsletter and Ghost
+is blog-only (Josh, "option C", 2026-10-19; grove_headless GOL-3454, storefront
+GOL-3456). There is one destination and one write per signup.
 
 ```
-grove     → Gathering at the Grove (the hub)   The Grove Digest
-nursery   → At the Grove Nursery
-goldberry → Goldberry Grove (the farm)
-ggg       → (deferred) rides the hub Digest → maps to the `grove` instance
+grove     → Grove Digest   (the hub)
+nursery   → Nursery News   (At The Grove Nursery)
+goldberry → Farm News      (Goldberry Grove)
+ggg       → Grove Digest   (GGG rides the Digest)
 ```
 
 ## What this package does
 
-- `NewsletterProvider` seam + a Ghost adapter (`createGhostNewsletterProvider`)
-  that POSTs a member to `{ghostUrl}/members/api/send-magic-link/`.
-- **Dual-write**: on an explicit hub opt-in ("Also get news from Gathering at
-  the Grove"), the member is written to BOTH the brand instance and the hub
-  (`grove`) instance. Explicit consent, best-effort — a hub failure never costs
-  the brand subscription.
-- **Per-form Ghost labels** applied at signup for segmentation (`labelsFor`):
-  the per-form label (or a `<brand>-<source>` fallback) plus one
-  `interest-<name>` label per interest.
-- `captureOptIn()` orchestrator + `ghostCaptureDeps()` factory (wires the brand
-  provider and, for tenant brands, the hub provider).
-- `validateOptIn()`: affirmative-consent + email validation.
+- `createNewsletterSubscribeRoute({ brand, tenantId, allowedOrigins })` — the
+  whole `POST /api/newsletter/subscribe` handler every app mounts. The brand is
+  **pinned server-side**: the request body cannot pick a list of record.
+- `listsFor(brand, multibrand)` — the brand's own list first, plus every other
+  seeded list when the "Also send me news from the other Grove brands" box was
+  ticked (spec §2). Sent to Odoo as the explicit `lists` array.
+- `validateOptIn()` — affirmative-consent + email validation, unchanged.
+- `createOdooNewsletterProvider()` — the Odoo adapter over
+  `@grove/odoo-client`'s `newsletter.subscribe()`; never throws.
+- `reportCaptureFailure()` — operator alert on any capture-route 5xx: one
+  grep-able `[grove-capture] ALERT …` log line, plus a throttled post to
+  `CAPTURE_ALERT_WEBHOOK_URL` when that env is set.
 
-Capture surfaces (newsletter signup, checkout opt-in, notify-me) POST to a thin
-BFF route that calls `resolveGhostConfig` → `ghostCaptureDeps` → `captureOptIn`.
-Reference route: `apps/hub/app/api/newsletter/subscribe/route.ts`.
+## Opt-in model
 
-## Double opt-in & the transactional-SMTP dependency
-
-`send-magic-link` is inherently double opt-in: Ghost creates the member
-(unconfirmed) and emails a magic link the visitor must click. The **POST here
-succeeds regardless** of whether that email actually sends — so this package is
-not blocked on SMTP — but a subscriber only *confirms* once each instance's
-**transactional SMTP** is wired (see the Email Systems doc and the transactional
-SMTP task). Coordinate ordering: capture can ship first; confirmations light up
-when SMTP lands.
+**Single opt-in.** Odoo adds the address to the chosen lists on submit and
+sends one welcome email with a one-click unsubscribe; nobody has to click a
+confirmation link. Re-submitting the same address within 24h is an idempotent
+no-op (no duplicate contact, no second welcome). The submit itself is the
+recorded consent, so `consent: true` is still required and the form's consent
+line must be visible next to the button.
 
 ## Environment (server-only)
 
 | Var | Required | Notes |
 | --- | --- | --- |
-| `GHOST_NEWSLETTER_INSTANCES` | yes* | JSON map of sender → instance. Absent (and no `GHOST_URL`) → feature off; routes return `503 newsletter_not_configured`. |
-| `GHOST_URL` | fallback | A bare `GHOST_URL` is read as the `grove` (hub) instance, so a single-tenant app works without the map. Dual-write needs the map. |
+| `ODOO_URL` (hub: `GROVE_ODOO_URL`) | yes | grove_headless base URL. Absent → `503 newsletter_not_configured` (and an alert). |
+| `ODOO_API_KEY` | yes | Bearer key; the endpoint is `auth="bearer"`. |
+| `CAPTURE_ALERT_WEBHOOK_URL` | no | Discord-compatible webhook for the 5xx alert. Absent → log line only. |
 
-```json
-// GHOST_NEWSLETTER_INSTANCES
-{
-  "grove":     { "url": "https://blog.gatheringatthegrove.com" },
-  "nursery":   { "url": "https://blog.atthegrovenursery.com", "newsletters": ["<newsletter-id>"] },
-  "goldberry": { "url": "https://blog.goldberrygrove.farm" }
-}
+`GHOST_NEWSLETTER_INSTANCES` / `GHOST_URL` are no longer read.
+
+## Request → Odoo
+
+```
+POST /api/newsletter/subscribe
+{ email, name?, interests?, source?, label?, multibrand?, consent: true, attribution? }
+        │ brand pinned by the route, lists = listsFor(brand, multibrand)
+        ▼
+POST {ODOO_URL}/grove/api/v1/newsletter/subscribe   (X-Grove-Tenant: <tenantId>)
+{ email, name?, brand, interests, source, consent, lists, multibrand, attribution }
+→ 200 { partner_id, lists, welcomed }
 ```
 
-`newsletters` is optional per instance — omit to let Ghost apply the instance's
-default newsletter(s). No API key is needed: `send-magic-link` is Ghost's public
-members endpoint.
+The per-form `label` rides inside `attribution.form` so the chatter note on the
+partner still says which form the signup came from.
 
-## Handoff — what CMO / provisioning still owns
+## Not this package
 
-1. **Ghost instance URLs** for the three senders → `GHOST_NEWSLETTER_INSTANCES`
-   (per-env secret). Post-cutover these are the `blog.{domain}` origins.
-2. **Transactional SMTP** on each instance so magic-link / welcome emails
-   actually send (blocks confirmation, not capture).
-3. **Labels & newsletters** (optional): pre-create the segmentation labels and,
-   if targeting a specific newsletter, grab its id for the map.
-4. **CRM retirement (GOL-221):** Ghost is the list of record; the
-   `grove_headless` newsletter CRM endpoint is no longer the target. Order
-   attribution, if needed later, is a separate concern — not part of capture.
+- Consult / wholesale / farm-visit / state-waitlist requests → `/api/leads`
+  (`@grove/checkout/server`, CRM leads). Back-in-stock → `/api/notify/restock`.
+- The department "coming soon" waitlist → `/api/leads?kind=dept_waitlist&dept=…`
+  (spec §8: a tag on the partner, never a list membership).
+- Legacy Ghost subscriber import: one-time, Josh-gated, grove_headless §9.

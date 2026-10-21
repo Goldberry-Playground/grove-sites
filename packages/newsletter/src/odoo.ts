@@ -1,22 +1,30 @@
 import { createOdooClient, OdooApiError } from "@grove/odoo-client";
-import type { NewsletterProvider, OptInRequest, SyncOutcome } from "./types";
-import type { EnvMap } from "./config";
+import type { ListKey, NewsletterProvider, OptInRequest, SubscribeOutcome } from "./types";
+import { LIST_KEYS } from "./types";
 
-/**
- * A resolved Odoo CRM sync target: the grove_headless REST endpoint plus the
- * bearer key and tenant the opt-in should be recorded under.
- */
-export interface OdooCrmTarget {
-  /** Base URL of the tenant's Odoo (e.g. `https://odoo.atthegrovenursery.com`). */
-  odooUrl: string;
-  /** Tenant slug sent as `X-Grove-Tenant` — routes to the Odoo company. */
-  tenantId: string;
-  /** Bearer API key. The endpoint is `auth="bearer"`, so this is required. */
-  apiKey: string;
-}
+/** Environment map. Kept node-types-free so this package stays zero-dependency. */
+export type EnvMap = Record<string, string | undefined>;
 
 function ambientEnv(): EnvMap {
   return (globalThis as { process?: { env?: EnvMap } }).process?.env ?? {};
+}
+
+/**
+ * A resolved Odoo newsletter target: the grove_headless REST endpoint plus the
+ * bearer key and tenant the opt-in is recorded under.
+ */
+export interface OdooNewsletterTarget {
+  /** Base URL of the tenant's Odoo (e.g. `https://odoo.atthegrovenursery.com`). */
+  odooUrl: string;
+  /**
+   * Tenant slug sent as `X-Grove-Tenant`. Odoo resolves goldberry / nursery /
+   * ggg to their website + company; `hub` is not an Odoo website, so it falls
+   * through to Host routing and rides the Grove Digest (grove_headless
+   * `resolve_newsletter_lists`, FALLBACK_LIST_KEY).
+   */
+  tenantId: string;
+  /** Bearer API key. The endpoint is `auth="bearer"`, so this is required. */
+  apiKey: string;
 }
 
 function stripTrailingSlash(url: string): string {
@@ -24,50 +32,46 @@ function stripTrailingSlash(url: string): string {
 }
 
 /**
- * Resolve an {@link OdooCrmTarget} from the environment plus the caller's tenant
- * slug, or `null` when Odoo isn't wired for this app (no URL or no API key). The
- * subscribe route passes `tenantConfig.tenantId`; the env vars (`ODOO_URL`,
- * `ODOO_API_KEY`) are the same ones each app's `tenantSecrets` reads for its
- * server-side Odoo client, so CRM sync uses the identical credentials.
+ * Resolve an {@link OdooNewsletterTarget} from the environment plus the app's
+ * tenant slug, or `null` when Odoo isn't wired for this app (no URL or no API
+ * key). The env vars (`ODOO_URL`, `ODOO_API_KEY`) are the same ones each
+ * storefront's `tenantSecrets` reads for its server-side Odoo client; the hub
+ * names its URL `GROVE_ODOO_URL`, accepted as a fallback.
  *
- * Returning `null` (rather than throwing) keeps the CRM sync a best-effort
- * side-write: an app that hasn't provisioned an Odoo key still captures opt-ins
- * to Ghost, it just reports the CRM leg as `skipped`.
+ * Returning `null` rather than throwing lets the route answer an honest 503
+ * ("not configured") instead of crashing.
  */
-export function resolveOdooCrmConfig(
+export function resolveOdooNewsletterTarget(
   tenantId: string,
   env: EnvMap = ambientEnv(),
-): OdooCrmTarget | null {
-  const odooUrl = env.ODOO_URL?.trim();
+): OdooNewsletterTarget | null {
+  const odooUrl = (env.ODOO_URL ?? env.GROVE_ODOO_URL)?.trim();
   const apiKey = env.ODOO_API_KEY?.trim();
   if (!odooUrl || !apiKey || !tenantId) return null;
   return { odooUrl: stripTrailingSlash(odooUrl), tenantId, apiKey };
 }
 
 /**
- * Odoo CRM implementation of {@link NewsletterProvider}. Upserts the opt-in as a
- * `res.partner` in the tenant company and tags it (`newsletter`, `brand:<x>`,
- * `interest:<x>`, `source:<x>`) via grove_headless (GOL-221):
+ * Odoo Email Marketing implementation of {@link NewsletterProvider}
+ * (grove_headless GOL-3454):
  *
  *   POST {odooUrl}/grove/api/v1/newsletter/subscribe
- *   { email, name?, brand, interests[], source, consent: true, attribution? }
- *   → 200 { partner_id, email, tags[], created }
+ *   { email, name?, brand, interests[], source, consent: true, lists[], multibrand, attribution? }
+ *   → 200 { partner_id, email, tags[], created, lists[], welcomed }
  *
- * The transport is delegated to `@grove/odoo-client`'s `newsletter.subscribe()`
- * — the same client every storefront uses for products/cart/orders — so a
- * contract change (header rename, key rotation, error envelope) lands in one
- * place instead of silently missing this hand-rolled leg (GOL-1319, CLAUDE.md
+ * Odoo upserts the `res.partner` (tags for order attribution), then adds an
+ * active `mailing.subscription` per key in `lists` and queues ONE welcome
+ * email. Re-subscribing within 24h is an idempotent no-op (no duplicate
+ * contact, no second welcome). The transport is `@grove/odoo-client`'s
+ * `newsletter.subscribe()` so a contract change lands in one place (CLAUDE.md
  * "never raw fetch to backends").
  *
- * The call is idempotent by email within the tenant company, so re-subscribing
- * merges tags rather than duplicating the contact. This adapter is the
- * never-throw boundary: `newsletter.subscribe()` throws `OdooApiError` on a
- * non-2xx and rejects on a network error, both of which are caught here and
- * returned as `{ ok: false, error }` so the orchestrator can treat CRM sync as
- * best-effort and never let it block the visitor's opt-in.
+ * This adapter is the never-throw boundary: `OdooApiError` and network
+ * failures come back as `{ ok: false, status?, error }` for the route to map
+ * to a 502 and alert on.
  */
-export function createOdooCrmSync(
-  target: OdooCrmTarget,
+export function createOdooNewsletterProvider(
+  target: OdooNewsletterTarget,
 ): NewsletterProvider {
   const client = createOdooClient({
     tenantId: target.tenantId,
@@ -76,7 +80,14 @@ export function createOdooCrmSync(
   });
 
   return {
-    async subscribe(request: OptInRequest): Promise<SyncOutcome> {
+    async subscribe(request: OptInRequest, lists: ListKey[]): Promise<SubscribeOutcome> {
+      // The per-form label used to be a Ghost member label; keep it as part of
+      // the attribution note Odoo writes to the partner's chatter so the CMO
+      // can still see which form a signup came from.
+      const attribution =
+        request.label || request.attribution
+          ? { ...(request.attribution ?? {}), ...(request.label ? { form: request.label } : {}) }
+          : undefined;
       try {
         const result = await client.newsletter.subscribe({
           email: request.email,
@@ -87,15 +98,22 @@ export function createOdooCrmSync(
           // Consent is validated upstream (validateOptIn); the endpoint
           // re-checks it as opt-in proof.
           consent: true,
-          attribution: request.attribution,
+          lists,
+          multibrand: request.multibrand === true,
+          attribution,
         });
-        return result.partnerId
-          ? { ok: true, id: result.partnerId }
-          : { ok: true };
+        return {
+          ok: true,
+          partnerId: result.partnerId,
+          lists: (result.lists ?? []).filter((k): k is ListKey =>
+            (LIST_KEYS as readonly string[]).includes(k),
+          ),
+          welcomed: result.welcomed === true,
+        };
       } catch (err) {
         if (err instanceof OdooApiError) {
           const detail = err.body ? ` — ${err.body.slice(0, 300)}` : "";
-          return { ok: false, error: `odoo ${err.status}${detail}` };
+          return { ok: false, status: err.status, error: `odoo ${err.status}${detail}` };
         }
         return { ok: false, error: `odoo request failed: ${errMsg(err)}` };
       }
