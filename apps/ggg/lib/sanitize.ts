@@ -31,5 +31,19 @@ export function sanitizeGuideHtml(html: string): string {
     allowedSchemes: ["http", "https", "mailto"],
     allowedSchemesByTag: { img: ["http", "https"] },
     allowProtocolRelative: false,
+    transformTags: { a: forceNoopener },
   });
+}
+
+/**
+ * Force `rel="noopener noreferrer"` on every anchor. Odoo/CMS HTML may carry
+ * `target="_blank"`, and a blank-target link without noopener lets the opened
+ * page reach back through `window.opener` (reverse tabnabbing). Existing rel
+ * tokens (e.g. `nofollow`) are preserved.
+ */
+function forceNoopener(tagName: string, attribs: Record<string, string>) {
+  const rel = new Set((attribs.rel ?? "").split(/\s+/).filter(Boolean));
+  rel.add("noopener");
+  rel.add("noreferrer");
+  return { tagName, attribs: { ...attribs, rel: [...rel].join(" ") } };
 }

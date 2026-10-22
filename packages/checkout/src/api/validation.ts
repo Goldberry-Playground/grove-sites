@@ -183,9 +183,19 @@ export function validateOrderInput(payload: unknown): string | null {
   return null;
 }
 
-/** Require a non-empty, bounded, absolute http(s) URL. Returns the labelled
- *  error message or null. */
-export function validateRedirectUrl(value: unknown, label: string): string | null {
+/** Require a non-empty, bounded, absolute http(s) URL whose origin is in
+ *  `allowedOrigins`. Returns the labelled error message or null.
+ *
+ *  The origin check is the security-relevant part: `successUrl` / `cancelUrl`
+ *  are handed to Stripe as the post-payment redirect target, so without it an
+ *  attacker could mint a Checkout session that bounces the shopper to an
+ *  off-site page after they pay. Same exact-match allowlist the Origin gate
+ *  uses, so only the storefront's own pages are reachable. */
+export function validateRedirectUrl(
+  value: unknown,
+  label: string,
+  allowedOrigins: readonly string[],
+): string | null {
   if (typeof value !== "string" || value.length < 1 || value.length > MAX_URL) {
     return `${label} is required and must be a URL of at most ${MAX_URL} chars`;
   }
@@ -197,6 +207,9 @@ export function validateRedirectUrl(value: unknown, label: string): string | nul
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     return `${label} must be an absolute http(s) URL`;
+  }
+  if (!allowedOrigins.includes(url.origin)) {
+    return `${label} must be on an allowed origin`;
   }
   return null;
 }

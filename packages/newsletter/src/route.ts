@@ -6,6 +6,7 @@ import {
   type EnvMap,
 } from "./odoo";
 import { reportCaptureFailure } from "./alert";
+import { clientIp, overLimit } from "./rateLimit";
 
 /**
  * Shared `POST /api/newsletter/subscribe` handler for every Grove storefront
@@ -28,6 +29,8 @@ import { reportCaptureFailure } from "./alert";
  *   200 { ok: true, lists, welcomed, subscriberId }
  *   400 { error: "invalid_json" | "validation_error", field?, message? }
  *   403 { error: "origin_not_allowed" }
+ *   415 { error: "unsupported_media_type" } body wasn't application/json
+ *   429 { error: "rate_limited" }            too many from this IP/email
  *   502 { error: "subscribe_failed" }         Odoo rejected or unreachable
  *   503 { error: "newsletter_not_configured" } no ODOO_URL / ODOO_API_KEY
  *
@@ -86,6 +89,14 @@ export function createNewsletterSubscribeRoute({
       }
     }
 
+    // Enforce application/json so a plain cross-site <form> POST (CORS-simple,
+    // no preflight) can't reach the list-write path; the lead/restock routes
+    // already carry this gate.
+    const contentType = req.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+    if (contentType !== "application/json") {
+      return json({ error: "unsupported_media_type" }, 415);
+    }
+
     let payload: Record<string, unknown>;
     try {
       payload = (await req.json()) as Record<string, unknown>;
@@ -94,6 +105,19 @@ export function createNewsletterSubscribeRoute({
     }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       return json({ error: "invalid_json" }, 400);
+    }
+
+    // Honeypot: humans never see `company` (the shared CaptureForm drops it
+    // client-side). A bot that filled it gets a 200 and nothing is written.
+    if (typeof payload.company === "string" && payload.company.trim() !== "") {
+      return json({ ok: true, lists: [], welcomed: false, subscriberId: null });
+    }
+
+    // Rate limit, keyed by client IP and by email, before the Odoo round-trip.
+    const now = Date.now();
+    const emailKey = String(payload.email ?? "").trim().toLowerCase();
+    if (overLimit(`ip:${clientIp(req)}`, now) || overLimit(`email:${emailKey}`, now)) {
+      return json({ error: "rate_limited" }, 429);
     }
 
     const rawSource = typeof payload.source === "string" ? payload.source : "";
