@@ -17,6 +17,7 @@ import {
   type Recipe,
   type TagKey,
 } from "../../../data/recipes";
+import { pageMetadata } from "../../../lib/site-metadata";
 import { MARSHALL_SRC, WREATH_SRC } from "../credits";
 import { LinkButton } from "../link-button";
 import { RecipeFace } from "../recipe-face";
@@ -42,12 +43,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const r = getRecipe(id);
   if (!r) return {};
   const description = describe(r);
-  return {
+  return pageMetadata({
+    path: `/recipes/${r.id}`,
     title: `${r.title} | Nut & Fruit Dishes | Goldberry Grove Farm`,
     description,
-    alternates: { canonical: `/recipes/${r.id}` },
-    openGraph: { title: r.title, description, type: "article" },
-  };
+    shareTitle: r.title,
+    type: "article",
+  });
 }
 
 /** schema.org Recipe. Only fields the book printed; nothing invented. */

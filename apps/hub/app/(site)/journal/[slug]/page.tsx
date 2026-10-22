@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isGhostNotFound, type Post } from "@grove/ghost-client";
 import { JournalProductEmbed } from "../../../../components/JournalProductEmbed";
@@ -8,6 +9,17 @@ import { marketplace } from "../../../../data/marketplace";
 export const revalidate = 300;
 
 type Params = { slug: string };
+
+// Self-canonical only (GOL-3585), so `?utm_…` copies collapse to one URL. Built
+// from the route params alone — no extra Ghost/Odoo round-trip for metadata.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Params>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  return { alternates: { canonical: `/journal/${slug}` } };
+}
 
 export default async function JournalPostPage({
   params,

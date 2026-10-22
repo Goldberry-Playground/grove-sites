@@ -4,12 +4,14 @@ import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { OpeningNotice } from "../_components/OpeningNotice";
+import { pageMetadata } from "../../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/visit/private",
   title: "Book a Private Event — Goldberry Grove — Opening Spring 2028",
   description:
     "Weddings, retreats, family reunions, and milestone gatherings coming to twenty acres of regenerative Appalachian farmland in spring 2028. The lower hollow, with a long table and a fire pit, is being built to seat forty.",
-};
+});
 
 export default function PrivatePage() {
   return (

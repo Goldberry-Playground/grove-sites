@@ -3,9 +3,17 @@ import Link from "next/link";
 import type { Post } from "@grove/ghost-client";
 import { ghost } from "../../lib/ghost";
 import { tenantConfig } from "../../tenant.config";
+import { pageMetadata } from "../../lib/site-metadata";
 
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  path: "/blog",
+  title: `${tenantConfig.copy.blogHeading} — ${tenantConfig.name}`,
+  description:
+    "Build notes, wood stories and finished-piece write-ups from the GGG Woodworking bench in West Virginia.",
+});
 
 export default async function BlogPage() {
   // GOL-2756: no seed/mock fallback anywhere on this route — the journal shows

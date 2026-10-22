@@ -4,12 +4,14 @@ import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { OpeningNotice } from "../_components/OpeningNotice";
+import { pageMetadata } from "../../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/visit/seminars",
   title: "Educational Seminars — Goldberry Grove — Opening Spring 2027",
   description:
     "Mushroom inoculation, forest farming, foraging walks, JADAM and Korean Natural Farming deep-dives, and native plant ID coming to a working Appalachian agroforestry farm in spring 2027, with a full calendar and online registration.",
-};
+});
 
 export default function SeminarsPage() {
   return (

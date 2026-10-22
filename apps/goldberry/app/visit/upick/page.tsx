@@ -4,12 +4,14 @@ import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
 import { CaptureForm, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { OpeningNotice } from "../_components/OpeningNotice";
+import { pageMetadata } from "../../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/visit/upick",
   title: "U-Pick at Goldberry Grove — Opening Fall 2028",
   description:
     "Seven acres of u-pick coming to a regenerative Appalachian farm. We are finishing the planting this season and planning to open the gate around Fall 2028. Chestnuts, pawpaws, berries, and tree fruit in their seasons.",
-};
+});
 
 export default function UPickPage() {
   return (
