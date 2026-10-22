@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { securityHeadersRoute } from "@grove/config/security-headers";
 
 // GOL-3477: marketplace card photos are Odoo `/web/image/...` files served
 // through next/image. The hub reads products from whatever GROVE_ODOO_URL
@@ -28,6 +29,7 @@ function odooImageAllowlist(): NonNullable<
 }
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   // Self-contained server bundle for Docker / DO App Platform deploys.
   // .next/standalone/ contains node_modules + a server.js that boots Next
   // with no need for the source tree at runtime.
@@ -122,6 +124,7 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      securityHeadersRoute,
       {
         source: "/_next/image",
         headers: [{ key: "CDN-Cache-Control", value: "no-store" }],

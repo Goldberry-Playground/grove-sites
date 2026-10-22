@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { securityHeadersRoute } from "@grove/config/security-headers";
 
 // Product images are fetched from whatever host ODOO_URL points at — every
 // shop page resolves them with resolveOdooImageUrl(..., process.env.ODOO_URL).
@@ -28,6 +29,7 @@ function odooImageAllowlist(): NonNullable<
 }
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   // Self-contained server bundle for Docker deploys.
   // .next/standalone/ contains node_modules + a server.js that boots Next
   // with no need for the source tree at runtime.
@@ -123,6 +125,7 @@ const nextConfig: NextConfig = {
   // lands cleanly on every `/_next/image` response.
   async headers() {
     return [
+      securityHeadersRoute,
       {
         source: "/_next/image",
         headers: [{ key: "CDN-Cache-Control", value: "no-store" }],
