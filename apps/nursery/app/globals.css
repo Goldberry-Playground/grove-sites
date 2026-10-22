@@ -241,12 +241,14 @@ h1 em, h2 em, h3 em {
   color: var(--orange);
   font-weight: 600;
 }
+/* `--orange-deep`, not `--orange`: the lighter orange measured 3.12:1 on this
+   cream, under the 4.5:1 body-text floor (GOL-3601). Same pair as `.rich-text a`. */
 .shop-empty__link {
-  color: var(--orange);
+  color: var(--orange-deep);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.shop-empty__link:hover { color: var(--orange-deep); }
+.shop-empty__link:hover { color: var(--forest); }
 
 /* Blog / journal empty + error states (GOL-1113). Replaces the programmer-
    default bare <p> and raw-red Tailwind box. Both share a centred icon+text
