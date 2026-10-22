@@ -3,6 +3,7 @@ import { getCatalogNav } from "../../lib/catalog-nav";
 import { findDepartment, ORCHARD_SLUG } from "../../lib/departments";
 import { DepartmentNav } from "../department-nav";
 import { ShopBrowse } from "./shop-browse";
+import { browseViewKey, ShopBrowseSuspense } from "./shop-skeleton";
 import { tenantConfig } from "../../tenant.config";
 
 // The page renders dynamically (per-request) because it awaits `searchParams`
@@ -58,7 +59,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   return (
     <>
       <DepartmentNav nav={nav} activeSlug={ORCHARD_SLUG} />
-      <ShopBrowse dept={dept} nav={nav} searchParams={sp} />
+      <ShopBrowseSuspense viewKey={browseViewKey(ORCHARD_SLUG, sp)}>
+        <ShopBrowse dept={dept} nav={nav} searchParams={sp} />
+      </ShopBrowseSuspense>
     </>
   );
 }

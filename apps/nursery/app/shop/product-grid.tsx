@@ -4,6 +4,7 @@ import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { CaptureForm, CaptureSlot, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { ProductImage } from "../product-image";
 import { varietyCountLabel } from "../../lib/catalog-labels";
+import { productPath } from "../../lib/product-path";
 import { showsDealBadge } from "../../lib/deals";
 
 // LCP priming (GOL-2074): mark only the first grid row as `priority` so those
@@ -71,7 +72,7 @@ export function ProductGrid({
                 which is invalid inside an <a>, so the card is a <div> and only
                 the image + info sit in the link — the notify disclosure is a
                 sibling below it (GOL-2178). */}
-            <Link href={`/shop/${product.id}`} className="var-card__link">
+            <Link href={productPath(product)} className="var-card__link">
               <div className="var-img">
                 <ProductImage
                   // The list endpoint hands back thumbnail (image_128) paths;

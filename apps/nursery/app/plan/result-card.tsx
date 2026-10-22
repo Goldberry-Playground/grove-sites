@@ -36,6 +36,7 @@ import { dropSpan } from "./months";
 import { CautionMark, CheckMark } from "./questions";
 import { SuggestForm } from "./suggest-form";
 import { SuggestedList } from "./suggested-list";
+import { productPath } from "../../lib/product-path";
 
 export interface ResultCardProps {
   result: PlanResult;
@@ -570,7 +571,7 @@ function LineRow({
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <Link href={`/shop/${p.id}`} className="font-semibold text-foreground underline-offset-2 hover:underline">
+          <Link href={productPath(p)} className="font-semibold text-foreground underline-offset-2 hover:underline">
             {p.name}
           </Link>
           <span className="text-sm italic text-ink-soft">{p.botanical_name}</span>
