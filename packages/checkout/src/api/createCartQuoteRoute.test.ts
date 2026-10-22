@@ -22,6 +22,8 @@ const backendQuote = {
   depositAmount: 10,
   amountDueToday: 10,
   afterCutover: false,
+  consultEligible: false,
+  consultVariantId: null,
   lines: [{ variantId: 196, quantity: 1, bareroot: true, soldOut: true, freeQty: 0 }],
 };
 

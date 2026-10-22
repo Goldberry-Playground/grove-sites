@@ -293,6 +293,11 @@ export interface CheckoutPageProps {
    * page grid, ahead of the form they govern.
    */
   notice?: ReactNode;
+  /**
+   * Host-owned content in the summary after the discounts group and before the
+   * submit (the free planting-consult checkbox, GOL-3384). Rendered as given.
+   */
+  summaryExtra?: ReactNode;
 }
 
 /**
@@ -375,6 +380,7 @@ export function CheckoutPage({
   forcePickupNote,
   submitDisabled = false,
   notice,
+  summaryExtra,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -1038,6 +1044,8 @@ export function CheckoutPage({
                 )}
               </div>
             )}
+
+            {summaryExtra}
 
             {/* Everything else that can block a submit — a declined card, a
                 network failure — belongs beside the CTA that triggered it. The

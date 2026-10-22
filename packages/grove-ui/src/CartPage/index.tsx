@@ -81,6 +81,12 @@ export interface CartPageProps {
    * beside the due-today row (Josh, 2026-10-13).
    */
   reassure?: ReactNode | null;
+  /**
+   * Host-owned content under the summary totals and above the checkout CTA
+   * (the free planting-consult checkbox, GOL-3384). The kit renders it as
+   * given; the words and the rule behind them belong to the consumer.
+   */
+  summaryExtra?: ReactNode;
 }
 
 function formatPrice(amount: number): string {
@@ -108,6 +114,7 @@ export function CartPage({
   lineNotes,
   notice,
   reassure,
+  summaryExtra,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
@@ -281,6 +288,7 @@ export function CartPage({
             {dueToday && (
               <p className="grove-cart__summary-due-note">{dueToday.note}</p>
             )}
+            {summaryExtra}
 
             <Link href={checkoutHref} className="grove-cart__summary-cta">
               Proceed to Checkout <GlyphIcon name="arrow-right" />
