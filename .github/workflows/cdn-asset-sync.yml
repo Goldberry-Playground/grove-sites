@@ -21,9 +21,13 @@ name: CDN Asset Sync
 #   (OP_CI_SA_TOKEN) — no static Spaces/CF/DO tokens live in GitHub secrets
 #   (ADR-0001). The grove-assets RW key, the Cloudflare zone token, and the DO
 #   token all live in the `Goldberry Grove - Admin/Grove Infra` item; the CI SA
-#   must have READ on that item. If it does not, the credential guard below
-#   warns-and-skips (it never reds the run) — grant the SA read on that item and
-#   re-run this workflow.
+#   must have READ on that item. If OP_CI_SA_TOKEN is absent the credential guard
+#   below warns-and-skips. If the token IS set but the Spaces keys can't be
+#   resolved, the run goes RED — a "successful" skip hid a never-working sync
+#   from Aug to Oct 2026 (GOL-3599: the workflow referenced a field,
+#   `cloudflare_zone_edit_token`, that never existed on the item). The purge
+#   tokens load in a separate optional step: purge is an optimization (edge TTL
+#   refreshes anyway), so a missing/broken purge token must never block uploads.
 
 on:
   push:
@@ -66,27 +70,33 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Load Spaces + CDN secrets from 1Password
+      - name: Load Spaces secrets from 1Password
         id: load
         if: steps.creds.outputs.run == 'true'
-        continue-on-error: true
         uses: 1password/load-secrets-action@v5
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
           AWS_ACCESS_KEY_ID:     op://Goldberry Grove - Admin/Grove Infra/grove_assets_access_key_id
           AWS_SECRET_ACCESS_KEY: op://Goldberry Grove - Admin/Grove Infra/grove_assets_secret_key
-          CLOUDFLARE_API_TOKEN:  op://Goldberry Grove - Admin/Grove Infra/cloudflare_zone_edit_token
+        with:
+          export-env: true
+
+      # Optional: purge tokens. load-secrets-action is all-or-nothing, so these
+      # live in their own step — a dead purge token degrades to a warning in
+      # sync-public-assets.sh instead of skipping the upload.
+      - name: Load CDN purge tokens from 1Password (optional)
+        if: steps.creds.outputs.run == 'true'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v5
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          CLOUDFLARE_API_TOKEN:  op://Goldberry Grove - Admin/Grove Infra/cf_zone_api_key
           DO_API_TOKEN:          op://Goldberry Grove - Admin/Grove Infra/do_token
         with:
           export-env: true
 
-      - name: CDN sync skipped — secrets unavailable
-        if: steps.creds.outputs.run == 'true' && steps.load.outcome == 'failure'
-        run: |
-          echo "::warning title=CDN sync skipped::OP_CI_SA_TOKEN could not resolve the grove-assets / Cloudflare / DO secrets. The CI service account (grove-ci-prod-ro) likely lacks READ on the 'Goldberry Grove - Admin/Grove Infra' 1Password item. Grant it read on grove_assets_access_key_id, grove_assets_secret_key, cloudflare_zone_edit_token, and do_token, then re-run. The CDN keeps its previous bytes until then; repo /public is unaffected."
-
       - name: Sync changed photos to the CDN and purge edge caches
-        if: steps.creds.outputs.run == 'true' && steps.load.outcome == 'success'
+        if: steps.creds.outputs.run == 'true'
         env:
           SPACES_BUCKET: grove-assets
           SPACES_REGION: nyc3
