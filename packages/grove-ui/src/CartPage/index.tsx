@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { Button } from "../Button";
 import {
@@ -81,6 +81,14 @@ export interface CartPageProps {
    * beside the due-today row (Josh, 2026-10-13).
    */
   reassure?: ReactNode | null;
+  /**
+   * True when the host knows checkout would refuse this cart (the quote
+   * refused a line, a mixed cart, an unconfirmed pre-order deposit). Both
+   * checkout CTAs render as disabled, non-navigating controls with a hint
+   * pointing back at the host's `notice`, instead of live links to a checkout
+   * that will only say no (GOL-3583).
+   */
+  checkoutDisabled?: boolean;
 }
 
 function formatPrice(amount: number): string {
@@ -108,9 +116,11 @@ export function CartPage({
   lineNotes,
   notice,
   reassure,
+  checkoutDisabled = false,
 }: CartPageProps) {
   const Link = useGroveLink();
   const Image = useGroveImage();
+  const blockedHintId = useId();
 
   if (loading) {
     return (
@@ -178,9 +188,22 @@ export function CartPage({
               )}
             </div>
           </div>
-          <Link href={checkoutHref} className="grove-cart__banner-cta">
-            Checkout Now <GlyphIcon name="arrow-right" />
-          </Link>
+          {checkoutDisabled ? (
+            // No href, so it cannot navigate; role="link" + aria-disabled keeps
+            // it announced as the (unavailable) checkout link it replaces.
+            <span
+              role="link"
+              aria-disabled="true"
+              aria-describedby={blockedHintId}
+              className="grove-cart__banner-cta grove-cart__cta--disabled"
+            >
+              Checkout Now <GlyphIcon name="arrow-right" />
+            </span>
+          ) : (
+            <Link href={checkoutHref} className="grove-cart__banner-cta">
+              Checkout Now <GlyphIcon name="arrow-right" />
+            </Link>
+          )}
         </div>
       </div>
 
@@ -282,9 +305,26 @@ export function CartPage({
               <p className="grove-cart__summary-due-note">{dueToday.note}</p>
             )}
 
-            <Link href={checkoutHref} className="grove-cart__summary-cta">
-              Proceed to Checkout <GlyphIcon name="arrow-right" />
-            </Link>
+            {checkoutDisabled ? (
+              <>
+                <span
+                  role="link"
+                  aria-disabled="true"
+                  aria-describedby={blockedHintId}
+                  className="grove-cart__summary-cta grove-cart__cta--disabled"
+                >
+                  Proceed to Checkout <GlyphIcon name="arrow-right" />
+                </span>
+                <p id={blockedHintId} className="grove-cart__blocked-hint">
+                  Checkout opens again once the note at the top of your cart is
+                  sorted out.
+                </p>
+              </>
+            ) : (
+              <Link href={checkoutHref} className="grove-cart__summary-cta">
+                Proceed to Checkout <GlyphIcon name="arrow-right" />
+              </Link>
+            )}
 
             {/* The kit's default says nothing is charged today, which is false
                 beside a due-today deposit row, so a deposit cart gets no default

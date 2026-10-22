@@ -716,6 +716,27 @@
   text-align: center;
   text-decoration: none;
 }
+/* Checkout refused by the host (GOL-3583): the CTA stays in place but cannot
+   navigate. Same dimmed, no-lift treatment as the checkout form's :disabled
+   submit; the hint under it says why, so meaning never rides on opacity. */
+.grove-cart__cta--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  user-select: none;
+}
+/* Compound selectors: CheckoutShared's CTA :hover lift lands later in the
+   generated theme, so equal specificity would lose. */
+.grove-cart__banner-cta.grove-cart__cta--disabled:hover,
+.grove-cart__summary-cta.grove-cart__cta--disabled:hover {
+  transform: none;
+}
+.grove-cart__blocked-hint {
+  margin-top: var(--grove-space-3);
+  font-size: var(--grove-text-sm);
+  text-align: center;
+  line-height: 1.5;
+  color: var(--grove-color-ink-a60);
+}
 .grove-cart__summary-continue {
   display: block;
   margin-top: var(--grove-space-4);
