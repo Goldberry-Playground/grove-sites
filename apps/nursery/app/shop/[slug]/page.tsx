@@ -1,12 +1,17 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../../lib/clients";
 import { buildPdpMetadata, notFoundMetadata } from "../../../lib/pdp-metadata";
-import { getMockProductById, mockProducts } from "../../../data/mock-products";
+import {
+  getMockProductById,
+  getMockProductBySlug,
+  mockProducts,
+} from "../../../data/mock-products";
+import { isProductIdSegment, isUsableSlug, productPath } from "../../../lib/product-path";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { inferCompanions, toCompanionInput } from "../../../lib/companions";
 import { stripVariantCode } from "../../../lib/variant-select";
@@ -15,6 +20,7 @@ import { findDepartment, ORCHARD_SLUG } from "../../../lib/departments";
 import { DepartmentNav } from "../../department-nav";
 import { DepartmentTeaser } from "../department-teaser";
 import { ShopBrowse } from "../shop-browse";
+import { browseViewKey, ShopBrowseSuspense } from "../shop-skeleton";
 import { SeedProductView } from "./seed-product-view";
 import { isSeedProduct } from "../../../lib/seed";
 import { ProductView, type ViewImage, type ViewVariant } from "./product-view";
@@ -88,6 +94,54 @@ const loadProduct = cache(async (productId: number): Promise<Product | null> => 
 });
 
 /**
+ * Product by canonical slug (GOL-3601), same Odoo-first, mock-fallback seam
+ * and the same `cache()` reasoning as `loadProduct`.
+ */
+const loadProductBySlug = cache(async (slug: string): Promise<Product | null> => {
+  try {
+    return await odoo.products.getBySlug(slug);
+  } catch {
+    return getMockProductBySlug(slug);
+  }
+});
+
+/**
+ * Resolve a non-numeric segment: a department first, then a product slug.
+ * Department slugs are checked first because the nav is a cached read and the
+ * product lookup is an Odoo round-trip. Returns null for neither, which 404s.
+ */
+const resolveSlug = cache(
+  async (
+    slug: string,
+  ): Promise<{ kind: "department" } | { kind: "product"; product: Product } | null> => {
+    const { nav } = await loadNav();
+    const dept = findDepartment(nav, slug);
+    if (dept && dept.slug !== ORCHARD_SLUG) return { kind: "department" };
+    const product = await loadProductBySlug(slug);
+    return product ? { kind: "product", product } : null;
+  },
+);
+
+/**
+ * Resolve a `/shop/<id>` segment (the pre-GOL-3601 URL form).
+ *
+ * `middleware.ts` already 301s every id whose product has a usable slug, so a
+ * request only gets here when that lookup failed or the slug is blank. A
+ * known slug therefore still redirects, as a 308 (all a page can send), so
+ * the id form never answers 200 next to its slug (R2). A blank slug is served
+ * here `noindex` instead of 404ing: commerce fails open (R4).
+ */
+async function loadProductById(id: string): Promise<Product | null> {
+  const product = await loadProduct(Number(id));
+  if (product && isUsableSlug(product.slug)) permanentRedirect(productPath(product));
+  if (product) {
+    // R4 ops signal: a published product with no usable slug.
+    console.error(`[GOL-3601] product ${product.id} has no usable grove_slug; serving /shop/${product.id} noindex`);
+  }
+  return product;
+}
+
+/**
  * Per-product title, description, canonical and share card (GOL-2878 Phase 1).
  *
  * Until this landed, all 21 published PDPs served `<title>At The Grove
@@ -98,24 +152,30 @@ const loadProduct = cache(async (productId: number): Promise<Product | null> => 
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { id } = await params;
-  const productId = Number(id);
-  // A non-numeric segment is a department page (GOL-2745), not a bad product
-  // id: it needs its own title and canonical, and it must NOT inherit the
-  // not-found noindex below.
-  if (Number.isNaN(productId)) return departmentMetadata(id);
+  const { slug } = await params;
 
-  const product = await loadProduct(productId);
-  if (!product) return notFoundMetadata();
+  if (isProductIdSegment(slug)) {
+    const product = await loadProductById(slug);
+    if (!product) return notFoundMetadata();
+    // R4: reachable, but not indexable until it has a slug to be canonical on.
+    return {
+      ...buildPdpMetadata({ product, canonicalPath: productPath(product), odooBase: odooBaseUrl() }),
+      robots: { index: false, follow: true },
+    };
+  }
+
+  const resolved = await resolveSlug(slug);
+  if (!resolved) return notFoundMetadata();
+  // A department page (GOL-2745) needs its own title and canonical, and must
+  // NOT inherit the not-found noindex.
+  if (resolved.kind === "department") return departmentMetadata(slug);
 
   return buildPdpMetadata({
-    product,
-    // Phase 1: the id form is the only form, so it is its own canonical. Phase 2
-    // introduces `/shop/<slug>` as canonical and 301s this path to it
-    // (GOL-2875 R1/R8) — swap this one argument then.
-    canonicalPath: `/shop/${product.id}`,
+    product: resolved.product,
+    // The slug form is canonical (GOL-2875 R1/R8); canonical and og:url follow.
+    canonicalPath: productPath(resolved.product),
     odooBase: odooBaseUrl(),
   });
 }
@@ -130,26 +190,32 @@ export async function generateMetadata({
  * decision 6 rules out. Departments come from Odoo, so their routes have to be
  * resolved from data too.
  *
- * The discrimination is total, not a guess: a product segment is the numeric
- * `product.template` id, and a department slug never is. Numeric → product;
- * anything else → look it up in the nav tree and 404 if it isn't a department.
- * (`/shop/guilds` is a real static route and wins over this segment outright.)
+ * Resolution (GOL-3601): an all-digit segment is a legacy product id, which
+ * `middleware.ts` has normally already 301'd to the slug. Anything else is a
+ * department slug if the nav tree has it, else a product `grove_slug`, else a
+ * real 404. (`/shop/guilds` is a real static route and wins over this segment
+ * outright.)
  */
 export default async function ShopSegmentPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { id } = await params;
-  const productId = Number(id);
-  if (Number.isNaN(productId)) return departmentPage(id, await searchParams);
+  const { slug } = await params;
+
+  let product: Product | null;
+  if (isProductIdSegment(slug)) {
+    product = await loadProductById(slug);
+  } else {
+    const resolved = await resolveSlug(slug);
+    if (resolved?.kind === "department") return departmentPage(slug, await searchParams);
+    product = resolved?.product ?? null;
+  }
+  if (!product) notFound();
 
   const odooBase = odooBaseUrl();
-
-  const product = await loadProduct(productId);
-  if (!product) notFound();
 
   // Catalog for companion inference — best-effort, never blocks the page.
   let catalog: Product[] = [];
@@ -370,7 +436,9 @@ async function departmentPage(
           <DepartmentTeaser dept={dept} />
         </section>
       ) : (
-        <ShopBrowse dept={dept} nav={nav} searchParams={searchParams} />
+        <ShopBrowseSuspense viewKey={browseViewKey(dept.slug, searchParams)}>
+          <ShopBrowse dept={dept} nav={nav} searchParams={searchParams} />
+        </ShopBrowseSuspense>
       )}
     </>
   );

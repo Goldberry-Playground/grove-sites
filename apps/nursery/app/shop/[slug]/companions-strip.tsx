@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { ProductImage } from "../../product-image";
+import { productPath } from "../../../lib/product-path";
 
 /**
  * Guild-companions strip (design spec §"Companions", v1 tag-inference).
@@ -35,7 +36,7 @@ export function CompanionsStrip({
           return (
             <Link
               key={c.id}
-              href={`/shop/${c.id}`}
+              href={productPath(c)}
               className="group rounded-lg border border-primary/10 overflow-hidden hover:border-primary/40 transition"
             >
               <div className="relative aspect-square bg-secondary/20">

@@ -1,6 +1,6 @@
 /**
  * Shopper's remembered ship-vs-pickup intent (GOL-2089). A PDP recomputes its
- * opening Format from scratch on every `/shop/[id]` visit (`defaultFormat`), so
+ * opening Format from scratch on every `/shop/[slug]` visit (`defaultFormat`), so
  * with inventory that is almost all Potted (pickup-only under Box Engine v2) a
  * shopper who wants shipped trees has to re-select "shipped" on every page. We
  * persist a single lightweight preference — the *intent*, not a tier — so the

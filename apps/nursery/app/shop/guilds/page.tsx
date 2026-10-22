@@ -24,7 +24,7 @@ interface GuildsPageProps {
  *
  * Guilds is a real static route, not a department tab: a guild can hold
  * products from several departments, so it isn't a peer of the tabs (spec
- * decision 4). A static segment also outranks the `[id]` product segment in
+ * decision 4). A static segment also outranks the `[slug]` product segment in
  * Next.js routing, so "guilds" can never be mistaken for a product id.
  *
  * Phase 1 sources the guilds from today's collection category — the five Food
