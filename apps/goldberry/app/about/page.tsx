@@ -2,12 +2,14 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
+import { pageMetadata } from "../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/about",
   title: "Our Story — Goldberry Grove",
   description:
     "Goldberry Grove is Abigail and Josh Dunbar (and Quasar). Twenty acres above Summersville, West Virginia. A regenerative agroforestry farm and educational hub rooted in the chestnut and the Korean-Appalachian story.",
-};
+});
 
 export default function StoryPage() {
   return (

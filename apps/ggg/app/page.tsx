@@ -1,5 +1,11 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { GlyphIcon } from "@grove/ui-kit";
+import { pageMetadata } from "../lib/site-metadata";
+
+// Brand title + description inherit from the root layout; the homepage only
+// needed a self-canonical and a share card (GOL-3585).
+export const metadata: Metadata = pageMetadata({ path: "/" });
 
 // GGG Woodworking homepage — port of wireframes/ggg/index.html structure.
 // Sections in wireframe order: hero (split) → spec-strip → catalog →

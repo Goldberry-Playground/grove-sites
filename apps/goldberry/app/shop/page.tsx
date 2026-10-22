@@ -4,11 +4,19 @@ import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { isDataUri } from "../../lib/is-data-uri";
+import { pageMetadata } from "../../lib/site-metadata";
 
 // Render on every request so the page reflects current Odoo state.
 // (Build-time render can't reach Odoo when building inside Docker; ISR will
 // be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  path: "/shop",
+  title: "Farm Shop | Goldberry Grove Farm",
+  description:
+    "What we grow and make at Goldberry Grove, a regenerative agroforestry farm above Summersville, West Virginia.",
+});
 
 /**
  * The farm shop lists what Odoo publishes for the goldberry tenant and nothing

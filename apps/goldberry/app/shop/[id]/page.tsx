@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,6 +12,17 @@ import { VariantPicker } from "./variant-picker";
 import { StickyAddToCartBar } from "@grove/checkout";
 
 export const dynamic = "force-dynamic";
+
+// Self-canonical only (GOL-3585), so `?utm_…` copies collapse to one URL. Built
+// from the route params alone — no extra Ghost/Odoo round-trip for metadata.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  return { alternates: { canonical: `/shop/${id}` } };
+}
 
 export default async function ProductDetailPage({
   params,

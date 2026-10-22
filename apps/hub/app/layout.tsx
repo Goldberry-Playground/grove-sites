@@ -3,8 +3,16 @@ import "./globals.css";
 import { fontVariables } from "@grove/ui/fonts/editorial";
 import { AnalyticsProvider } from "@grove/analytics";
 import { GroveProviders } from "@grove/ui";
+import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
 
+// Site-wide metadata defaults (GOL-3585). `metadataBase` makes relative
+// canonicals / og:url / og:image resolve. No `alternates.canonical` or
+// `openGraph.url` here — inherited, they would canonicalise every page to the
+// homepage. Each indexable page sets its own via `pageMetadata()`.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  openGraph: SITE_OPEN_GRAPH,
+  twitter: SITE_TWITTER,
   title: {
     template: "%s — Gather at the Grove",
     default: "Gather at the Grove — Appalachian agroforestry village",

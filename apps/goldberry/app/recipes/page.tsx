@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { RECIPES, SORTED_RECIPES, recipeSummary } from "../../data/recipes";
+import { pageMetadata } from "../../lib/site-metadata";
 import { Credits } from "./credits";
 import { LearnBand } from "./learn-band";
 import { LinkButton } from "./link-button";
@@ -7,12 +8,12 @@ import { RecipesIndex } from "./recipes-index";
 
 const DESCRIPTION = `${RECIPES.length} recipes from five West Virginia community cookbooks, typed up to cook from: black walnut cake, persimmon bread, wild plum marmalade and more, each credited to its cook and hometown as printed.`;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/recipes",
   title: "Nut & Fruit Dishes | Goldberry Grove Farm",
   description: DESCRIPTION,
-  alternates: { canonical: "/recipes" },
-  openGraph: { title: "Nut & Fruit Dishes from West Virginia community cookbooks", description: DESCRIPTION, type: "website" },
-};
+  shareTitle: "Nut & Fruit Dishes from West Virginia community cookbooks",
+});
 
 /** GOL-3435: /recipes, the community-cookbook index. Fully static. */
 export default function RecipesPage() {

@@ -5,9 +5,17 @@ import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { FARM_OPT_IN_LINE } from "../../lib/newsletter-copy";
 import { ghost } from "../../lib/ghost";
 import { RECIPES } from "../../data/recipes";
+import { pageMetadata } from "../../lib/site-metadata";
 
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  path: "/blog",
+  title: "From the Grove | Goldberry Grove Farm",
+  description:
+    "Notes from twenty acres of regenerative agroforestry above Summersville, West Virginia: what we planted, what the forest taught us, and what is coming next.",
+});
 
 export default async function BlogPage() {
   // GOL-2756: there is deliberately NO seed/mock fallback here. Whatever Ghost
