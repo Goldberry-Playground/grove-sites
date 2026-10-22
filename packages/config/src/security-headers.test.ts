@@ -9,7 +9,7 @@ const header = (key: string) => securityHeaders.find((h) => h.key === key)?.valu
 
 describe("securityHeaders", () => {
   it("sets the GOL-3584 baseline", () => {
-    expect(header("Strict-Transport-Security")).toBe("max-age=31536000");
+    expect(header("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
     expect(header("X-Content-Type-Options")).toBe("nosniff");
     expect(header("Content-Security-Policy")).toBe("frame-ancestors 'none'");
     expect(header("X-Frame-Options")).toBe("DENY");

@@ -7,17 +7,16 @@
  * CSP here is `frame-ancestors` only (clickjacking). A full script/style CSP
  * is a separate issue: Odoo/Ghost HTML bodies and RUM inject inline scripts.
  *
- * HSTS omits `includeSubDomains` for now: the Mailgun click-tracking hosts
- * (`email.mg.<brand>`) do not serve HTTPS, so forcing subdomains to HTTPS
- * would break tracked links in email for anyone who has visited the site.
- * Add it once tracking is on HTTPS (GOL-3584 follow-up).
+ * HSTS covers subdomains. Every subdomain in the four zones answers HTTPS,
+ * including the Mailgun tracking hosts (`email.mg.<brand>`, moved to HTTPS in
+ * GOL-3594). A new subdomain must serve HTTPS before it goes live.
  *
  * Permissions-Policy denies device APIs no storefront uses. `microphone` stays
  * allowed for our own origin only, so the Odoo livechat widget (which runs in
  * our document, not an iframe) keeps voice messages while embeds cannot ask.
  */
 export const securityHeaders: { key: string; value: string }[] = [
-  { key: "Strict-Transport-Security", value: "max-age=31536000" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
   // Legacy fallback for browsers that ignore frame-ancestors.
