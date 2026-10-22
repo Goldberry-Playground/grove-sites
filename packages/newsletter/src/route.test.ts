@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createNewsletterSubscribeRoute } from "./route";
 import { resetCaptureAlertThrottle } from "./alert";
+import { SUBSCRIBE_LIMIT, resetSubscribeLimiter } from "./rateLimit";
 
 const ORIGIN = "https://atthegrovenursery.com";
 
-function post(body: unknown, origin: string | null = ORIGIN): Request {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+function post(body: unknown, origin: string | null = ORIGIN, extraHeaders: Record<string, string> = {}): Request {
+  const headers: Record<string, string> = { "content-type": "application/json", ...extraHeaders };
   if (origin) headers.origin = origin;
   return new Request(`${ORIGIN}/api/newsletter/subscribe`, {
     method: "POST",
@@ -34,7 +35,10 @@ function odooOk(lists: string[]) {
 }
 
 describe("createNewsletterSubscribeRoute (GOL-3456)", () => {
-  beforeEach(() => resetCaptureAlertThrottle());
+  beforeEach(() => {
+    resetCaptureAlertThrottle();
+    resetSubscribeLimiter();
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   const route = (env: Record<string, string> = ENV) =>
@@ -130,5 +134,42 @@ describe("createNewsletterSubscribeRoute (GOL-3456)", () => {
     expect(alertHook).toHaveBeenCalledTimes(1);
     const body = JSON.parse(String(alertHook.mock.calls[0]![1]!.body));
     expect(body.content).toContain("ALERT goldberry /api/newsletter/subscribe -> 502");
+  });
+
+  it("refuses a non-JSON content type with 415 before touching Odoo", async () => {
+    const fetchMock = odooOk(["nursery"]);
+    vi.stubGlobal("fetch", fetchMock);
+    const { POST } = route();
+    const req = new Request(`${ORIGIN}/api/newsletter/subscribe`, {
+      method: "POST",
+      headers: { origin: ORIGIN, "content-type": "text/plain" },
+      body: JSON.stringify(validBody),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(415);
+    expect((await res.json()).error).toBe("unsupported_media_type");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops a honeypot (filled `company`) with a silent 200 and no Odoo call", async () => {
+    const fetchMock = odooOk(["nursery"]);
+    vi.stubGlobal("fetch", fetchMock);
+    const { POST } = route();
+    const res = await POST(post({ ...validBody, company: "Acme Bots Inc" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits a flood from one client with 429 and stops hitting Odoo", async () => {
+    const fetchMock = odooOk(["nursery"]);
+    vi.stubGlobal("fetch", fetchMock);
+    const { POST } = route();
+    const flood = () => post(validBody, ORIGIN, { "x-forwarded-for": "203.0.113.9" });
+    for (let i = 0; i < SUBSCRIBE_LIMIT; i++) {
+      expect((await POST(flood())).status).toBe(200);
+    }
+    expect((await POST(flood())).status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(SUBSCRIBE_LIMIT);
   });
 });

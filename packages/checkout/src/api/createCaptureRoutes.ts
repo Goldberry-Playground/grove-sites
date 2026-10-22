@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { CaptureLeadInput, CaptureLeadKind, OdooClient } from "@grove/odoo-client";
 import { isOriginAllowed, rejectOrigin } from "./origins";
 import { requireJsonContentType } from "./contentType";
+import { clientIp, overLimit } from "./rateLimit";
 import { forwardCheckoutError, sanitizeUpstreamError } from "./upstreamError";
 
 /**
@@ -68,6 +69,30 @@ function guard(request: Request, allowedOrigins: readonly string[]): Response | 
 }
 
 /**
+ * Anti-abuse gate for a capture POST whose body has already parsed and carries a
+ * valid `email`. Returns a terminal Response (caller should `return` it) or
+ * null to proceed:
+ *
+ *   - Honeypot — a filled `company` field is a bot (humans never see it; the
+ *     shared `CaptureForm` drops it client-side). Answer 200 and write nothing,
+ *     so the bot can't tell it was caught. Does not count against the limiter.
+ *   - Rate limit — `CAPTURE_LIMIT` per window, keyed by client IP *and* by
+ *     email, so one IP spraying many addresses and one address hit from many
+ *     requests are both capped. Over either → 429.
+ */
+function spamGate(request: Request, body: Record<string, unknown>): Response | null {
+  if (typeof body.company === "string" && body.company.trim() !== "") {
+    return NextResponse.json({ ok: true });
+  }
+  const now = Date.now();
+  const email = String(body.email).trim().toLowerCase();
+  if (overLimit(`ip:${clientIp(request)}`, now) || overLimit(`email:${email}`, now)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+  return null;
+}
+
+/**
  * `POST /api/leads?kind=<kind>[&state=XX][&product=<template id>][&dept=<slug>]`
  *
  * `dept` carries the department slug for `kind=dept_waitlist` — the shop
@@ -85,6 +110,8 @@ export function createLeadCaptureRoute(odoo: OdooClient, { allowedOrigins }: Cap
     }
     const body = await readCaptureBody(request);
     if (body instanceof Response) return body;
+    const spam = spamGate(request, body);
+    if (spam) return spam;
 
     const input: CaptureLeadInput = { email: String(body.email).trim(), kind };
     const name = text(body.name, MAX_NAME);
@@ -127,6 +154,8 @@ export function createRestockCaptureRoute(odoo: OdooClient, { allowedOrigins }: 
     }
     const body = await readCaptureBody(request);
     if (body instanceof Response) return body;
+    const spam = spamGate(request, body);
+    if (spam) return spam;
 
     const input: { email: string; name?: string; variantId?: number } = { email: String(body.email).trim() };
     const name = text(body.name, MAX_NAME);

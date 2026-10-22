@@ -82,9 +82,9 @@ export function createCheckoutSessionRoute(
     if (orderError) return NextResponse.json({ error: orderError }, { status: 400 });
 
     const p = payload as Record<string, unknown>;
-    const successError = validateRedirectUrl(p.successUrl, "successUrl");
+    const successError = validateRedirectUrl(p.successUrl, "successUrl", allowedOrigins);
     if (successError) return NextResponse.json({ error: successError }, { status: 400 });
-    const cancelError = validateRedirectUrl(p.cancelUrl, "cancelUrl");
+    const cancelError = validateRedirectUrl(p.cancelUrl, "cancelUrl", allowedOrigins);
     if (cancelError) return NextResponse.json({ error: cancelError }, { status: 400 });
 
     try {

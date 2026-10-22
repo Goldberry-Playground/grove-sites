@@ -13,10 +13,22 @@ import { marketplace } from "../../../data/marketplace";
  * env GROVE_REVALIDATE_SECRET. Each vendor configures the secret in their
  * Odoo webhook setup.
  */
+/** Length-independent constant-time string comparison (mirrors
+ *  apps/hub/lib/assets/service.ts): a plain `!==` leaks the secret's length and
+ *  a prefix-match position through its timing. Fail closed. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export async function POST(req: Request) {
-  const provided = req.headers.get("x-grove-revalidate-secret");
+  const provided = req.headers.get("x-grove-revalidate-secret") ?? "";
   const expected = process.env.GROVE_REVALIDATE_SECRET ?? "";
-  if (!expected || provided !== expected) {
+  if (!expected || !timingSafeEqual(provided, expected)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
