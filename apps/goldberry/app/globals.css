@@ -737,18 +737,10 @@ h1 em, h2 em, h3 em, h4 em {
 @media (max-width: 720px) {
   .brand-header__inner--nav-only { padding-top: 1.2rem; padding-bottom: 1.2rem; }
   .brand-header__nav { font-size: 12px; gap: 1rem; flex-wrap: wrap; justify-content: center; }
-  .nav-dropdown {
-    position: static;
-    transform: none;
-    min-width: 0;
-    width: 100%;
-    box-shadow: none;
-    border: none;
-    border-top: 1px solid var(--ivory-mist-deep);
-    opacity: 1;
-    pointer-events: auto;
-    background: var(--ivory-mist-soft);
-  }
+  /* No hover on touch, and a static always-open panel pushed the hero ~600px
+     down (GOL-3583). "Come See Us" itself goes to /visit, which carries the
+     same four programs as cards, so the submenu is desktop-only. */
+  .nav-dropdown { display: none; }
 }
 
 /* Hero wreath logo — flows above the h1 in the left content column.
