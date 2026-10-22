@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BuyAtVendorForm } from "../../../../../components/BuyAtVendorForm";
@@ -7,6 +8,17 @@ import { sanitizePostHtml } from "../../../../../lib/sanitize";
 export const revalidate = 300;
 
 type Params = { vendor: string; productSlug: string };
+
+// Self-canonical only (GOL-3585), so `?utm_…` copies collapse to one URL. Built
+// from the route params alone — no extra Ghost/Odoo round-trip for metadata.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Params>;
+}): Promise<Metadata> {
+  const { vendor, productSlug } = await params;
+  return { alternates: { canonical: `/marketplace/${vendor}/${productSlug}` } };
+}
 
 export default async function ProductDetailPage({
   params,

@@ -2,12 +2,14 @@ import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
+import { pageMetadata } from "../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/visit",
   title: "Come See Us — Goldberry Grove",
   description:
     "Visit Goldberry Grove for u-pick, public events, educational seminars, foraging walks, and private bookings on twenty acres of regenerative agroforestry above Summersville, West Virginia.",
-};
+});
 
 export default function VisitPage() {
   return (

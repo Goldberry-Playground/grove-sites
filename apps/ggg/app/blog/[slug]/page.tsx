@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,6 +9,17 @@ import { tenantConfig } from "../../../tenant.config";
 
 // Matches /blog — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
+
+// Self-canonical only (GOL-3585), so `?utm_…` copies collapse to one URL. Built
+// from the route params alone — no extra Ghost/Odoo round-trip for metadata.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  return { alternates: { canonical: `/blog/${slug}` } };
+}
 
 export default async function BlogPostPage({
   params,

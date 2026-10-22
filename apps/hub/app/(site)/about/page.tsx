@@ -1,4 +1,13 @@
+import { pageMetadata } from "../../../lib/site-metadata";
+
 export const revalidate = 3600;
+
+export const metadata = pageMetadata({
+  path: "/about",
+  title: "About",
+  description:
+    "Gather at the Grove is a village marketplace that doesn't take a cut: a magazine and directory for independent Appalachian agroforestry makers who run their own checkouts.",
+});
 
 export default function AboutPage() {
   return (

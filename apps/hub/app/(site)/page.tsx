@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import { marketplace } from "../../data/marketplace";
+import { pageMetadata } from "../../lib/site-metadata";
+
+// Title + description inherit from the root layout (GOL-3585).
+export const metadata = pageMetadata({ path: "/" });
 
 export const revalidate = 600;
 

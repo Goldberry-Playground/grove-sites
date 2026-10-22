@@ -16,7 +16,7 @@ import {
   type Timing,
   type Track,
 } from "@grove/planner";
-import { optionCardClass, RadioDot } from "../shop/[id]/option-card";
+import { optionCardClass, RadioDot } from "../shop/[slug]/option-card";
 import * as copy from "./copy";
 
 /** Where question 1 stands: the ZIP lookup, or the state fallback. */
@@ -413,7 +413,7 @@ function ChipGroup({
   );
 }
 
-/* Inline SVG marks (house pattern, see shop/[id]/zone-check.tsx): the words
+/* Inline SVG marks (house pattern, see shop/[slug]/zone-check.tsx): the words
    carry the verdict, the mark only reinforces it (WCAG 1.4.1). */
 export function CheckMark() {
   return (

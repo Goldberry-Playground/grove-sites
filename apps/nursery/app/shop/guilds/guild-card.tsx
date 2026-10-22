@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
+import { productPath } from "../../../lib/product-path";
 
 /** How many plant chips a card shows before collapsing the rest into "+N more".
  *  Miller's Law: past about half a dozen the chips stop being scannable and
@@ -62,7 +63,7 @@ export function GuildCard({ guild, purpose = null, plants, departments }: GuildC
         <span className={`guild-card__price${isTbd ? " guild-card__price--tbd" : ""}`}>
           {isTbd ? "Price TBD" : `$${priced.toFixed(2)}`}
         </span>
-        <Link href={`/shop/${guild.id}`} className="guild-card__cta">
+        <Link href={productPath(guild)} className="guild-card__cta">
           {comingSoon ? "Notify me" : "See the guild"}
         </Link>
       </div>

@@ -11,15 +11,15 @@ import {
   type LeadSeller,
 } from "../data/featured";
 import { varietyCountLabel } from "../lib/catalog-labels";
+import { productPath } from "../lib/product-path";
 
 /**
  * Data-driven lead-seller row for the homepage (GOL-659).
  *
  * Fetches the live catalog (Odoo first, mock fallback), picks the curated
  * lead sellers via data/featured.ts, and renders each as a card that links to
- * its real product page (`/shop/<id>`) — the previous hardcoded `/shop/<slug>`
- * links all 404'd because the detail route keys on numeric id. Every card,
- * and the "browse all" footer, resolves to a real destination.
+ * its canonical product page via `productPath` (`/shop/<slug>`, GOL-3601).
+ * Every card, and the "browse all" footer, resolves to a real destination.
  */
 
 /**
@@ -81,7 +81,7 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
           {featured.map((p: LeadSeller, i) => (
             <Link
               key={p.id}
-              href={`/shop/${p.id}`}
+              href={productPath(p)}
               className="var-card"
               style={{ animationDelay: `${i * 80}ms` }}
             >

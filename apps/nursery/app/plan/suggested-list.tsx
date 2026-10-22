@@ -6,6 +6,7 @@ import { STRATA, type SuggestedGroups, type SuggestedPlant } from "@grove/planne
 import * as copy from "./copy";
 import { dropSpan } from "./months";
 import { CautionMark, CheckMark } from "./questions";
+import { productPath } from "../../lib/product-path";
 
 export interface SuggestedListProps {
   suggestions: SuggestedGroups;
@@ -61,7 +62,7 @@ function SuggestedRow({ pick, onAdd }: { pick: SuggestedPlant; onAdd: () => void
     <li className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1 py-3" data-testid="plan-suggested-line">
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <Link href={`/shop/${p.id}`} className="font-semibold text-foreground underline-offset-2 hover:underline">
+          <Link href={productPath(p)} className="font-semibold text-foreground underline-offset-2 hover:underline">
             {p.name}
           </Link>
           <span className="text-sm italic text-ink-soft">{p.botanical_name}</span>

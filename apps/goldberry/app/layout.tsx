@@ -4,6 +4,7 @@ import Link from "next/link";
 import { assetPath, siblingSitesForHost, GroveProviders, FooterContact, SocialLinks, type SocialLink } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
+import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
 import { FARM_OPT_IN_LINE, POSTAL_ADDRESS_LINE } from "../lib/newsletter-copy";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
@@ -11,9 +12,17 @@ import { NavLink } from "./nav-link";
 import "./globals.css";
 import { fontVariables } from "./fonts";
 
+// Site-wide metadata defaults (GOL-3585). `metadataBase` makes relative
+// canonicals / og:url / og:image resolve; without it Next emitted the relative
+// `/recipes` canonical as-is. No `alternates.canonical` or `openGraph.url`
+// here — inherited, they would canonicalise every page to the homepage. Each
+// indexable page sets its own via `pageMetadata()`.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: tenantConfig.name,
   description: tenantConfig.description,
+  openGraph: SITE_OPEN_GRAPH,
+  twitter: SITE_TWITTER,
 };
 
 // Goldberry Grove's own accounts (Josh, 2026-09-30) — the same set its card on

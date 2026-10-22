@@ -30,9 +30,9 @@ const ROOT = path.join(__dirname, "..");
 
 const AUDITED = [
   // GOL-3112
-  "apps/nursery/app/shop/[id]/shipping-estimator.tsx",
+  "apps/nursery/app/shop/[slug]/shipping-estimator.tsx",
   // GOL-3117
-  "apps/nursery/app/shop/[id]/zone-check.tsx",
+  "apps/nursery/app/shop/[slug]/zone-check.tsx",
   "apps/nursery/app/globals.css",
   "packages/checkout/src/brand-trust.ts",
   "packages/checkout/src/components/createCheckoutSuccessPage.tsx",
@@ -184,7 +184,7 @@ describe("every file the four storefront route trees can paint stays inside the 
 describe("zone-check.tsx states its answer in tokens and shapes, not raw colour", () => {
   // Comments stripped throughout: the rule-why notes in this file name the
   // classes and codepoints they replaced, and prose must not trip the guard.
-  const src = stripComments(read("apps/nursery/app/shop/[id]/zone-check.tsx"));
+  const src = stripComments(read("apps/nursery/app/shop/[slug]/zone-check.tsx"));
 
   it("uses no raw Tailwind palette colour for the answer pair", () => {
     // text-green-700 / text-amber-700 do not follow a retheme, and amber-700

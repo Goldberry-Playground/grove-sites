@@ -4,15 +4,24 @@ import Link from "next/link";
 import { siblingSitesForHost, GroveProviders, FooterContact } from "@grove/ui";
 import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
+import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
 import { Providers } from "./providers";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import "./globals.css";
 import { fontVariables } from "@grove/ui/fonts/editorial";
 
+// Site-wide metadata defaults (GOL-3585). `metadataBase` makes relative
+// canonicals / og:url / og:image resolve; without it Next emitted the relative
+// `/recipes` canonical as-is. No `alternates.canonical` or `openGraph.url`
+// here — inherited, they would canonicalise every page to the homepage. Each
+// indexable page sets its own via `pageMetadata()`.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: tenantConfig.name,
   description: tenantConfig.description,
+  openGraph: SITE_OPEN_GRAPH,
+  twitter: SITE_TWITTER,
 };
 
 export default async function RootLayout({
