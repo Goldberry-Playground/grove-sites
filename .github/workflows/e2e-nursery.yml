@@ -83,8 +83,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright browsers (chromium)
-        run: pnpm --filter @grove/nursery exec playwright install --with-deps chromium
+      # Chromium covers Windows desktop + Android; WebKit covers iPhone + Mac
+      # Safari (playwright.config.ts projects, 2026-10-26).
+      - name: Install Playwright browsers (chromium + webkit)
+        run: pnpm --filter @grove/nursery exec playwright install --with-deps chromium webkit
 
       - name: Sanity — target is reachable
         env:

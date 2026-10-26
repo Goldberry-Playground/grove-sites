@@ -57,10 +57,25 @@ export default defineConfig({
     video: "retain-on-failure",
     // Preview droplets set noindex + are unguessable but public; no auth needed.
   },
+  // Every spec runs at the sizes our buyers use (2026-10-26): a refusal that is
+  // on screen on a wide desktop can sit far above a phone's viewport. Pick a
+  // subset with `--project`, e.g. `--project=iphone`.
   projects: [
     {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      name: "desktop-windows",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1920, height: 1080 } },
+    },
+    {
+      name: "desktop-mac",
+      use: { ...devices["Desktop Safari"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: "iphone",
+      use: { ...devices["iPhone 15"] },
+    },
+    {
+      name: "android",
+      use: { ...devices["Pixel 7"] },
     },
   ],
   ...(LOCAL

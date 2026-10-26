@@ -129,7 +129,12 @@ export async function prepareWavePreorder(
   await toggle.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
   if ((await page.locator("[data-preorder-card]").count()) === 0) return null;
   const methodButton = fulfillmentToggle(page, method);
-  if ((await methodButton.count()) > 0) await methodButton.first().click();
+  if ((await methodButton.count()) > 0) {
+    // A pickup-only product renders "Shipped" disabled; clicking it would wait
+    // out the whole test timeout, so treat it as "no wave for this method".
+    if (await methodButton.first().isDisabled()) return null;
+    await methodButton.first().click();
+  }
   if (method === "ship") {
     const zoneSelect = usdaZoneSelect(page);
     if ((await zoneSelect.count()) > 0) await zoneSelect.selectOption(String(zone));
@@ -314,6 +319,9 @@ export async function fillCheckoutForm(
   await form.getByLabel("Email").fill(input.email ?? uniqueBuyerEmail());
   // Phone is required on every checkout (2026-09-30).
   await form.getByLabel("Phone").fill("3045551212");
+  // A farm-pickup order collapses the ship-to address, so there is nothing more
+  // to fill (the pickup-locked form never renders Street at all).
+  if ((await form.getByLabel("Street").count()) === 0) return;
   await form.getByLabel("Street").fill(input.street ?? "123 Orchard Ln");
   await form.getByLabel("City").fill(input.city ?? "Summersville");
   if (input.state) {
