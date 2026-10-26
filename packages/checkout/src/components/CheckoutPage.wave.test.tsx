@@ -340,3 +340,60 @@ describe("<CheckoutPage /> — pre-order wave", () => {
     expect(submits().every((b) => b.disabled)).toBe(true);
   });
 });
+
+describe("<CheckoutPage /> — editing from Review & pay (GOL-3648)", () => {
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps the form filled when the shopper goes back to edit", async () => {
+    seed([line(1, "fall")]);
+    // The session route is read via response.text() (readJsonBody tolerates a
+    // non-JSON body), so this mock carries both text() and json().
+    const session = {
+      orderId: 1,
+      accessToken: "tok",
+      checkoutUrl: "https://stripe.test/pay",
+      lineItems: [],
+      amountDueToday: 10,
+      amountTotal: 12,
+      hasPreorder: true,
+      currency: "USD",
+    };
+    const sessionResponse = {
+      ok: true,
+      status: 200,
+      json: async () => session,
+      text: async () => JSON.stringify(session),
+    } as unknown as Response;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).includes("/api/checkout/session")
+        ? sessionResponse
+        : jsonResponse({ depositNow: true, depositReason: "preorder", shipWave: "fall", amountDueToday: 10 }),
+    );
+    render(
+      <CartProvider>
+        <CheckoutPage depositQuoteHref="/api/cart/quote" />
+      </CartProvider>,
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Full name/), "Back Button Buyer");
+    await user.type(screen.getByLabelText(/Email/), "buyer@example.com");
+    await user.type(screen.getByLabelText(/Phone/), "3045551212");
+    await user.type(screen.getByLabelText(/Street/), "1 Main St");
+    await user.type(screen.getByLabelText(/City/), "Bluefield");
+    await user.type(screen.getByLabelText(/ZIP/), "24701");
+    await user.selectOptions(screen.getByLabelText(/^State/), "WV");
+    // Submit only once the deposit quote has confirmed the wave (submit is held
+    // off until then).
+    await waitFor(() => expect(submits().every((b) => !b.disabled)).toBe(true));
+    fireEvent.click(submits()[1]);
+    // On the review step, go back to edit — the form must come back filled, not
+    // wiped (the prod bug: every field cleared).
+    const back = await screen.findByRole("button", { name: /Edit contact or shipping/ });
+    await user.click(back);
+    expect(((await screen.findByLabelText(/Full name/)) as HTMLInputElement).value).toBe("Back Button Buyer");
+    expect((screen.getByLabelText(/Street/) as HTMLInputElement).value).toBe("1 Main St");
+    expect((screen.getByLabelText(/ZIP/) as HTMLInputElement).value).toBe("24701");
+    expect((screen.getByLabelText(/^State/) as HTMLSelectElement).value).toBe("WV");
+  });
+});
