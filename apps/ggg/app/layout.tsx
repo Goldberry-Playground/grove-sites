@@ -6,6 +6,7 @@ import { SiblingStrip } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
 import { Providers } from "./providers";
+import { resolveAnalyticsConfig } from "@grove/analytics/server";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import "./globals.css";
@@ -30,6 +31,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const host = (await headers()).get("host");
+  // RUM/analytics config, resolved from the container runtime env per request
+  // (NOT NEXT_PUBLIC_*, which bakes at image build) and handed to the client.
+  const analyticsConfig = resolveAnalyticsConfig(process.env);
   const sites = siblingSitesForHost(host);
   return (
     // Fonts are self-hosted via next/font (@grove/ui/fonts/editorial); the old render-blocking
@@ -42,7 +46,7 @@ export default async function RootLayout({
       >
         <GroveProviders>
         <SiblingStrip currentSiteName="GGG Woodworking" sites={sites} />
-        <Providers>
+        <Providers analyticsConfig={analyticsConfig}>
           <header className="border-b border-primary/10 px-6 py-4">
             <nav
               className="mx-auto flex max-w-6xl items-center
