@@ -125,6 +125,36 @@ describe("createCheckoutSessionRoute", () => {
     expect(odoo.checkout.createSession).not.toHaveBeenCalled();
   });
 
+  it("rejects a successUrl on an off-site origin before any backend work", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutSessionRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(
+      postReq(validPayload({ successUrl: "https://evil.example/thanks" })),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/successUrl/);
+    expect(odoo.checkout.createSession).not.toHaveBeenCalled();
+  });
+
+  it("allows a redirect URL whose origin is on the allowlist", async () => {
+    const odoo = makeOdoo();
+    const handler = createCheckoutSessionRoute(odoo, { allowedOrigins: ALLOWED });
+
+    const res = await handler(
+      postReq(
+        validPayload({
+          successUrl: "http://localhost:3001/checkout/success",
+          cancelUrl: "http://localhost:3001/checkout/cancel",
+        }),
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    expect(odoo.checkout.createSession).toHaveBeenCalledTimes(1);
+  });
+
   it("sanitizes an upstream error into a safe response", async () => {
     const odoo = makeOdoo(new Error("stripe boom with secret sk_live_x"));
     const handler = createCheckoutSessionRoute(odoo, { allowedOrigins: ALLOWED });

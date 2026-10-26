@@ -25,8 +25,22 @@ describe("sanitizePostHtml", () => {
     expect(out).not.toMatch(/javascript:/i);
   });
 
-  it("preserves anchor href when safe", () => {
-    const html = '<a href="https://example.com">x</a>';
-    expect(sanitizePostHtml(html)).toBe(html);
+  it("preserves anchor href when safe and forces rel=noopener noreferrer", () => {
+    const out = sanitizePostHtml('<a href="https://example.com">x</a>');
+    expect(out).toMatch(/href="https:\/\/example\.com"/);
+    expect(out).toMatch(/rel="noopener noreferrer"/);
+  });
+
+  it("forces noopener on a target=_blank link (reverse tabnabbing)", () => {
+    const out = sanitizePostHtml('<a href="https://example.com" target="_blank">x</a>');
+    expect(out).toMatch(/target="_blank"/);
+    expect(out).toMatch(/rel="noopener noreferrer"/);
+  });
+
+  it("keeps an existing rel token while adding noopener/noreferrer", () => {
+    const out = sanitizePostHtml('<a href="https://example.com" rel="nofollow">x</a>');
+    expect(out).toMatch(/rel="[^"]*nofollow[^"]*"/);
+    expect(out).toMatch(/noopener/);
+    expect(out).toMatch(/noreferrer/);
   });
 });

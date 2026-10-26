@@ -1,16 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OdooApiError, type OdooClient } from "@grove/odoo-client";
 import { createLeadCaptureRoute, createRestockCaptureRoute } from "./createCaptureRoutes";
+import { CAPTURE_LIMIT, resetCaptureLimiter } from "./rateLimit";
 
 const ORIGIN = "https://atthegrovenursery.com";
 
-function post(path: string, body: unknown, origin = ORIGIN): Request {
+function post(path: string, body: unknown, origin = ORIGIN, headers: Record<string, string> = {}): Request {
   return new Request(`${ORIGIN}${path}`, {
     method: "POST",
-    headers: { origin, "content-type": "application/json" },
+    headers: { origin, "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 }
+
+// The limiter store is module-global; keep each test independent.
+beforeEach(() => {
+  resetCaptureLimiter();
+});
 
 /** The shape the shared CaptureForm already POSTs. */
 const formBody = {
@@ -70,6 +76,26 @@ describe("POST /api/leads (createLeadCaptureRoute)", () => {
     expect(lead).not.toHaveBeenCalled();
   });
 
+  it("drops a honeypot (filled `company`) with a silent 200 and no Odoo call", async () => {
+    const lead = vi.fn();
+    const { POST } = createLeadCaptureRoute({ capture: { lead } } as unknown as OdooClient, { allowedOrigins: [ORIGIN] });
+    const res = await POST(post("/api/leads?kind=wholesale", { ...formBody, company: "Acme Bots Inc" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(lead).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits a flood from one client and stops hitting Odoo (429)", async () => {
+    const lead = vi.fn(async (_input: unknown) => ({ leadId: 1, created: true }));
+    const { POST } = createLeadCaptureRoute({ capture: { lead } } as unknown as OdooClient, { allowedOrigins: [ORIGIN] });
+    const flood = () => post("/api/leads?kind=wholesale", formBody, ORIGIN, { "x-forwarded-for": "203.0.113.7" });
+    for (let i = 0; i < CAPTURE_LIMIT; i++) {
+      expect((await POST(flood())).status).toBe(200);
+    }
+    expect((await POST(flood())).status).toBe(429);
+    expect(lead).toHaveBeenCalledTimes(CAPTURE_LIMIT);
+  });
+
   it("relays a backend 400 and hides a backend outage behind a 502", async () => {
     const lead = vi
       .fn()
@@ -99,6 +125,16 @@ describe("POST /api/notify/restock (createRestockCaptureRoute)", () => {
     });
     await POST(post("/api/notify/restock?product=93&variant=4", formBody));
     expect(restock).toHaveBeenCalledWith(93, { email: "ada@example.com", name: "Ada", variantId: 4 });
+  });
+
+  it("drops a honeypot submit with a silent 200 and no Odoo call", async () => {
+    const restock = vi.fn();
+    const { POST } = createRestockCaptureRoute({ capture: { restock } } as unknown as OdooClient, {
+      allowedOrigins: [ORIGIN],
+    });
+    const res = await POST(post("/api/notify/restock?product=93", { ...formBody, company: "bot" }));
+    expect(res.status).toBe(200);
+    expect(restock).not.toHaveBeenCalled();
   });
 
   it("400s without a product id and relays a backend 404", async () => {
