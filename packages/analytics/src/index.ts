@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { emit, pageview } from "./sinks";
 
 export { AnalyticsProvider } from "./provider";
-export { trackAddToCart, trackBeginCheckout, trackPurchase } from "./events";
+export { trackAddToCart, trackBeginCheckout, trackCheckoutError, trackPurchase } from "./events";
 export type { AnalyticsConfig, AnalyticsProps, AnalyticsSink } from "./types";
 
 /**

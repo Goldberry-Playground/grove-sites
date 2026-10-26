@@ -7,6 +7,7 @@ import { tenantConfig } from "../tenant.config";
 import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
 import { FARM_OPT_IN_LINE, POSTAL_ADDRESS_LINE } from "../lib/newsletter-copy";
 import { Providers } from "./providers";
+import { resolveAnalyticsConfig } from "@grove/analytics/server";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import "./globals.css";
@@ -42,6 +43,9 @@ export default async function RootLayout({
   // See packages/ui/src/sibling-sites.ts -- cross-tenant URLs follow the
   // request's hostname so prod, QA, and previews each link to their own envs.
   const host = (await headers()).get("host");
+  // RUM/analytics config, resolved from the container runtime env per request
+  // (NOT NEXT_PUBLIC_*, which bakes at image build) and handed to the client.
+  const analyticsConfig = resolveAnalyticsConfig(process.env);
   const sites = siblingSitesForHost(host);
   return (
     // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
@@ -56,7 +60,7 @@ export default async function RootLayout({
             every viewport. Per-site brand color tokens live in globals.css. */}
         <GroveProviders>
         <SiblingStrip currentSiteName="Goldberry Grove Farm" sites={sites} />
-        <Providers>
+        <Providers analyticsConfig={analyticsConfig}>
           {/* Persistent header — typographic wordmark (transparent PNG of
               just the GOLDBERRY Grove lettering) on the left, primary nav
               on the right. Wordmark serves as home link, visible across
