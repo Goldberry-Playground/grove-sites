@@ -43,26 +43,28 @@ export function ProductGallery({
         )}
       </div>
       {thumbs.length > 1 && (
-        <div className="mt-3 flex gap-2 overflow-x-auto" role="list" aria-label="Product images">
-          {thumbs.map((img) => {
+        // A real list of buttons: role="listitem" on the <button> itself
+        // stripped its button role and made aria-pressed invalid (GOL-3583).
+        <ul className="mt-3 flex gap-2 overflow-x-auto" aria-label="Product images">
+          {thumbs.map((img, i) => {
             const isActive = activeUrl === img.url;
             return (
-              <button
-                key={img.id}
-                type="button"
-                role="listitem"
-                onClick={() => onPick(img.url)}
-                aria-pressed={isActive}
-                aria-label="Show image"
-                className={`relative h-16 w-16 shrink-0 overflow-hidden rounded border transition ${
-                  isActive ? "border-primary" : "border-primary/10 hover:border-primary/40"
-                }`}
-              >
-                <Image src={img.thumbUrl} alt="" fill className="object-cover" sizes="64px" />
-              </button>
+              <li key={img.id} className="shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onPick(img.url)}
+                  aria-pressed={isActive}
+                  aria-label={`Show image ${i + 1} of ${thumbs.length}`}
+                  className={`relative block h-16 w-16 overflow-hidden rounded border bg-secondary/20 transition ${
+                    isActive ? "border-primary" : "border-primary/10 hover:border-primary/40"
+                  }`}
+                >
+                  <Image src={img.thumbUrl} alt="" fill className="object-cover" sizes="64px" />
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );

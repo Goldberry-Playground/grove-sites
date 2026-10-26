@@ -703,6 +703,24 @@
   text-align: center;
   text-decoration: none;
 }
+/* Refused cart (GOL-3583): dimmed like checkout's :disabled submit; the hint says why. */
+.grove-cart__cta--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  user-select: none;
+}
+/* Compound: beats CheckoutShared's later :hover lift. */
+.grove-cart__banner-cta.grove-cart__cta--disabled:hover,
+.grove-cart__summary-cta.grove-cart__cta--disabled:hover {
+  transform: none;
+}
+.grove-cart__blocked-hint {
+  margin-top: var(--grove-space-3);
+  font-size: var(--grove-text-sm);
+  text-align: center;
+  line-height: 1.5;
+  color: var(--grove-color-ink-a60);
+}
 .grove-cart__summary-continue {
   display: block;
   margin-top: var(--grove-space-4);
