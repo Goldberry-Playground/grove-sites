@@ -208,6 +208,16 @@ export function cartStorageKey(tenantId: string | undefined): string {
   return `${tenantId ?? "grove"}-cart-v1`;
 }
 
+/**
+ * Where the shopper's free-consult choice lives (GOL-3384): beside the cart,
+ * under its own key, because it is not a goods line. Keeping it out of the
+ * items array means every line-level rule (one wave per order, counts,
+ * subtotal, the quote payload) stays untouched by a $0 service.
+ */
+export function consultStorageKey(tenantId: string | undefined): string {
+  return `${cartStorageKey(tenantId)}-consult`;
+}
+
 export type OrderKind = "empty" | "immediate" | "preorder" | "seed" | "mixed";
 
 /**

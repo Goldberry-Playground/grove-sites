@@ -295,6 +295,11 @@ export interface CheckoutPageProps {
    */
   notice?: ReactNode;
   /**
+   * Host-owned content in the summary after the discounts group and before the
+   * submit (the free planting-consult checkbox, GOL-3384). Rendered as given.
+   */
+  summaryExtra?: ReactNode;
+  /**
    * Why the order cannot be submitted right now (a quote refusal, a mixed cart,
    * an unconfirmed deposit). Rendered as the single live `role="alert"` in the
    * sticky banner, which stays on screen as the shopper scrolls — so the reason
@@ -401,6 +406,7 @@ export function CheckoutPage({
   forcePickupNote,
   submitDisabled = false,
   notice,
+  summaryExtra,
   blockingMessage = null,
   blockingAction = null,
   initialContact,
@@ -1097,6 +1103,8 @@ export function CheckoutPage({
                 )}
               </div>
             )}
+
+            {summaryExtra}
 
             {/* Everything else that can block a submit — a declined card, a
                 network failure — belongs beside the CTA that triggered it. The

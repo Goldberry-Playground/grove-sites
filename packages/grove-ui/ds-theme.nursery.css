@@ -1612,6 +1612,72 @@
   font-size: var(--grove-text-xs);
   color: var(--grove-color-ink-a70);
 }
+
+/* ── Free planting consult (GOL-3384, order-builder spec D.2): a checkbox
+   under the totals on the cart and the checkout summary, and the one-line
+   reason when a ticked consult was dropped. The label is the whole hit area
+   (44px floor); the native checkbox draws its state, so nothing is said by
+   colour alone. Shared markup on both pages, so it lives here once. */
+.grove-consult-offer {
+  display: grid;
+  gap: var(--grove-space-2);
+  margin: var(--grove-space-4) 0 0;
+}
+.grove-consult-offer__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--grove-space-3);
+  min-height: 2.75rem;
+  padding: var(--grove-space-3);
+  border: 1px solid var(--grove-color-line-strong);
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-surface-raised);
+  color: var(--grove-color-ink);
+  font-size: var(--grove-text-sm);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.grove-consult-offer__label:has(.grove-consult-offer__input:checked) {
+  border-color: var(--grove-color-primary);
+}
+.grove-consult-offer__input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--grove-color-primary);
+}
+.grove-consult-offer__input:focus-visible {
+  outline: 2px solid var(--grove-color-primary);
+  outline-offset: 2px;
+}
+.grove-consult-offer__title {
+  display: block;
+  font-weight: var(--grove-font-weight-semibold);
+}
+.grove-consult-offer__note {
+  display: block;
+  margin-top: var(--grove-space-1);
+  font-size: var(--grove-text-xs);
+  color: var(--grove-color-ink-a70);
+}
+.grove-consult-offer__removed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--grove-space-2);
+  margin: 0;
+  padding: var(--grove-space-2) var(--grove-space-3);
+  border: 1px solid var(--grove-color-info-solid);
+  border-radius: var(--grove-radius-sm);
+  background: var(--grove-color-info-surface);
+  color: var(--grove-color-info-fg);
+  font-size: var(--grove-text-sm);
+  line-height: 1.4;
+}
+.grove-consult-offer__icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
 /* ─── Hero slideshow ─── */
 .hero-slideshow {
   flex: 1.3;

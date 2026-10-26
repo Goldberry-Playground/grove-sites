@@ -1489,6 +1489,15 @@ export interface ApiCheckoutQuoteResponse {
    *  `shipping.state` and `shipping.zip`; null until then and for every
    *  non-Printify cart. Never a guessed price. */
   shipping_amount?: number | null;
+  /** Whether the free $0 planting consult may be offered on this cart (GOL-3381
+   *  spec D.2): goods subtotal after promotions at or above the Odoo threshold
+   *  parameter, or a consult-built line in the cart. Decided by Odoo only; the
+   *  storefront never computes the threshold. Absent on older pins. */
+  consult_eligible?: boolean;
+  /** `product.product` id of the consult service line (GOL-3541), so the
+   *  storefront can put it on the order without a catalog lookup (the product
+   *  is not website-published). Null or absent when not resolvable. */
+  consult_variant_id?: number | null;
   lines: {
     variant_id: number;
     quantity: number;
@@ -1526,6 +1535,12 @@ export interface CheckoutQuote {
    * farm checkout shows this figure or nothing, never a catalog estimate.
    */
   shippingAmount?: number | null;
+  /** The backend offers the free 15-minute planting consult on this cart
+   *  (GOL-3381 spec D.2). False on a backend that predates the offer. */
+  consultEligible: boolean;
+  /** Variant id to add for the consult line (GOL-3541); null when the backend
+   *  did not name it, in which case the storefront shows no checkbox. */
+  consultVariantId: number | null;
   lines: {
     variantId: number;
     quantity: number;

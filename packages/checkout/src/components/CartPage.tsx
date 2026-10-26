@@ -14,8 +14,10 @@ import { seedHarvestConfirmLabel, seedHarvestMovedMessage, seedLineNotes } from 
 import { cartTrustItems, type GroveBrand } from "../brand-trust";
 import { depositTodayLine, dueTodayFor } from "../due-today";
 import { useCartDepositQuote } from "../hooks/useCartDepositQuote";
+import { useConsultOffer } from "../hooks/useConsultOffer";
 import { useSeedHarvestSync } from "../hooks/useSeedHarvestSync";
 import { useTierNudge } from "../hooks/useTierNudge";
+import { ConsultOffer } from "./ConsultOffer";
 import { WithGroveNext } from "./grove-next-seam";
 
 /**
@@ -31,7 +33,9 @@ import { WithGroveNext } from "./grove-next-seam";
  * `depositQuoteHref` (optional) points at the storefront's `/api/cart/quote`
  * route; when set, the summary shows the flat reservation deposit as "due
  * today" whenever the backend would charge one (GOL-2233) instead of leaving
- * the buyer to read the goods total as the charge.
+ * the buyer to read the goods total as the charge. The same quote carries the
+ * free planting-consult offer (GOL-3384): when it says the cart qualifies, a
+ * checkbox under the totals lets the shopper add the $0 consult line.
  */
 export function CartPage({
   brand = "nursery",
@@ -44,8 +48,18 @@ export function CartPage({
    *  ("Add 2 more trees to unlock 10% off", GOL-2432). */
   tiersHref?: string;
 } = {}) {
-  const { items, hydrated, setQuantity, remove, subtotal, totalQuantity, moveSeedHarvest, confirmSeedHarvest } =
-    useCart();
+  const {
+    items,
+    hydrated,
+    setQuantity,
+    remove,
+    subtotal,
+    totalQuantity,
+    moveSeedHarvest,
+    confirmSeedHarvest,
+    consultRequested,
+    setConsultRequested,
+  } = useCart();
   const orderTypeRef = useRef<HTMLParagraphElement | null>(null);
   const kind = orderKind(items);
   const shipWave = orderWave(items);
@@ -59,6 +73,9 @@ export function CartPage({
   // A seed cart follows the harvest year the backend quotes NOW, not the one
   // stamped at add time (spec §6); a move is shown until the shopper confirms.
   useSeedHarvestSync({ kind, items, quote: depositQuote, settled: depositSettled, onMove: moveSeedHarvest });
+  // The free consult is offered by the quote, never computed here (spec D.2);
+  // the hook drops a ticked consult, and says why, when the quote withdraws it.
+  const consult = useConsultOffer(depositQuote, depositSettled, consultRequested, setConsultRequested);
   const seedMove = hydrated ? unconfirmedSeedMove(items) : null;
   function confirmSeedMove() {
     confirmSeedHarvest();
@@ -130,6 +147,7 @@ export function CartPage({
         // the CTAs must not lead there (GOL-3583).
         checkoutDisabled={blockingMessage !== null}
         tierNudge={nudge?.message ?? null}
+        summaryExtra={<ConsultOffer offer={consult} />}
         notice={
           orderTypeText || blockingMessage || seedMove ? (
             <>

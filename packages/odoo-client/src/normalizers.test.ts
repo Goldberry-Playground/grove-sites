@@ -1047,6 +1047,37 @@ describe("normalizeCheckoutQuote — seed harvest year (GOL-3258 §6)", () => {
   });
 });
 
+describe("normalizeCheckoutQuote — consult offer (GOL-3381 spec D.2, GOL-3541)", () => {
+  const base = {
+    deposit_now: false,
+    deposit_reason: null,
+    deposit_amount: 10,
+    amount_due_today: null,
+    after_cutover: false,
+    lines: [],
+  };
+
+  it("reads the offer and the consult variant id the backend names", () => {
+    const q = normalizeCheckoutQuote({ ...base, consult_eligible: true, consult_variant_id: 412 });
+    expect(q.consultEligible).toBe(true);
+    expect(q.consultVariantId).toBe(412);
+  });
+
+  it("is not offered on a backend that predates the field, and never coerces", () => {
+    expect(normalizeCheckoutQuote(base).consultEligible).toBe(false);
+    expect(normalizeCheckoutQuote(base).consultVariantId).toBeNull();
+    expect(normalizeCheckoutQuote({ ...base, consult_eligible: "true" as never }).consultEligible).toBe(false);
+    expect(normalizeCheckoutQuote({ ...base, consult_eligible: 1 as never }).consultEligible).toBe(false);
+  });
+
+  it("drops a variant id that is not a positive integer", () => {
+    expect(normalizeCheckoutQuote({ ...base, consult_eligible: true, consult_variant_id: null }).consultVariantId).toBeNull();
+    expect(normalizeCheckoutQuote({ ...base, consult_eligible: true, consult_variant_id: 0 }).consultVariantId).toBeNull();
+    expect(normalizeCheckoutQuote({ ...base, consult_eligible: true, consult_variant_id: 4.5 }).consultVariantId).toBeNull();
+    expect(normalizeCheckoutQuote({ ...base, consult_eligible: true, consult_variant_id: "412" as never }).consultVariantId).toBeNull();
+  });
+});
+
 describe("printify fields (GOL-3315, gom printify spec §4/§5)", () => {
   const rawQuote = {
     deposit_now: false,

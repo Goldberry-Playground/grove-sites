@@ -499,6 +499,14 @@ export function normalizeCheckoutQuote(raw: ApiCheckoutQuoteResponse): CheckoutQ
     // a finite number stays null so the checkout never renders a guess.
     shippingAmount:
       typeof raw.shipping_amount === "number" && Number.isFinite(raw.shipping_amount) ? raw.shipping_amount : null,
+    // The consult offer is a strict boolean from Odoo (GOL-3381): anything else,
+    // including an older pin that omits it, reads as not offered. The variant id
+    // must be a positive integer or the storefront has nothing to add.
+    consultEligible: raw.consult_eligible === true,
+    consultVariantId:
+      typeof raw.consult_variant_id === "number" && Number.isInteger(raw.consult_variant_id) && raw.consult_variant_id > 0
+        ? raw.consult_variant_id
+        : null,
     lines: (raw.lines ?? []).map((l) => ({
       variantId: l.variant_id,
       quantity: l.quantity,

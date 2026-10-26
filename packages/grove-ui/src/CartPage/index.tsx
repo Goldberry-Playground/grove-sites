@@ -82,6 +82,12 @@ export interface CartPageProps {
    */
   reassure?: ReactNode | null;
   /**
+   * Host-owned content under the summary totals and above the checkout CTA
+   * (the free planting-consult checkbox, GOL-3384). The kit renders it as
+   * given; the words and the rule behind them belong to the consumer.
+   */
+  summaryExtra?: ReactNode;
+  /**
    * True when the host knows checkout would refuse this cart (the quote
    * refused a line, a mixed cart, an unconfirmed pre-order deposit). Both
    * checkout CTAs render as disabled, non-navigating controls with a hint
@@ -116,6 +122,7 @@ export function CartPage({
   lineNotes,
   notice,
   reassure,
+  summaryExtra,
   checkoutDisabled = false,
 }: CartPageProps) {
   const Link = useGroveLink();
@@ -304,6 +311,7 @@ export function CartPage({
             {dueToday && (
               <p className="grove-cart__summary-due-note">{dueToday.note}</p>
             )}
+            {summaryExtra}
 
             {checkoutDisabled ? (
               <>
