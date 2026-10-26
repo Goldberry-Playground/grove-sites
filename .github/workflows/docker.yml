@@ -1,8 +1,8 @@
 name: Docker — Frontends
 
-# Build, smoke-test, and (on main) publish each of the 4 frontend images.
-# Matrix-build across hub + goldberry + ggg + nursery — local validation
-# uses `make all-up` which builds the same 4 images via docker-compose.frontends.yml,
+# Build, smoke-test, and (on main) publish each frontend image.
+# Matrix-build across hub + goldberry + ggg + nursery (+ consult, no QA twin) — local validation
+# uses `make all-up` which builds the same 4 public images via docker-compose.frontends.yml,
 # so this keeps CI in lockstep with the canonical local-dev path.
 
 on:
@@ -97,6 +97,22 @@ jobs:
               -e HUB_GHOST_URL=http://127.0.0.1:1
               -e HUB_GHOST_CONTENT_API_KEY=smoke-test
               -e GROVE_REVALIDATE_SECRET=smoke-test-revalidate-secret
+          # Consult — staff-only, behind Cloudflare Access (GOL-3576/GOL-3581).
+          # No QA twin on purpose: the QA zone isn't Cloudflare-proxied, so no
+          # Access policy could front it — an empty qa_app skips the QA
+          # redeploy steps below. The middleware verifies the Access JWT on
+          # every request; with CF_ACCESS_AUD unset it fails closed, so the
+          # smoke proves /healthz is up AND / is refused without a token.
+          - app: consult
+            internal_port: 3001
+            image_name: ghcr.io/goldberry-playground/grove-consult
+            qa_app: ""
+            smoke_routes: "/healthz"
+            smoke_forbidden_routes: "/ /api/leads"
+            env_extra: |
+              -e ODOO_URL=http://127.0.0.1:1
+              -e ODOO_API_KEY=smoke-test
+              -e CF_ACCESS_TEAM_DOMAIN=goldberrygrove
     env:
       TEST_TAG: test-${{ github.run_id }}
     steps:
@@ -151,6 +167,7 @@ jobs:
           IMAGE: ${{ matrix.image_name }}:${{ env.TEST_TAG }}
           INTERNAL_PORT: ${{ matrix.internal_port }}
           SMOKE_ROUTES: ${{ matrix.smoke_routes }}
+          SMOKE_FORBIDDEN_ROUTES: ${{ matrix.smoke_forbidden_routes }}
           ENV_EXTRA: ${{ matrix.env_extra }}
         run: |
           # shellcheck disable=SC2086
@@ -159,8 +176,10 @@ jobs:
             $ENV_EXTRA \
             "$IMAGE"
 
+          # Poll the first smoke route, not "/": consult answers "/" with a 403.
+          ready_path="${SMOKE_ROUTES%% *}"
           for i in $(seq 1 30); do
-            if curl -fsS -o /dev/null "http://localhost:${INTERNAL_PORT}/" ; then
+            if curl -fsS -o /dev/null "http://localhost:${INTERNAL_PORT}${ready_path}" ; then
               echo "Container responding after ${i} polls"
               break
             fi
@@ -175,6 +194,13 @@ jobs:
               2*) ;;
               *) fail=1 ;;
             esac
+          done
+
+          # Routes that must be refused without credentials (auth-gated apps).
+          for path in $SMOKE_FORBIDDEN_ROUTES; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${INTERNAL_PORT}${path}")
+            echo "  ${path}  ->  ${code} (want 403)"
+            [ "$code" = "403" ] || fail=1
           done
 
           docker logs "${APP}-smoke"
@@ -277,7 +303,9 @@ jobs:
       # The 2026-07-22 outage was (b), which is why presence alone is not enough.
       - name: Check QA-redeploy credentials
         id: deploycreds
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        # Every later QA-redeploy step keys off this step's output, so an empty
+        # qa_app (consult: no QA twin) skips the whole redeploy chain here.
+        if: matrix.qa_app != '' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         env:
           # Matrix value via env, never ${{ }} inside run: — same
           # defense-in-depth convention as the smoke-test + redeploy steps.

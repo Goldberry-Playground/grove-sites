@@ -143,6 +143,9 @@ export function CartPage({
         trustItems={trustItems}
         dueToday={dueToday}
         reassure={reassure}
+        // Whatever blocks the cart here also refuses the checkout session, so
+        // the CTAs must not lead there (GOL-3583).
+        checkoutDisabled={blockingMessage !== null}
         tierNudge={nudge?.message ?? null}
         summaryExtra={<ConsultOffer offer={consult} />}
         notice={

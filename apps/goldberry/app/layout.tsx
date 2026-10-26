@@ -87,9 +87,12 @@ export default async function RootLayout({
               <nav className="brand-header__nav" aria-label="Primary">
                 <div className="nav-item has-dropdown">
                   <Link href="/visit" className="nav-item__link">Come See Us</Link>
-                  <ul className="nav-dropdown" role="menu" aria-label="Come See Us">
-                    <li role="none">
-                      <Link href="/visit/upick" role="menuitem">
+                  {/* Plain list of links, not an ARIA menu: role="menu" promises
+                      arrow-key menu behaviour this hover/focus reveal never
+                      had, and audits read its menuitems as unnamed (GOL-3583). */}
+                  <ul className="nav-dropdown">
+                    <li>
+                      <Link href="/visit/upick">
                         <span className="nav-dropdown__icon" aria-hidden>U</span>
                         <span>
                           <strong>U-Pick</strong>
@@ -97,8 +100,8 @@ export default async function RootLayout({
                         </span>
                       </Link>
                     </li>
-                    <li role="none">
-                      <Link href="/visit/events" role="menuitem">
+                    <li>
+                      <Link href="/visit/events">
                         <span className="nav-dropdown__icon" aria-hidden>E</span>
                         <span>
                           <strong>Public Events</strong>
@@ -106,8 +109,8 @@ export default async function RootLayout({
                         </span>
                       </Link>
                     </li>
-                    <li role="none">
-                      <Link href="/visit/seminars" role="menuitem">
+                    <li>
+                      <Link href="/visit/seminars">
                         <span className="nav-dropdown__icon" aria-hidden>S</span>
                         <span>
                           <strong>Educational Seminars</strong>
@@ -115,8 +118,8 @@ export default async function RootLayout({
                         </span>
                       </Link>
                     </li>
-                    <li role="none">
-                      <Link href="/visit/private" role="menuitem">
+                    <li>
+                      <Link href="/visit/private">
                         <span className="nav-dropdown__icon" aria-hidden>P</span>
                         <span>
                           <strong>Book a Private Event</strong>

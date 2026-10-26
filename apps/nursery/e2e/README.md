@@ -125,3 +125,22 @@ target — the suite is intentionally **not** a required check. The remaining
 follow-up is to wire `e2e-nursery.yml` to `workflow_run` after a
 successful `preview-up` and read the `nursery` URL from the uploaded
 `preview-urls` artifact (already emitted by `preview-up.yml`).
+
+## Devices, refusal watchdog and the prod canary (2026-10-26)
+
+Every spec runs on four projects: `desktop-windows` (Chrome 1920×1080),
+`desktop-mac` (Safari 1440×900), `iphone` (iPhone 15, WebKit) and `android`
+(Pixel 7). Narrow with `--project=iphone`. CI installs `chromium webkit`.
+
+`e2e/watchdog.ts` exports a `test` that records every `/api/*` call, fails on
+any 5xx or uncaught page error, and attaches `api-calls.json` to the report.
+`expectRefusalVisible()` asserts a checkout refusal is an alert **inside the
+viewport**, the class of bug behind the WV "can't check out" reports (a refusal
+rendered off-screen above a phone's viewport while the button greys out).
+
+`e2e/synthetic/checkout-canary.spec.ts` (`@synthetic`) is the prod canary run by
+`.github/workflows/synthetic-nursery.yml`. It never pays. Only the twice-daily
+full run (`SYNTHETIC_CREATE_SESSION=1`) creates a Stripe session, which writes a
+draft order to prod Odoo under `synthetic-canary+…@goldberrygrove.farm`.
+
+    E2E_NURSERY_BASE_URL=https://atthegrovenursery.com pnpm exec playwright test --grep @synthetic

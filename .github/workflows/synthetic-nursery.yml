@@ -1,0 +1,148 @@
+name: synthetic-nursery
+
+###############################################################################
+# Production checkout canary for atthegrovenursery.com (2026-10-26).
+#
+# WV shoppers reported "can't check out" while Stripe showed nothing: the cart
+# never got that far, and the storefront logs no refusals. This drives the real
+# prod storefront the way a buyer does — shop grid, a bareroot pre-order PDP,
+# checkout shipped AND farm pickup — on iPhone, Android, Mac and Windows sizes
+# (apps/nursery/playwright.config.ts projects), and fails on any /api 5xx, page
+# crash, refusal the shopper cannot see, or a Continue button that never enables
+# (apps/nursery/e2e/synthetic/checkout-canary.spec.ts).
+#
+# It NEVER pays. The `full` run also creates a Stripe session (which creates a
+# draft sale order in prod Odoo under a synthetic-canary+… address) and checks
+# Stripe's hosted page renders; every other run stops before that.
+#
+# Cadence: GitHub throttles `schedule` to ~5 firings/day on this account no
+# matter what the cron says (GOL-3132, see prod-deploy-drift.yml), so the cron
+# is a floor and frontend builds on main add a run after every change. A true
+# every-15-minutes canary belongs on the obs droplet (GOL-2325); this is the
+# browser-level layer that one cannot give us.
+#
+# Alerts: failure posts to Discord ops (webhook from 1Password, same item as
+# prod-deploy-drift.yml) and leaves the run red for GitHub's own email.
+###############################################################################
+
+on:
+  schedule:
+    # Light run (no session): nominally every 30 min, ~5/day in practice.
+    - cron: "*/30 * * * *"
+    # Full run (creates a Stripe session, never pays): twice a day.
+    - cron: "15 13,21 * * *"
+  workflow_run:
+    workflows:
+      - Docker — Frontends
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Also create a Stripe session (writes a draft order to prod Odoo; never pays)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-nursery
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+  BASE_URL: https://atthegrovenursery.com
+
+jobs:
+  canary:
+    name: Nursery prod checkout canary
+    # A PR build cannot change prod, and a failed build ships nothing; only a
+    # successful main build triggers a run.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event != 'pull_request' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium + webkit)
+        run: pnpm --filter @grove/nursery exec playwright install --with-deps chromium webkit
+
+      - name: Decide run mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          FULL_INPUT: ${{ inputs.full }}
+        run: |
+          full=0
+          if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "15 13,21 * * *" ]; then full=1; fi
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$FULL_INPUT" = "true" ]; then full=1; fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Canary mode: $([ $full = 1 ] && echo 'full (creates a Stripe session)' || echo 'light')"
+
+      - name: Run canary on iPhone, Android, Mac, Windows
+        id: run
+        continue-on-error: true
+        env:
+          CI: "true"
+          E2E_NURSERY_BASE_URL: ${{ env.BASE_URL }}
+          SYNTHETIC_CREATE_SESSION: ${{ steps.mode.outputs.full }}
+        run: pnpm --filter @grove/nursery exec playwright test --grep @synthetic
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: synthetic-nursery-report
+          path: apps/nursery/playwright-report
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Load Discord webhook from 1Password
+        id: secrets
+        if: steps.run.outcome == 'failure'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DISCORD_OPS_WEBHOOK_URL: op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+        with:
+          export-env: true
+
+      - name: Alert Discord ops + fail
+        if: steps.run.outcome == 'failure'
+        env:
+          DISCORD_OPS_WEBHOOK_URL: ${{ env.DISCORD_OPS_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          msg="🚨 Nursery prod checkout canary FAILED on atthegrovenursery.com. Shoppers may be unable to check out. Report: $RUN_URL"
+          if [ -n "${DISCORD_OPS_WEBHOOK_URL:-}" ]; then
+            jq -n --arg content "$msg" '{content: $content}' |
+              curl -fsS -H 'Content-Type: application/json' -d @- "$DISCORD_OPS_WEBHOOK_URL" ||
+              echo "::warning::Discord alert post failed"
+          else
+            echo "::warning::DISCORD_OPS_WEBHOOK_URL unavailable; relying on GitHub's failure email"
+          fi
+          echo "::error title=Checkout canary failed::$msg"
+          exit 1
