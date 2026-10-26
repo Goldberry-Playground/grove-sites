@@ -19,6 +19,11 @@ import {
  * the fall pickup wave (closed Oct 15). The refusal and its "Switch this order
  * to the spring wave" fix render at the TOP of the form while the shopper is at
  * the Fulfillment radios, and "Continue to payment" greys out with no reason.
+ *
+ * EXPECTED RED on iphone / android / desktop-mac until the checkout UI hotfix
+ * (GOL-3648, grove-sites#1197) is deployed to the target. e2e-nursery.yml is
+ * workflow_dispatch-only and not a required check, so this does not block PRs;
+ * it is meant to fail the release-train gate run until the fix ships.
  */
 
 const checkoutForm = (page: import("@playwright/test").Page) =>

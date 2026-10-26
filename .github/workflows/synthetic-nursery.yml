@@ -58,11 +58,13 @@ env:
 jobs:
   canary:
     name: Nursery prod checkout canary
-    # A PR build cannot change prod; only main builds trigger a run.
+    # A PR build cannot change prod, and a failed build ships nothing; only a
+    # successful main build triggers a run.
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.event != 'pull_request' &&
-       github.event.workflow_run.head_branch == 'main')
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
