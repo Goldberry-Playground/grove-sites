@@ -1,5 +1,19 @@
 import { sha256Hex } from "./hash";
 import { emit } from "./sinks";
+import type { AnalyticsProps } from "./types";
+
+// Funnel events that represent a one-shot step (checkout start, checkout error)
+// are deduped per page session: a double submit, a React StrictMode double
+// effect, or a retry of the same failing step must not inflate the funnel
+// counts the rum-funnel-drop / rum-checkout-error alerts baseline against.
+// `purchase` keeps its own ref guard at the PurchaseTracker call site.
+const firedKeys = new Set<string>();
+
+function emitOnce(key: string, name: string, props?: AnalyticsProps): void {
+  if (firedKeys.has(key)) return;
+  firedKeys.add(key);
+  emit(name, props);
+}
 
 /**
  * Funnel step 1 — a product variant was added to the cart. We ship `variant_id`
@@ -19,11 +33,27 @@ export function trackAddToCart(input: {
   });
 }
 
-/** Funnel step 2 — the checkout form was submitted. */
+/**
+ * Funnel step 2 — the checkout form was submitted. Deduped per page session so a
+ * buyer who submits twice (or a double-invoked effect) counts as one start.
+ */
 export function trackBeginCheckout(input: { itemCount: number; subtotal: number }): void {
-  emit("begin_checkout", {
+  emitOnce("begin_checkout", "begin_checkout", {
     item_count: input.itemCount,
     subtotal: input.subtotal,
+  });
+}
+
+/**
+ * Funnel error — a checkout attempt failed at `stage` (a low-cardinality label
+ * like "network" or "session", NEVER the raw error message, which can echo user
+ * input). Deduped per stage so one flaky step retried several times records
+ * once; a failure at a different stage still records.
+ */
+export function trackCheckoutError(input: { stage: string; code?: string }): void {
+  emitOnce(`checkout_error:${input.stage}`, "checkout_error", {
+    stage: input.stage,
+    ...(input.code ? { code: input.code } : {}),
   });
 }
 
