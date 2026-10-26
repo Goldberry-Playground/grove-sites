@@ -9,7 +9,17 @@ import {
 import { marketplace } from "../../../data/marketplace";
 import { firstPhotoIndex } from "../../../lib/odoo-image";
 
+import { pageMetadata } from "../../../lib/site-metadata";
+
 export const revalidate = 3600;
+
+// One canonical for every `?q=` search view, so result pages don't index.
+export const metadata = pageMetadata({
+  path: "/marketplace",
+  title: "The Marketplace",
+  description:
+    "What the grove is making: a federated catalog from three Appalachian agroforestry businesses on one West Virginia hillside.",
+});
 
 type SearchParams = { q?: string };
 

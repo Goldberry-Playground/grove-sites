@@ -5,12 +5,14 @@ import { assetPath } from "@grove/ui";
 import { CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { FARM_OPT_IN_LINE } from "../../../lib/newsletter-copy";
 import { OpeningNotice } from "../_components/OpeningNotice";
+import { pageMetadata } from "../../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/visit/events",
   title: "Public Events — Goldberry Grove — Opening Spring 2027",
   description:
     "Farm-to-table dinners, harvest weekends, JADAM workshops, and open-gate community days coming to Goldberry Grove in spring 2027, with a full calendar and online RSVP.",
-};
+});
 
 export default function EventsPage() {
   return (

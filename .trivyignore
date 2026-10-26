@@ -50,4 +50,11 @@
 #   deployed bundle, so there is no production attack surface at all. The impact
 #   ceiling is "a lint job crashes on a pattern we wrote ourselves". No fixed
 #   version is published yet; upgrade out of this suppression as soon as one is.
-CVE-2026-93687 exp:2026-11-04
+#
+# 2026-10-22 (GOL-3582): expiry extended. braces@3.0.3 is still the latest
+# release — no fix. Bumping fast-glob >= 3.3.3 does NOT remove braces (fast-glob
+# still depends on micromatch, which still depends on braces@3.0.3), so there is
+# no override that drops this chain. The analysis above is unchanged: dev-only,
+# lint-time, repo-local input, no runtime surface. Re-evaluate at next expiry or
+# when a patched braces ships, whichever comes first.
+CVE-2026-93687 exp:2027-02-04

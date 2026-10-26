@@ -138,6 +138,11 @@ export function Planner({ mode, odooBase, contact, initialAnswers }: PlannerProp
 
   const result = useMemo(() => (input && ready ? plan(input, ready) : null), [input, ready]);
 
+  // The customer's own picks from the suggested list (§C.2). They live here,
+  // above the card, so Edit (which unmounts the card) does not lose them; the
+  // card drops any that no longer pass the new answers' filter.
+  const [manualIds, setManualIds] = useState<number[]>([]);
+
   // A complete URL (shared link, Edit then See my plan) renders the result at
   // once; answering live keeps the four questions on screen until the
   // customer asks to see the plan, so question 4 is a real question and not
@@ -212,10 +217,13 @@ export function Planner({ mode, odooBase, contact, initialAnswers }: PlannerProp
             <ResultCard
               result={result}
               input={input}
+              catalog={ready}
               eyebrow={eyebrow}
               calendar={ready.calendar ?? null}
               odooBase={odooBase}
               contact={contact}
+              manualIds={manualIds}
+              onManualChange={setManualIds}
               onEdit={() => setEditing(true)}
               onRetrySite={() => setAnswers({ ...answers, site: "open" })}
             />

@@ -1,4 +1,4 @@
-import type { Site, Slot, Subgoal, Timing, Track } from "@grove/planner";
+import type { PlannerRole, Site, Slot, Stratum, Subgoal, Succession, Timing, Track } from "@grove/planner";
 
 /**
  * Every customer-facing string on the order builder, in one place so the
@@ -90,10 +90,90 @@ export const SLOT_LABELS: Record<Slot, string> = {
   understory: "Understory",
   shrub: "Shrub",
   support: "Support",
+  mushroom: "Mushroom",
   early: "Early season",
   late: "Late season",
   offseason: "Off season",
 };
+
+// ── Winter beta (planner-winter-beta spec §C, GOL-3550) ─────────────────────
+
+/** The philosophy line above the lines (spec, decisions: stated on the page). */
+export const PHILOSOPHY =
+  "Anchors are the long-lived trees the planting is built around. Companions feed the soil, the pollinators and you while the anchors grow, and their prunings become mulch and mushroom logs. Nothing here is planted alone.";
+
+export const STRATUM_LABELS: Record<Stratum, string> = {
+  overstory: "Overstory",
+  understory: "Understory",
+  mushroom: "Mushroom",
+};
+export const ROLE_LABELS: Record<PlannerRole, string> = {
+  anchor: "anchor",
+  companion: "companion",
+};
+/** "Overstory anchor", "Understory companion", "Mushroom anchor". */
+export const stratumRole = (stratum: Stratum | null, role: PlannerRole | null): string | null => {
+  if (stratum && role) return `${STRATUM_LABELS[stratum]} ${ROLE_LABELS[role]}`;
+  if (stratum) return STRATUM_LABELS[stratum];
+  if (role) return role === "anchor" ? "Anchor" : "Companion";
+  return null;
+};
+export const SUCCESSION_LABELS: Record<Succession, string> = {
+  fast: "fast",
+  mid: "mid",
+  long: "long-lived",
+};
+export const FIXES_N = "fixes N";
+export const FIXES_N_TITLE = "Fixes nitrogen in the soil";
+export const NEEDS_REVIEW = "Needs review";
+export const NEEDS_REVIEW_TITLE = "Our testers have questioned a fact on this plant. We are checking it.";
+export const GROWS_ON = (substrate: string) => `Grows on ${substrate}`;
+export const YOUR_PICK = "your pick";
+export const MARGINAL_ZONE = "Marginal for your zone";
+
+export const SWAP_LINE = "Swap";
+export const SWAP_NONE = (slotLabel: string) => `Nothing else we grow fits the ${slotLabel.toLowerCase()} slot on this ground.`;
+export const SWAPPED_FOR = (from: string, to: string) => `Swapped ${from} for ${to}.`;
+
+export const SAVE_HEADING = "Save this plan";
+export const SAVE_LEDE = "Give it a name and we keep a copy at the nursery. Your answers stay in the link above either way.";
+export const SAVE_NAME_LABEL = "Plan name";
+export const SAVE_NAME_PLACEHOLDER = "The back field";
+export const SAVE_BUTTON = "Save this plan";
+export const SAVE_SAVING = "Saving";
+export const SAVE_DONE = (name: string) => `Saved as "${name}". We have a copy at the nursery.`;
+export const SAVE_NAME_REQUIRED = "Give the plan a name first.";
+export const SAVE_FAILED = "We could not save that just now. Your plan is still here; try again in a minute.";
+export const SAVE_OFF = "Saving plans is paused for the moment. Your plan is still here in the link.";
+
+export const SUGGESTED_HEADING = "Also fits your ground";
+export const SUGGESTED_LEDE =
+  "Everything else we grow that suits your zone and your spot, by layer. Add what you know you want; we learn from it.";
+export const SUGGESTED_EMPTY = "Your plan already has everything we grow for this spot.";
+export const SUGGESTED_ADD = "Add";
+export const SUGGESTED_ADDED = (name: string) => `Added ${name} to your plan.`;
+export const SUGGESTED_HIDDEN = (n: number) =>
+  n === 1 ? "1 plant we grow is hidden because it does not suit this site." : `${n} plants we grow are hidden because they do not suit this site.`;
+export const ZONE_FIT_SAFE = "In your zone";
+export const ZONE_FIT_MARGINAL = "Marginal";
+export const HARVEST_LABEL = "Harvest";
+export const YEARS_LABEL = (n: number) => (n === 1 ? "1 year to first crop" : `${n} years to first crop`);
+
+export const SUGGEST_HEADING = "Should we grow something else?";
+export const SUGGEST_LEDE = "If a plant belongs in your plan and we do not carry it, tell us. Josh reads every one.";
+export const SUGGEST_NAME_LABEL = "Plant name";
+export const SUGGEST_NAME_PLACEHOLDER = "Che, honeyberry, groundnut";
+export const SUGGEST_STRATUM_LABEL = "Which layer";
+export const SUGGEST_STRATUM_ANY = "Not sure";
+export const SUGGEST_NOTE_LABEL = "Why it belongs";
+export const SUGGEST_NOTE_HINT = "A sentence or two is plenty. Where it grows for you, what it does in the planting.";
+export const SUGGEST_BUTTON = "Send";
+export const SUGGEST_SENDING = "Sending";
+export const SUGGEST_DONE = "Thank you. It goes to the nursery for review, and if we take it on it will show up here.";
+export const SUGGEST_NAME_REQUIRED = "Tell us the plant's name.";
+export const SUGGEST_FAILED = "That did not go through. Try again in a minute, or email us.";
+export const SUGGEST_OFF = "Suggestions are paused for the moment. Email us instead.";
+export const SUGGEST_LIMIT = "That is plenty for one hour. Thank you; try again later.";
 
 /** The site as it reads inside a sentence ("fits a low, wet spot"). */
 export const SITE_NOUN: Record<Site, string> = {
@@ -112,8 +192,8 @@ export const TRACK_NOUN: Record<Track, string> = {
 export const SEE_PLAN = "See my plan";
 export const EDIT_ANSWERS = "Edit answers";
 export const BUILD_ORDER = "Build my order";
-export const BUILD_GROUP = (tierLabel: string, trees: number) =>
-  `Build my ${tierLabel} order (${trees} trees)`;
+export const BUILD_GROUP = (tierLabel: string, count: string) =>
+  `Build my ${tierLabel} order (${count})`;
 export const TALK_FIRST = "Talk it through first";
 export const RESET_PLAN = "Reset to our mix";
 export const REMOVE_LINE = "Remove";

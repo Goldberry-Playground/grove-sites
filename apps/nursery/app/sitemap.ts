@@ -4,6 +4,7 @@ import type { Post } from "@grove/ghost-client";
 import { odoo } from "../lib/clients";
 import { ghost } from "../lib/ghost";
 import { SITE_URL } from "../lib/site-metadata";
+import { isUsableSlug, productPath } from "../lib/product-path";
 
 /**
  * `sitemap.xml` for the nursery storefront (GOL-2878 Phase 1).
@@ -67,16 +68,18 @@ async function productEntries(): Promise<MetadataRoute.Sitemap> {
     return [];
   }
 
-  return products.map((product) => ({
-    // Phase 1 serves the id form, because `/shop/[slug]` does not exist yet.
-    // Phase 2 makes the slug canonical (GOL-2875 R1) — this is the one line
-    // that has to change with it, and it must change in the SAME commit as the
-    // route, or the sitemap advertises URLs that 404.
-    url: `${SITE_URL}/shop/${product.id}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
+  return products
+    // A product with no usable slug is served at its id path `noindex` (R4),
+    // so it has no canonical URL to advertise.
+    .filter((product) => isUsableSlug(product.slug))
+    .map((product) => ({
+      // The slug form is canonical (GOL-2875 R1, GOL-3601); `/shop/<id>` 301s to
+      // it, so the sitemap must never list the id form.
+      url: `${SITE_URL}${productPath(product)}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }));
 }
 
 /** Published blog posts. Independent of the product fetch — one can fail alone. */

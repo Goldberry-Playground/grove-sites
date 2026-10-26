@@ -169,6 +169,9 @@ export function CheckoutPage({
     useCart();
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  // The last order we handed to the session route, kept so a Review & pay → back
+  // round-trip re-seeds the form instead of clearing every field (GOL-3648).
+  const [lastOrder, setLastOrder] = useState<GroveCheckoutOrder | null>(null);
   // Mirrors the form's ship/pickup radio so the "due today" quote follows the
   // buyer's choice (pickup changes the charge rule after the season cutover).
   const [chosenFulfillment, setChosenFulfillment] = useState<GroveFulfillment>("ship");
@@ -380,6 +383,9 @@ export function CheckoutPage({
     }
 
     setSession(data as unknown as CheckoutSession);
+    // Remember what we submitted so "Edit contact or shipping" on the review
+    // step comes back to a filled form, not a blank one (GOL-3648).
+    setLastOrder(order);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -450,8 +456,13 @@ export function CheckoutPage({
           ? LIVE_SHIPPING_UNAVAILABLE_MESSAGE
           : null);
 
+  // The order type and the seed-harvest-move disclosure stay in the page-grid
+  // notice under the title. The submit-blocking REFUSAL does not: it moves to
+  // `blockingMessage` (the sticky-banner alert) and its one-click fix to
+  // `blockingAction` (beside the Fulfillment control), so a phone shopper sees
+  // why the CTA is greyed and how to fix it without scrolling back up (GOL-3648).
   const notice =
-    orderTypeText || blockingMessage || seedMove ? (
+    orderTypeText || seedMove ? (
       <>
         {orderTypeText ? (
           <p
@@ -462,11 +473,6 @@ export function CheckoutPage({
             data-testid="order-type"
           >
             {orderTypeText}
-          </p>
-        ) : null}
-        {blockingMessage ? (
-          <p role="alert" className="grove-checkout__order-blocked">
-            {blockingMessage}
           </p>
         ) : null}
         {seedMove ? (
@@ -487,24 +493,24 @@ export function CheckoutPage({
             </div>
           </>
         ) : null}
-        {switchWave ? (
-          <div className="grove-checkout__wave-switch">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="grove-checkout__wave-switch-button"
-              onClick={() => switchOrderWave(switchWave)}
-            >
-              Switch this order to the {switchWave} wave
-            </Button>
-            <p className="grove-checkout__wave-switch-note">
-              Every tree in this order moves to the {switchWave} wave. The deposit stays $10.
-            </p>
-          </div>
-        ) : null}
       </>
     ) : null;
+  const blockingAction = switchWave ? (
+    <div className="grove-checkout__wave-switch">
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        className="grove-checkout__wave-switch-button"
+        onClick={() => switchOrderWave(switchWave)}
+      >
+        Switch this order to the {switchWave} wave
+      </Button>
+      <p className="grove-checkout__wave-switch-note">
+        Every tree in this order moves to the {switchWave} wave. The deposit stays $10.
+      </p>
+    </div>
+  ) : null;
 
   return (
     <WithGroveNext>
@@ -569,6 +575,12 @@ export function CheckoutPage({
         readyEyebrow={needsLiveShipping ? "printed to order" : undefined}
         submitDisabled={blocked}
         notice={notice}
+        blockingMessage={blockingMessage}
+        blockingAction={blockingAction}
+        initialContact={lastOrder?.contact}
+        initialShipping={lastOrder?.shipping}
+        initialFulfillment={lastOrder?.fulfillment}
+        initialPromoCode={lastOrder?.promoCode}
       />
     </WithGroveNext>
   );

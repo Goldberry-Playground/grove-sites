@@ -288,9 +288,10 @@ export interface CheckoutPageProps {
    */
   submitDisabled?: boolean;
   /**
-   * Order-level notices the host owns (the order type, a refusal that blocks
-   * submit, a fix for it), rendered under the page title so they sit inside the
-   * page grid, ahead of the form they govern.
+   * Order-level notices the host owns (the order type, a seed-harvest move),
+   * rendered under the page title so they sit inside the page grid, ahead of the
+   * form they govern. A submit-blocking *refusal* does NOT go here — it rides
+   * `blockingMessage` so it stays on screen beside the greyed CTA (GOL-3648).
    */
   notice?: ReactNode;
   /**
@@ -298,6 +299,31 @@ export interface CheckoutPageProps {
    * submit (the free planting-consult checkbox, GOL-3384). Rendered as given.
    */
   summaryExtra?: ReactNode;
+  /**
+   * Why the order cannot be submitted right now (a quote refusal, a mixed cart,
+   * an unconfirmed deposit). Rendered as the single live `role="alert"` in the
+   * sticky banner, which stays on screen as the shopper scrolls — so the reason
+   * the greyed "Continue to payment" won't fire is never stranded off-screen
+   * above the control that caused it (the 2026-10-26 WV "can't check out" bug,
+   * GOL-3648). Pair with `submitDisabled`.
+   */
+  blockingMessage?: ReactNode;
+  /**
+   * A one-click fix for `blockingMessage`, rendered right after the Fulfillment
+   * fieldset — the control a wave/pickup refusal comes from (e.g. a "Switch this
+   * order to the spring wave" button). Omit when there is no self-service fix
+   * (a mixed cart the shopper must edit, a transient deposit failure).
+   */
+  blockingAction?: ReactNode;
+  /**
+   * Seed the form from a prior round so going back from Review & pay does not
+   * wipe what the shopper already typed (GOL-3648). The host hands back the
+   * order it last submitted; omitted fields fall back to the empty defaults.
+   */
+  initialContact?: GroveCheckoutContact;
+  initialShipping?: GroveCheckoutShipping;
+  initialFulfillment?: GroveFulfillment;
+  initialPromoCode?: string;
 }
 
 /**
@@ -381,11 +407,19 @@ export function CheckoutPage({
   submitDisabled = false,
   notice,
   summaryExtra,
+  blockingMessage = null,
+  blockingAction = null,
+  initialContact,
+  initialShipping,
+  initialFulfillment,
+  initialPromoCode,
 }: CheckoutPageProps) {
   const Link = useGroveLink();
   const formRef = useRef<HTMLFormElement | null>(null);
 
-  const [chosenFulfillment, setChosenFulfillment] = useState<GroveFulfillment>("ship");
+  const [chosenFulfillment, setChosenFulfillment] = useState<GroveFulfillment>(
+    initialFulfillment ?? "ship",
+  );
   // A pickup-only cart has exactly one lawful answer, so the lock wins over the
   // radio state (GOL-2588). Derived rather than seeded into state so a cart that
   // becomes pickup-only after mount (the buyer adds such a line in another tab,
@@ -412,25 +446,29 @@ export function CheckoutPage({
       </>
     );
 
-  const [contact, setContact] = useState<GroveCheckoutContact>({
-    name: "",
-    email: "",
-    phone: "",
-  });
-  const [shipping, setShipping] = useState<GroveCheckoutShipping>({
-    street: "",
-    street2: "",
-    city: "",
-    // With a state <select>, start unset so the shopper makes an explicit,
-    // valid choice (no silent default to WV). Free-text fallback keeps WV.
-    state: shipStates ? "" : "WV",
-    zip: "",
-    country: countries[0]?.code ?? "US",
-  });
+  // Seeded from `initial*` on mount so a Review & pay → back round-trip restores
+  // what the shopper typed instead of clearing the form (GOL-3648). `initial*`
+  // is read once (initializer form); later edits stay local, as before.
+  const [contact, setContact] = useState<GroveCheckoutContact>(
+    () => initialContact ?? { name: "", email: "", phone: "" },
+  );
+  const [shipping, setShipping] = useState<GroveCheckoutShipping>(
+    () =>
+      initialShipping ?? {
+        street: "",
+        street2: "",
+        city: "",
+        // With a state <select>, start unset so the shopper makes an explicit,
+        // valid choice (no silent default to WV). Free-text fallback keeps WV.
+        state: shipStates ? "" : "WV",
+        zip: "",
+        country: countries[0]?.code ?? "US",
+      },
+  );
   const [paymentMethod, setPaymentMethod] = useState<string>(
     paymentMethods[0]?.value ?? "",
   );
-  const [promoCode, setPromoCode] = useState("");
+  const [promoCode, setPromoCode] = useState(initialPromoCode ?? "");
   // Last Apply/auto-preview answer. Cleared whenever the code is edited so the
   // summary never shows a discount for a code other than the one in the field.
   const [promo, setPromo] = useState<GrovePromoPreview | null>(null);
@@ -615,6 +653,20 @@ export function CheckoutPage({
             )}
           </button>
         </div>
+        {/* The one authoritative "why you can't continue" alert. It rides the
+            sticky banner so it is in view beside the CTA no matter where the
+            shopper has scrolled — the fix for a refusal that used to render at
+            the top of the page while the shopper sat at the Fulfillment radios
+            two screens down, with both CTAs greyed and no reason in sight
+            (GOL-3648). The full sentence carries the reason (never colour
+            alone), so the text node stays exactly the message hosts assert on. */}
+        {blockingMessage && (
+          <div className="grove-checkout__banner-alert">
+            <p role="alert" className="grove-checkout__error">
+              {blockingMessage}
+            </p>
+          </div>
+        )}
       </div>
 
       {trustItems.length > 0 && (
@@ -757,6 +809,13 @@ export function CheckoutPage({
                 </p>
               </fieldset>
             )}
+
+            {/* The self-service fix for a wave/pickup refusal sits right under the
+                Fulfillment control it belongs to — where the shopper is looking
+                when the change triggers the refusal — not stranded with the
+                alert at the top of the page (GOL-3648). The col is a flex column
+                with gap, so the bare wrapper already spaces correctly. */}
+            {blockingAction && <div>{blockingAction}</div>}
 
             {!isPickup && (
             <fieldset className="grove-checkout__fieldset">

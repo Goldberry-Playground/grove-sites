@@ -13,6 +13,7 @@ import {
   DEFAULT_OG_IMAGE_ALT,
 } from "../lib/site-metadata";
 import { Providers } from "./providers";
+import { resolveAnalyticsConfig } from "@grove/analytics/server";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import { SupportChat } from "./support-chat";
@@ -76,6 +77,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const host = (await headers()).get("host");
+  // RUM/analytics config, resolved from the container runtime env per request
+  // (NOT NEXT_PUBLIC_*, which bakes at image build) and handed to the client.
+  const analyticsConfig = resolveAnalyticsConfig(process.env);
   const sites = siblingSitesForHost(host);
   const livechat = resolveLivechatConfig(process.env);
   return (
@@ -88,7 +92,7 @@ export default async function RootLayout({
       >
         <GroveProviders>
         <SiblingStrip currentSiteName="At The Grove Nursery" sites={sites} />
-        <Providers>
+        <Providers analyticsConfig={analyticsConfig}>
           <header className="border-b border-primary/10 px-6 py-4">
             <nav className="mx-auto flex max-w-6xl items-center justify-between">
               <Link href="/" className="text-xl font-bold font-display text-primary">

@@ -39,7 +39,7 @@ import { SNAPSHOT_COMPLIANCE } from "../lib/plant-compliance";
  */
 
 const NOTICE = path.join(__dirname, "consult-carveout-notice.tsx");
-const ESTIMATOR = path.join(__dirname, "shop/[id]/shipping-estimator.tsx");
+const ESTIMATOR = path.join(__dirname, "shop/[slug]/shipping-estimator.tsx");
 
 /** Drop block and line comments so only rendered code/copy remains. */
 function stripComments(src: string): string {

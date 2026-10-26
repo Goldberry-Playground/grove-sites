@@ -4,16 +4,26 @@ import Link from "next/link";
 import { assetPath, siblingSitesForHost, GroveProviders, FooterContact, SocialLinks, type SocialLink } from "@grove/ui";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
+import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
 import { FARM_OPT_IN_LINE, POSTAL_ADDRESS_LINE } from "../lib/newsletter-copy";
 import { Providers } from "./providers";
+import { resolveAnalyticsConfig } from "@grove/analytics/server";
 import { CartNavLink } from "./cart-nav-link";
 import { NavLink } from "./nav-link";
 import "./globals.css";
 import { fontVariables } from "./fonts";
 
+// Site-wide metadata defaults (GOL-3585). `metadataBase` makes relative
+// canonicals / og:url / og:image resolve; without it Next emitted the relative
+// `/recipes` canonical as-is. No `alternates.canonical` or `openGraph.url`
+// here — inherited, they would canonicalise every page to the homepage. Each
+// indexable page sets its own via `pageMetadata()`.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: tenantConfig.name,
   description: tenantConfig.description,
+  openGraph: SITE_OPEN_GRAPH,
+  twitter: SITE_TWITTER,
 };
 
 // Goldberry Grove's own accounts (Josh, 2026-09-30) — the same set its card on
@@ -33,6 +43,9 @@ export default async function RootLayout({
   // See packages/ui/src/sibling-sites.ts -- cross-tenant URLs follow the
   // request's hostname so prod, QA, and previews each link to their own envs.
   const host = (await headers()).get("host");
+  // RUM/analytics config, resolved from the container runtime env per request
+  // (NOT NEXT_PUBLIC_*, which bakes at image build) and handed to the client.
+  const analyticsConfig = resolveAnalyticsConfig(process.env);
   const sites = siblingSitesForHost(host);
   return (
     // Fonts are self-hosted via next/font (./fonts.ts); the old render-blocking
@@ -47,7 +60,7 @@ export default async function RootLayout({
             every viewport. Per-site brand color tokens live in globals.css. */}
         <GroveProviders>
         <SiblingStrip currentSiteName="Goldberry Grove Farm" sites={sites} />
-        <Providers>
+        <Providers analyticsConfig={analyticsConfig}>
           {/* Persistent header — typographic wordmark (transparent PNG of
               just the GOLDBERRY Grove lettering) on the left, primary nav
               on the right. Wordmark serves as home link, visible across

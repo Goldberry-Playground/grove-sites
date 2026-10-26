@@ -3,7 +3,16 @@ import type { Post } from "@grove/ghost-client";
 import { ghost } from "../../../lib/ghost";
 import { JournalState } from "../../../components/JournalState";
 
+import { pageMetadata } from "../../../lib/site-metadata";
+
 export const revalidate = 60;
+
+export const metadata = pageMetadata({
+  path: "/journal",
+  title: "The Journal",
+  description:
+    "Long-form essays from Gather at the Grove on cooperative commerce, regional resilience and Appalachian agroforestry: why we're building a village.",
+});
 
 export default async function JournalIndexPage() {
   // Two outcomes, two surfaces (GOL-2803). This route used to swallow every

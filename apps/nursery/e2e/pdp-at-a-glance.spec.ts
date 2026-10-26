@@ -23,7 +23,7 @@ import { catalogCards, readShopGrid } from "./qa-helpers";
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
 
-/** Selector hooks owned by app/shop/[id]/at-a-glance.tsx + zone-check.tsx. */
+/** Selector hooks owned by app/shop/[slug]/at-a-glance.tsx + zone-check.tsx. */
 const GLANCE = 'section[aria-labelledby="glance-heading"]';
 const ZONE = "#zone-check";
 const BUY = "[data-add-to-cart-anchor]";

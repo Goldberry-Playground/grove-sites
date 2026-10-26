@@ -404,3 +404,89 @@ describe("<CheckoutPage /> kit — shipStateNotice seam (GOL-3028)", () => {
     expect(slot?.childNodes.length).toBe(0);
   });
 });
+
+// GOL-3648: a checkout refusal must reach the shopper where they are and never
+// grey out the CTA with no reason in sight. The blocking reason is the single
+// live alert in the sticky banner (always on screen beside the CTA); its fix
+// sits by the Fulfillment control; and the form survives a Review & pay round
+// trip.
+describe("<CheckoutPage /> kit — surfacing a blocked submit (GOL-3648)", () => {
+  const REFUSAL = "The fall farm pickup pre-order closed on Oct 15. Choose spring.";
+
+  it("renders the blocking reason as the one alert, in the sticky banner", () => {
+    const { container } = render(
+      <CheckoutPage
+        items={items}
+        subtotal={10}
+        onPlaceOrder={() => {}}
+        allowPickup
+        submitDisabled
+        blockingMessage={REFUSAL}
+      />,
+    );
+    // Exactly one alert, carrying the full reason verbatim (no colour-only
+    // signalling, and the text node stays equal to the message hosts pass).
+    const alerts = screen.getAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].textContent).toBe(REFUSAL);
+    // It lives in the sticky banner so it cannot scroll out of view above the
+    // control that caused it.
+    expect(
+      container.querySelector(".grove-checkout__banner .grove-checkout__banner-alert"),
+    ).not.toBeNull();
+    // Both submit CTAs are off.
+    expect(
+      screen
+        .getAllByRole("button", { name: /place order/i })
+        .every((b) => (b as HTMLButtonElement).disabled),
+    ).toBe(true);
+  });
+
+  it("renders the fix action right after the Fulfillment fieldset", () => {
+    render(
+      <CheckoutPage
+        items={items}
+        subtotal={10}
+        onPlaceOrder={() => {}}
+        allowPickup
+        submitDisabled
+        blockingMessage={REFUSAL}
+        blockingAction={<button type="button">Switch this order to the spring wave</button>}
+      />,
+    );
+    const fix = screen.getByRole("button", { name: /^Switch this order to the/ });
+    // The fix sits in the form column, after the Fulfillment fieldset — not
+    // stranded with the banner alert at the top of the page.
+    const fieldset = screen.getByText("Fulfillment").closest("fieldset")!;
+    expect(fieldset.compareDocumentPosition(fix) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("omits the banner alert when nothing blocks the order", () => {
+    render(<CheckoutPage items={items} subtotal={10} onPlaceOrder={() => {}} allowPickup />);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("seeds the form from initial* so a review round trip keeps what was typed", () => {
+    render(
+      <CheckoutPage
+        items={items}
+        subtotal={10}
+        onPlaceOrder={() => {}}
+        shipStates={[{ code: "WV", name: "West Virginia" }]}
+        initialContact={{ name: "Back Button Buyer", email: "b@example.com", phone: "3045551212" }}
+        initialShipping={{
+          street: "1 Main St",
+          street2: "",
+          city: "Bluefield",
+          state: "WV",
+          zip: "24701",
+          country: "US",
+        }}
+      />,
+    );
+    expect((screen.getByLabelText(/Full name/) as HTMLInputElement).value).toBe("Back Button Buyer");
+    expect((screen.getByLabelText(/^Street/) as HTMLInputElement).value).toBe("1 Main St");
+    expect((screen.getByLabelText(/ZIP/) as HTMLInputElement).value).toBe("24701");
+    expect((screen.getByLabelText(/^State/) as HTMLSelectElement).value).toBe("WV");
+  });
+});

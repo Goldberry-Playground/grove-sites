@@ -44,10 +44,18 @@ test.describe("Order builder", () => {
     const lines = page.getByTestId("plan-line");
     const lineCount = await lines.count();
     expect(lineCount).toBeGreaterThan(0);
-    const names = await lines.locator("a[href^='/shop/']").allTextContents();
 
-    await page.getByRole("button", { name: /Build my/ }).first().click();
-    await expect(page.getByRole("status")).toContainText(/Added \d+ trees/);
+    // A plan with mushroom spawn (winter beta) is two orders, potted spawn
+    // and bareroot trees; pre-orders check out on their own, so build the
+    // tree group and check those lines reached the cart.
+    const bareroot = page.getByTestId("plan-build-bareroot");
+    const buildsBareroot = (await bareroot.count()) > 0;
+    const group = buildsBareroot ? page.locator("[data-testid='plan-line'][data-tier='bareroot']") : lines;
+    const names = await group.locator("a[href^='/shop/']").allTextContents();
+    expect(names.length).toBeGreaterThan(0);
+
+    await (buildsBareroot ? bareroot : page.getByRole("button", { name: /Build my/ }).first()).click();
+    await expect(page.getByRole("status").filter({ hasText: /Added \d+/ })).toContainText(/Added \d+ (trees?|spawn)/);
 
     // The mini cart opens with the lines; the cart page lists each planned plant.
     await page.goto("/cart");

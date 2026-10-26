@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CaptureForm, GlyphIcon, REQUEST_CONSENT_TEXT } from "@grove/ui-kit";
 import { formatPhone } from "@grove/ui";
@@ -8,30 +8,54 @@ import { useCart, type CartItem } from "@grove/checkout";
 import { resolveOdooImageUrl, type ShipWave, type ShippingCalendar } from "@grove/odoo-client";
 import {
   applyBundle,
+  countTrees,
+  isFungal,
+  manualLine,
+  nextFor,
+  orderLines,
   slotsFor,
+  stratumOf,
+  suggested,
+  survivingManual,
   type BundleOffer,
   type PlanInput,
   type PlanLine,
   type PlanResult,
+  type PlannerCatalog,
   type PlannerPlant,
   type Slot,
+  type SuggestedPlant,
 } from "@grove/planner";
 import { ProductImage } from "../product-image";
 import { barerootNote, resolveShippableMode } from "../../lib/fulfillment-mode";
+import { postSave, postSignal, type SaveOutcome, type SignalContext } from "../../lib/planner-signals";
 import { firstOpenWave, preorderWaves } from "../../lib/preorder-waves";
+import { LineBadges, SubstrateLine } from "./badges";
 import * as copy from "./copy";
+import { dropSpan } from "./months";
 import { CautionMark, CheckMark } from "./questions";
+import { SuggestForm } from "./suggest-form";
+import { SuggestedList } from "./suggested-list";
+import { productPath } from "../../lib/product-path";
 
 export interface ResultCardProps {
   result: PlanResult;
   input: PlanInput;
+  /** The catalog the result was planned over (Swap and the suggested list re-read it). */
+  catalog: PlannerCatalog;
   /** "ZIP 26501, zone 6, open ground" */
   eyebrow: string;
   calendar: ShippingCalendar | null;
   odooBase: string;
   contact: { phone: string; email: string };
+  /** The customer's own picks (template ids); kept by the parent so they survive Edit (§C.2). */
+  manualIds: readonly number[];
+  onManualChange: (ids: number[]) => void;
   onEdit: () => void;
   onRetrySite: () => void;
+  /** Signal transport seam (tests). */
+  signal?: typeof postSignal;
+  save?: typeof postSave;
 }
 
 /** A line the customer can still edit: the planner's line plus a live qty. */
@@ -42,7 +66,7 @@ interface EditableLine extends PlanLine {
 type TierKey = "bareroot" | "potted";
 const TIER_LABEL: Record<TierKey, string> = { bareroot: "bareroot", potted: "potted" };
 
-const LAYER_ROWS: Slot[] = ["canopy", "understory", "shrub"];
+const LAYER_ROWS: Slot[] = ["canopy", "understory", "shrub", "mushroom"];
 const SEASON_ROWS: Slot[] = ["early", "late", "offseason"];
 
 /* The site-wide orange `.btn` / `.btn-outline` measure 4.11:1 and 3.34:1 for
@@ -52,20 +76,10 @@ const SEASON_ROWS: Slot[] = ["early", "late", "offseason"];
 const OUTLINE_BTN = "btn btn-forest-outline";
 const REMOVE_BTN = "inline-flex min-h-11 items-center text-xs text-ink-soft underline underline-offset-2";
 
-const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export { dropSpan } from "./months";
 
 function usd(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
-
-/** "Sep to Jan" for a deer plot, walking the season from August round. */
-export function dropSpan(months: readonly number[]): string | null {
-  if (months.length === 0) return null;
-  const order = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7];
-  const present = order.filter((m) => months.includes(m));
-  const first = present[0];
-  const last = present[present.length - 1];
-  return first === last ? MONTHS[first] : `${MONTHS[first]} to ${MONTHS[last]}`;
 }
 
 export function headlineFor(result: PlanResult, input: PlanInput, subgoalLabel?: string): string {
@@ -78,13 +92,16 @@ export function headlineFor(result: PlanResult, input: PlanInput, subgoalLabel?:
     const span = dropSpan(result.harvestMonths);
     return span ? `Something dropping from ${span}.` : `Your ${input.size}-tree ${noun}.`;
   }
+  // Spawn fruits in its first season; the headline is about the trees.
   const years = result.lines
+    .filter((l) => !isFungal(l.plant))
     .map((l) => l.plant.years_to_fruit_min)
     .filter((y): y is number => typeof y === "number" && y > 0);
   const lead = `Your ${input.size}-tree ${noun}`;
   if (result.status === "partial") {
-    const total = result.lines.length + result.unfilled.length;
-    return `${lead}: we filled ${result.lines.length} of ${total} layers.`;
+    const filled = result.lines.filter((l) => !isFungal(l.plant)).length;
+    const total = filled + result.unfilled.length;
+    return `${lead}: we filled ${filled} of ${total} layers.`;
   }
   if (years.length === 0) return `${lead}.`;
   const n = Math.min(...years);
@@ -94,33 +111,117 @@ export function headlineFor(result: PlanResult, input: PlanInput, subgoalLabel?:
 export function ResultCard({
   result,
   input,
+  catalog,
   eyebrow,
   calendar,
   odooBase,
   contact,
+  manualIds,
+  onManualChange,
   onEdit,
   onRetrySite,
+  signal = postSignal,
+  save = postSave,
 }: ResultCardProps) {
-  const [lines, setLines] = useState<EditableLine[]>(result.lines);
+  // The engine's lines in planting order (stratum, then anchors first) plus
+  // the customer's own picks that still pass this result's filter (§C.2).
+  // Read through a ref so a hand add (which changes `manualIds`) does not
+  // re-seed the card and undo a Remove or a Swap made before it; only a new
+  // result (new answers) starts the lines over.
+  const manualRef = useRef(manualIds);
+  manualRef.current = manualIds;
+  const seedLines = useCallback(
+    (): EditableLine[] => orderLines([...result.lines, ...survivingManual(input, catalog, result, manualRef.current)]),
+    [result, input, catalog],
+  );
+  const [lines, setLines] = useState<EditableLine[]>(seedLines);
   const [bundleTaken, setBundleTaken] = useState(false);
+  // Plants swapped out stay out: Swap never offers them back (§C.1).
+  const [swappedOut, setSwappedOut] = useState<number[]>([]);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const scrollTo = useRef<number | null>(null);
   useEffect(() => {
-    setLines(result.lines);
+    setLines(seedLines());
     setBundleTaken(false);
-  }, [result]);
+    setSwappedOut([]);
+    setNotice(null);
+  }, [seedLines]);
+  // A pick the engine placed itself on a re-run is no longer "manual".
+  useEffect(() => {
+    const placed = new Set(result.lines.map((l) => l.plant.id));
+    const still = manualIds.filter((id) => !placed.has(id));
+    if (still.length !== manualIds.length) onManualChange(still);
+  }, [result, manualIds, onManualChange]);
+
+  const signalCtx = useCallback(
+    (): SignalContext => ({
+      input,
+      planUrl: typeof window === "undefined" ? "" : window.location.href,
+      catalogVersion: catalog.catalog_version ?? null,
+    }),
+    [input, catalog.catalog_version],
+  );
 
   const active = lines.filter((l) => !l.removed);
   const subtotal = active.reduce((s, l) => s + l.qty * l.plant.price, 0) +
     (bundleTaken && result.bundle ? result.bundle.price : 0);
-  const treeCount = active.reduce((s, l) => s + l.qty, 0) +
-    (bundleTaken && result.bundle ? result.bundle.covers : 0);
+  const treeCount = countTrees(active) + (bundleTaken && result.bundle ? result.bundle.covers : 0);
   const isDeer = input.track === "deer";
   // Only the rows this track plans (alley crop has no understory slot), plus
-  // any layer a support plant actually lands in.
+  // any layer a support plant actually lands in. The mushroom row shows only
+  // once a spawn line sits in it, so a catalog without spawn has no empty row.
   const planned = new Set(slotsFor(input.track, input.subgoal, input.timing).map((s) => s.slot));
   const rows = (isDeer ? SEASON_ROWS : LAYER_ROWS).filter(
-    (r) => planned.has(r) || active.some((l) => rowOfLine(l) === r),
+    (r) => (planned.has(r) && r !== "mushroom") || active.some((l) => rowOfLine(l) === r),
   );
   const headline = headlineFor(result, input, input.subgoal ? copy.SUBGOALS[input.subgoal] : undefined);
+
+  const suggestions = useMemo(
+    () => suggested(input, catalog, result, lines.map((l) => l.plant.id)),
+    [input, catalog, result, lines],
+  );
+
+  function remove(id: number) {
+    setLines((cur) => cur.map((l) => (l.plant.id === id ? { ...l, removed: true } : l)));
+    void signal("removed", signalCtx(), id);
+  }
+
+  function swap(line: EditableLine) {
+    const exclude = [...lines.map((l) => l.plant.id), ...swappedOut];
+    const next = nextFor(input, catalog, line.slot, exclude);
+    if (!next) {
+      setNotice({ kind: "error", text: copy.SWAP_NONE(copy.SLOT_LABELS[line.slot]) });
+      return;
+    }
+    setLines((cur) => cur.map((l) => (l.plant.id === line.plant.id ? { ...next, removed: false } : l)));
+    setSwappedOut((cur) => [...cur, line.plant.id]);
+    if (line.manual) onManualChange(manualIds.filter((id) => id !== line.plant.id));
+    setNotice({ kind: "ok", text: copy.SWAPPED_FOR(line.plant.name, next.plant.name) });
+    scrollTo.current = next.plant.id;
+    void signal("swapped", signalCtx(), line.plant.id);
+  }
+
+  function add(pick: SuggestedPlant) {
+    const line = manualLine(pick);
+    setLines((cur) => [...cur.filter((l) => l.plant.id !== line.plant.id), line]);
+    onManualChange([...manualIds.filter((id) => id !== line.plant.id), line.plant.id]);
+    setNotice({ kind: "ok", text: copy.SUGGESTED_ADDED(line.plant.name) });
+    scrollTo.current = line.plant.id;
+    void signal("added", signalCtx(), line.plant.id);
+  }
+
+  // After an add or a swap, bring the line into view and put focus on it so a
+  // keyboard or screen-reader user lands where the change happened.
+  useEffect(() => {
+    const id = scrollTo.current;
+    if (id == null) return;
+    scrollTo.current = null;
+    const el = document.querySelector<HTMLElement>(`[data-plan-line="${id}"]`);
+    if (!el) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    el.querySelector<HTMLElement>("a, button")?.focus({ preventScroll: true });
+  }, [lines]);
 
   if (result.status === "empty") {
     return (
@@ -143,6 +244,7 @@ export function ResultCard({
           </a>
         </div>
         <ConsultPanel contact={contact} />
+        <SuggestForm />
       </section>
     );
   }
@@ -162,12 +264,21 @@ export function ResultCard({
           </span>
         </p>
       )}
+      {!isDeer && (
+        <p className="mt-4 max-w-prose border-l-2 border-primary/30 pl-4 text-sm text-ink-soft" data-testid="plan-philosophy">
+          {copy.PHILOSOPHY}
+        </p>
+      )}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-10 lg:gap-y-8">
         <div className="order-1 lg:col-start-1 lg:row-start-1">
           <LayerStrip rows={rows} lines={active} />
         </div>
         <div className="order-3 lg:col-start-1 lg:row-start-2">
+          <p role="status" aria-live="polite" className={notice ? `mb-3 flex items-start gap-1.5 text-sm ${notice.kind === "error" ? "text-caution" : "text-affirm"}` : "sr-only"} data-testid="plan-notice">
+            {notice && (notice.kind === "error" ? <CautionMark /> : <CheckMark />)}
+            {notice && <span>{notice.text}</span>}
+          </p>
           <ul className="divide-y divide-primary/10 border-y border-primary/10" aria-label="Planned lines">
             {lines.map((line) => (
               <LineRow
@@ -178,9 +289,8 @@ export function ResultCard({
                 onQty={(qty) =>
                   setLines((cur) => cur.map((l) => (l.plant.id === line.plant.id ? { ...l, qty } : l)))
                 }
-                onRemove={() =>
-                  setLines((cur) => cur.map((l) => (l.plant.id === line.plant.id ? { ...l, removed: true } : l)))
-                }
+                onRemove={() => remove(line.plant.id)}
+                onSwap={() => swap(line)}
                 onRestore={() =>
                   setLines((cur) => cur.map((l) => (l.plant.id === line.plant.id ? { ...l, removed: false } : l)))
                 }
@@ -188,13 +298,15 @@ export function ResultCard({
             ))}
             {bundleTaken && result.bundle && <BundleLineRow offer={result.bundle} />}
           </ul>
-          {(lines.some((l) => l.removed || l.qty !== result.lines.find((r) => r.plant.id === l.plant.id)?.qty) || bundleTaken) && (
+          {(lines.some((l) => l.removed || l.manual || l.qty !== result.lines.find((r) => r.plant.id === l.plant.id)?.qty) || bundleTaken) && (
             <button
               type="button"
               className="mt-3 text-sm text-primary underline underline-offset-2"
               onClick={() => {
-                setLines(result.lines);
+                setLines(orderLines(result.lines));
                 setBundleTaken(false);
+                setSwappedOut([]);
+                onManualChange([]);
               }}
             >
               {copy.RESET_PLAN}
@@ -202,6 +314,9 @@ export function ResultCard({
           )}
 
           {result.notify.length > 0 && <NotifyChips plants={result.notify} />}
+
+          <SuggestedList suggestions={suggestions} onAdd={add} />
+          <SuggestForm />
         </div>
 
         <aside className="order-2 self-start rounded-lg border border-primary/15 bg-paper-soft p-5 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 lg:row-span-2">
@@ -233,17 +348,115 @@ export function ResultCard({
             calendar={calendar}
             zone={input.zone}
             odooBase={odooBase}
+            onBuilt={() => void signal("built", signalCtx())}
           />
           {result.consult && (
             <a href="#consult" className="mt-3 block text-center text-sm font-semibold text-primary underline underline-offset-2">
               {copy.TALK_FIRST}
             </a>
           )}
+          <SavePlan lines={active} input={input} save={save} onSaved={() => void signal("saved", signalCtx())} />
         </aside>
       </div>
 
       {result.consult && <ConsultPanel contact={contact} />}
     </section>
+  );
+}
+
+/**
+ * Save this plan (§C.1 / §B.7): a name and a button. The copy goes to Odoo
+ * as a `grove.planner.plan`; the answers stay in the URL regardless, so a
+ * failure here loses nothing.
+ */
+function SavePlan({
+  lines,
+  input,
+  save,
+  onSaved,
+}: {
+  lines: PlanLine[];
+  input: PlanInput;
+  save: typeof postSave;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [state, setState] = useState<{ kind: "idle" } | { kind: "saving" } | { kind: "done"; name: string } | { kind: "error"; text: string }>({ kind: "idle" });
+  const inputId = "plan-save-name";
+
+  async function submit() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setState({ kind: "error", text: copy.SAVE_NAME_REQUIRED });
+      document.getElementById(inputId)?.focus();
+      return;
+    }
+    setState({ kind: "saving" });
+    const outcome: SaveOutcome = await save({
+      name: trimmed,
+      plan_url: typeof window === "undefined" ? null : window.location.href,
+      zone: typeof input.zone === "number" ? input.zone : null,
+      track: input.track,
+      lines: lines.map((l) => ({
+        product_tmpl_id: l.plant.id,
+        qty: l.qty,
+        role: l.plant.role ?? null,
+        stratum: stratumOf(l.plant),
+      })),
+    });
+    if (outcome.ok) {
+      setState({ kind: "done", name: trimmed });
+      onSaved();
+    } else {
+      setState({ kind: "error", text: outcome.reason === "off" ? copy.SAVE_OFF : copy.SAVE_FAILED });
+    }
+  }
+
+  if (lines.length === 0) return null;
+  return (
+    <div className="mt-5 border-t border-primary/10 pt-4" data-testid="plan-save">
+      <h3 className="text-sm font-semibold text-foreground">{copy.SAVE_HEADING}</h3>
+      <p className="mt-1 text-xs text-ink-soft">{copy.SAVE_LEDE}</p>
+      {state.kind === "done" ? (
+        <p role="status" className="mt-3 flex items-start gap-1.5 text-sm text-affirm">
+          <CheckMark />
+          <span>{copy.SAVE_DONE(state.name)}</span>
+        </p>
+      ) : (
+        <form
+          className="mt-3 grid gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <label htmlFor={inputId} className="text-xs font-semibold">
+            {copy.SAVE_NAME_LABEL}
+          </label>
+          <input
+            id={inputId}
+            name="plan-name"
+            type="text"
+            maxLength={200}
+            value={name}
+            placeholder={copy.SAVE_NAME_PLACEHOLDER}
+            onChange={(e) => setName(e.target.value)}
+            aria-invalid={state.kind === "error" && !name.trim() ? true : undefined}
+            aria-describedby={state.kind === "error" ? "plan-save-error" : undefined}
+            className="w-full rounded border border-primary/30 bg-paper px-3 py-2 text-base"
+          />
+          {state.kind === "error" && (
+            <p id="plan-save-error" role="alert" className="flex items-start gap-1.5 text-sm text-caution">
+              <CautionMark />
+              <span>{state.text}</span>
+            </p>
+          )}
+          <button type="submit" className={`${OUTLINE_BTN} w-full justify-center`} disabled={state.kind === "saving"} data-testid="plan-save-button">
+            {state.kind === "saving" ? copy.SAVE_SAVING : copy.SAVE_BUTTON}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -270,6 +483,7 @@ function Eyebrow({ text, onEdit }: { text: string; onEdit: () => void }) {
  */
 /** The strip row a line sits in: its slot, or its botanical layer for a support plant. */
 function rowOfLine(line: PlanLine): Slot {
+  if (isFungal(line.plant)) return "mushroom";
   if (line.slot === "support") {
     const layer = line.plant.layer;
     return layer === "canopy" || layer === "understory" || layer === "shrub" ? layer : "shrub";
@@ -283,7 +497,7 @@ function LayerStrip({ rows, lines }: { rows: Slot[]; lines: EditableLine[] }) {
     <ol className="overflow-hidden rounded-lg border border-primary/15" aria-label="Layers">
       {rows.map((row, i) => {
         const here = lines.filter((l) => rowOf(l) === row);
-        const tint = ["bg-primary/[0.09]", "bg-primary/[0.06]", "bg-primary/[0.03]"][i] ?? "";
+        const tint = ["bg-primary/[0.09]", "bg-primary/[0.06]", "bg-primary/[0.03]", "bg-secondary/10"][i] ?? "";
         return (
           <li key={row} className={`grid grid-cols-[7rem_1fr] items-center gap-3 border-b border-primary/10 last:border-b-0 ${tint} px-4 py-3`}>
             <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-primary-deep">
@@ -301,6 +515,9 @@ function LayerStrip({ rows, lines }: { rows: Slot[]; lines: EditableLine[] }) {
                   {l.slot === "support" && (
                     <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-soft">support</span>
                   )}
+                  {l.manual && (
+                    <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-accent-fg">{copy.YOUR_PICK}</span>
+                  )}
                 </span>
               ))}
             </span>
@@ -317,6 +534,7 @@ function LineRow({
   substitution,
   onQty,
   onRemove,
+  onSwap,
   onRestore,
 }: {
   line: EditableLine;
@@ -324,12 +542,13 @@ function LineRow({
   substitution?: { from: PlannerPlant; state: string };
   onQty: (qty: number) => void;
   onRemove: () => void;
+  onSwap: () => void;
   onRestore: () => void;
 }) {
   const p = line.plant;
   if (line.removed) {
     return (
-      <li className="flex items-center justify-between gap-3 py-3 text-sm text-ink-soft">
+      <li className="flex items-center justify-between gap-3 py-3 text-sm text-ink-soft" data-plan-line={p.id}>
         <span>
           <span className="line-through">{p.name}</span> removed
         </span>
@@ -340,13 +559,19 @@ function LineRow({
     );
   }
   return (
-    <li className="grid grid-cols-[4rem_1fr] gap-4 py-4 sm:grid-cols-[4rem_1fr_auto]" data-testid="plan-line">
+    <li
+      className="grid grid-cols-[4rem_1fr] gap-4 py-4 sm:grid-cols-[4rem_1fr_auto]"
+      data-testid="plan-line"
+      data-plan-line={p.id}
+      data-tier={tierOf(p)}
+      data-manual={line.manual ? "true" : undefined}
+    >
       <div className="relative h-16 w-16 overflow-hidden rounded bg-paper-deep">
         <ProductImage src={p.image ? resolveOdooImageUrl(p.image, odooBase) : null} alt="" sizes="64px" />
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <Link href={`/shop/${p.id}`} className="font-semibold text-foreground underline-offset-2 hover:underline">
+          <Link href={productPath(p)} className="font-semibold text-foreground underline-offset-2 hover:underline">
             {p.name}
           </Link>
           <span className="text-sm italic text-ink-soft">{p.botanical_name}</span>
@@ -355,36 +580,46 @@ function LineRow({
           <span className="rounded-full border border-primary/25 px-2 py-0.5 font-mono tracking-[0.14em] uppercase text-primary-deep">
             {copy.SLOT_LABELS[line.slot]}
           </span>
+          <LineBadges line={line} />
           {line.zoneFit === "marginal" && (
             <span className="inline-flex items-center gap-1 text-caution">
               <CautionMark />
-              Marginal for your zone
+              {copy.MARGINAL_ZONE}
             </span>
           )}
           {line.note && <span className="text-ink-soft">{line.note}</span>}
         </div>
+        <SubstrateLine plant={p} />
         {substitution && (
           <p className="mt-1 text-sm text-ink-soft">
             {stateName(substitution.state)}: {p.name.toLowerCase()} ships in place of {substitution.from.name.toLowerCase()}.
           </p>
         )}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 sm:hidden">
-          <Stepper qty={line.qty} onQty={onQty} name={p.name} />
-          <span className="text-sm font-semibold">{usd(line.qty * p.price)}</span>
-          <button type="button" className={REMOVE_BTN} onClick={onRemove}>
-            {copy.REMOVE_LINE}
-          </button>
-        </div>
       </div>
-      <div className="hidden flex-col items-end gap-2 sm:flex">
+      {/* One set of controls in the DOM: a row under the text on a phone, a
+          column at the right from `sm` up. Two copies toggled by CSS would put
+          two "Remove" buttons in the accessibility tree. */}
+      <div className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 sm:col-start-3 sm:row-start-1 sm:flex-col sm:items-end sm:gap-2">
         <Stepper qty={line.qty} onQty={onQty} name={p.name} />
         <span className="text-sm font-semibold">{usd(line.qty * p.price)}</span>
-        <span className="text-xs text-ink-soft">{usd(p.price)} each</span>
-        <button type="button" className={REMOVE_BTN} onClick={onRemove}>
-          {copy.REMOVE_LINE}
-        </button>
+        <span className="hidden text-xs text-ink-soft sm:inline">{usd(p.price)} each</span>
+        <LineActions name={p.name} onRemove={onRemove} onSwap={onSwap} />
       </div>
     </li>
+  );
+}
+
+/** Swap and Remove (§C.1), both named for the plant so a screen reader knows which line. */
+function LineActions({ name, onRemove, onSwap }: { name: string; onRemove: () => void; onSwap: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-3">
+      <button type="button" className={REMOVE_BTN} onClick={onSwap} aria-label={`${copy.SWAP_LINE} ${name}`} data-testid="plan-swap">
+        {copy.SWAP_LINE}
+      </button>
+      <button type="button" className={REMOVE_BTN} onClick={onRemove} aria-label={`${copy.REMOVE_LINE} ${name}`} data-testid="plan-remove">
+        {copy.REMOVE_LINE}
+      </button>
+    </span>
   );
 }
 
@@ -526,12 +761,15 @@ function BuildButtons({
   calendar,
   zone,
   odooBase,
+  onBuilt,
 }: {
   lines: PlanLine[];
   bundle: BundleOffer | null;
   calendar: ShippingCalendar | null;
   zone: PlanInput["zone"];
   odooBase: string;
+  /** Fired once per press, before the cart writes (§C.1: the `built` signal). */
+  onBuilt: () => void;
 }) {
   const { items, add, openDrawer } = useCart();
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
@@ -567,6 +805,7 @@ function BuildButtons({
       });
       return;
     }
+    onBuilt();
     let first: number | undefined;
     for (const l of group) {
       const variantId = l.plant.variant_id as number;
@@ -599,7 +838,7 @@ function BuildButtons({
       );
     }
     setBuilt((b) => [...b, tier]);
-    setMessage({ kind: "ok", text: `Added ${group.reduce((s, l) => s + l.qty, 0)} trees to your cart.` });
+    setMessage({ kind: "ok", text: `Added ${countLabel(group, bundle && tier === "bareroot" ? bundle.covers : 0)} to your cart.` });
     openDrawer(first);
   }
 
@@ -616,15 +855,15 @@ function BuildButtons({
       )}
       <div className="flex flex-col gap-2">
         {order.map((tier) => {
-          const trees = groups[tier].reduce((s, l) => s + l.qty, 0) + (bundle && tier === "bareroot" ? bundle.covers : 0);
-          const label = order.length === 1 ? copy.BUILD_ORDER : copy.BUILD_GROUP(TIER_LABEL[tier], trees);
+          const units = groups[tier].reduce((s, l) => s + l.qty, 0) + (bundle && tier === "bareroot" ? bundle.covers : 0);
+          const label = order.length === 1 ? copy.BUILD_ORDER : copy.BUILD_GROUP(TIER_LABEL[tier], countLabel(groups[tier], bundle && tier === "bareroot" ? bundle.covers : 0));
           return (
             <button
               key={tier}
               type="button"
               className="btn btn-forest w-full justify-center"
               data-testid={`plan-build-${tier}`}
-              disabled={built.includes(tier) || trees === 0}
+              disabled={built.includes(tier) || units === 0}
               onClick={() => build(tier)}
             >
               {label} <GlyphIcon name="arrow-right" />
@@ -637,6 +876,16 @@ function BuildButtons({
       )}
     </div>
   );
+}
+
+/** "20 trees", "1 tree and 1 spawn", "2 spawn": what a build group holds, since spawn is not a tree. */
+export function countLabel(group: readonly PlanLine[], extraTrees = 0): string {
+  const trees = countTrees(group) + extraTrees;
+  const spawn = group.reduce((s, l) => s + (isFungal(l.plant) ? l.qty : 0), 0);
+  const parts: string[] = [];
+  if (trees > 0) parts.push(`${trees} ${trees === 1 ? "tree" : "trees"}`);
+  if (spawn > 0) parts.push(`${spawn} spawn`);
+  return parts.join(" and ") || "0 trees";
 }
 
 /** "Fig, back in stock soon, notify me": a chip that opens the restock capture. */

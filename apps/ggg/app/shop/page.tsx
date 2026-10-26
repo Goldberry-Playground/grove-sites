@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
+import { pageMetadata } from "../../lib/site-metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/shop",
   title: "The Workshop — opening October 2026",
   description:
     "GGG Woodworking's first pieces arrive October 2026. Milled on-site, air-dried four to six years, bench-built one at a time.",
-};
+});
 
 // Coming-soon state: GGG has no inventory yet. This page is intentionally
 // static and makes NO Odoo calls — the previous catalog + mock-product

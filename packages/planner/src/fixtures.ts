@@ -1,4 +1,5 @@
-import type { PlannerBundle, PlannerCatalog, PlannerPlant } from "./types";
+import { DEFAULT_RULES } from "./rules";
+import type { PlannerBundle, PlannerCatalog, PlannerPlant, PlannerRules } from "./types";
 
 /**
  * Fixture catalog (§C.5): every layer and tolerance, a support plant per layer,
@@ -7,6 +8,11 @@ import type { PlannerBundle, PlannerCatalog, PlannerPlant } from "./types";
  * smallest slot. Ids are synthetic (1xx) so they can never collide with a real
  * template; the nursery dev fallback serves this same catalog when Odoo is
  * unreachable, exactly like the mock product list does for /shop.
+ *
+ * Winter beta (GOL-3548 §A.3 keys): every row carries a role, a succession
+ * word and a stratum; one nitrogen fixer and one flagged plant for the badges;
+ * two spawn products on the `fungal` layer with substrate lines; the `rules`
+ * object equal to the seed and a `catalog_version`.
  */
 
 type PlantSeed = Partial<PlannerPlant> &
@@ -30,8 +36,21 @@ function plant(seed: PlantSeed): PlannerPlant {
     substitute_id: null,
     image: null,
     variant_id: seed.id * 10 + 1,
+    role: "companion",
+    succession: "mid",
+    living_mulch: false,
+    substrate: null,
+    flagged: false,
+    nitrogen_fixer: false,
     ...seed,
+    stratum: seed.stratum ?? stratumForLayer(seed.layer),
   };
+}
+
+function stratumForLayer(layer: string | null): PlannerPlant["stratum"] {
+  if (layer === "canopy") return "overstory";
+  if (layer === "fungal") return "mushroom";
+  return layer ? "understory" : null;
 }
 
 export const FIXTURE_PLANTS: PlannerPlant[] = [
@@ -41,19 +60,21 @@ export const FIXTURE_PLANTS: PlannerPlant[] = [
     layer: "canopy", zone_min: 4, zone_max: 8, years_to_fruit_min: 4, pollination_min: 2,
     harvest_months: [9, 10], tolerates: { wet: false, poor_soil: true, shade: false },
     wildlife_value: "high", priority: 10, blocked_states: ["WA", "OR", "FL"], substitute_id: 109,
+    role: "anchor", succession: "long",
   }),
   plant({
     id: 102, slug: "american-persimmon", name: "American Persimmon",
     botanical_name: "Diospyros virginiana", genus: "diospyros", price: 18,
     layer: "understory", zone_min: 5, zone_max: 9, years_to_fruit_min: 4, pollination_min: 2,
     harvest_months: [9, 10, 11], tolerates: { wet: true, poor_soil: true, shade: false },
-    wildlife_value: "high", priority: 20, blocked_states: ["CA"],
+    wildlife_value: "high", priority: 20, blocked_states: ["CA"], role: "anchor", succession: "mid",
   }),
   plant({
     id: 103, slug: "pawpaw", name: "Pawpaw", botanical_name: "Asimina triloba", genus: "asimina",
     price: 22, tier: "potted", layer: "understory", zone_min: 5, zone_max: 8,
     years_to_fruit_min: 5, pollination_min: 2, harvest_months: [8, 9],
     tolerates: { wet: true, poor_soil: false, shade: true }, wildlife_value: "medium", priority: 30,
+    role: "anchor", succession: "long",
   }),
   plant({
     id: 104, slug: "american-hazelnut", name: "American Hazelnut",
@@ -66,36 +87,40 @@ export const FIXTURE_PLANTS: PlannerPlant[] = [
     genus: "sambucus", price: 10, layer: "shrub", zone_min: 3, zone_max: 8,
     years_to_fruit_min: 2, pollination_min: 2, harvest_months: [7, 8],
     tolerates: { wet: true, poor_soil: true, shade: true }, wildlife_value: "medium", priority: 40,
+    succession: "fast",
   }),
   plant({
     id: 106, slug: "aronia", name: "Aronia", botanical_name: "Aronia melanocarpa", genus: "aronia",
     price: 10, tier: "potted", layer: "shrub", zone_min: 3, zone_max: 7, years_to_fruit_min: 2,
     pollination_min: 1, harvest_months: [8, 9], tolerates: { wet: true, poor_soil: true, shade: false },
-    wildlife_value: "low", priority: 45,
+    wildlife_value: "low", priority: 45, succession: "fast",
   }),
   plant({
     id: 107, slug: "red-mulberry", name: "Red Mulberry", botanical_name: "Morus rubra",
     genus: "morus rubra", price: 16, layer: "canopy", zone_min: 5, zone_max: 9,
     years_to_fruit_min: 3, pollination_min: 1, harvest_months: [6, 7],
     tolerates: { wet: true, poor_soil: true, shade: true }, wildlife_value: "high", priority: 35,
+    role: "anchor", succession: "mid",
   }),
   plant({
     id: 108, slug: "eastern-redbud", name: "Eastern Redbud", botanical_name: "Cercis canadensis",
     genus: "cercis", price: 14, layer: "understory", zone_min: 4, zone_max: 9,
     years_to_fruit_min: null, pollination_min: null, harvest_months: [],
     tolerates: { wet: false, poor_soil: true, shade: true }, wildlife_value: "low", priority: 30,
+    nitrogen_fixer: true,
   }),
   plant({
     id: 109, slug: "shagbark-hickory", name: "Shagbark Hickory", botanical_name: "Carya ovata",
     genus: "carya", price: 20, layer: "canopy", zone_min: 4, zone_max: 8, years_to_fruit_min: 10,
     pollination_min: 2, harvest_months: [9, 10], tolerates: { wet: false, poor_soil: true, shade: false },
-    wildlife_value: "high", priority: 30, blocked_states: ["AZ", "NM"],
+    wildlife_value: "high", priority: 30, blocked_states: ["AZ", "NM"], role: "anchor", succession: "long",
   }),
   plant({
     id: 110, slug: "sawtooth-oak", name: "Sawtooth Oak", botanical_name: "Quercus acutissima",
     genus: "quercus", price: 15, layer: "canopy", zone_min: 5, zone_max: 9, years_to_fruit_min: 6,
     pollination_min: 1, harvest_months: [9, 10, 11, 12], in_stock: false,
     tolerates: { wet: false, poor_soil: true, shade: false }, wildlife_value: "high", priority: 25,
+    role: "anchor", succession: "long",
   }),
   plant({
     id: 111, slug: "american-plum", name: "American Plum", botanical_name: "Prunus americana",
@@ -109,6 +134,7 @@ export const FIXTURE_PLANTS: PlannerPlant[] = [
     price: 24, tier: "potted", layer: "understory", zone_min: 6, zone_max: 9,
     years_to_fruit_min: 2, pollination_min: 1, harvest_months: [9, 10],
     tolerates: { wet: false, poor_soil: true, shade: false }, wildlife_value: "medium", priority: 45,
+    succession: "fast", flagged: true,
   }),
   plant({
     id: 113, slug: "buttonbush", name: "Buttonbush", botanical_name: "Cephalanthus occidentalis",
@@ -127,7 +153,7 @@ export const FIXTURE_PLANTS: PlannerPlant[] = [
     id: 115, slug: "black-walnut", name: "Black Walnut", botanical_name: "Juglans nigra",
     genus: "juglans", price: 18, layer: "canopy", zone_min: 4, zone_max: 9, years_to_fruit_min: 8,
     pollination_min: 1, harvest_months: [9, 10], pickup_only: true,
-    tolerates: { wet: false, poor_soil: true, shade: false }, wildlife_value: "high", priority: 30,
+    tolerates: { wet: false, poor_soil: true, shade: false }, wildlife_value: "high", priority: 30, role: "anchor", succession: "long",
   }),
   plant({
     id: 116, slug: "flowering-dogwood", name: "Flowering Dogwood", botanical_name: "Cornus florida",
@@ -136,7 +162,26 @@ export const FIXTURE_PLANTS: PlannerPlant[] = [
     tolerates: { wet: false, poor_soil: false, shade: true }, wildlife_value: "medium", priority: 40,
     blocked_states: ["FL"],
   }),
+  // Spawn (winter-beta decisions): planner plants on the `fungal` layer with
+  // a substrate line. Wine cap is the anchor of the mushroom stratum.
+  plant({
+    id: 117, slug: "wine-cap-spawn", name: "Wine Cap Spawn", botanical_name: "Stropharia rugosoannulata",
+    genus: "stropharia", price: 24, tier: "potted", layer: "fungal", zone_min: 3, zone_max: 9,
+    years_to_fruit_min: 1, pollination_min: 1, harvest_months: [5, 6, 9, 10],
+    tolerates: { wet: true, poor_soil: true, shade: true }, wildlife_value: null, priority: 30,
+    role: "anchor", succession: "fast", substrate: "wood chips or straw under your trees",
+  }),
+  plant({
+    id: 118, slug: "shiitake-plug-spawn", name: "Shiitake Plug Spawn", botanical_name: "Lentinula edodes",
+    genus: "lentinula", price: 18, tier: "potted", layer: "fungal", zone_min: 4, zone_max: 9,
+    years_to_fruit_min: 1, pollination_min: 1, harvest_months: [4, 5, 10],
+    tolerates: { wet: false, poor_soil: true, shade: true }, wildlife_value: null, priority: 40,
+    role: "companion", succession: "mid", substrate: "oak or maple logs from your thinnings",
+  }),
 ];
+
+/** The §B.1 seed, as the feed serves it (equal to the engine fallback). */
+export const FIXTURE_RULES: PlannerRules = { ...DEFAULT_RULES };
 
 export const FIXTURE_BUNDLES: PlannerBundle[] = [
   {
@@ -177,4 +222,6 @@ export const FIXTURE_CATALOG: PlannerCatalog = {
   state_zones: FIXTURE_STATE_ZONES,
   plants: FIXTURE_PLANTS,
   bundles: FIXTURE_BUNDLES,
+  catalog_version: 1,
+  rules: FIXTURE_RULES,
 };

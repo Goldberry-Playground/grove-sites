@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
+import type { Metadata } from "next";
 import { assetPath } from "@grove/ui";
+import { pageMetadata } from "../lib/site-metadata";
+import { DroneLoop } from "./drone-loop";
+
+// Brand title + description inherit from the root layout; what the homepage
+// lacked was a self-canonical and a share card (GOL-3585).
+export const metadata: Metadata = pageMetadata({ path: "/" });
 
 // Goldberry Grove homepage. Corrected positioning per project owner (2026-05-29):
 // the farm is an EDUCATIONAL HUB on native + regenerative agroforestry. NOT a
@@ -57,22 +64,18 @@ export default function HomePage() {
 
       {/* Manifesto — what we mean by agroforestry. Background is a 20s drone-
           footage loop (G44Va_9r0JQ, re-encoded to ~2.5MB H.264 + VP9 at
-          1280×720, muted, looping). Dark overlay sits between video and text
-          so the editorial copy stays legible at any frame. */}
+          1280×720, muted, looping), fetched only as the section nears the
+          viewport (DroneLoop, GOL-3585). Dark overlay sits between video and
+          text so the editorial copy stays legible at any frame. */}
       <section className="manifesto manifesto--video">
         <div className="manifesto-video" aria-hidden>
-          <video
-            className="manifesto-video__el"
-            autoPlay
-            muted
-            loop
-            playsInline
-            aria-hidden="true"
+          <DroneLoop
             poster={assetPath("goldberry", "video/drone-poster.webp")}
-          >
-            <source src={assetPath("goldberry", "video/drone-loop.webm")} type="video/webm" />
-            <source src={assetPath("goldberry", "video/drone-loop.mp4")} type="video/mp4" />
-          </video>
+            sources={[
+              { src: assetPath("goldberry", "video/drone-loop.webm"), type: "video/webm" },
+              { src: assetPath("goldberry", "video/drone-loop.mp4"), type: "video/mp4" },
+            ]}
+          />
           <div className="manifesto-video__veil" />
         </div>
         <div className="manifesto-grid manifesto-grid--over-video">

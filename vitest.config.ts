@@ -44,6 +44,7 @@ export default defineConfig({
       "@grove/newsletter": path.resolve(__dirname, "packages/newsletter/src"),
       "@grove/ui": path.resolve(__dirname, "packages/ui/src"),
       "@grove/config": path.resolve(__dirname, "packages/config/src"),
+      "@grove/analytics/server": path.resolve(__dirname, "packages/analytics/src/server.ts"),
       "@grove/analytics": path.resolve(__dirname, "packages/analytics/src"),
       "@grove/assets": path.resolve(__dirname, "packages/assets/src"),
       "@grove/checkout/server": path.resolve(__dirname, "packages/checkout/src/server.ts"),
