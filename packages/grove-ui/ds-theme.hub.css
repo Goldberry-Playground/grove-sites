@@ -1262,6 +1262,19 @@
     transform: none;
   }
 }
+/* Blocking-reason alert inside the sticky banner (GOL-3648). A full-width row
+   under the CTA, aligned to the same content column, so a refusal/mixed-cart
+   reason stays on screen beside the greyed "Continue to payment" as the shopper
+   scrolls. The inner .grove-checkout__error carries the readable error surface,
+   so this is self-contained over the primary banner fill. */
+.grove-checkout__banner-alert {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 var(--grove-space-5) var(--grove-space-4);
+}
+.grove-checkout__banner-alert .grove-checkout__error {
+  margin-top: 0;
+}
 
 /* ── Trust strip ── */
 .grove-checkout__trust,
