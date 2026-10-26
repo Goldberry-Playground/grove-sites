@@ -39,12 +39,20 @@ export const test = base.extend<{ apiCalls: ApiCall[] }>({
         calls.push({ method: res.request().method(), path: url.pathname, status: res.status(), error });
       };
       page.on("response", onResponse);
+      const apiNetworkFailures: string[] = [];
       page.on("pageerror", (err) => {
-        // WebKit (iPhone, Mac Safari) reports a fetch that a navigation cancelled
-        // as "... due to access control checks."; Chromium stays silent. It is
-        // the spec's own page.goto aborting an in-flight quote, not a CORS fault.
-        if (/due to access control checks\.$/.test(err.message)) return;
+        if (isWebKitAbortNoise(err.message)) return;
         pageErrors.push(err.message);
+      });
+      // A storefront API call that dies on the wire (DNS, reset, timeout) never
+      // produces a response, so the 5xx check cannot see it. A navigation
+      // cancelling the call is the spec moving on, not a failure.
+      page.on("requestfailed", (req) => {
+        const url = new URL(req.url());
+        if (!url.pathname.startsWith("/api/")) return;
+        const reason = req.failure()?.errorText ?? "";
+        if (/cancel|abort/i.test(reason)) return;
+        apiNetworkFailures.push(`${req.method()} ${url.pathname}: ${reason}`);
       });
 
       await use(calls);
@@ -58,6 +66,7 @@ export const test = base.extend<{ apiCalls: ApiCall[] }>({
       }
       const serverErrors = calls.filter((c) => c.status >= 500);
       expect(serverErrors, "storefront /api returned a 5xx during the flow").toEqual([]);
+      expect(apiNetworkFailures, "a storefront /api call failed on the network").toEqual([]);
       expect(pageErrors, "uncaught error in the page during the flow").toEqual([]);
     },
     { auto: true },
@@ -65,6 +74,25 @@ export const test = base.extend<{ apiCalls: ApiCall[] }>({
 });
 
 export { expect };
+
+/**
+ * Page errors that are WebKit (iPhone, Mac Safari) narrating a fetch the page
+ * itself gave up on, not a storefront fault. Chromium reports none of these.
+ *
+ *   - "... due to access control checks." and "Load failed": a fetch cancelled
+ *     by a navigation (the spec's own page.goto). Real /api failures are
+ *     caught by the response and requestfailed checks instead.
+ *   - Odoo livechat (`im_livechat`, served from odoo.gatheringatthegrove.com)
+ *     losing its long-poll on navigation. Third-party widget, not checkout.
+ *     First seen failing the prod canary in Actions, 2026-10-26 18:50Z.
+ */
+function isWebKitAbortNoise(message: string): boolean {
+  return (
+    /due to access control checks\.$/.test(message) ||
+    /^(TypeError: )?Load failed$/.test(message) ||
+    /im_livechat\//.test(message)
+  );
+}
 
 /** The refusal text of the most recent `/api/cart/quote` call, or null when it
  *  succeeded (or none was made). */
