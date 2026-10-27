@@ -42,6 +42,7 @@ export const test = base.extend<{ apiCalls: ApiCall[] }>({
       const apiNetworkFailures: string[] = [];
       page.on("pageerror", (err) => {
         if (isWebKitAbortNoise(err.message)) return;
+        if (isThirdPartyPage(page.url())) return;
         pageErrors.push(err.message);
       });
       // A storefront API call that dies on the wire (DNS, reset, timeout) never
@@ -92,6 +93,21 @@ function isWebKitAbortNoise(message: string): boolean {
     /^(TypeError: )?Load failed$/.test(message) ||
     /im_livechat\//.test(message)
   );
+}
+
+/**
+ * Whether the page has left the storefront for a page we do not serve, i.e.
+ * Stripe's hosted checkout. Errors thrown by Stripe's own scripts there are not a
+ * storefront fault and the canary cannot fix them (GOL-3661: Playwright's Linux
+ * WebKit build fails Stripe's `payment_pages/:id/init` fetch with "Load failed"
+ * on every full run, while Chromium renders the same session fine).
+ */
+function isThirdPartyPage(url: string): boolean {
+  try {
+    return /(^|\.)stripe\.com$/.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /** The refusal text of the most recent `/api/cart/quote` call, or null when it
