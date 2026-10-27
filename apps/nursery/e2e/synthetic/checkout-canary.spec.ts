@@ -22,7 +22,8 @@ import {
  * Odoo, so the session step only runs when SYNTHETIC_CREATE_SESSION=1 (the
  * workflow's twice-daily full run) and always uses a `synthetic-canary+…`
  * address, so the drafts are easy to filter and clean up. It stops once
- * Stripe's hosted page has rendered its Pay button.
+ * Stripe's hosted page has rendered its Pay button (Chromium; on WebKit it
+ * stops at the checkout.stripe.com hand-off, see GOL-3661).
  */
 
 const CREATE_SESSION = process.env.SYNTHETIC_CREATE_SESSION === "1";
@@ -35,7 +36,7 @@ test.describe("@synthetic nursery checkout canary", () => {
     expect(hrefs.length, "shop grid rendered no products").toBeGreaterThan(5);
   });
 
-  test("a WV shipped pre-order reaches payment", async ({ page, apiCalls }) => {
+  test("a WV shipped pre-order reaches payment", async ({ page, apiCalls, browserName }) => {
     const product = await findProductByCta(page, PREORDER_CTA, {
       preorder: { method: "ship", zone: 6 },
     });
@@ -58,6 +59,11 @@ test.describe("@synthetic nursery checkout canary", () => {
     await expectOnReview(page);
     await payAtReview(page);
     await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
+    // Our part ends at the hand-off to a live Stripe session. Playwright's Linux
+    // WebKit build cannot load Stripe's hosted page (its `payment_pages/:id/init`
+    // fetch fails with "Load failed" on every run, GOL-3661), so the Pay button is
+    // only checked in Chromium. That is a test-browser limit, not real Safari.
+    if (browserName === "webkit") return;
     await expect(
       page.getByRole("button", { name: /^(Pay|Subscribe|Reserve)/ }).last(),
       "Stripe's hosted page did not render its Pay button",
