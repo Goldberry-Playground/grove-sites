@@ -81,6 +81,17 @@ variable "session_cookie_names" {
   default     = []
 }
 
+variable "never_cache_hosts" {
+  description = <<-EOT
+    Hostnames never edge-cached on any path (Cache Rule 1). Odoo prod is proxied
+    and its portal/payment HTML carries a session-bound CSRF token: a cached
+    /my/invoices page showed stale invoices and failed Pay with "Session expired"
+    (2026-10-28). odoo.qa is grey-clouded (direct IP), so it needs no entry.
+  EOT
+  type        = list(string)
+  default     = ["odoo.gatheringatthegrove.com"]
+}
+
 variable "rate_limit_mode" {
   description = <<-EOT
     Rate-limit rollout mode (Tier 1): "log" (log-only, no mitigation — default
