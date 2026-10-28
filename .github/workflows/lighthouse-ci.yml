@@ -73,6 +73,11 @@ jobs:
   # PR's latest "Lighthouse CI" status, and only pass the group when every queued
   # PR is green. Anything else (a failure, a missing status, or an unparseable
   # ref) blocks the group — fail closed, never rubber-stamp.
+  #
+  # Transient API 5xx (e.g. a 502 on pulls.get) used to throw before any status
+  # was posted, leaving the head of the queue stuck until a manual re-run. The
+  # Octokit retry plugin retries those; 4xx (bad ref, missing PR) still fails
+  # immediately via github-script's default retry-exempt-status-codes.
   queue-gate:
     name: Lighthouse queue gate
     if: github.event_name == 'merge_group'
@@ -81,6 +86,7 @@ jobs:
     steps:
       - uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
