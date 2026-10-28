@@ -40,6 +40,19 @@ variable "session_cookie_names" {
   default     = []
 }
 
+variable "never_cache_hosts" {
+  description = <<-EOT
+    Hostnames whose responses must NEVER be edge-cached, on any path (Cache Rule 1).
+    For proxied origins that serve per-session HTML outside the storefront's
+    /checkout|/account|/cart|/api/* layout — Odoo's /my/*, /payment/*, /web/* pages
+    embed a session-bound CSRF token, so a cached copy breaks payment for everyone
+    else ("Session expired") and serves stale invoices. A host from another zone in
+    the list never matches, so one shared list is safe across the zone map.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "rate_limit_mode" {
   description = "log | on | off (Tier 1 rate limiting)."
   type        = string
@@ -90,6 +103,14 @@ locals {
   # Never-cache dynamic/PII paths regardless of cookie state.
   never_cache_path_expr = "(starts_with(http.request.uri.path, \"/checkout\") or starts_with(http.request.uri.path, \"/account\") or starts_with(http.request.uri.path, \"/cart\") or starts_with(http.request.uri.path, \"/api/\"))"
 
+  # Whole-host bypass (Odoo et al., see var.never_cache_hosts). Folded into the
+  # Rule 1 matcher so it is both bypassed AND excluded from the anonymous cache
+  # rule — Cache Rules do not stop at the first match, a later matching rule's
+  # settings override an earlier one's, so the exclusion is what makes it stick.
+  has_never_cache_hosts = length(var.never_cache_hosts) > 0
+  never_cache_host_expr = "(http.host in {${join(" ", [for h in var.never_cache_hosts : "\"${h}\""])}})"
+  never_cache_expr      = local.has_never_cache_hosts ? "(${local.never_cache_path_expr} or ${local.never_cache_host_expr})" : local.never_cache_path_expr
+
   # Next.js image optimizer (GOL-873). Cloudflare's edge cache does NOT vary on
   # `Accept` (only on Accept-Encoding), but /_next/image responses content-
   # negotiate their format (AVIF/WebP/JPEG) behind a single URL and carry an
@@ -108,7 +129,7 @@ locals {
   # never-cache (PII) and image-optimizer paths; folds in the session-cookie
   # clause only when cookies are configured (else that OR-term is dropped so the
   # group stays valid).
-  cache_bypass_group_expr = local.has_session_cookie ? "${local.never_cache_path_expr} or ${local.image_optimizer_path_expr} or ${local.session_cookie_expr}" : "${local.never_cache_path_expr} or ${local.image_optimizer_path_expr}"
+  cache_bypass_group_expr = local.has_session_cookie ? "${local.never_cache_expr} or ${local.image_optimizer_path_expr} or ${local.session_cookie_expr}" : "${local.never_cache_expr} or ${local.image_optimizer_path_expr}"
   anonymous_cache_expr    = "not (${local.cache_bypass_group_expr})"
 
   # XHR / fetch API traffic vs top-level navigation. Sec-Fetch-Mode is set by all

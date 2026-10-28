@@ -6,6 +6,8 @@
 #
 #   Rule 1  — hard bypass for dynamic/PII paths (/checkout|/account|/cart|/api/*),
 #            regardless of cookies. Belt-and-suspenders vs origin cache headers.
+#            Also bypasses every path on var.never_cache_hosts (Odoo: its portal
+#            and payment pages carry a session-bound CSRF token).
 #   Rule 1b — bypass the Next.js image optimizer (/_next/image*). Cloudflare's
 #            edge cache ignores `Vary: Accept`, so a single /_next/image URL would
 #            otherwise cache the first client's negotiated format (e.g. AVIF) and
@@ -35,7 +37,7 @@ resource "cloudflare_ruleset" "cache_rules" {
   rules {
     ref         = "grove_cache_bypass_dynamic"
     description = "Never cache /checkout|/account|/cart|/api/* (${var.zone_name})"
-    expression  = local.never_cache_path_expr
+    expression  = local.never_cache_expr
     action      = "set_cache_settings"
     enabled     = true
 
