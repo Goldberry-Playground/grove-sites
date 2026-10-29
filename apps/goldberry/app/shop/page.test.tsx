@@ -57,6 +57,17 @@ describe("goldberry shop reads Odoo only (GOL-3315)", () => {
     expect(html).not.toContain("Chestnut Flour");
   });
 
+  // The list endpoint hands back image_128; stretched over a ~380 px card it
+  // reads as blurry, so the grid asks Odoo for the 1024 px rung instead.
+  it("requests the 1024px image rung, not the list thumbnail", async () => {
+    list.mockResolvedValue({
+      products: [{ ...shirt, imageUrl: "/web/image/product.template/7/image_128" }],
+    });
+    const html = await render();
+    expect(html).toContain("image_1024");
+    expect(html).not.toContain("image_128");
+  });
+
   it("shows the restocking state when Odoo is down, never fake products", async () => {
     list.mockRejectedValue(new Error("down"));
     const html = await render();

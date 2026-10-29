@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@grove/odoo-client";
-import { resolveOdooImageUrl } from "@grove/odoo-client";
+import { resolveOdooImageUrl, withOdooImageSize } from "@grove/odoo-client";
 import { odoo } from "../../lib/clients";
 import { isDataUri } from "../../lib/is-data-uri";
 
@@ -41,7 +41,10 @@ export default async function ShopPage({
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {products.map((product) => {
-            const src = resolveOdooImageUrl(product.imageUrl, odooBase);
+            // The list endpoint hands back image_128 thumbnails; cards render
+            // far larger, so request the 1024 px rung and let next/image
+            // downscale it crisply (same as the nursery grid, GOL-761).
+            const src = resolveOdooImageUrl(withOdooImageSize(product.imageUrl, 1024), odooBase);
             const dataUri = isDataUri(src);
             return (
               <Link
