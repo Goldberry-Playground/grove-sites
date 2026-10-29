@@ -1105,6 +1105,27 @@ describe("printify fields (GOL-3315, gom printify spec §4/§5)", () => {
     expect(detail.leadTime).toBe("3 to 7 business days");
   });
 
+  // Printed to order: Odoo never holds stock for these, so in_stock is always
+  // false. Reading that as a sell-out put "Coming Soon" on every farm shirt.
+  it("keeps a published printify item available even though in_stock is false", () => {
+    const list = normalizeProductListItem({
+      ...honeycrispListItem,
+      fulfillment_route: "printify",
+      in_stock: false,
+    });
+    expect(list.available).toBe(true);
+  });
+
+  it("still treats an unpublished printify item as unavailable", () => {
+    const list = normalizeProductListItem({
+      ...honeycrispListItem,
+      fulfillment_route: "printify",
+      in_stock: false,
+      website_published: false,
+    });
+    expect(list.available).toBe(false);
+  });
+
   it("defaults to in_house and null lead time when absent (older pins, mocks)", () => {
     const list = normalizeProductListItem(honeycrispListItem);
     expect(list.fulfillmentRoute).toBe("in_house");
