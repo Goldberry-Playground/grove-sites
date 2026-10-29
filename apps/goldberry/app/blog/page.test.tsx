@@ -112,3 +112,28 @@ describe("goldberry /blog — never fabricates posts (GOL-2756)", () => {
     expect(error).toContain('role="alert"');
   });
 });
+
+describe("goldberry /blog — legacy Ghost migration", () => {
+  it("asks Ghost for every post, not the first page", async () => {
+    // 28 posts came over from the old site; `limit: 10` hid 18 of them.
+    await listResolves([post]);
+    await render();
+    const { ghost } = await import("../../lib/ghost");
+    expect(ghost.posts.list).toHaveBeenCalledWith(expect.objectContaining({ limit: "all" }));
+  });
+
+  it("never prints internal tags on a card", async () => {
+    await listResolves([
+      {
+        ...post,
+        tags: [
+          { id: "t0", name: "#Import 2026-04-14 09:05", slug: "hash-import", description: null, visibility: "internal" },
+          { id: "t2", name: "Guide", slug: "guide", description: null, visibility: "public" },
+        ],
+      },
+    ]);
+    const html = await render();
+    expect(html).toContain("Guide");
+    expect(html).not.toContain("#Import");
+  });
+});

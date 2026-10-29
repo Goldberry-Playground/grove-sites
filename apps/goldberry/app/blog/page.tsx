@@ -6,6 +6,7 @@ import { FARM_OPT_IN_LINE } from "../../lib/newsletter-copy";
 import { ghost } from "../../lib/ghost";
 import { RECIPES } from "../../data/recipes";
 import { pageMetadata } from "../../lib/site-metadata";
+import { publicTags } from "../../lib/public-tags";
 
 // Same reasoning as /shop — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
@@ -27,7 +28,8 @@ export default async function BlogPage() {
   let failed = false;
 
   try {
-    posts = (await ghost.posts.list({ limit: 10, include: "tags,authors" })) ?? [];
+    // "all": the legacy-site import brought 28 posts; a page of 10 hid most.
+    posts = (await ghost.posts.list({ limit: "all", include: "tags,authors" })) ?? [];
   } catch {
     failed = true;
   }
@@ -151,16 +153,16 @@ export default async function BlogPage() {
                 {post.excerpt && (
                   <p className="journal-card__excerpt">{post.excerpt}</p>
                 )}
-                {(post.authors?.[0] || (post.tags?.length ?? 0) > 0) && (
+                {(post.authors?.[0] || publicTags(post.tags).length > 0) && (
                   <div className="journal-card__foot">
                     {post.authors?.[0] && (
                       <span className="journal-card__meta">
                         {post.authors[0].name}
                       </span>
                     )}
-                    {(post.tags?.length ?? 0) > 0 && (
+                    {publicTags(post.tags).length > 0 && (
                       <span className="journal-card__meta">
-                        {post.tags.map((t) => t.name).join(" · ")}
+                        {publicTags(post.tags).map((t) => t.name).join(" · ")}
                       </span>
                     )}
                   </div>
