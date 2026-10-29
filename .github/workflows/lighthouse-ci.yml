@@ -77,7 +77,9 @@ jobs:
   # Transient API 5xx (e.g. a 502 on pulls.get) used to throw before any status
   # was posted, leaving the head of the queue stuck until a manual re-run. The
   # Octokit retry plugin retries those; 4xx (bad ref, missing PR) still fails
-  # immediately via github-script's default retry-exempt-status-codes.
+  # immediately via github-script's default retry-exempt-status-codes. If an
+  # API error survives the retries, post failure on the queue SHA so the group
+  # is ejected at once instead of waiting out the queue's check timeout.
   queue-gate:
     name: Lighthouse queue gate
     if: github.event_name == 'merge_group'
@@ -110,21 +112,28 @@ jobs:
             }
 
             const results = [];
-            for (const number of prNumbers) {
-              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
-              // getCombinedStatusForRef returns the latest status per context —
-              // the same value the required-check gate itself reads.
-              const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
-                owner, repo, ref: pr.head.sha,
-              });
-              const lh = combined.statuses.find(s => s.context === 'Lighthouse CI');
-              const state = lh ? lh.state : 'missing';
-              results.push(`PR #${number}: ${state}`);
-              if (state !== 'success') {
-                core.setFailed(`PR #${number} Lighthouse CI is "${state}", not success — blocking the queue.`);
-                await post('failure', `PR #${number} Lighthouse audit did not pass (${state}) — blocking`);
-                return;
+            try {
+              for (const number of prNumbers) {
+                const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+                // getCombinedStatusForRef returns the latest status per context —
+                // the same value the required-check gate itself reads.
+                const { data: combined } = await github.rest.repos.getCombinedStatusForRef({
+                  owner, repo, ref: pr.head.sha,
+                });
+                const lh = combined.statuses.find(s => s.context === 'Lighthouse CI');
+                const state = lh ? lh.state : 'missing';
+                results.push(`PR #${number}: ${state}`);
+                if (state !== 'success') {
+                  core.setFailed(`PR #${number} Lighthouse CI is "${state}", not success — blocking the queue.`);
+                  await post('failure', `PR #${number} Lighthouse audit did not pass (${state}) — blocking`);
+                  return;
+                }
               }
+            } catch (err) {
+              core.setFailed(`Queue gate API error after retries: ${err.message}`);
+              await post('failure', `Queue gate API error (${err.status ?? 'unknown'}) — blocking`).catch(e =>
+                core.warning(`Could not post failure status: ${e.message}`));
+              return;
             }
 
             await post('success', `Merge queue verified: ${results.join(', ')}`);
