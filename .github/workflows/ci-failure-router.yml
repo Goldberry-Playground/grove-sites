@@ -33,6 +33,7 @@ on:
       - preview-down
       - actionlint
       - DO App Spec — validate
+      - synthetic-nursery # prod checkout canary (cron) → ownerless issue → Terra
     types: [completed]
   # Auto-close triggers (GOL-1216)
   delete: # branch/tag deleted → close its stale ci-failure issues
