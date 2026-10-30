@@ -6,6 +6,7 @@ import { isGhostNotFound, postLede, type Post } from "@grove/ghost-client";
 import { ghost } from "../../../lib/ghost";
 import { sanitizeGuideHtml } from "../../../lib/sanitize";
 import { tenantConfig } from "../../../tenant.config";
+import { publicTags } from "../../../lib/public-tags";
 
 // Matches /blog — render-on-demand until Ghost webhooks land.
 export const dynamic = "force-dynamic";
@@ -162,9 +163,9 @@ export default async function BlogPostPage({
         </div>
       )}
 
-      {(entry.tags?.length ?? 0) > 0 && (
+      {publicTags(entry.tags).length > 0 && (
         <ul className="journal-post__tags" aria-label="Topics">
-          {entry.tags.map((tag) => (
+          {publicTags(entry.tags).map((tag) => (
             <li key={tag.id} className="journal-post__tag">
               {tag.name}
             </li>

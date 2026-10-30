@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 import { securityHeadersRoute } from "@grove/config/security-headers";
+import { legacyRedirects } from "./lib/legacy-redirects";
 
 // Product images are fetched from whatever host ODOO_URL points at — every
 // shop page resolves them with resolveOdooImageUrl(..., process.env.ODOO_URL).
@@ -123,6 +124,11 @@ const nextConfig: NextConfig = {
   // Verified live (Next 15.5.21): a config `Cache-Control` is clobbered by the
   // optimizer, but `CDN-Cache-Control` — a key the optimizer never sets —
   // lands cleanly on every `/_next/image` response.
+  // Old goldberrygrove.farm Ghost URLs (posts, pages, archives) to their new
+  // homes. See lib/legacy-redirects.ts.
+  async redirects() {
+    return legacyRedirects();
+  },
   async headers() {
     return [
       securityHeadersRoute,

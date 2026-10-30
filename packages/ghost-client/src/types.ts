@@ -18,6 +18,8 @@ export interface Tag {
   name: string;
   slug: string;
   description: string | null;
+  // Ghost marks `#`-prefixed tags internal; the Content API still returns them.
+  visibility?: "public" | "internal";
 }
 
 export interface Post {
@@ -48,7 +50,7 @@ export interface Page {
 
 export interface GhostClient {
   posts: {
-    list(params?: { limit?: number; page?: number; filter?: string; include?: string }): Promise<Post[]>;
+    list(params?: { limit?: number | "all"; page?: number; filter?: string; include?: string }): Promise<Post[]>;
     get(slug: string): Promise<Post>;
   };
   pages: {
