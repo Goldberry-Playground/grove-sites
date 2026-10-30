@@ -1126,6 +1126,33 @@ describe("printify fields (GOL-3315, gom printify spec §4/§5)", () => {
     expect(list.available).toBe(false);
   });
 
+  // Same rule on the PDP: qty_available is always 0 for a printify template and
+  // its variants, and reading that as sold out kept Add to Cart disabled on
+  // every farm shirt once a size was picked.
+  it("keeps a published printify detail and its variants available at zero stock", () => {
+    const detail = normalizeProductDetail({
+      ...honeycrispDetailWithStock,
+      fulfillment_route: "printify",
+      qty_available: 0,
+      variants: honeycrispDetailWithStock.variants.map((v) => ({ ...v, qty_available: 0 })),
+    });
+    expect(detail.available).toBe(true);
+    expect(detail.variants.length).toBeGreaterThan(0);
+    expect(detail.variants.every((v) => v.available)).toBe(true);
+  });
+
+  it("still treats an unpublished printify detail and its variants as unavailable", () => {
+    const detail = normalizeProductDetail({
+      ...honeycrispDetailWithStock,
+      fulfillment_route: "printify",
+      qty_available: 0,
+      website_published: false,
+      variants: honeycrispDetailWithStock.variants.map((v) => ({ ...v, qty_available: 0 })),
+    });
+    expect(detail.available).toBe(false);
+    expect(detail.variants.every((v) => !v.available)).toBe(true);
+  });
+
   it("defaults to in_house and null lead time when absent (older pins, mocks)", () => {
     const list = normalizeProductListItem(honeycrispListItem);
     expect(list.fulfillmentRoute).toBe("in_house");
