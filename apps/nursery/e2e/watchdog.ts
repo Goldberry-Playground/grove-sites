@@ -41,7 +41,7 @@ export const test = base.extend<{ apiCalls: ApiCall[] }>({
       page.on("response", onResponse);
       const apiNetworkFailures: string[] = [];
       page.on("pageerror", (err) => {
-        if (isWebKitAbortNoise(err.message)) return;
+        if (isWebKitAbortNoise(err)) return;
         if (isThirdPartyPage(page.url())) return;
         pageErrors.push(err.message);
       });
@@ -86,12 +86,17 @@ export { expect };
  *   - Odoo livechat (`im_livechat`, served from odoo.gatheringatthegrove.com)
  *     losing its long-poll on navigation. Third-party widget, not checkout.
  *     First seen failing the prod canary in Actions, 2026-10-26 18:50Z.
+ *     Its `boot()` also injects a `<link>` to `/im_livechat/font-awesome`;
+ *     a navigation cuts that load off, and the link's `error` Event rejects a
+ *     promise nobody catches, so the message is only "[object Event]" and the
+ *     widget shows up in the stack instead (traced on prod, 2026-10-27).
  */
-function isWebKitAbortNoise(message: string): boolean {
+function isWebKitAbortNoise(err: Error): boolean {
   return (
-    /due to access control checks\.$/.test(message) ||
-    /^(TypeError: )?Load failed$/.test(message) ||
-    /im_livechat\//.test(message)
+    /due to access control checks\.$/.test(err.message) ||
+    /^(TypeError: )?Load failed$/.test(err.message) ||
+    /im_livechat\//.test(err.message) ||
+    /im_livechat\//.test(err.stack ?? "")
   );
 }
 
