@@ -195,6 +195,7 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
   // variant thumbnail (product-view: hero = variantImage ?? heroImage) would
   // resurrect Odoo's gray box over the branded placeholder.
   const hasTemplatePhoto = raw.image_128 === undefined || Boolean(raw.image_128);
+  const printify = raw.fulfillment_route === "printify";
   return {
     id: raw.id,
     // The detail endpoint returns `grove_slug`, not the list endpoint's aliased
@@ -224,7 +225,12 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     // qty_available is only present when the Odoo `stock` module is installed.
     // Fall back to the parent product's website_published flag so the page
     // still distinguishes "out of stock" from "we don't track stock at all".
-    available: raw.qty_available === undefined ? raw.website_published : raw.qty_available > 0,
+    // Printify items are printed to order: qty_available is always 0, so they
+    // follow publish state alone, as on the list normalizer (GOL-3315).
+    available:
+      raw.qty_available === undefined || printify
+        ? raw.website_published
+        : raw.qty_available > 0,
     // sale_ok gates purchasability independently of stock: a "coming soon"
     // placeholder is published (page renders) but not for sale (buy box locked).
     // Default true so list items, mocks, and older payloads that omit the field
@@ -250,8 +256,11 @@ export function normalizeProductDetail(raw: ApiProductDetail): Product {
     fulfillmentRoute: raw.fulfillment_route ?? "in_house",
     leadTime: raw.lead_time || null,
     featured: raw.grove_featured,
+    // Variants carry no fulfillment route of their own, so a printify
+    // template's publish state decides theirs too.
     variants: (raw.variants ?? [])
       .map(normalizeVariant)
+      .map((v) => (printify ? { ...v, available: raw.website_published } : v))
       .map((v) => (hasTemplatePhoto ? v : { ...v, imageUrl: "" })),
     facts: raw.facts ? normalizeFacts(raw.facts) : undefined,
     images: (raw.images ?? []).map(normalizeImage),
