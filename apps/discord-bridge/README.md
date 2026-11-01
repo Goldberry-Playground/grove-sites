@@ -10,7 +10,7 @@ Discord bridge for the Grove CMO loop. **Phase 1 (GOL-262)** ships:
 
 Implements the CMO payload contract frozen in
 [GOL-233 §1](https://.../GOL-233) (Sora) against the architecture from
-[GOL-234](https://.../GOL-234) (Alice). Board go/no-go accepted 2026-07-11.
+[GOL-234](https://.../GOL-234) (Alice, now Ada). Board go/no-go accepted 2026-07-11.
 
 ## Phase 2 (GOL-470) — content-approval loop (draft-only)
 
