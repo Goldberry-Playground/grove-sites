@@ -16,6 +16,15 @@ Multi-tenant frontend monorepo for the **Gathering at the Grove** ecosystem — 
 | GGG Woodworking | woodworkingeorge.com | `apps/ggg` | 3002 |
 | At The Grove Nursery | atthegrovenursery.com | `apps/nursery` | 3003 |
 
+Internal apps (not storefronts):
+
+| App | Purpose | Port |
+|-----|---------|------|
+| `apps/discord-bridge` | CMO Discord bridge: weekly Buffer digest, `/insights`, content-approval cards ([README](apps/discord-bridge/README.md)) | n/a |
+| `apps/qa-portal` | Component-QA gallery of per-brand design bundles ([README](apps/qa-portal/README.md)) | 3005 |
+
+`apps/consult` is moving to AgriforestryOS in Train #5 and is not documented here.
+
 ## Table of Contents
 
 - [Architecture](#architecture)
@@ -128,20 +137,25 @@ grove-sites/
 │   │   └── package.json
 │   ├── ggg/                        # GGG Woodworking — woodworkingeorge.com (:3002)
 │   │   └── …                       # Same storefront shape as goldberry (shop, cart, checkout, blog)
-│   └── nursery/                    # At The Grove Nursery — atthegrovenursery.com (:3003)
-│       └── …                       # Same storefront shape as goldberry (shop, cart, checkout, blog)
+│   ├── nursery/                    # At The Grove Nursery — atthegrovenursery.com (:3003)
+│   │   └── …                       # Same storefront shape as goldberry, plus /plan (order builder)
+│   ├── discord-bridge/             # CMO Discord bridge (Buffer digest, /insights, approvals)
+│   ├── qa-portal/                  # Component-QA gallery of design bundles (:3005)
+│   └── consult/                    # Moving to AgriforestryOS (Train #5)
 ├── packages/
-│   ├── ui/                         # Shared React component library + assetPath() CDN helper
-│   ├── checkout/                   # Shared cart + checkout flow: CartProvider, cart reducer,
-│   │                               #   Cart/Checkout components, BFF route factories (./server)
-│   ├── odoo-client/                # Typed Odoo 19 REST API client — products, cart, orders
+│   ├── analytics/                  # RUM dual-writer: OpenObserve RUM + Plausible sinks
+│   ├── assets/                     # Product-photo ingest → grove-assets Spaces CDN
+│   ├── checkout/                   # Shared cart + checkout flow, BFF route factories (./server)
+│   ├── config/                     # Shared tooling: ESLint flat config, base tsconfig, Tailwind tokens
 │   ├── ghost-client/               # Typed Ghost Content API client — posts, pages, authors
-│   ├── analytics/                  # RUM dual-writer: OpenObserve RUM + Plausible sinks,
-│   │                               #   AnalyticsProvider, e-commerce events, web vitals
-│   ├── otel/                       # Server-side OpenTelemetry tracing (@vercel/otel),
-│   │                               #   wired via each app's instrumentation.ts
-│   └── config/                     # Shared tooling: ESLint flat config, base tsconfig,
-│                                   #   Tailwind design tokens
+│   ├── grove-brand/                # @grove/brand — brand-asset manifest (logos, CDN renders)
+│   ├── grove-tokens/               # @grove/tokens — design-system token contract + brand themes
+│   ├── grove-ui/                   # @grove/ui-kit — design-system components on @grove/tokens
+│   ├── newsletter/                 # Newsletter opt-in capture into Odoo Email Marketing
+│   ├── odoo-client/                # Typed Odoo 19 REST API client — products, cart, orders
+│   ├── otel/                       # Server-side OpenTelemetry tracing (@vercel/otel)
+│   ├── planner/                    # Order-builder planning engine (pure plan())
+│   └── ui/                         # Shared React component library + assetPath() CDN helper
 ├── infra/
 │   └── do/                         # DO App Platform specs, one per app — see infra/do/README.md
 ├── turbo.json                      # Turborepo pipeline configuration
@@ -308,6 +322,24 @@ pnpm --filter @grove/ui type-check
 - **Purpose:** Nursery storefront — same shop/cart/checkout/blog shape as goldberry, built on the shared `@grove/checkout` flow.
 
 ## Packages
+
+| Package | Directory | Purpose |
+|---------|-----------|---------|
+| `@grove/analytics` | `packages/analytics` | Client RUM dual-writer (OpenObserve RUM + Plausible), page views, e-commerce events, web vitals |
+| `@grove/assets` | `packages/assets` | Product-photo ingest: sharp → AVIF/WebP variants → grove-assets Spaces CDN (`pnpm upload-asset`) |
+| `@grove/checkout` | `packages/checkout` | Shared cart + checkout flow and BFF route factories (`@grove/checkout/server`) |
+| `@grove/config` | `packages/config` | Shared tooling: ESLint flat config, base tsconfig, Tailwind tokens |
+| `@grove/ghost-client` | `packages/ghost-client` | Typed Ghost Content API client (posts, pages, authors) |
+| `@grove/brand` | `packages/grove-brand` | Brand-asset manifest (SVG logos in git, rasters on the CDN) |
+| `@grove/tokens` | `packages/grove-tokens` | Design-system token contract (`--grove-*`) + per-brand themes |
+| `@grove/ui-kit` | `packages/grove-ui` | Design-system components (cart, checkout, product cards, capture forms) on `@grove/tokens` |
+| `@grove/newsletter` | `packages/newsletter` | Newsletter opt-in capture into Odoo Email Marketing (one list per brand) |
+| `@grove/odoo-client` | `packages/odoo-client` | Typed Odoo 19 REST client for `grove_headless` (products, cart, orders) |
+| `@grove/otel` | `packages/otel` | Server-side OpenTelemetry tracing (`@vercel/otel`), wired via each app's `instrumentation.ts` |
+| `@grove/planner` | `packages/planner` | Order-builder planning engine: pure `plan()` from quiz answers + catalog feed (nursery `/plan`) |
+| `@grove/ui` | `packages/ui` | Shared React components + `assetPath()` CDN helper |
+
+The sections below cover the most-used packages in more detail. `@grove/newsletter`, `@grove/brand` and `@grove/planner` have their own READMEs.
 
 ### `@grove/ui`
 
