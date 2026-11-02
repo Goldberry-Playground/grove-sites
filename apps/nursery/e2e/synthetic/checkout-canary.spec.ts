@@ -64,10 +64,21 @@ test.describe("@synthetic nursery checkout canary", () => {
     // fetch fails with "Load failed" on every run, GOL-3661), so the Pay button is
     // only checked in Chromium. That is a test-browser limit, not real Safari.
     if (browserName === "webkit") return;
-    await expect(
-      page.getByRole("button", { name: /^(Pay|Subscribe|Reserve)/ }).last(),
-      "Stripe's hosted page did not render its Pay button",
-    ).toBeVisible({ timeout: 30_000 });
+    // Stripe sometimes renders the payment form (Pay button included) inside an
+    // iframe that a main-frame locator can't see (GOL-3745), so look in every frame.
+    const payButtonVisible = async () => {
+      for (const frame of page.frames()) {
+        const pay = frame.getByRole("button", { name: /^(Pay|Subscribe|Reserve)/ }).last();
+        if (await pay.isVisible().catch(() => false)) return true;
+      }
+      return false;
+    };
+    await expect
+      .poll(payButtonVisible, {
+        message: "Stripe's hosted page did not render its Pay button",
+        timeout: 30_000,
+      })
+      .toBe(true);
   });
 
   test("a WV farm pickup pre-order reaches payment or explains why not", async ({
