@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { PlanTeaser } from "./plan-teaser";
-import { HOME_TEASER_HEADING } from "./plan/copy";
+import { HOME_TEASER_HEADING, PLAN_EXPERIMENTAL_TAG } from "./plan/copy";
 
 /**
  * §F kill switch on the home teaser (GOL-3527): the flag is a runtime env read,
@@ -27,6 +27,7 @@ describe("PlanTeaser", () => {
     vi.stubEnv("PLANNER_ENABLED", "1");
     render(<PlanTeaser />);
     expect(screen.getByRole("heading", { level: 2 }).textContent).toContain(HOME_TEASER_HEADING);
+    expect(screen.getByTestId("plan-experimental").textContent).toBe(PLAN_EXPERIMENTAL_TAG);
     expect(screen.getByTestId("planner-stub")).toBeTruthy();
   });
 });
