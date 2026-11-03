@@ -910,7 +910,7 @@ h1 em, h2 em, h3 em {
   font-weight: 500;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--orange);
+  color: var(--parchment-deep); /* 7.96:1; orange text is 3.14:1 */
   margin-bottom: 0.5rem;
 }
 /* Fall/Spring wave slider: native scroll-snap, no library. min-width:0 keeps
@@ -924,15 +924,17 @@ h1 em, h2 em, h3 em {
   text-transform: uppercase;
   padding: 0.35rem 0.9rem;
   border-radius: 999px;
-  border: 1px solid var(--moss);
+  border: 1px solid color-mix(in srgb, var(--parchment-deep) 40%, transparent);
   background: transparent;
   color: var(--parchment-deep);
   cursor: pointer;
 }
+/* Label text on the fill must clear AA: forest on --orange is 3.14:1, so the
+   selected pill uses the text-safe --orange-deep with parchment (4.8:1). */
 .field-notes-tabs [role="tab"][aria-selected="true"] {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: var(--forest);
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
+  color: var(--parchment);
 }
 .field-notes-tabs [role="tab"]:focus-visible { outline: 2px solid var(--parchment); outline-offset: 2px; }
 .field-notes-track {

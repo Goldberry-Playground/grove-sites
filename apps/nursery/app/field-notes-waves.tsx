@@ -34,6 +34,10 @@ export function FieldNotesWaves({ waves }: { waves: FieldNoteWave[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [active, setActive] = useState(0);
+  // Slide a tab/arrow press is scrolling to. While set, onScroll ignores the
+  // in-between positions so the selection never flashes back mid-animation.
+  const targetRef = useRef<number | null>(null);
+  const settleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (waves.length === 1) {
     const [only] = waves;
@@ -53,6 +57,12 @@ export function FieldNotesWaves({ waves }: { waves: FieldNoteWave[] }) {
     const reduce =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    targetRef.current = i;
+    // Fallback release if the scroll is interrupted and never lands on target.
+    if (settleRef.current) clearTimeout(settleRef.current);
+    settleRef.current = setTimeout(() => {
+      targetRef.current = null;
+    }, 1000);
     track.scrollTo({ left: i * track.clientWidth, behavior: reduce ? "auto" : "smooth" });
   };
 
@@ -60,6 +70,11 @@ export function FieldNotesWaves({ waves }: { waves: FieldNoteWave[] }) {
   const onScroll = () => {
     const track = trackRef.current;
     if (!track || track.clientWidth === 0) return;
+    const target = targetRef.current;
+    if (target !== null) {
+      if (Math.abs(track.scrollLeft - target * track.clientWidth) < 2) targetRef.current = null;
+      return;
+    }
     const i = Math.round(track.scrollLeft / track.clientWidth);
     if (i !== active && i >= 0 && i < waves.length) setActive(i);
   };
@@ -104,11 +119,12 @@ export function FieldNotesWaves({ waves }: { waves: FieldNoteWave[] }) {
         ))}
       </div>
       <div className="field-notes-track" ref={trackRef} onScroll={onScroll}>
-        {waves.map(({ wave, rows }) => (
+        {waves.map(({ wave, rows }, i) => (
           <div
             key={wave}
             className="field-notes-slide"
             role="tabpanel"
+            tabIndex={i === active ? 0 : -1}
             id={`fn-panel-${wave}`}
             aria-labelledby={`fn-tab-${wave}`}
           >
