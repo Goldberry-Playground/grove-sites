@@ -111,7 +111,8 @@ export async function readShopGrid(page: Page): Promise<ShopCard[]> {
     }),
   );
   const seen = new Set<string>();
-  return raw.filter((c) => /\/shop\/\d+/.test(c.href) && !seen.has(c.href) && seen.add(c.href));
+  // `/shop/<slug>` since GOL-3601 (#1187); `/shop/<id>` on older deploys.
+  return raw.filter((c) => /^\/shop\/[^/?#]+$/.test(c.href) && !seen.has(c.href) && seen.add(c.href));
 }
 
 /** Catalog cards only — the E2E runner fixtures excluded. */
