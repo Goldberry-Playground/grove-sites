@@ -69,7 +69,7 @@ export interface CheckoutSessionBody {
   lineItems?: SessionLineItem[];
 }
 
-/** Every `/shop/<id>` product-detail href on the shop grid, de-duplicated. */
+/** Every `/shop/<slug>` (or legacy `/shop/<id>`) product-detail href on the shop grid, de-duplicated. */
 export async function collectProductHrefs(page: Page): Promise<string[]> {
   await page.goto("/shop");
   // The nursery shop grid renders each product as a `.var-card` container whose
@@ -81,7 +81,9 @@ export async function collectProductHrefs(page: Page): Promise<string[]> {
   await cards.first().waitFor({ state: "visible", timeout: 15_000 });
   const hrefs = (await cards.evaluateAll((els) =>
     els.map((e) => (e as HTMLAnchorElement).getAttribute("href")),
-  )).filter((h): h is string => !!h && /\/shop\/\d+/.test(h));
+  // GOL-3601 (#1187) made `/shop/<slug>` the canonical PDP href; `/shop/<id>`
+  // stays accepted for environments still serving the numeric grid.
+  )).filter((h): h is string => !!h && /^\/shop\/[^/?#]+$/.test(h));
   return [...new Set(hrefs)];
 }
 
