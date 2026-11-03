@@ -381,6 +381,31 @@ export async function payAtReview(page: Page): Promise<void> {
 }
 
 /**
+ * Assert Stripe's hosted page rendered its submit ("Pay", "Subscribe",
+ * "Reserve") button, in ANY frame. Since 2026-11-02 desktop Chromium sessions
+ * render the whole payment form, Pay button included, inside an iframe (the
+ * main frame keeps only the header, amount and footer), so a main-frame
+ * locator reports "not found" while the button is plainly on screen. Stripe's
+ * accordion rows also carry hidden "Pay with card" overlay buttons, hence the
+ * visible filter.
+ */
+export async function expectStripePayButton(page: Page): Promise<void> {
+  const payButton = /^(Pay|Subscribe|Reserve)/;
+  await expect
+    .poll(
+      async () => {
+        for (const frame of page.frames()) {
+          const btn = frame.getByRole("button", { name: payButton }).filter({ visible: true });
+          if ((await btn.count().catch(() => 0)) > 0) return true;
+        }
+        return false;
+      },
+      { message: "Stripe's hosted page did not render its Pay button", timeout: 30_000 },
+    )
+    .toBe(true);
+}
+
+/**
  * Fill Stripe's hosted checkout page and submit. This drives the external
  * `checkout.stripe.com` page, whose DOM is owned by Stripe. Selectors validated
  * against a real test session (GOL-1149): the hosted page renders a

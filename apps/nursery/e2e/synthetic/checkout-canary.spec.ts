@@ -4,6 +4,7 @@ import {
   addCurrentProductToCart,
   collectProductHrefs,
   expectOnReview,
+  expectStripePayButton,
   fillCheckoutForm,
   findProductByCta,
   payAtReview,
@@ -64,10 +65,7 @@ test.describe("@synthetic nursery checkout canary", () => {
     // fetch fails with "Load failed" on every run, GOL-3661), so the Pay button is
     // only checked in Chromium. That is a test-browser limit, not real Safari.
     if (browserName === "webkit") return;
-    await expect(
-      page.getByRole("button", { name: /^(Pay|Subscribe|Reserve)/ }).last(),
-      "Stripe's hosted page did not render its Pay button",
-    ).toBeVisible({ timeout: 30_000 });
+    await expectStripePayButton(page);
   });
 
   test("a WV farm pickup pre-order reaches payment or explains why not", async ({
