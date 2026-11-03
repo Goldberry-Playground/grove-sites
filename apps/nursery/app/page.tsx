@@ -19,11 +19,7 @@ import {
   DEPOSIT_CUTOVER,
 } from "../lib/fulfillment-mode";
 import { fieldNoteWaves } from "../lib/preorder-waves";
-
-const WAVE_HEADINGS = {
-  fall: "Fall shipping pre-orders",
-  spring: "Spring shipping pre-orders",
-} as const;
+import { FieldNotesWaves } from "./field-notes-waves";
 
 // GOL-2878 Phase 1. Title and description stay inherited from the root layout
 // — a brand-only homepage title is correct, and a keyword-tuned one is CMO's
@@ -277,20 +273,7 @@ export default async function HomePage() {
             </p>
           )}
           {waveBlocks && waveBlocks.length > 0 ? (
-            waveBlocks.map(({ wave, rows }) => (
-              <div key={wave} className="field-notes-wave">
-                <h4>{WAVE_HEADINGS[wave]}</h4>
-                <ul>
-                  {rows.map(({ zone, label, note }) => (
-                    <li key={zone}>
-                      <span>Zone {zone}</span>
-                      <strong>{label}</strong>
-                      <small>{note}</small>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
+            <FieldNotesWaves waves={waveBlocks} />
           ) : waveBlocks ? (
             <p>Fall and spring pre-orders open Sep 1.</p>
           ) : (
