@@ -904,15 +904,73 @@ h1 em, h2 em, h3 em {
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.field-notes-wave + .field-notes-wave { margin-top: 1.25rem; }
 .field-notes-wave h4 {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--orange);
+  color: var(--parchment-deep); /* 7.96:1; orange text is 3.14:1 */
   margin-bottom: 0.5rem;
+}
+/* Fall/Spring wave slider: native scroll-snap, no library. min-width:0 keeps
+   the track from widening the sticky aside (and the page) at 375px. */
+.field-notes-slider { min-width: 0; }
+.field-notes-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.field-notes-tabs [role="tab"] {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--parchment-deep) 40%, transparent);
+  background: transparent;
+  color: var(--parchment-deep);
+  cursor: pointer;
+}
+/* Label text on the fill must clear AA: forest on --orange is 3.14:1, so the
+   selected pill uses the text-safe --orange-deep with parchment (4.8:1). */
+.field-notes-tabs [role="tab"][aria-selected="true"] {
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
+  color: var(--parchment);
+}
+.field-notes-tabs [role="tab"]:focus-visible { outline: 2px solid var(--parchment); outline-offset: 2px; }
+.field-notes-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.field-notes-track::-webkit-scrollbar { display: none; }
+.field-notes-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; }
+.field-notes-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+}
+.field-notes-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--moss);
+  transition: width 0.2s, background 0.2s;
+}
+.field-notes-dots span.is-active { width: 16px; background: var(--orange); }
+.field-notes-dots small {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--parchment-deep);
+  opacity: 0.75;
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-notes-track { scroll-behavior: auto; }
+  .field-notes-dots span { transition: none; }
 }
 .field-notes li strong { color: var(--parchment-deep); }
 .field-notes li small { flex: 0 0 100%; font-size: 11px; opacity: 0.75; }
