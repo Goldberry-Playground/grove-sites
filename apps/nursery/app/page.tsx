@@ -14,11 +14,16 @@ import { odoo } from "../lib/clients";
 import {
   resolveShippableMode,
   barerootTimingShort,
-  zoneShipNote,
   formatMonthDay,
   depositByDate,
   DEPOSIT_CUTOVER,
 } from "../lib/fulfillment-mode";
+import { fieldNoteWaves } from "../lib/preorder-waves";
+
+const WAVE_HEADINGS = {
+  fall: "Fall shipping pre-orders",
+  spring: "Spring shipping pre-orders",
+} as const;
 
 // GOL-2878 Phase 1. Title and description stay inherited from the root layout
 // — a brand-only homepage title is correct, and a keyword-tuned one is CMO's
@@ -79,8 +84,11 @@ export default async function HomePage() {
   const heroResolution = shippingCalendar
     ? resolveShippableMode(now, shippingCalendar)
     : null;
-  const zoneNotes = shippingCalendar
-    ? FIELD_NOTE_ZONES.map((zone) => ({ zone, ...zoneShipNote(now, shippingCalendar, zone) }))
+  // Fall and spring shipped pre-order waves side by side (Josh 2026-11-02), each
+  // labelled, from the same resolver as the PDP wave picker. Feed-gated like
+  // before: no feed → zone-agnostic copy, never a bundled date.
+  const waveBlocks = shippingCalendar
+    ? fieldNoteWaves(now, shippingCalendar, FIELD_NOTE_ZONES)
     : null;
   // The deposit RULE needs no feed (grove-sites#815): GOL-2233 is
   // `soldOut || afterCutover` and the cutover is a local constant, so only the
@@ -268,16 +276,23 @@ export default async function HomePage() {
               {heroResolution.fulfillmentDays[1]} business days.
             </p>
           )}
-          {zoneNotes ? (
-            <ul>
-              {zoneNotes.map(({ zone, label, note }) => (
-                <li key={zone}>
-                  <span>Zone {zone}</span>
-                  <strong>{label}</strong>
-                  {note && <small>{note}</small>}
-                </li>
-              ))}
-            </ul>
+          {waveBlocks && waveBlocks.length > 0 ? (
+            waveBlocks.map(({ wave, rows }) => (
+              <div key={wave} className="field-notes-wave">
+                <h4>{WAVE_HEADINGS[wave]}</h4>
+                <ul>
+                  {rows.map(({ zone, label, note }) => (
+                    <li key={zone}>
+                      <span>Zone {zone}</span>
+                      <strong>{label}</strong>
+                      <small>{note}</small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          ) : waveBlocks ? (
+            <p>Fall and spring pre-orders open Sep 1.</p>
           ) : (
             <p>Ship windows are confirmed at checkout for your zone.</p>
           )}
