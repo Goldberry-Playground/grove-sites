@@ -64,7 +64,10 @@ jobs:
   e2e:
     name: Nursery checkout E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # #1190 runs every spec on four device projects (1 worker, 2 retries): ~208
+    # tests at ~25 s each. Train #4's first gate hit the old 30-minute cap at
+    # test 79 and was cancelled with no report.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v7
