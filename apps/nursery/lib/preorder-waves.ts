@@ -230,3 +230,40 @@ export function writeUsdaZone(zone: number): void {
     /* localStorage unavailable (private mode): no-op */
   }
 }
+
+/** One wave's block on the homepage Field Notes card: the zone rows for a wave. */
+export interface FieldNoteWave {
+  wave: ShipWave;
+  rows: { zone: number; label: string; note: string }[];
+}
+
+/**
+ * Homepage Field Notes: the shipped pre-order waves for `zones`, fall then
+ * spring, each row `Ships Nov 2 – Nov 13` / `Order by Nov 12` (or the closed
+ * reason once that zone's order-by passes). A wave with no zone still open is
+ * dropped, so fall leaves the card after the last fall order-by and spring
+ * stands alone until both reopen Sep 1. Same resolver as the PDP wave picker.
+ */
+export function fieldNoteWaves(
+  date: Date,
+  calendar: ShippingCalendar | null | undefined,
+  zones: readonly number[],
+): FieldNoteWave[] {
+  return (["fall", "spring"] as const)
+    .map((wave) => {
+      const entries = zones.flatMap((zone) => {
+        const w = preorderWaves(zone, date, calendar).find((x) => x.wave === wave);
+        return w ? [{ zone, w }] : [];
+      });
+      if (!entries.some(({ w }) => w.open)) return null;
+      return {
+        wave,
+        rows: entries.map(({ zone, w }) => ({
+          zone,
+          label: `Ships ${formatMonthDay(w.ship_window[0])} – ${formatMonthDay(w.ship_window[1])}`,
+          note: w.open ? waveOrderByLabel(w) : waveClosedLabel(w),
+        })),
+      };
+    })
+    .filter((b): b is FieldNoteWave => b !== null);
+}

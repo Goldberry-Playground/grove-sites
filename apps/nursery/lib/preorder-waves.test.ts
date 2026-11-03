@@ -6,6 +6,7 @@ import {
   PREORDER_WAVES_OPEN,
   USDA_ZONE_KEY,
   farmZoneOf,
+  fieldNoteWaves,
   firstOpenWave,
   PICKUP_FALL_WAVE,
   isPreorderSeason,
@@ -235,5 +236,39 @@ describe("pickupWaves (fixed farm-pickup fall schedule)", () => {
     ];
     const calendar = { pickup_waves: fromFeed } as unknown as ShippingCalendar;
     expect(pickupWaves(utc(10, 7), calendar)).toBe(fromFeed);
+  });
+});
+
+describe("fieldNoteWaves (homepage Field Notes)", () => {
+  const ZONES = [3, 4, 5, 6, 7];
+
+  it("Nov 2: fall and spring shipping pre-orders, each with order-bys", () => {
+    const blocks = fieldNoteWaves(utc(11, 2), null, ZONES);
+    expect(blocks.map((b) => b.wave)).toEqual(["fall", "spring"]);
+    expect(blocks[0].rows[0]).toEqual({
+      zone: 3,
+      label: "Ships Nov 2 – Nov 13",
+      note: "Order by Nov 12",
+    });
+    expect(blocks[1].rows.find((r) => r.zone === 7)).toEqual({
+      zone: 7,
+      label: "Ships Mar 16 – Apr 15",
+      note: "Order by Mar 9",
+    });
+  });
+
+  it("Nov 14: zone 3 fall greyed, later zones still open", () => {
+    const [fall] = fieldNoteWaves(utc(11, 14), null, ZONES);
+    expect(fall.wave).toBe("fall");
+    expect(fall.rows[0].note).toBe("Order-by passed");
+    expect(fall.rows[3].note).toBe("Order by Nov 21");
+  });
+
+  it("Nov 22: fall drops off once every order-by passed; spring remains", () => {
+    expect(fieldNoteWaves(utc(11, 22), null, ZONES).map((b) => b.wave)).toEqual(["spring"]);
+  });
+
+  it("May 1: nothing open until Sep 1", () => {
+    expect(fieldNoteWaves(utc(5, 1), null, ZONES)).toEqual([]);
   });
 });

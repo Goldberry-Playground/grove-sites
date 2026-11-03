@@ -10,14 +10,26 @@ Next.js 15 App Router monorepo (pnpm + Turborepo) for the Gather at the Grove ec
 | `apps/goldberry` | goldberrygrove.farm | Goldberry Grove Farm |
 | `apps/ggg` | woodworkingeorge.com | George George George Woodworking, LLC |
 | `apps/nursery` | atthegrovenursery.com | At The Grove Nursery, LLC |
+| `apps/discord-bridge` | (internal, DO App Platform) | CMO Discord bridge: Buffer digest, `/insights`, content approvals |
+| `apps/qa-portal` | (internal, local only) | Component-QA gallery of per-brand design bundles (:3005) |
+
+`apps/consult` is not listed here. It moves to AgriforestryOS in Train #5.
 
 | Package | Purpose |
 |---------|---------|
-| `packages/odoo-client` | Typed Odoo 19 API client (products, cart, orders) |
-| `packages/ghost-client` | Typed Ghost Content API client (posts, pages) |
-| `packages/ui` | Shared React components |
-| `packages/config` | Shared config (ESLint, TypeScript) |
-| `packages/analytics` | Shared analytics helpers |
+| `packages/analytics` | Client RUM dual-writer (OpenObserve RUM + Plausible), page views, e-commerce events, web vitals |
+| `packages/assets` | Product-photo ingest: sharp → AVIF/WebP variants → grove-assets Spaces CDN (`pnpm upload-asset`) |
+| `packages/checkout` | Shared cart + checkout flow and BFF route factories (`@grove/checkout/server`) |
+| `packages/config` | Shared tooling: ESLint flat config, base tsconfig, Tailwind tokens |
+| `packages/ghost-client` | Typed Ghost Content API client (posts, pages, authors) |
+| `packages/grove-brand` | `@grove/brand`: brand-asset manifest (SVG logos in git, rasters on the CDN) |
+| `packages/grove-tokens` | `@grove/tokens`: design-system token contract (`--grove-*`) + per-brand themes |
+| `packages/grove-ui` | `@grove/ui-kit`: design-system components (cart, checkout, product cards, capture forms) on `@grove/tokens` |
+| `packages/newsletter` | Newsletter opt-in capture into Odoo Email Marketing (one list per brand) |
+| `packages/odoo-client` | Typed Odoo 19 REST client for `grove_headless` (products, cart, orders) |
+| `packages/otel` | Server-side OpenTelemetry tracing (`@vercel/otel`), wired via each app's `instrumentation.ts` |
+| `packages/planner` | Order-builder planning engine: pure `plan()` from quiz answers + catalog feed (nursery `/plan`) |
+| `packages/ui` | Shared React components + `assetPath()` CDN helper |
 
 ## Backend Integration
 

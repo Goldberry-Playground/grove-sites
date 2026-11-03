@@ -384,8 +384,8 @@ export async function payAtReview(page: Page): Promise<void> {
  * Assert Stripe's hosted page rendered its submit ("Pay", "Subscribe",
  * "Reserve") button, in ANY frame. Since 2026-11-02 desktop Chromium sessions
  * render the whole payment form, Pay button included, inside an iframe (the
- * main frame keeps only the header, amount and footer), so a main-frame
- * locator reports "not found" while the button is plainly on screen. Stripe's
+ * main frame keeps only the header, amount and footer, GOL-3745), so a
+ * main-frame locator reports "not found" while the button is plainly on screen. Stripe's
  * accordion rows also carry hidden "Pay with card" overlay buttons, hence the
  * visible filter.
  */
