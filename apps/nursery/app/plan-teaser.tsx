@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { tenantConfig } from "../tenant.config";
 import { plannerEnabled } from "../lib/planner-flag";
-import { HOME_TEASER_HEADING, HOME_TEASER_LEDE, PLAN_EYEBROW } from "./plan/copy";
+import { HOME_TEASER_HEADING, HOME_TEASER_LEDE, PLAN_EXPERIMENTAL_TAG, PLAN_EYEBROW } from "./plan/copy";
 import { Planner } from "./plan/planner";
 
 /**
@@ -19,6 +19,9 @@ export function PlanTeaser() {
       <div className="section-header">
         <div>
           <span className="section-tag">{PLAN_EYEBROW}</span>
+          <span className="plan-experimental" data-testid="plan-experimental">
+            {PLAN_EXPERIMENTAL_TAG}
+          </span>
           <h2 id="plan-teaser-heading">
             {HOME_TEASER_HEADING} <em>{HOME_TEASER_LEDE}</em>
           </h2>

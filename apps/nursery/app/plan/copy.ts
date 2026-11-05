@@ -7,6 +7,10 @@ import type { PlannerRole, Site, Slot, Stratum, Subgoal, Succession, Timing, Tra
  */
 
 export const PLAN_EYEBROW = "Order builder";
+/** Shown beside the eyebrow on /plan and the home teaser while the planner is new (Josh 2026-11-03). */
+export const PLAN_EXPERIMENTAL_TAG = "Experimental";
+export const PLAN_EXPERIMENTAL_NOTE =
+  "This is a new tool and we are still adding plants to it. If your plan comes up short, browse the shop or ask us and we will help you choose.";
 export const PLAN_HEADING = { lead: "Four questions.", em: "One planted order." };
 export const PLAN_LEDE =
   "Tell us where you are planting and what you want from it. We will put together a mix from what we grow, sized for your spot, and you can change any line before it goes in the cart.";

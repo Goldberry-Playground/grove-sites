@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import PlanPage from "./page";
-import { PLAN_HEADING } from "./copy";
+import { PLAN_EXPERIMENTAL_NOTE, PLAN_EXPERIMENTAL_TAG, PLAN_HEADING } from "./copy";
 
 /**
  * §F kill switch on /plan (GOL-3527): off, the route 404s like any unknown
@@ -35,6 +35,8 @@ describe("/plan page", () => {
     render(<PlanPage />);
     expect(notFound).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(PLAN_HEADING.lead);
+    expect(screen.getByTestId("plan-experimental").textContent).toBe(PLAN_EXPERIMENTAL_TAG);
+    expect(screen.getByText(PLAN_EXPERIMENTAL_NOTE)).toBeTruthy();
     expect(screen.getByTestId("planner-stub")).toBeTruthy();
   });
 });

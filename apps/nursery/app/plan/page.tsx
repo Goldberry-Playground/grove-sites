@@ -32,12 +32,16 @@ export default function PlanPage() {
         <div className="section-header">
           <div>
             <span className="section-tag">{copy.PLAN_EYEBROW}</span>
+            <span className="plan-experimental" data-testid="plan-experimental">
+              {copy.PLAN_EXPERIMENTAL_TAG}
+            </span>
             <h1>
               {copy.PLAN_HEADING.lead} <em>{copy.PLAN_HEADING.em}</em>
             </h1>
           </div>
         </div>
         <p className="section-lede">{copy.PLAN_LEDE}</p>
+        <p className="plan-experimental-note">{copy.PLAN_EXPERIMENTAL_NOTE}</p>
         <div className="max-w-5xl">
           <Suspense fallback={null}>
             <Planner mode="page" odooBase={odooBase} contact={tenantConfig.contact} />
