@@ -56,10 +56,28 @@ without Stripe TEST keys. (GOL-899 landed, so QA is not such a target.)
 4. **Unparseable / missing state** — with the state `<select>` this is now
    un-submittable; assert the guard (submit disabled / no session call).
 5. **Declined card** `@stripe` — Stripe decline card `4000 0000 0000 0002` →
-   error surfaced, order **not** marked paid, cart **retained**.
+   error surfaced, order **not** marked paid, cart **retained**. Runs on a
+   full-charge session when one is available AND on a $10-deposit session, so the
+   invariant is gated year-round (GOL-3787).
 6. **Cart-cleared-after-success** `@stripe` — validates GOL-1039 item 1 in a
    real browser across **both** success routes: `/checkout/success` and
-   `/checkout/success/[id]`.
+   `/checkout/success/[id]`, plus the id-route cart-clear on a $10-deposit
+   success (the path live after the season cutover, GOL-3787).
+
+**Season / deposit (GOL-2233) and skips (GOL-3787).** The checkout money path
+splits by the buy CTA, not the calendar: an **"Add to cart"** line charges in
+full (potted / peat-and-bagged in the leafed season through Oct 15, or a
+bareroot line in its ship window); a **"Pre-order for $10"** line is a flat
+per-order deposit (a bareroot wave pre-order, the path that is live after the
+Oct 15 season cutover). The full-charge specs (happy path, declined card,
+cart-cleared, eligible-promo) therefore find their product with
+`findProductByCtaOrNull("Add to cart")` and `test.skip` with a
+**product-availability** reason (`NO_FULL_CHARGE_PRODUCT_REASON`) when none is
+offered — **never on the date**. Deposit behaviour is gated by
+`checkout-deposit-happy-path` and the deposit variants in the declined-card,
+cart-cleared and promo specs. `E2E_DEPOSIT_CUTOVER_MD` stays as the override on
+`afterDepositCutover` (the documented backend mirror), but no spec skips the
+money path on it.
 
 Selector source of truth is `packages/checkout/src/components/CheckoutPage.tsx`
 and `CartPage.tsx`. Prefer role/text selectors; add `data-testid`s in the

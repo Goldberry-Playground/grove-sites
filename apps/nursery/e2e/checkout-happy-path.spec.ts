@@ -6,12 +6,12 @@ import {
   expectOnReview,
   fillCheckoutForm,
   fillStripeCheckoutAndPay,
-  findProductByCta,
+  findProductByCtaOrNull,
   payAtReview,
   submitAndCaptureSession,
   usd,
 } from "./helpers";
-import { AFTER_CUTOVER_REASON, afterDepositCutover } from "./qa-helpers";
+import { NO_FULL_CHARGE_PRODUCT_REASON } from "./qa-helpers";
 
 /**
  * Spec 1 — Happy path (GOL-1074).
@@ -29,10 +29,14 @@ test.describe("checkout — happy path", { tag: "@stripe" }, () => {
   test("in-stock cart pays with 4242, lands on success, empties the cart", async ({
     page,
   }) => {
-    // Full-charge flow only exists BEFORE the GOL-2233 season cutover; after it
-    // every order takes the flat $10 deposit (checkout-deposit-happy-path covers).
-    test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-    const product = await findProductByCta(page, "Add to cart");
+    // Full-charge flow runs whenever the catalog offers an "Add to cart"
+    // (ships-now, charged-in-full) line; after the GOL-2233 season cutover a
+    // shipped bareroot line is a $10 deposit instead, so none is offered and
+    // this skips on product availability — not the date (GOL-3787). The deposit
+    // happy path is proven by checkout-deposit-happy-path.
+    const product = await findProductByCtaOrNull(page, "Add to cart");
+    test.skip(product === null, NO_FULL_CHARGE_PRODUCT_REASON);
+    if (!product) return;
     await page.goto(product.href);
     await addCurrentProductToCart(page, 2, "Add to cart");
 

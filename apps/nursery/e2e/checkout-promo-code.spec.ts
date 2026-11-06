@@ -9,7 +9,7 @@ import {
   submitCheckoutForm,
   usd,
 } from "./helpers";
-import { AFTER_CUTOVER_REASON, afterDepositCutover, fillPromoCode } from "./qa-helpers";
+import { NO_FULL_CHARGE_PRODUCT_REASON, fillPromoCode } from "./qa-helpers";
 
 /**
  * Promo code at checkout — FLATWOODS (GOL-2088; grove-sites #700 + grove-odoo-modules #179).
@@ -57,6 +57,11 @@ test.describe("checkout — promo code", () => {
   }) => {
     // A wave pre-order makes the cart a deposit cart; grove_headless refuses promo
     // codes on those ("Promo codes can't be applied to preorder (deposit) carts").
+    // GOL-2088/GOL-2431 ruling (grove_headless `_cart_has_preorder` gate): a promo
+    // on a deposit cart applies to NEITHER the deposit NOR the balance — it is
+    // rejected outright. This is the promo coverage for the deposit money path
+    // that IS live after the GOL-2233 season cutover (GOL-3787), so it never
+    // skips on the date — only when no open wave is seeded today.
     const reserve = await findProductByCtaOrNull(page, "Pre-order for $10");
     test.skip(
       reserve === null,
@@ -88,11 +93,14 @@ test.describe("checkout — promo code", () => {
     "an eligible promo on an in-stock cart itemizes a discount line that reconciles",
     { tag: ["@stripe", "@promo"] },
     async ({ page }) => {
-      // An in-stock cart is only a full-price (promo-eligible) cart BEFORE the
-      // GOL-2233 season cutover; after it every order is a flat-deposit cart, and
-      // the deposit-rejection test above is the relevant one.
-      test.skip(afterDepositCutover(), AFTER_CUTOVER_REASON);
-      const product = await findProductByCta(page, "Add to cart");
+      // An in-stock ("Add to cart") cart is the full-price, promo-eligible cart.
+      // After the GOL-2233 season cutover a shipped bareroot line is a deposit
+      // cart instead (promo-ineligible — the deposit-rejection test above is the
+      // relevant one), so this skips on product availability, not the date
+      // (GOL-3787).
+      const product = await findProductByCtaOrNull(page, "Add to cart");
+      test.skip(product === null, NO_FULL_CHARGE_PRODUCT_REASON);
+      if (!product) return;
       await page.goto(product.href);
       await addCurrentProductToCart(page, 1, "Add to cart");
       await page.goto("/checkout");
