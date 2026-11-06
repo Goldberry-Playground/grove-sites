@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { CartProvider, cartStorageKey } from "@grove/checkout";
 import { FIXTURE_CATALOG } from "@grove/planner/fixtures";
 import { Planner } from "./planner";
-import { ResultCard, headlineFor, dropSpan, cartAcceptsGroup, countLabel, type ResultCardProps } from "./result-card";
+import { ResultCard, headlineFor, numberWord, dropSpan, cartAcceptsGroup, countLabel, type ResultCardProps } from "./result-card";
 import { plan } from "@grove/planner";
 import type { PlanInput } from "@grove/planner";
 import type { postSave, postSignal } from "../../lib/planner-signals";
@@ -87,7 +87,7 @@ describe("Planner: URL state", () => {
   it("renders the result straight from a complete URL and round-trips it", async () => {
     mockFetch(() => 6);
     mount("zip=26501&site=open&track=food&size=20&timing=mixed");
-    const heading = await screen.findByRole("heading", { level: 2, name: /Your 20-tree food forest/ });
+    const heading = await screen.findByRole("heading", { level: 2, name: /Twenty trees/ });
     expect(heading).toBeTruthy();
     expect(screen.getByText(/ZIP 26501, zone 6, open ground/i)).toBeTruthy();
     // Four tree layers plus the spawn line the winter beta adds.
@@ -110,7 +110,7 @@ describe("Planner: unknown ZIP falls back to the state band", () => {
 
     cleanup();
     mount("zip=99999&state=WV&site=open&track=food&size=20&timing=mixed");
-    await screen.findByRole("heading", { level: 2, name: /Your 20-tree food forest/ });
+    await screen.findByRole("heading", { level: 2, name: /Twenty trees/ });
     expect(screen.getByText(/WV, zones 5 to 7, open ground/i)).toBeTruthy();
 
     cleanup();
@@ -181,24 +181,23 @@ function mountCard(overrides: Partial<ResultCardProps> = {}) {
   return { ...utils, result, signal, save, onManualChange };
 }
 
-describe("ResultCard: Build my order", () => {
+describe("ResultCard: add to cart", () => {
   it("adds every line to the cart store, posts one built signal first, and opens the mini cart", async () => {
     const { result, signal } = mountCard();
-    // Bareroot trees and the potted spawn are two orders: two buttons, potted first.
-    const buttons = screen.getAllByRole("button", { name: /Build my/ });
-    expect(buttons.length).toBe(2);
-    expect(buttons[0].textContent).toMatch(/potted order \(1 spawn\)/);
-    expect(buttons[1].textContent).toMatch(/bareroot order \(20 trees\)/);
-    await userEvent.click(buttons[1]);
+    // One button: the whole planting, spawn included, as one wave pre-order.
+    const button = screen.getByRole("button", { name: /Add the whole planting/ });
+    await userEvent.click(button);
     await waitFor(() => {
       const stored = JSON.parse(localStorage.getItem(cartStorageKey(process.env.NEXT_PUBLIC_TENANT_ID)) ?? "[]");
-      expect(stored.map((i: { templateId: number; quantity: number; wave?: string }) => [i.templateId, i.quantity])).toEqual(
-        result.lines.filter((l) => l.plant.tier === "bareroot").map((l) => [l.plant.id, l.qty]),
+      // The card lists lines in planting order (stratum, anchors first), so compare as sets.
+      const byId = (a: number[], b: number[]) => a[0] - b[0];
+      expect(stored.map((i: { templateId: number; quantity: number; wave?: string }) => [i.templateId, i.quantity]).sort(byId)).toEqual(
+        result.lines.map((l) => [l.plant.id, l.qty]).sort(byId),
       );
-      // Bareroot is always a wave pre-order: every line carries the first open wave.
+      // Every line carries the first open wave.
       expect(stored.every((i: { wave?: string }) => i.wave === "fall" || i.wave === "spring")).toBe(true);
     });
-    expect((await screen.findByText(/Added 20 trees/)).textContent).toMatch(/Added 20 trees to your cart/);
+    expect((await screen.findByText(/Added 20 trees/)).textContent).toMatch(/Added 20 trees and 1 spawn to your cart/);
     expect(signal).toHaveBeenCalledTimes(1);
     expect(signal.mock.calls[0][0]).toBe("built");
     expect(signal.mock.calls[0][2]).toBeUndefined();
@@ -219,7 +218,8 @@ describe("ResultCard: headline copy", () => {
   const base = { zone: 6, state: "WV", site: "open", track: "food", size: 20, timing: "mixed" } as const;
   it("names the first harvest, the partial fill, the deer drop span and the empty state", () => {
     const ok = plan(base, FIXTURE_CATALOG);
-    expect(headlineFor(ok, base)).toBe("Your 20-tree food forest, first harvest in about 3 years.");
+    expect(headlineFor(ok, base)).toBe("Twenty trees, four layers, first fruit in about three years.");
+    expect([numberWord(5), numberWord(16), numberWord(42), numberWord(100)]).toEqual(["five", "sixteen", "forty-two", "100"]);
     const deer = { ...base, track: "deer", size: 16, timing: "all" } as const;
     expect(headlineFor(plan(deer, FIXTURE_CATALOG), deer)).toBe("Something dropping from Sep to Nov.");
     const empty = { ...base, zone: 1, site: "wet" } as const;
@@ -237,18 +237,18 @@ describe("ResultCard: winter beta (planner-winter-beta spec §C.1, §C.2, §C.3)
     const badges = lines.map((l) => within(l).getByTestId("plan-badge-stratum").textContent);
     expect(badges).toEqual([
       "Overstory anchor",
-      "Understory anchor",
-      "Understory companion",
-      "Understory companion",
-      "Mushroom anchor",
+      "Midstory anchor",
+      "Midstory companion",
+      "Shrub companion",
+      "Ground layer anchor",
     ]);
-    // Redbud fixes N; the wine cap says what it grows on.
-    expect(within(lines[3]).getByText("fixes N")).toBeTruthy();
+    // Redbud (midstory support) fixes N; the wine cap says what it grows on.
+    expect(within(lines[2]).getByText("fixes N")).toBeTruthy();
     expect(within(lines[4]).getByTestId("plan-substrate").textContent).toBe("Grows on wood chips or straw under your trees");
     expect(within(lines[0]).getByText("long-lived")).toBeTruthy();
     expect(screen.queryByText("Needs review")).toBeNull();
     // The mushroom row joins the layer strip once a spawn line sits in it.
-    expect(within(screen.getByRole("list", { name: "Layers" })).getByText("Mushroom")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Layers" })).getByText("Ground layer")).toBeTruthy();
   });
 
   it("Remove posts one removed signal; Swap takes the next candidate and posts one swapped signal", async () => {
@@ -272,7 +272,7 @@ describe("ResultCard: winter beta (planner-winter-beta spec §C.1, §C.2, §C.3)
     await userEvent.click(screen.getByRole("button", { name: "Swap Red Mulberry" }));
     expect(screen.getByRole("link", { name: "Shagbark Hickory" })).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Swap Shagbark Hickory" }));
-    expect(screen.getByTestId("plan-notice").textContent).toMatch(/Nothing else we grow fits the canopy slot/);
+    expect(screen.getByTestId("plan-notice").textContent).toMatch(/Nothing else we grow fits the overstory slot/);
     expect(signal).toHaveBeenCalledTimes(3);
   });
 
@@ -362,10 +362,10 @@ describe("ResultCard: winter beta (planner-winter-beta spec §C.1, §C.2, §C.3)
     expect(body).toMatchObject({ name: "The back field", zone: 6, track: "food" });
     expect(body.lines).toEqual([
       { product_tmpl_id: 101, qty: 4, role: "anchor", stratum: "overstory" },
-      { product_tmpl_id: 102, qty: 6, role: "anchor", stratum: "understory" },
-      { product_tmpl_id: 104, qty: 8, role: "companion", stratum: "understory" },
-      { product_tmpl_id: 108, qty: 2, role: "companion", stratum: "understory" },
-      { product_tmpl_id: 117, qty: 1, role: "anchor", stratum: "mushroom" },
+      { product_tmpl_id: 102, qty: 6, role: "anchor", stratum: "midstory" },
+      { product_tmpl_id: 108, qty: 2, role: "companion", stratum: "midstory" },
+      { product_tmpl_id: 104, qty: 8, role: "companion", stratum: "shrub" },
+      { product_tmpl_id: 117, qty: 1, role: "anchor", stratum: "ground" },
     ]);
     expect(signal).toHaveBeenCalledTimes(1);
     expect(signal.mock.calls[0][0]).toBe("saved");
@@ -388,11 +388,11 @@ describe("ResultCard: winter beta (planner-winter-beta spec §C.1, §C.2, §C.3)
     expect(screen.getByText("Tell us the plant's name.")).toBeTruthy();
     expect(send).not.toHaveBeenCalled();
     await userEvent.type(screen.getByLabelText("Plant name"), "Che");
-    await userEvent.selectOptions(screen.getByLabelText("Which layer"), "understory");
+    await userEvent.selectOptions(screen.getByLabelText("Which layer"), "midstory");
     await userEvent.type(screen.getByLabelText("Why it belongs"), "Fruits for me in zone 6.");
     await userEvent.click(screen.getByTestId("plan-suggest-send"));
     await screen.findByText(/goes to the nursery for review/);
-    expect(send).toHaveBeenCalledWith({ name: "Che", stratum: "understory", note: "Fruits for me in zone 6.", company: "" });
+    expect(send).toHaveBeenCalledWith({ name: "Che", stratum: "midstory", note: "Fruits for me in zone 6.", company: "" });
   });
 });
 
@@ -406,12 +406,12 @@ describe("Planner: manual lines survive Edit", () => {
       throw new Error(`unexpected fetch ${url}`);
     }));
     mount("zip=26501&site=open&track=food&size=20&timing=mixed");
-    await screen.findByRole("heading", { level: 2, name: /Your 20-tree food forest/ });
+    await screen.findByRole("heading", { level: 2, name: /Twenty trees/ });
     await userEvent.click(screen.getByRole("button", { name: "Add Shagbark Hickory" }));
     expect(screen.getAllByTestId("plan-line").length).toBe(6);
     await userEvent.click(screen.getByRole("button", { name: "Edit answers" }));
     await userEvent.click(screen.getByTestId("plan-see"));
-    await screen.findByRole("heading", { level: 2, name: /Your 20-tree food forest/ });
+    await screen.findByRole("heading", { level: 2, name: /Twenty trees/ });
     const lines = screen.getAllByTestId("plan-line");
     expect(lines.length).toBe(6);
     // On the remount the hand add sits in planting order (overstory, with the

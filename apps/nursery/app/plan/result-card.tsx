@@ -63,8 +63,6 @@ interface EditableLine extends PlanLine {
   removed?: boolean;
 }
 
-type TierKey = "bareroot" | "potted";
-const TIER_LABEL: Record<TierKey, string> = { bareroot: "bareroot", potted: "potted" };
 
 const LAYER_ROWS: Slot[] = ["canopy", "understory", "shrub", "mushroom"];
 const SEASON_ROWS: Slot[] = ["early", "late", "offseason"];
@@ -82,30 +80,51 @@ function usd(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
+/** 0 to 99 as a word ("twenty", "forty-two"); larger numbers stay numerals. */
+export function numberWord(n: number): string {
+  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  if (!Number.isInteger(n) || n < 0 || n > 99) return String(n);
+  if (n < 20) return ones[n];
+  const rest = n % 10;
+  return rest ? `${tens[Math.floor(n / 10)]}-${ones[rest]}` : tens[Math.floor(n / 10)];
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * The result headline (Josh 2026-11-06): counts in words, the planting named
+ * by its layers rather than as an order. "Twenty trees, four layers, first
+ * fruit in about five years."
+ */
 export function headlineFor(result: PlanResult, input: PlanInput, subgoalLabel?: string): string {
-  const noun = input.track === "agro" && subgoalLabel ? subgoalLabel.toLowerCase() : copy.TRACK_NOUN[input.track];
   if (result.status === "empty") {
     const where = typeof input.zone === "number" ? `zone ${input.zone}` : "your zone range";
     return `Nothing we grow fits ${copy.SITE_NOUN[input.site]} in ${where} yet.`;
   }
   if (input.track === "deer") {
     const span = dropSpan(result.harvestMonths);
-    return span ? `Something dropping from ${span}.` : `Your ${input.size}-tree ${noun}.`;
+    return span ? `Something dropping from ${span}.` : `${capitalize(numberWord(input.size))} trees for your deer plot.`;
   }
   // Spawn fruits in its first season; the headline is about the trees.
   const years = result.lines
     .filter((l) => !isFungal(l.plant))
     .map((l) => l.plant.years_to_fruit_min)
     .filter((y): y is number => typeof y === "number" && y > 0);
-  const lead = `Your ${input.size}-tree ${noun}`;
+  const layers = new Set(result.lines.map(rowOfLine)).size;
+  const lead =
+    input.track === "agro" && subgoalLabel
+      ? `${capitalize(numberWord(input.size))} trees for ${subgoalLabel.toLowerCase()}`
+      : `${capitalize(numberWord(input.size))} trees, ${numberWord(layers)} ${layers === 1 ? "layer" : "layers"}`;
   if (result.status === "partial") {
-    const filled = result.lines.filter((l) => !isFungal(l.plant)).length;
-    const total = filled + result.unfilled.length;
-    return `${lead}: we filled ${filled} of ${total} layers.`;
+    const total = layers + result.unfilled.length;
+    return `${capitalize(numberWord(input.size))} trees, ${numberWord(layers)} of ${numberWord(total)} layers filled.`;
   }
   if (years.length === 0) return `${lead}.`;
   const n = Math.min(...years);
-  return `${lead}, first harvest in about ${n} ${n === 1 ? "year" : "years"}.`;
+  return `${lead}, first fruit in about ${numberWord(n)} ${n === 1 ? "year" : "years"}.`;
 }
 
 export function ResultCard({
@@ -252,7 +271,7 @@ export function ResultCard({
   return (
     <section aria-labelledby="plan-result-heading" className="plan-result" data-status={result.status}>
       <Eyebrow text={eyebrow} onEdit={onEdit} />
-      <h2 id="plan-result-heading" className="font-display font-medium text-3xl text-primary-deep mt-2 max-w-[28ch] leading-tight">
+      <h2 id="plan-result-heading" className="font-display font-medium text-3xl sm:text-4xl text-primary-deep mt-2 max-w-[28ch] leading-tight">
         {headline}
       </h2>
       {result.status === "partial" && (
@@ -265,7 +284,7 @@ export function ResultCard({
         </p>
       )}
       {!isDeer && (
-        <p className="mt-4 max-w-prose border-l-2 border-primary/30 pl-4 text-sm text-ink-soft" data-testid="plan-philosophy">
+        <p className="mt-4 max-w-prose border-l-2 border-accent pl-4 text-sm text-ink-soft" data-testid="plan-philosophy">
           {copy.PHILOSOPHY}
         </p>
       )}
@@ -319,12 +338,17 @@ export function ResultCard({
           <SuggestForm />
         </div>
 
-        <aside className="order-2 self-start rounded-lg border border-primary/15 bg-paper-soft p-5 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 lg:row-span-2">
-          <dl className="grid grid-cols-2 gap-y-1 text-sm">
-            <dt className="text-ink-soft">Trees</dt>
-            <dd className="text-right font-semibold">{treeCount}</dd>
-            <dt className="text-ink-soft">Subtotal</dt>
-            <dd className="text-right font-semibold">{usd(subtotal)}</dd>
+        <aside className="order-2 self-start rounded-lg border border-primary/20 bg-[var(--grove-color-paper)] p-5 shadow-[var(--grove-shadow-lg)] lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+          {/* Two stats ruled in orange, the way the home hero counts the catalog. */}
+          <dl className="grid grid-cols-2 gap-4" data-testid="plan-summary">
+            <div className="border-t-2 border-accent pt-2">
+              <dt className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">Trees</dt>
+              <dd className="mt-1 font-display text-3xl leading-none text-foreground">{treeCount}</dd>
+            </div>
+            <div className="border-t-2 border-accent pt-2">
+              <dt className="font-mono text-[10px] tracking-[0.18em] uppercase text-ink-soft">Subtotal</dt>
+              <dd className="mt-1 font-display text-3xl leading-none text-foreground">{usd(subtotal)}</dd>
+            </div>
           </dl>
           <ShipTiming lines={active} calendar={calendar} zone={input.zone} />
           {result.bundle && !bundleTaken && (
@@ -483,7 +507,8 @@ function Eyebrow({ text, onEdit }: { text: string; onEdit: () => void }) {
  */
 /** The strip row a line sits in: its slot, or its botanical layer for a support plant. */
 function rowOfLine(line: PlanLine): Slot {
-  if (isFungal(line.plant)) return "mushroom";
+  // The ground band: spawn, ground cover, and vines for now (Josh 2026-11-06).
+  if (isFungal(line.plant) || line.plant.layer === "ground" || line.plant.layer === "vine") return "mushroom";
   if (line.slot === "support") {
     const layer = line.plant.layer;
     return layer === "canopy" || layer === "understory" || layer === "shrub" ? layer : "shrub";
@@ -491,32 +516,65 @@ function rowOfLine(line: PlanLine): Slot {
   return line.slot;
 }
 
+/* The strip reads top-down like the planting itself: canopy darkest, the
+   forest floor (mushroom logs) lightest. Dark bands carry parchment text, the
+   floor carries ink; both pairs clear 4.5:1 on the nursery theme. */
+const BAND: Record<Slot, { row: string; chip: string; label: string; dark: boolean }> = (() => {
+  const dark = {
+    chip: "border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground",
+    label: "text-[var(--grove-color-paper-deep)]",
+    dark: true,
+  };
+  const light = { chip: "border-primary/25 bg-paper-soft text-foreground", label: "text-foreground", dark: false };
+  const deepest = "bg-[var(--grove-color-primary-deep)] text-primary-foreground";
+  const deep = "bg-primary text-primary-foreground";
+  const mid = "bg-[color-mix(in_srgb,var(--grove-color-primary)_84%,var(--grove-color-paper))] text-primary-foreground";
+  const floor = "bg-[var(--grove-color-paper-deep)] text-foreground";
+  return {
+    canopy: { row: deepest, ...dark },
+    understory: { row: deep, ...dark },
+    shrub: { row: mid, ...dark },
+    support: { row: mid, ...dark },
+    mushroom: { row: floor, ...light },
+    early: { row: deepest, ...dark },
+    late: { row: deep, ...dark },
+    offseason: { row: mid, ...dark },
+  };
+})();
+
 function LayerStrip({ rows, lines }: { rows: Slot[]; lines: EditableLine[] }) {
   const rowOf = rowOfLine;
   return (
-    <ol className="overflow-hidden rounded-lg border border-primary/15" aria-label="Layers">
-      {rows.map((row, i) => {
+    <ol className="overflow-hidden rounded-lg shadow-[var(--grove-shadow-md)]" aria-label="Layers">
+      {rows.map((row) => {
         const here = lines.filter((l) => rowOf(l) === row);
-        const tint = ["bg-primary/[0.09]", "bg-primary/[0.06]", "bg-primary/[0.03]", "bg-secondary/10"][i] ?? "";
+        const band = BAND[row];
         return (
-          <li key={row} className={`grid grid-cols-[7rem_1fr] items-center gap-3 border-b border-primary/10 last:border-b-0 ${tint} px-4 py-3`}>
-            <span className="font-mono text-[11px] tracking-[0.18em] uppercase text-primary-deep">
-              {copy.SLOT_LABELS[row]}
+          <li key={row} className={`grid gap-2 px-4 py-3 sm:grid-cols-[12rem_1fr] sm:items-center sm:gap-4 ${band.row}`}>
+            <span className="block">
+              <span className={`block font-mono text-[11px] tracking-[0.18em] uppercase ${band.label}`}>
+                {copy.SLOT_LABELS[row]}
+              </span>
+              {copy.LAYER_NOTES[row] && (
+                <span className={`mt-1 block text-xs leading-snug ${band.dark ? "opacity-80" : "text-ink-soft"}`}>
+                  {copy.LAYER_NOTES[row]}
+                </span>
+              )}
             </span>
             <span className="flex flex-wrap gap-2">
-              {here.length === 0 && <span className="text-sm text-ink-soft">Nothing here yet</span>}
+              {here.length === 0 && <span className={`text-sm ${band.dark ? "opacity-80" : "text-ink-soft"}`}>Nothing here yet</span>}
               {here.map((l) => (
                 <span
                   key={l.plant.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-paper-soft px-3 py-1 text-sm"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${band.chip}`}
                 >
                   <span className="font-semibold">{l.qty}</span>
                   <span>{l.plant.name}</span>
                   {l.slot === "support" && (
-                    <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-ink-soft">support</span>
+                    <span className="font-mono text-[10px] tracking-[0.14em] uppercase opacity-80">support</span>
                   )}
                   {l.manual && (
-                    <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-accent-fg">{copy.YOUR_PICK}</span>
+                    <span className={`font-mono text-[10px] tracking-[0.14em] uppercase ${band.dark ? "text-secondary" : "text-accent-fg"}`}>{copy.YOUR_PICK}</span>
                   )}
                 </span>
               ))}
@@ -563,7 +621,6 @@ function LineRow({
       className="grid grid-cols-[4rem_1fr] gap-4 py-4 sm:grid-cols-[4rem_1fr_auto]"
       data-testid="plan-line"
       data-plan-line={p.id}
-      data-tier={tierOf(p)}
       data-manual={line.manual ? "true" : undefined}
     >
       <div className="relative h-16 w-16 overflow-hidden rounded bg-paper-deep">
@@ -719,41 +776,26 @@ export function cartAcceptsGroup(
   return { ok: true };
 }
 
-function tierOf(plant: PlannerPlant): TierKey {
-  return plant.tier === "potted" ? "potted" : "bareroot";
-}
-
-/** Ship timing from the live calendar: bareroot in the zone's window, potted now. */
+/** Ship timing from the live calendar: the whole planting ships dormant in the zone's window. */
 function ShipTiming({ lines, calendar, zone }: { lines: PlanLine[]; calendar: ShippingCalendar | null; zone: PlanInput["zone"] }) {
   const usda = typeof zone === "number" ? zone : null;
-  const tierKey = [...new Set(lines.map((l) => tierOf(l.plant)))].sort().join("+");
-  const text = useMemo(() => {
-    const tiers = new Set(tierKey.split("+").filter(Boolean));
-    const parts: string[] = [];
-    if (tiers.size === 2) parts.push(copy.SHIP_BOTH_TIERS);
-    if (tiers.has("potted")) parts.push(copy.SHIP_POTTED(calendar?.fulfillment_days ?? [5, 10]));
-    if (tiers.has("bareroot")) {
-      if (calendar) parts.push(barerootNote(resolveShippableMode(new Date(), calendar, usda)));
-      else parts.push("Bareroot trees ship dormant in your zone's window; the exact dates show at checkout.");
-    }
-    return parts;
-  }, [calendar, usda, tierKey]);
+  const text = useMemo(
+    () => (calendar ? barerootNote(resolveShippableMode(new Date(), calendar, usda)) : copy.SHIP_WINDOW_FALLBACK),
+    [calendar, usda],
+  );
   if (lines.length === 0) return null;
   return (
     <div className="mt-4 space-y-2 border-t border-primary/10 pt-3 text-sm text-ink-soft" data-testid="plan-ship-timing">
-      {text.map((t) => (
-        <p key={t}>{t}</p>
-      ))}
+      <p>{text}</p>
     </div>
   );
 }
 
 /**
- * Build my order: adds every line to the cart store the way the product page
- * does, then opens the mini cart. Potted lines are immediate; bareroot lines
- * are always a fall or spring wave pre-order (Josh 2026-10-07), so a plan with
- * both tiers is two orders, potted first, exactly as the cart's own rule
- * (`canAdd`) would otherwise refuse the mix at the second add.
+ * Add the whole planting to the cart as ONE pre-order on the zone's first open
+ * wave (Josh 2026-11-06: nothing is "potted", package it together). Every line,
+ * spawn included, carries the same wave, which is the one shape the cart's own
+ * rule (`canAdd`) accepts without a split.
  */
 function BuildButtons({
   lines,
@@ -773,31 +815,23 @@ function BuildButtons({
 }) {
   const { items, add, openDrawer } = useCart();
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
-  const [built, setBuilt] = useState<TierKey[]>([]);
+  const [built, setBuilt] = useState(false);
   const usda = typeof zone === "number" ? zone : null;
+  const units = lines.reduce((s, l) => s + l.qty, 0) + (bundle ? bundle.covers : 0);
 
-  const groups: Record<TierKey, PlanLine[]> = { potted: [], bareroot: [] };
-  for (const l of lines) groups[tierOf(l.plant)].push(l);
-  const order: TierKey[] = (["potted", "bareroot"] as TierKey[]).filter((t) => groups[t].length > 0);
-  if (bundle) order.push(...(order.includes("bareroot") ? [] : (["bareroot"] as TierKey[])));
-
-  function build(tier: TierKey) {
-    const group = groups[tier];
-    let wave: ShipWave | undefined;
-    if (tier === "bareroot") {
-      const waves = usda != null ? preorderWaves(usda, new Date(), calendar) : [];
-      wave = firstOpenWave(waves) ?? undefined;
-      if (!wave) {
-        setMessage({ kind: "error", text: copy.WAVES_CLOSED(usda ?? 0) });
-        return;
-      }
+  function build() {
+    const waves = usda != null ? preorderWaves(usda, new Date(), calendar) : [];
+    const wave = firstOpenWave(waves) ?? undefined;
+    if (!wave) {
+      setMessage({ kind: "error", text: copy.WAVES_CLOSED(usda ?? 0) });
+      return;
     }
     const check = cartAcceptsGroup(items, wave);
     if (!check.ok) {
       setMessage({ kind: "error", text: check.message });
       return;
     }
-    const missing = group.filter((l) => !l.plant.variant_id);
+    const missing = lines.filter((l) => !l.plant.variant_id);
     if (missing.length > 0) {
       setMessage({
         kind: "error",
@@ -807,7 +841,7 @@ function BuildButtons({
     }
     onBuilt();
     let first: number | undefined;
-    for (const l of group) {
+    for (const l of lines) {
       const variantId = l.plant.variant_id as number;
       first ??= variantId;
       add(
@@ -817,12 +851,12 @@ function BuildButtons({
           name: l.plant.name,
           price: l.plant.price,
           imageUrl: l.plant.image ? resolveOdooImageUrl(l.plant.image, odooBase) : "",
-          ...(wave ? { wave } : {}),
+          wave,
         },
         l.qty,
       );
     }
-    if (bundle && tier === "bareroot" && bundle.variantId) {
+    if (bundle && bundle.variantId) {
       first ??= bundle.variantId;
       add(
         {
@@ -832,13 +866,13 @@ function BuildButtons({
           price: bundle.price,
           imageUrl: "",
           consultBuilt: bundle.consultBuilt,
-          ...(wave ? { wave } : {}),
+          wave,
         },
         1,
       );
     }
-    setBuilt((b) => [...b, tier]);
-    setMessage({ kind: "ok", text: `Added ${countLabel(group, bundle && tier === "bareroot" ? bundle.covers : 0)} to your cart.` });
+    setBuilt(true);
+    setMessage({ kind: "ok", text: `Added ${countLabel(lines, bundle ? bundle.covers : 0)} to your cart.` });
     openDrawer(first);
   }
 
@@ -853,27 +887,15 @@ function BuildButtons({
           <span>{message.text}</span>
         </p>
       )}
-      <div className="flex flex-col gap-2">
-        {order.map((tier) => {
-          const units = groups[tier].reduce((s, l) => s + l.qty, 0) + (bundle && tier === "bareroot" ? bundle.covers : 0);
-          const label = order.length === 1 ? copy.BUILD_ORDER : copy.BUILD_GROUP(TIER_LABEL[tier], countLabel(groups[tier], bundle && tier === "bareroot" ? bundle.covers : 0));
-          return (
-            <button
-              key={tier}
-              type="button"
-              className="btn btn-forest w-full justify-center"
-              data-testid={`plan-build-${tier}`}
-              disabled={built.includes(tier) || units === 0}
-              onClick={() => build(tier)}
-            >
-              {label} <GlyphIcon name="arrow-right" />
-            </button>
-          );
-        })}
-      </div>
-      {order.length === 2 && (
-        <p className="mt-2 text-xs text-ink-soft">{copy.MIX_REFUSED_BARE_FIRST}</p>
-      )}
+      <button
+        type="button"
+        className="btn btn-forest w-full justify-center"
+        data-testid="plan-build"
+        disabled={built || units === 0}
+        onClick={build}
+      >
+        {copy.BUILD_ORDER} <GlyphIcon name="arrow-right" />
+      </button>
     </div>
   );
 }

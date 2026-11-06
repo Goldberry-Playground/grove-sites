@@ -1159,7 +1159,7 @@ export interface ApiPlannerPlant {
   // missing key as unset.
   role?: "anchor" | "companion" | null;
   succession?: "fast" | "mid" | "long" | null;
-  stratum?: "overstory" | "understory" | "mushroom" | null;
+  stratum?: "overstory" | "midstory" | "shrub" | "ground" | null;
   living_mulch?: boolean;
   substrate?: string | null;
   flagged?: boolean;
@@ -1222,7 +1222,7 @@ export interface ApiPlannerSignalInput {
 /** `POST /grove/api/v1/planner/suggest` body (name, stratum, why). */
 export interface ApiPlannerSuggestInput {
   name: string;
-  stratum?: "overstory" | "understory" | "mushroom" | null;
+  stratum?: "overstory" | "midstory" | "shrub" | "ground" | null;
   note?: string | null;
   browser_id: string;
 }

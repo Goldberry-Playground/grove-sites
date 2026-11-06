@@ -43,7 +43,7 @@ export interface LearningRouteOptions {
 }
 
 const SIGNAL_KINDS = new Set(["removed", "swapped", "added", "built", "saved"]);
-const STRATA = new Set(["overstory", "understory", "mushroom"]);
+const STRATA = new Set(["overstory", "midstory", "shrub", "ground"]);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

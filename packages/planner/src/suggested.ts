@@ -13,28 +13,36 @@ import type {
   ZoneFit,
 } from "./types";
 
-/** Strata in planting order (winter-beta spec §C.1): overstory, understory, mushroom. */
-export const STRATA: readonly Stratum[] = ["overstory", "understory", "mushroom"];
+/**
+ * A feed from a grove_headless older than 19.0.1.96.0 still says
+ * `understory` / `mushroom`; read those as the new words so either side can
+ * ship first. A shrub from such a feed lands in midstory until Odoo catches up.
+ */
+const LEGACY_STRATUM: Record<string, Stratum> = { understory: "midstory", mushroom: "ground" };
+
+/** Strata in planting order: overstory, midstory, shrub, ground. */
+export const STRATA: readonly Stratum[] = ["overstory", "midstory", "shrub", "ground"];
 
 /** §A.1, for a feed row that carries a layer but no stratum (or a pre-beta fixture). */
 export function stratumOf(plant: Pick<PlannerPlant, "layer" | "stratum">): Stratum | null {
-  if (plant.stratum) return plant.stratum;
+  if (plant.stratum) return LEGACY_STRATUM[plant.stratum] ?? plant.stratum;
   switch (plant.layer) {
     case "canopy":
       return "overstory";
     case "understory":
+      return "midstory";
     case "shrub":
+      return "shrub";
     case "vine":
     case "ground":
-      return "understory";
     case "fungal":
-      return "mushroom";
+      return "ground";
     default:
       return null;
   }
 }
 
-const STRATUM_RANK: Record<Stratum, number> = { overstory: 0, understory: 1, mushroom: 2 };
+const STRATUM_RANK: Record<Stratum, number> = { overstory: 0, midstory: 1, shrub: 2, ground: 3 };
 const ROLE_RANK: Record<PlannerRole, number> = { anchor: 0, companion: 1 };
 
 /**
@@ -98,12 +106,12 @@ export function suggested(
   const rules = resolveRules(catalog);
   const { pool, hidden } = eligible(input, catalog);
   const taken = new Set<number>([...result.lines.map((l) => l.plant.id), ...placed]);
-  const groups: Record<Stratum, SuggestedPlant[]> = { overstory: [], understory: [], mushroom: [] };
+  const groups: Record<Stratum, SuggestedPlant[]> = { overstory: [], midstory: [], shrub: [], ground: [] };
   for (const c of pool.values()) {
     if (taken.has(c.plant.id)) continue;
     const stratum = stratumOf(c.plant);
     if (!stratum) continue;
-    if (stratum === "mushroom" && input.track === "deer") continue;
+    if (isFungal(c.plant) && input.track === "deer") continue;
     const slot = naturalSlot(c.plant, input.track);
     groups[stratum].push({ plant: c.plant, zoneFit: c.zoneFit, slot, score: score(c.plant, c.zoneFit, slot, 1, input, rules) });
   }

@@ -13,13 +13,13 @@ import { expect, test } from "@playwright/test";
 
 const MOBILE = { width: 390, height: 844 };
 
-test.describe("Order builder", () => {
+test.describe("Plant a community", () => {
   test.beforeEach(async ({ page }) => {
     const res = await page.goto("/plan");
     test.skip(res?.status() === 404, "PLANNER_ENABLED is off on this target");
   });
 
-  test("WV ZIP, open ground, food forest 20, mixed → Build my order → cart has the lines", async ({ page }) => {
+  test("WV ZIP, open ground, food forest 20, mixed → add to cart → cart has the lines", async ({ page }) => {
     await page.getByLabel("ZIP code").fill("26501");
     await expect(page.getByText(/ZIP 26501 is in USDA zone \d+/)).toBeVisible();
 
@@ -39,22 +39,17 @@ test.describe("Order builder", () => {
     await expect(page).toHaveURL(/size=20/);
     await expect(page).toHaveURL(/timing=mixed/);
 
-    const heading = page.getByRole("heading", { level: 2, name: /20-tree food forest/ });
+    const heading = page.getByRole("heading", { level: 2, name: /Twenty trees/ });
     await expect(heading).toBeVisible({ timeout: 30_000 });
     const lines = page.getByTestId("plan-line");
     const lineCount = await lines.count();
     expect(lineCount).toBeGreaterThan(0);
 
-    // A plan with mushroom spawn (winter beta) is two orders, potted spawn
-    // and bareroot trees; pre-orders check out on their own, so build the
-    // tree group and check those lines reached the cart.
-    const bareroot = page.getByTestId("plan-build-bareroot");
-    const buildsBareroot = (await bareroot.count()) > 0;
-    const group = buildsBareroot ? page.locator("[data-testid='plan-line'][data-tier='bareroot']") : lines;
-    const names = await group.locator("a[href^='/shop/']").allTextContents();
+    // The whole planting, spawn included, goes in as one wave pre-order.
+    const names = await lines.locator("a[href^='/shop/']").allTextContents();
     expect(names.length).toBeGreaterThan(0);
 
-    await (buildsBareroot ? bareroot : page.getByRole("button", { name: /Build my/ }).first()).click();
+    await page.getByTestId("plan-build").click();
     await expect(page.getByRole("status").filter({ hasText: /Added \d+/ })).toContainText(/Added \d+ (trees?|spawn)/);
 
     // The mini cart opens with the lines; the cart page lists each planned plant.
@@ -67,7 +62,7 @@ test.describe("Order builder", () => {
   test("phone: the quiz and the result fit the viewport", async ({ page }) => {
     await page.setViewportSize(MOBILE);
     await page.goto("/plan?zip=26501&site=open&track=food&size=20&timing=mixed");
-    await expect(page.getByRole("heading", { level: 2, name: /20-tree food forest/ })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { level: 2, name: /Twenty trees/ })).toBeVisible({ timeout: 30_000 });
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );

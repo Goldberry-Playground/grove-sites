@@ -23,10 +23,11 @@ export function PlanTeaser() {
             {PLAN_EXPERIMENTAL_TAG}
           </span>
           <h2 id="plan-teaser-heading">
-            {HOME_TEASER_HEADING} <em>{HOME_TEASER_LEDE}</em>
+            {HOME_TEASER_HEADING.lead} <em>{HOME_TEASER_HEADING.em}</em>
           </h2>
         </div>
       </div>
+      <p className="section-lede">{HOME_TEASER_LEDE}</p>
       <div className="max-w-5xl">
         <Suspense fallback={null}>
           <Planner mode="home" odooBase={odooBase} contact={tenantConfig.contact} />

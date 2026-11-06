@@ -69,7 +69,7 @@ describe("planner signals (spec §B.2 / §C.1)", () => {
     expect(await postSave(save, mk(429))).toEqual({ ok: false, reason: "limit" });
     expect(await postSave(save, mk(400))).toEqual({ ok: false, reason: "invalid" });
     expect(await postSave(save, mk(502))).toEqual({ ok: false, reason: "failed" });
-    const suggest = { name: "Che", stratum: "understory" as const, note: "Fruits in zone 6 for me" };
+    const suggest = { name: "Che", stratum: "midstory" as const, note: "Fruits in zone 6 for me" };
     expect(await postSuggest(suggest, mk(200))).toEqual({ ok: true, id: null });
     const f = mk(200);
     await postSuggest({ ...suggest, company: "" }, f);
