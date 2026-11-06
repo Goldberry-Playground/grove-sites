@@ -37,6 +37,9 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Playwright owns `*.spec.ts`; `e2e/*.test.ts` are vitest unit tests for
+  // the helpers (watchdog.test.ts, GOL-3786) and must not be collected here.
+  testMatch: "**/*.spec.ts",
   // Deployed target + Stripe redirects are inherently a bit slow; give room.
   timeout: 90_000,
   expect: { timeout: 15_000 },

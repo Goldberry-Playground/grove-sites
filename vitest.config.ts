@@ -20,6 +20,9 @@ export default defineConfig({
       "apps/*/app/**/*.{test,spec}.{ts,tsx}",
       "apps/*/data/**/*.{test,spec}.{ts,tsx}",
       "apps/*/components/**/*.{test,spec}.{ts,tsx}",
+      // Unit tests for the Playwright helpers. `.test.ts` only: `e2e/*.spec.ts`
+      // are the Playwright specs themselves.
+      "apps/*/e2e/**/*.test.{ts,tsx}",
       // Repo-wide invariant guards that span multiple apps/packages.
       "tests/**/*.{test,spec}.{ts,tsx}",
     ],
