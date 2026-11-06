@@ -83,7 +83,7 @@ QA nursery and `skip_stripe` defaults to **false**.
 
 | Spec | Gate | What it proves |
 | --- | --- | --- |
-| `qa-photos.spec.ts` | accurate photos | every catalog card + a PDP sample renders a *real* product photo (`img.product-photo`, decoded, ≥ 20 KB, from that product's Odoo image record) — never the "Photo coming soon" fallback and never Odoo's silent HTTP-200 gray placeholder |
+| `qa-photos.spec.ts` | accurate photos | every catalog card, a PDP sample **and every lead-seller card on `/`** (GOL-3785) renders a *real* product photo (`img.product-photo`, decoded, ≥ 20 KB, from that product's Odoo image record) — never the "Photo coming soon" fallback and never Odoo's silent HTTP-200 gray placeholder |
 | `qa-perf.spec.ts` | no major slowdowns | live-path smoke budget per route (TTFB / DCL / LCP / HTML weight) + hero images served through the Next optimizer; the *lab* budget stays in `lighthouse-ci.yml` / `perf-budget.yml` |
 | `qa-backend-health.spec.ts` | backend has no major errors | zero 5xx / page errors / console errors across the shopper journey; `grove_headless` health + product feed; checkout answers the JSON contract, never an edge error page (the 2026-09-06 incident signature) |
 | `checkout-promo-code.spec.ts` | #700 / GOL-2088 | promo input offered + upper-cased; ineligible code (deposit cart) rejected server-side and surfaced; eligible code itemizes a `discount` line that reconciles (`@stripe @promo`) |
