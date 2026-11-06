@@ -459,9 +459,18 @@ export async function fillStripeCheckoutAndPay(
     // list exists selects nothing. Fallback: a synthetic click event on the
     // overlay button (no hit-testing involved).
     const cardLabel = page.getByText("Card", { exact: true }).filter({ visible: true }).first();
+    // Stripe's own failure screen. Its `payment_pages/:id/init` POST never
+    // completed (Playwright's Linux WebKit build does this on every run,
+    // GOL-3661 / GOL-3786), so no payment method will ever render: say so
+    // instead of polling for a Card row that cannot appear.
+    const stripeInitFailed = page.getByRole("heading", { name: /something went wrong/i });
     await cardLabel.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
     const selectCard = async () => {
-      const box = await cardLabel.boundingBox().catch(() => null);
+      // `boundingBox` with no timeout waits for the element until the TEST
+      // timeout: on the 2026-11-05 WebKit gate that was ~150 s of nothing,
+      // then a "Target page, context or browser has been closed" from the
+      // teardown (GOL-3786). Bound it; the poll below re-tries anyway.
+      const box = await cardLabel.boundingBox({ timeout: 2_000 }).catch(() => null);
       if (box) {
         await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
         return;
@@ -474,8 +483,12 @@ export async function fillStripeCheckoutAndPay(
       .poll(
         async () => {
           card = await findCardNumber();
-          if (!card) await selectCard();
-          return card ? "found" : "missing";
+          if (card) return "found";
+          if (await stripeInitFailed.isVisible().catch(() => false)) {
+            return "stripe-init-failed: Stripe's hosted page shows 'Something went wrong' (its payment_pages/:id/init fetch did not complete; GOL-3661)";
+          }
+          await selectCard();
+          return "missing";
         },
         {
           timeout: 20_000,

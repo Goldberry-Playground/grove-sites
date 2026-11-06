@@ -1,4 +1,5 @@
 import { expect, type Page, type Response } from "@playwright/test";
+import { isLivechatAbortNoise, isWebKitRscPrefetchNoise } from "./watchdog";
 
 /**
  * QA release-gate helpers (2026-09-07 QA deploy → prod promotion).
@@ -44,6 +45,12 @@ export const MIN_REAL_PHOTO_BYTES = 20 * 1024;
  * Why both: a backend 500 on `/api/cart` or `/grove/api/v1/*` surfaces as a
  * 5xx response, but a BFF that swallows an upstream failure surfaces only as a
  * console error. The gate wants "no major errors" on either side.
+ *
+ * WebKit (the iphone and desktop-mac projects) additionally narrates fetches
+ * that the spec's own navigation cancelled: Next's RSC prefetch and the Odoo
+ * livechat long-poll (GOL-3786). Those two documented shapes are dropped, and
+ * only when the page really is WebKit, so Chromium's list stays exactly as
+ * strict as before. Anything else WebKit reports still fails the gate.
  */
 export function collectFailures(page: Page): {
   failures: string[];
@@ -51,6 +58,7 @@ export function collectFailures(page: Page): {
 } {
   const failures: string[] = [];
   const responses5xx: Response[] = [];
+  const isWebKit = page.context().browser()?.browserType().name() === "webkit";
   page.on("response", (r) => {
     if (r.status() >= 500) {
       responses5xx.push(r);
@@ -69,10 +77,16 @@ export function collectFailures(page: Page): {
       // deposit cart). Those are healthy responses, asserted on their own by
       // the specs; only a 5xx resource failure is a backend error here.
       if (/Failed to load resource: the server responded with a status of 4\d\d/.test(text)) return;
+      // WebKit only: Next's router prefetch (`?_rsc=`) aborted by the next
+      // navigation; the router falls back to a full navigation by itself.
+      if (isWebKit && isWebKitRscPrefetchNoise(text)) return;
       failures.push(`console.error: ${text.slice(0, 300)}`);
     }
   });
-  page.on("pageerror", (e) => failures.push(`pageerror: ${e.message.slice(0, 300)}`));
+  page.on("pageerror", (e) => {
+    if (isWebKit && (isWebKitRscPrefetchNoise(e.message) || isLivechatAbortNoise(e))) return;
+    failures.push(`pageerror: ${e.message.slice(0, 300)}`);
+  });
   return { failures, responses5xx };
 }
 

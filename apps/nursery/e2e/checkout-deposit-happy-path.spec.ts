@@ -38,13 +38,28 @@ import {
  *   - 4242 pays the deposit, lands on /checkout/success, and the cart empties.
  *
  * @stripe — real Stripe TEST session + payment on QA.
+ *
+ * Chromium only (desktop-windows, android). Playwright's Linux WebKit build
+ * cannot complete Stripe's hosted page: its `payment_pages/:id/init` POST fails
+ * on the wire and Stripe renders "Something went wrong" instead of the payment
+ * methods (GOL-3661; reproduced 6/6 on the 2026-11-05 Train #4 gate, iphone and
+ * desktop-mac, trace network status -1). That is a test-browser limit, not real
+ * Safari, and the same limit already scopes the canary's Pay-button check to
+ * Chromium. Everything before the Stripe hand-off (wave pre-order, $10 deposit
+ * session, review split) stays covered on WebKit by preorder-waves.spec.ts and
+ * checkout-promo-code.spec.ts.
  */
 const ZONE = 6; // ZIP 26651, the fillCheckoutForm default
 
 test.describe("checkout — deposit happy path (flat $10 per order)", { tag: "@stripe" }, () => {
   test("a wave pre-order pays a single $10 deposit, lands on success, empties the cart", async ({
     page,
+    browserName,
   }) => {
+    test.skip(
+      browserName === "webkit",
+      "Stripe's hosted page cannot initialise on Playwright's Linux WebKit (GOL-3661 / GOL-3786); the money path is gated on Chromium",
+    );
     // Deployed target + Stripe's hosted page + a real test payment: give it
     // room beyond the suite default so a slow Stripe render is a retry, not a
     // torn-down browser mid-poll.

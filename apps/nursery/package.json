@@ -8,6 +8,7 @@
     "start": "next start --port 3003",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
+    "test": "vitest run --root ../.. apps/nursery/",
     "test:e2e": "playwright test",
     "test:e2e:no-stripe": "playwright test --grep-invert @stripe",
     "test:e2e:gate": "playwright test --grep-invert @known-issue",

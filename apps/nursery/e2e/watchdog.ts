@@ -83,21 +83,63 @@ export { expect };
  *   - "... due to access control checks." and "Load failed": a fetch cancelled
  *     by a navigation (the spec's own page.goto). Real /api failures are
  *     caught by the response and requestfailed checks instead.
- *   - Odoo livechat (`im_livechat`, served from odoo.gatheringatthegrove.com)
- *     losing its long-poll on navigation. Third-party widget, not checkout.
- *     First seen failing the prod canary in Actions, 2026-10-26 18:50Z.
- *     Its `boot()` also injects a `<link>` to `/im_livechat/font-awesome`;
- *     a navigation cuts that load off, and the link's `error` Event rejects a
- *     promise nobody catches, so the message is only "[object Event]" and the
- *     widget shows up in the stack instead (traced on prod, 2026-10-27).
+ *   - Next's router prefetch of an RSC payload cut off by the navigation it was
+ *     prefetching for ({@link isWebKitRscPrefetchNoise}).
+ *   - Odoo livechat losing its long-poll on navigation
+ *     ({@link isLivechatAbortNoise}).
  */
 function isWebKitAbortNoise(err: Error): boolean {
   return (
     /due to access control checks\.$/.test(err.message) ||
     /^(TypeError: )?Load failed$/.test(err.message) ||
-    /im_livechat\//.test(err.message) ||
-    /im_livechat\//.test(err.stack ?? "")
+    isWebKitRscPrefetchNoise(err.message) ||
+    isLivechatAbortNoise(err)
   );
+}
+
+/**
+ * WebKit narrating a Next.js router prefetch that a navigation cancelled
+ * (GOL-3786, Train #4 QA gate 2026-11-05: every WebKit run of the qa gate's
+ * backend-health spec failed on these alone).
+ *
+ * Next's app router prefetches the RSC payload of every `<Link>` in view as a
+ * `GET <href>?_rsc=<hash>` fetch. When the spec's next `page.goto` (or the
+ * shopper's tap) lands before that fetch settles, WebKit aborts it and reports
+ * it two ways, both of which the router recovers from by itself:
+ *
+ *   - `console.error`, logged by Next's `fetchServerResponse`:
+ *     "Failed to fetch RSC payload for <url>. Falling back to browser
+ *     navigation. TypeError: Load failed" — the fallback IS the recovery: the
+ *     router does a full document navigation instead.
+ *   - `pageerror` naming the aborted request:
+ *     "/<host>/shop/<slug>?_rsc=<hash> due to access control checks."
+ *
+ * Matches ONLY those two shapes: the Next prefetch sentence followed by a
+ * WebKit abort tail, or a `?_rsc=` request URL followed by WebKit's
+ * access-control abort tail. A bare "Load failed", a 5xx resource error, or a
+ * thrown exception in app code never matches, so a real page error still fails
+ * the gate (see watchdog.test.ts). Chromium and Firefox word their aborts
+ * differently and never produce either shape; callers that can see the browser
+ * should also gate on it (see `collectFailures` in qa-helpers.ts).
+ */
+export function isWebKitRscPrefetchNoise(text: string): boolean {
+  const nextPrefetchFallback =
+    /^Failed to fetch RSC payload for \S+\. Falling back to browser navigation\. (TypeError: Load failed|\S* ?due to access control checks\.)$/;
+  const abortedRscRequest = /^\S*\?_rsc=\S+ due to access control checks\.$/;
+  return nextPrefetchFallback.test(text) || abortedRscRequest.test(text);
+}
+
+/**
+ * Odoo livechat (`im_livechat`, served from the Odoo host) losing its
+ * long-poll on navigation. Third-party widget, not checkout. First seen failing
+ * the prod canary in Actions, 2026-10-26 18:50Z. Its `boot()` also injects a
+ * `<link>` to `/im_livechat/font-awesome`; a navigation cuts that load off, and
+ * the link's `error` Event rejects a promise nobody catches, so the message is
+ * only "[object Event]" and the widget shows up in the stack instead (traced on
+ * prod, 2026-10-27).
+ */
+export function isLivechatAbortNoise(err: { message: string; stack?: string }): boolean {
+  return /im_livechat\//.test(err.message) || /im_livechat\//.test(err.stack ?? "");
 }
 
 /**
