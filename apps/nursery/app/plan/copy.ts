@@ -6,17 +6,18 @@ import type { PlannerRole, Site, Slot, Stratum, Subgoal, Succession, Timing, Tra
  * never drift. Plain, neighborly, no em dashes (GOL-589).
  */
 
-export const PLAN_EYEBROW = "Order builder";
+export const PLAN_EYEBROW = "Plant a community";
 /** Shown beside the eyebrow on /plan and the home teaser while the planner is new (Josh 2026-11-03). */
 export const PLAN_EXPERIMENTAL_TAG = "Experimental";
 export const PLAN_EXPERIMENTAL_NOTE =
   "This is a new tool and we are still adding plants to it. If your plan comes up short, browse the shop or ask us and we will help you choose.";
-export const PLAN_HEADING = { lead: "Four questions.", em: "One planted order." };
+export const PLAN_HEADING = { lead: "One patch of ground,", em: "planted as a community." };
 export const PLAN_LEDE =
-  "Tell us where you are planting and what you want from it. We will put together a mix from what we grow, sized for your spot, and you can change any line before it goes in the cart.";
+  "Tell us where you are planting and what you want from it. We pick anchors that will stand for a lifetime, companions that feed the soil while they grow, and we size it for your spot. Change any line before it goes in the cart.";
 
-export const HOME_TEASER_HEADING = "Need help choosing trees?";
-export const HOME_TEASER_LEDE = "Answer four questions. We'll build your order.";
+/** Josh 2026-11-06: polyculture first, never "answer four questions, we build your order". */
+export const HOME_TEASER_HEADING = { lead: "Plant a grove,", em: "not a row." };
+export const HOME_TEASER_LEDE = "Say where it goes and what it is for. We put together the layers.";
 
 export const QUESTIONS = {
   where: "Where are you planting?",
@@ -89,12 +90,17 @@ export const TIMINGS: Record<Timing, { label: string; detail: string }> = {
   year: { label: "All year", detail: "Something every month we can" },
 };
 
+/**
+ * The four layers as the planting reads top-down (Josh 2026-11-06, after
+ * growperma.com/blog/food-forest-canopy-trees-choosing-your-overstory):
+ * overstory, midstory, shrub, ground. The engine's slot keys are unchanged.
+ */
 export const SLOT_LABELS: Record<Slot, string> = {
-  canopy: "Canopy",
-  understory: "Understory",
-  shrub: "Shrub",
+  canopy: "Overstory",
+  understory: "Midstory layer",
+  shrub: "Shrub layer",
   support: "Support",
-  mushroom: "Mushroom",
+  mushroom: "Ground layer",
   early: "Early season",
   late: "Late season",
   offseason: "Off season",
@@ -108,14 +114,22 @@ export const PHILOSOPHY =
 
 export const STRATUM_LABELS: Record<Stratum, string> = {
   overstory: "Overstory",
-  understory: "Understory",
-  mushroom: "Mushroom",
+  midstory: "Midstory",
+  shrub: "Shrub",
+  ground: "Ground layer",
+};
+/** One line under each layer in the strip: what the layer does in the planting. */
+export const LAYER_NOTES: Partial<Record<Slot, string>> = {
+  canopy: "The tall trees that set the structure for everything below. Chosen first: they decide what grows under them for the next 30 to 80 years.",
+  understory: "Smaller trees beneath the overstory. They add density and catch the sun that gets through.",
+  shrub: "Nuts and berries at arm height. They fill the gaps and crop while the trees come up.",
+  mushroom: "Mushrooms, wildflowers, ferns and medicinal plants like ginseng, living on the shade and the prunings.",
 };
 export const ROLE_LABELS: Record<PlannerRole, string> = {
   anchor: "anchor",
   companion: "companion",
 };
-/** "Overstory anchor", "Understory companion", "Mushroom anchor". */
+/** "Overstory anchor", "Midstory companion", "Ground layer anchor". */
 export const stratumRole = (stratum: Stratum | null, role: PlannerRole | null): string | null => {
   if (stratum && role) return `${STRATUM_LABELS[stratum]} ${ROLE_LABELS[role]}`;
   if (stratum) return STRATUM_LABELS[stratum];
@@ -195,9 +209,8 @@ export const TRACK_NOUN: Record<Track, string> = {
 
 export const SEE_PLAN = "See my plan";
 export const EDIT_ANSWERS = "Edit answers";
-export const BUILD_ORDER = "Build my order";
-export const BUILD_GROUP = (tierLabel: string, count: string) =>
-  `Build my ${tierLabel} order (${count})`;
+/** One button, the whole planting as one pre-order (Josh 2026-11-06: nothing is "potted"; package it together). */
+export const BUILD_ORDER = "Add the whole planting to my cart";
 export const TALK_FIRST = "Talk it through first";
 export const RESET_PLAN = "Reset to our mix";
 export const REMOVE_LINE = "Remove";
@@ -215,11 +228,7 @@ export const CONSULT_HEADING = "Talk it through first";
 export const CONSULT_BODY =
   "A planting this size is worth an hour with us. Add the free planting consult at checkout and we will walk the plan with you before anything ships, or reach us directly:";
 
-export const SHIP_BOTH_TIERS =
-  "Your potted trees ship now; your bareroot trees ship in your zone's window.";
-export const SHIP_POTTED = (days: [number, number]) =>
-  `Potted trees ship now, peat and bagged, in ${days[0]} to ${days[1]} business days.`;
+export const SHIP_WINDOW_FALLBACK =
+  "Everything ships dormant in your zone's window; the exact dates show at checkout.";
 export const WAVES_CLOSED = (zone: number) =>
   `Bareroot pre-orders for zone ${zone} are closed right now. They open September 1 for the fall wave and November 1 for spring. Add your email to the lines below and we will say when.`;
-export const MIX_REFUSED_BARE_FIRST =
-  "Pre-orders check out on their own. Build the potted order first, check out, then come back for the bareroot lines.";

@@ -34,8 +34,12 @@ export type Layer = "canopy" | "understory" | "shrub";
  */
 export type Slot = Layer | "support" | "mushroom" | "early" | "late" | "offseason";
 
-/** The three retail strata (winter-beta spec §A.1), projections of the consultant vocabulary. */
-export type Stratum = "overstory" | "understory" | "mushroom";
+/**
+ * The four retail strata as the planting reads top-down (Josh 2026-11-06):
+ * overstory, midstory, shrub, ground. Ground holds ground cover, vines (for
+ * now), ferns, medicinals like ginseng, and mushroom spawn.
+ */
+export type Stratum = "overstory" | "midstory" | "shrub" | "ground";
 
 /** Anchor: a long-lived tree the system is built around. Companion: feeds soil, pollinators and people while anchors grow. */
 export type PlannerRole = "anchor" | "companion";

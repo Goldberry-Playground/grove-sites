@@ -14,9 +14,9 @@ import { Planner } from "./planner";
  * unknown path.
  */
 export const metadata: Metadata = {
-  title: "Build my order",
+  title: "Plant a community",
   description:
-    "Answer four questions about where you are planting and what you want from it, and we will put together a planted order from what we grow.",
+    "Tell us where you are planting and what you want from it. We lay out a planting as a community from what we grow: anchors, companions, and the layers between.",
   alternates: { canonical: "/plan" },
 };
 

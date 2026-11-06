@@ -49,8 +49,9 @@ function plant(seed: PlantSeed): PlannerPlant {
 
 function stratumForLayer(layer: string | null): PlannerPlant["stratum"] {
   if (layer === "canopy") return "overstory";
-  if (layer === "fungal") return "mushroom";
-  return layer ? "understory" : null;
+  if (layer === "understory") return "midstory";
+  if (layer === "shrub") return "shrub";
+  return layer ? "ground" : null;
 }
 
 export const FIXTURE_PLANTS: PlannerPlant[] = [

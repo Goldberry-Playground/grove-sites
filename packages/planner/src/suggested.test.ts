@@ -17,8 +17,8 @@ describe("suggested() (winter-beta spec §C.2)", () => {
     }
     // Overstory: mulberry and hickory (chestnut is placed, oak sold out, walnut pickup-only).
     expect(s.groups.overstory.map((p) => p.plant.id)).toEqual([107, 109]);
-    // Mushroom: the shiitake, since the wine cap took the slot.
-    expect(s.groups.mushroom.map((p) => p.plant.id)).toEqual([118]);
+    // Ground: the shiitake, since the wine cap took the slot.
+    expect(s.groups.ground.map((p) => p.plant.id)).toEqual([118]);
     // Score order within a stratum, ties on id.
     for (const group of Object.values(s.groups)) {
       for (let i = 1; i < group.length; i++) {
@@ -43,7 +43,7 @@ describe("suggested() (winter-beta spec §C.2)", () => {
   it("never offers spawn on the deer track and skips ids the card already shows", () => {
     const deer: PlanInput = { ...WV, track: "deer", size: 8, timing: "all" };
     const s = suggested(deer, FIXTURE_CATALOG, plan(deer, FIXTURE_CATALOG));
-    expect(s.groups.mushroom).toEqual([]);
+    expect(s.groups.ground).toEqual([]);
     const food = suggested(WV, FIXTURE_CATALOG, plan(WV, FIXTURE_CATALOG), [107]);
     expect(food.all.some((p) => p.plant.id === 107)).toBe(false);
   });
@@ -101,7 +101,7 @@ describe("orderLines() and stratumOf()", () => {
     zoneFit: "safe",
   });
 
-  it("orders by stratum (overstory, understory, mushroom) then anchor first, keeping engine order otherwise", () => {
+  it("orders by stratum (overstory, midstory, shrub, ground) then anchor first, keeping engine order otherwise", () => {
     const lines = [
       mk(5, "fungal", "companion"),
       mk(4, "shrub", "companion"),
@@ -116,17 +116,22 @@ describe("orderLines() and stratumOf()", () => {
 
   it("derives the stratum from the layer when the feed has none (§A.1)", () => {
     expect(stratumOf({ layer: "canopy", stratum: null })).toBe("overstory");
-    expect(stratumOf({ layer: "vine", stratum: null })).toBe("understory");
-    expect(stratumOf({ layer: "ground", stratum: null })).toBe("understory");
-    expect(stratumOf({ layer: "fungal", stratum: null })).toBe("mushroom");
+    expect(stratumOf({ layer: "understory", stratum: null })).toBe("midstory");
+    expect(stratumOf({ layer: "shrub", stratum: null })).toBe("shrub");
+    expect(stratumOf({ layer: "vine", stratum: null })).toBe("ground");
+    expect(stratumOf({ layer: "ground", stratum: null })).toBe("ground");
+    expect(stratumOf({ layer: "fungal", stratum: null })).toBe("ground");
     expect(stratumOf({ layer: null, stratum: null })).toBeNull();
-    expect(stratumOf({ layer: "canopy", stratum: "understory" })).toBe("understory");
+    expect(stratumOf({ layer: "canopy", stratum: "midstory" })).toBe("midstory");
+    // A pre-19.0.1.96.0 feed still says understory / mushroom: read as the new words.
+    expect(stratumOf({ layer: "shrub", stratum: "understory" as never })).toBe("midstory");
+    expect(stratumOf({ layer: "fungal", stratum: "mushroom" as never })).toBe("ground");
   });
 
   it("the fixture plan reads in planting order after ordering", () => {
     const ordered = orderLines(plan(WV, FIXTURE_CATALOG).lines);
     expect(ordered.map((l) => stratumOf(l.plant))).toEqual([
-      "overstory", "understory", "understory", "understory", "mushroom",
+      "overstory", "midstory", "midstory", "shrub", "ground",
     ]);
     expect(ordered[1].plant.role).toBe("anchor"); // persimmon before the companions
   });

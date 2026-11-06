@@ -128,7 +128,7 @@ describe("createPlannerLearningRoute", () => {
     const { POST } = createPlannerLearningRoute(odoo, "save", { allowedOrigins: [ORIGIN], store });
     const res = await POST(post({
       name: "The back field", browser_id: "abc123def456", plan_url: "https://x/plan?zip=26501", zone: 6, track: "food",
-      lines: [{ product_tmpl_id: 101, qty: 4, role: "anchor", stratum: "overstory" }, { product_tmpl_id: 117, qty: 1, role: "anchor", stratum: "mushroom" }],
+      lines: [{ product_tmpl_id: 101, qty: 4, role: "anchor", stratum: "overstory" }, { product_tmpl_id: 117, qty: 1, role: "anchor", stratum: "ground" }],
     }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, id: 7 });
@@ -136,7 +136,7 @@ describe("createPlannerLearningRoute", () => {
       name: "The back field", zone: 6, track: "food",
       lines: [
         { product_tmpl_id: 101, qty: 4, role: "anchor", stratum: "overstory" },
-        { product_tmpl_id: 117, qty: 1, role: "anchor", stratum: "mushroom" },
+        { product_tmpl_id: 117, qty: 1, role: "anchor", stratum: "ground" },
       ],
     }));
   });

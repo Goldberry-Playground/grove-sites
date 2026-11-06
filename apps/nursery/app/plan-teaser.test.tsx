@@ -26,7 +26,7 @@ describe("PlanTeaser", () => {
   it("renders the section with the quiz when PLANNER_ENABLED=1", () => {
     vi.stubEnv("PLANNER_ENABLED", "1");
     render(<PlanTeaser />);
-    expect(screen.getByRole("heading", { level: 2 }).textContent).toContain(HOME_TEASER_HEADING);
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toContain(HOME_TEASER_HEADING.lead);
     expect(screen.getByTestId("plan-experimental").textContent).toBe(PLAN_EXPERIMENTAL_TAG);
     expect(screen.getByTestId("planner-stub")).toBeTruthy();
   });

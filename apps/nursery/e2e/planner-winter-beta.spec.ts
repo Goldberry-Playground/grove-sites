@@ -44,7 +44,7 @@ test.describe("Planner winter beta", () => {
     await expect(page.getByLabel(/^Mixed/)).toBeChecked();
     await page.getByTestId("plan-see").click();
 
-    await expect(page.getByRole("heading", { level: 2, name: /20-tree food forest/ })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { level: 2, name: /Twenty trees/ })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("plan-philosophy")).toContainText(/Nothing here is planted alone/);
 
     const lines = page.getByTestId("plan-line");
@@ -100,11 +100,11 @@ test.describe("Planner winter beta", () => {
     expect(kinds[kinds.length - 1]).toBe("saved");
   });
 
-  test("Build my order posts a built signal before the cart writes", async ({ page }) => {
+  test("Add to cart posts a built signal before the cart writes", async ({ page }) => {
     const signals = capture(page, "**/api/planner/signal", { ok: true });
     await page.goto("/plan?zip=26501&site=open&track=food&size=20&timing=mixed");
-    await expect(page.getByRole("heading", { level: 2, name: /20-tree food forest/ })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("button", { name: /Build my/ }).first().click();
+    await expect(page.getByRole("heading", { level: 2, name: /Twenty trees/ })).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("plan-build").click();
     await expect(page.getByRole("status").filter({ hasText: /Added \d+/ })).toBeVisible();
     await expect.poll(() => signals.length).toBe(1);
     expect(signals[0].body).toMatchObject({ kind: "built", product_tmpl_id: null });
@@ -113,7 +113,7 @@ test.describe("Planner winter beta", () => {
   test("phone: the result card with its badges and the suggested list fit the viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/plan?zip=26501&site=open&track=food&size=20&timing=mixed");
-    await expect(page.getByRole("heading", { level: 2, name: /20-tree food forest/ })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { level: 2, name: /Twenty trees/ })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("plan-suggested")).toBeVisible();
     await expect(page.getByTestId("plan-suggest")).toBeVisible();
     const overflow = await page.evaluate(
