@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  E2E_FIXTURE_NAME_RE,
   MIN_REAL_PHOTO_BYTES,
   catalogCards,
   heroPhoto,
@@ -118,5 +119,61 @@ test.describe("qa gate — product photos", () => {
       );
     }
     expect(missing, "catalog PDPs without a real hero photo").toEqual([]);
+  });
+
+  test("every lead-seller card on the home page shows a real photo", async ({ page }) => {
+    // GOL-3785: the Train #4 QA gate found the first lead-seller card on `/`
+    // (Mountain Mama Package, product.template 132) rendering without an image
+    // on QA while prod carried one — QA seed drift that nothing asserted on.
+    // The home row renders through the same ProductImage as /shop, so the same
+    // two failure modes apply: the branded `.product-ph` fallback (empty src)
+    // and Odoo's silent HTTP-200 gray placeholder (tiny body). Probe the served
+    // bytes for every card so neither can ship quietly.
+    await page.goto("/");
+    const row = page.locator("#lead-sellers");
+    await expect(row, "home page should render the lead-seller row").toBeVisible();
+    // The row's empty state ("being replanted") is its own failure on a seeded QA.
+    const cards = row.locator(".var-card");
+    await cards.first().waitFor({ state: "visible", timeout: 15_000 });
+
+    const rows = await cards.evaluateAll((els) =>
+      els.map((el) => {
+        const img = el.querySelector("img.product-photo") as HTMLImageElement | null;
+        return {
+          name: el.querySelector(".var-name")?.textContent?.trim() ?? "?",
+          href: el.getAttribute("href") ?? "",
+          placeholder: !!el.querySelector(".product-ph"),
+          // `src` attribute, not `currentSrc`: below-the-fold cards are lazy and
+          // may not have started loading yet, but next/image always sets `src`.
+          src: img?.getAttribute("src") ?? "",
+          alt: img?.alt ?? "",
+        };
+      }),
+    );
+    const catalog = rows.filter((r) => !E2E_FIXTURE_NAME_RE.test(r.name));
+    expect(catalog.length, "lead-seller row should list catalog cards").toBeGreaterThan(0);
+
+    const problems: string[] = [];
+    for (const card of catalog) {
+      const label = `${card.name} (${card.href})`;
+      if (card.placeholder || !card.src) {
+        problems.push(`${label}: no photo — 'Photo coming soon' placeholder / empty src`);
+        continue;
+      }
+      if (card.alt !== card.name) {
+        problems.push(`${label}: photo alt '${card.alt}' should name the product`);
+      }
+      const served = await probeImage(page, new URL(card.src, page.url()).toString());
+      if (served.status !== 200) {
+        problems.push(`${label}: photo request returned HTTP ${served.status}`);
+      } else if (!/^image\//.test(served.contentType)) {
+        problems.push(`${label}: photo should be an image (got ${served.contentType})`);
+      } else if (served.bytes < MIN_REAL_PHOTO_BYTES) {
+        problems.push(
+          `${label}: served ${served.bytes} B (${served.contentType}) — looks like Odoo's gray placeholder, not a photo`,
+        );
+      }
+    }
+    expect(problems, "lead-seller cards on / without a real photo").toEqual([]);
   });
 });
