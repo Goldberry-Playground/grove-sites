@@ -214,7 +214,8 @@ export const LEAFED_SEASON_REASON =
 
 /**
  * Is "today" (or a supplied clock) AFTER the GOL-2233 season cutover, past which
- * EVERY order takes the single flat $10 deposit regardless of stock?
+ * a SHIPPED bareroot line becomes a flat $10 deposit pre-order instead of a
+ * full charge?
  *
  * Mirror of the backend `_after_deposit_cutover` / `_deposit_cutover_md` in
  * grove_headless (#218): a strict `(month, day) > cutover` comparison — the
@@ -224,8 +225,16 @@ export const LEAFED_SEASON_REASON =
  * ir.config_parameter is set to; a malformed value falls back to Oct 15 so a
  * typo can never silently flip the gate (matching the backend's warn-and-default).
  *
- * This is the CHARGE guard the full-charge specs skip on and the deposit specs
- * fall back to — it replaces `shipsNowForBareroot` for that purpose.
+ * IMPORTANT (GOL-3787): the cutover is NOT a blanket "every order deposits now"
+ * switch, and the checkout specs no longer `test.skip` on it — that over-skipped
+ * the whole money path from Oct 16 to spring. The real backend rule
+ * (`_order_takes_deposit`, CEO ruling 2026-09-09) is narrower: potted-only and
+ * farm-pickup orders charge in FULL year-round; only a SHIPPED order carrying a
+ * bareroot line deposits after the cutover. Specs therefore key on the product
+ * they actually find — the buy CTA ("Add to cart" = full charge, "Pre-order for
+ * $10" = deposit) — and skip with a product-availability reason when neither is
+ * seeded, never on the date. This helper is kept as the documented backend
+ * mirror and the home of the `E2E_DEPOSIT_CUTOVER_MD` override.
  */
 export function afterDepositCutover(now: Date = new Date()): boolean {
   let month = 10;
@@ -240,8 +249,23 @@ export function afterDepositCutover(now: Date = new Date()): boolean {
   return nowMonth > month || (nowMonth === month && now.getDate() > day);
 }
 
-export const AFTER_CUTOVER_REASON =
-  "after the GOL-2233 season cutover (default Oct 15): every order takes the flat $10 deposit, so the full-charge path is not exercisable — covered by checkout-deposit-happy-path";
+/**
+ * Product-availability skip reason for the full-charge (charged-in-full, not a
+ * deposit) checkout path (GOL-3787). This is NOT a date skip: the full-charge
+ * money path exists whenever the catalog offers an "Add to cart" (ships-now)
+ * line — a potted / peat-and-bagged tree inside the leafed season (sold through
+ * Oct 15, backend `LEAFED_WINDOW`) or a bareroot line inside its ship window.
+ * After the season cutover a shipped bareroot line is a flat $10 deposit
+ * pre-order (GOL-2233), so no "Add to cart" line is offered and this path has
+ * nothing to exercise — the deposit path is exercised by the deposit specs
+ * (checkout-deposit-happy-path and the deposit variants in this set) instead.
+ */
+export const NO_FULL_CHARGE_PRODUCT_REASON =
+  'no in-stock "Add to cart" (ships-now, charged-in-full) listing on this target ' +
+  "today — the full-charge path needs a potted/peat-and-bagged line in the leafed " +
+  "season (through Oct 15) or a bareroot line in its ship window; after the GOL-2233 " +
+  "season cutover every shippable tree is a flat $10 deposit pre-order, exercised by " +
+  "the deposit specs. Product-availability skip, not a date skip.";
 
 /** Type a promo code into the checkout form's "Promo code" field (GOL-2088).
  *  The input upper-cases on change, so the value is asserted case-insensitively. */
