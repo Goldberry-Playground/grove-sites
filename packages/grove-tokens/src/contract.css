@@ -135,7 +135,7 @@
   --grove-color-error-solid: #c0392b;    /* 5.10:1 */
   --grove-color-error-surface: #fbeae7;
   --grove-color-warning-fg: #8a5200;     /* 5.99:1 on paper */
-  --grove-color-warning-solid: #c77700;  /* 3.25:1 */
+  --grove-color-warning-solid: #bb6f00;  /* 3.14:1 on ggg paper (darkest); ≥3.28 on the rest */
   --grove-color-warning-surface: #fbf0dc;
   --grove-color-success-fg: #256437;     /* 6.66:1 on paper */
   --grove-color-success-solid: #2e7d46;  /* 4.76:1 */

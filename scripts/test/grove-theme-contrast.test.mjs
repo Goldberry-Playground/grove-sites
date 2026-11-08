@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
@@ -157,4 +157,28 @@ test("missing contract or themes is exit 2", () => {
   const r = run(root);
   rmSync(root, { recursive: true, force: true });
   assert.equal(r.code, 2);
+});
+
+// Regression guard for the real repo, not a fixture. When the gate landed,
+// --grove-color-warning-solid (#c77700, a cross-brand constant) sat under the
+// 3:1 fill floor on ggg / hub / nursery paper and lived in config.baseline as
+// shrink-only debt. The constant was darkened to #bb6f00 and the entries
+// deleted; this pins both so the debt cannot quietly come back.
+test("repo tokens: every status solid clears 3:1 on every brand paper, with an empty baseline", () => {
+  const r = run(ROOT, ["--json"]);
+  assert.equal(r.code, 0, r.stderr);
+  const rep = JSON.parse(r.stdout);
+  assert.ok(rep.brands.length >= 4, "expected the four brand themes");
+
+  const repoConfig = JSON.parse(readFileSync(join(ROOT, "grove-theme-contrast.config.json"), "utf8"));
+  const debtKeys = Object.keys(repoConfig.baseline ?? {}).filter((k) => !k.startsWith("$"));
+  assert.deepEqual(debtKeys, [], `config.baseline still carries debt: ${debtKeys.join(", ")}`);
+
+  for (const brand of rep.brands) {
+    const debt = brand.pairs.filter((p) => p.status === "debt").map((p) => `${p.fg} on ${p.bg}`);
+    assert.deepEqual(debt, [], `${brand.brand} still passes on baseline debt: ${debt.join(", ")}`);
+    const warning = brand.pairs.find((p) => p.fg === "--grove-color-warning-solid" && p.bg === "--grove-color-paper");
+    assert.ok(warning, `${brand.brand}: warning-solid on paper is not a checked pair`);
+    assert.ok(warning.ratio >= 3, `${brand.brand}: warning-solid on paper is ${warning.ratio}:1, under the 3:1 floor`);
+  }
 });
