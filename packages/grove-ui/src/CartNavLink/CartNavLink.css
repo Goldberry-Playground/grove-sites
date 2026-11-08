@@ -12,6 +12,12 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
+  /* WCAG 2.5.8 target size (GOL-3824): the 13–14px label alone is a ~19px-tall
+   * hit area. Block padding lifts it to ≥35px; the matching negative margin
+   * keeps the nav row's height and baseline exactly where the app set them,
+   * so the padding is pure tap area and the header does not grow. */
+  padding-block: var(--grove-space-2);
+  margin-block: calc(-1 * var(--grove-space-2));
   text-decoration: none;
   color: inherit;
   transition: color 0.15s ease;
