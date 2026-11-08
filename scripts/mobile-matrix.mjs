@@ -16,6 +16,8 @@
 //   textSize      ≥ 60% of text at ≥ 12px (Lighthouse's rule); smaller
 //                 text is listed as a warning                      (mobile)
 //   fixedChrome   fixed/sticky elements may pin ≤ 35% of the screen (mobile)
+//   axe           axe-core (wcag2a/aa, wcag21aa, best-practice): critical or
+//                 serious violations → error, others → warning      (all)
 //   screenshot    full-page PNG per cell → mobile-matrix-artifacts/ (evidence,
 //                 no diffing)
 //
@@ -28,7 +30,7 @@
 //                                  --target hub=https://hub.pr-123.preview...
 //   node scripts/mobile-matrix.mjs --targets-json '{"nursery":"https://…","hub":"https://…"}'
 //   Options: --viewports mobile,desktop   --routes /,/shop   --json   --out <dir>
-//            --no-screenshots
+//            --no-screenshots   --no-axe
 //
 // Exit codes: 0 = no errors (warnings allowed) · 1 = at least one error ·
 // 2 = the check could not run (bad args, Chromium failed to launch, every page
@@ -73,11 +75,12 @@ for (const v of viewportNames) if (!CONFIG.viewports[v]) usage(`unknown viewport
 const routeOverride = flagVals("routes")[0]?.split(",");
 const jsonOnly = has("json");
 const screenshots = !has("no-screenshots");
+const runAxe = !has("no-axe");
 const outDir = resolve(ROOT, flagVals("out")[0] ?? CONFIG.report.artifactsDir);
 
 function usage(msg) {
   console.error(`::error::mobile-matrix: ${msg}`);
-  console.error("usage: node scripts/mobile-matrix.mjs --target <brand>=<url> [--target …] [--viewports a,b] [--routes /,/x] [--json] [--out dir] [--no-screenshots]");
+  console.error("usage: node scripts/mobile-matrix.mjs --target <brand>=<url> [--target …] [--viewports a,b] [--routes /,/x] [--json] [--out dir] [--no-screenshots] [--no-axe]");
   process.exit(2);
 }
 
@@ -89,6 +92,15 @@ try {
 } catch {
   console.error("::error::mobile-matrix: `playwright` is not installed — run `pnpm install` (it is a root devDependency).");
   process.exit(2);
+}
+let axeSource = null;
+if (runAxe) {
+  try {
+    axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+  } catch {
+    console.error("::error::mobile-matrix: `axe-core` is not installed — run `pnpm install`, or pass --no-axe.");
+    process.exit(2);
+  }
 }
 
 // ── In-page audit (runs inside the browser) ────────────────────────────────
@@ -262,6 +274,7 @@ for (const [brand, base] of Object.entries(targets)) {
     for (const vpName of viewportNames) {
       const vp = CONFIG.viewports[vpName];
       const context = await browser.newContext({
+        bypassCSP: runAxe, // so the injected axe script is not blocked by the site's CSP
         viewport: { width: vp.width, height: vp.height },
         deviceScaleFactor: vp.deviceScaleFactor,
         isMobile: vp.isMobile,
@@ -271,7 +284,7 @@ for (const [brand, base] of Object.entries(targets)) {
           : undefined,
       });
       const page = await context.newPage();
-      const cell = { brand, route, url, viewport: vpName, status: null, errors: [], warns: [], findings: null, screenshot: null };
+      const cell = { brand, route, url, viewport: vpName, status: null, errors: [], warns: [], findings: null, axe: null, screenshot: null };
       try {
         const resp = await page.goto(url, { waitUntil: "load", timeout: CONFIG.navigation.timeoutMs });
         cell.status = resp ? resp.status() : null;
@@ -308,6 +321,39 @@ for (const [brand, base] of Object.entries(targets)) {
           if (f.fixedChrome && f.fixedChrome.fraction > CONFIG.checks.fixedChrome.maxFraction) {
             cell.errors.push(`fixed/sticky chrome covers ${Math.round(f.fixedChrome.fraction * 100)}% of the viewport (limit ${Math.round(CONFIG.checks.fixedChrome.maxFraction * 100)}%): ${f.fixedChrome.items.map((i) => `${i.el} [${i.pos} ${i.top}–${i.bottom}]`).join("; ")}`);
           }
+
+          // axe-core accessibility pass.
+          if (runAxe) {
+            const AX = CONFIG.axe;
+            await page.addScriptTag({ content: axeSource });
+            const results = await page.evaluate(
+              async ({ tags }) => {
+                const r = await window.axe.run(document, { runOnly: { type: "tag", values: tags }, resultTypes: ["violations"] });
+                return r.violations.map((v) => ({
+                  id: v.id,
+                  impact: v.impact,
+                  help: v.help,
+                  helpUrl: v.helpUrl,
+                  nodes: v.nodes.length,
+                  targets: v.nodes.slice(0, 8).map((n) => (Array.isArray(n.target) ? n.target.join(" ") : String(n.target))),
+                }));
+              },
+              { tags: AX.tags },
+            );
+            for (const v of results) v.targets = v.targets.slice(0, AX.maxTargetsPerViolation);
+            const order = { critical: 0, serious: 1, moderate: 2, minor: 3 };
+            results.sort((a, b) => (order[a.impact] ?? 9) - (order[b.impact] ?? 9) || b.nodes - a.nodes);
+            cell.axe = {
+              violations: results,
+              failing: results.filter((v) => AX.failImpacts.includes(v.impact)).length,
+              advisory: results.filter((v) => !AX.failImpacts.includes(v.impact)).length,
+            };
+            for (const v of results) {
+              const line = `axe ${v.id} [${v.impact}] ×${v.nodes}: ${v.help} — ${v.targets.join(" | ")}`;
+              if (AX.failImpacts.includes(v.impact)) cell.errors.push(line);
+              else cell.warns.push(line);
+            }
+          }
         }
         if (screenshots) {
           const slug = `${brand}${route === "/" ? "-home" : route.replace(/\//g, "-")}-${vpName}.png`;
@@ -342,6 +388,12 @@ const report = {
     cellsWithErrors: cells.filter((c) => c.errors.length).length,
     cellsWithWarnings: cells.filter((c) => c.warns.length).length,
     unreachable,
+    axe: runAxe
+      ? {
+          failingViolations: cells.reduce((n, c) => n + (c.axe?.failing ?? 0), 0),
+          advisoryViolations: cells.reduce((n, c) => n + (c.axe?.advisory ?? 0), 0),
+        }
+      : null,
   },
   hasError,
   hasWarn,

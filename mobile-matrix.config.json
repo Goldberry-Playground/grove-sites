@@ -40,6 +40,12 @@
       "maxFraction": 0.35
     }
   },
+  "axe": {
+    "$comment": "axe-core (root devDependency) is injected into every page × viewport after settle and run with these tags. Violations whose impact is in failImpacts → error (exit 1); the rest → warning. Skip with --no-axe. The context is opened with bypassCSP so the injected script is not blocked by a site's Content-Security-Policy.",
+    "tags": ["wcag2a", "wcag2aa", "wcag21aa", "best-practice"],
+    "failImpacts": ["critical", "serious"],
+    "maxTargetsPerViolation": 3
+  },
   "navigation": {
     "$comment": "waitUntil load, then a settle pause for client hydration and font swap before measuring. HTTP ≥ 400 on the document is an error for that cell.",
     "timeoutMs": 45000,

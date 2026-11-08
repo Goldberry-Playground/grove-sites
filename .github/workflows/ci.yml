@@ -79,10 +79,14 @@ jobs:
       # TOKEN-MAP.md "Rules", enforced: no raw color literals, no bespoke
       # var(--x) tokens, no var(--grove-*) that contract.css never defines.
       # Pure filesystem scan — no install. See docs/grovekit-gates.md.
-      - name: Test the lint itself
-        run: node --test scripts/test/grove-token-lint.test.mjs
+      - name: Test the lints themselves
+        run: node --test scripts/test/grove-token-lint.test.mjs scripts/test/grove-theme-contrast.test.mjs
       - name: GroveKit token lint (packages/grove-ui/src)
         run: node scripts/grove-token-lint.mjs
+      # WCAG contrast of every brand theme's resolved token pairs (text 4.5:1,
+      # fills 3:1) + typo guard for roles the contract never defines.
+      - name: GroveKit theme contrast (packages/grove-tokens)
+        run: node scripts/grove-theme-contrast.mjs
 
   lint-and-typecheck:
     name: Lint, Type Check & Test

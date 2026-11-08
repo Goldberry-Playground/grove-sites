@@ -1,0 +1,75 @@
+{
+  "$comment": "GroveKit theme contrast gate — scripts/grove-theme-contrast.mjs resolves every brand theme's final value for each role (theme overrides contract default, var() aliases followed) and checks the WCAG 2.x contrast ratio of the pairs below. Roles built with color-mix() cannot be resolved statically and are reported as unchecked. Edit pairs/thresholds here, not in the script.",
+  "contract": "packages/grove-tokens/src/contract.css",
+  "themesDir": "packages/grove-tokens/src/themes",
+  "pairs": {
+    "$comment": "fg = the role drawn ON bg. min = WCAG AA floor for that use (4.5:1 normal text, 3:1 non-text/large). warnBelow = AAA aspiration, reported as a warning only.",
+    "text": {
+      "$comment": "Text roles on both page surfaces.",
+      "fg": [
+        "--grove-color-ink",
+        "--grove-color-ink-soft",
+        "--grove-color-accent-fg",
+        "--grove-color-error-fg",
+        "--grove-color-warning-fg",
+        "--grove-color-success-fg",
+        "--grove-color-info-fg"
+      ],
+      "bg": [
+        "--grove-color-paper",
+        "--grove-color-paper-soft"
+      ],
+      "min": 4.5
+    },
+    "bodyInkAAA": {
+      "$comment": "Body ink only: warn under AAA so a brand drifting toward low-contrast body copy is visible before it fails AA.",
+      "fg": [
+        "--grove-color-ink"
+      ],
+      "bg": [
+        "--grove-color-paper",
+        "--grove-color-paper-soft"
+      ],
+      "min": 0,
+      "warnBelow": 7
+    },
+    "fills": {
+      "$comment": "Fill/border roles (buttons, status chips) on the page: WCAG 1.4.11 non-text floor.",
+      "fg": [
+        "--grove-color-accent",
+        "--grove-color-error-solid",
+        "--grove-color-warning-solid",
+        "--grove-color-success-solid",
+        "--grove-color-info-solid"
+      ],
+      "bg": [
+        "--grove-color-paper"
+      ],
+      "min": 3
+    },
+    "onPrimary": {
+      "fg": [
+        "--grove-color-primary-foreground"
+      ],
+      "bg": [
+        "--grove-color-primary"
+      ],
+      "min": 4.5
+    },
+    "onSecondary": {
+      "fg": [
+        "--grove-color-secondary-foreground"
+      ],
+      "bg": [
+        "--grove-color-secondary"
+      ],
+      "min": 4.5
+    }
+  },
+  "baseline": {
+    "$comment": "Ratchet for pairs that already failed when the gate landed: key `<brand> <fg> on <bg>`, value = the ratio recorded then. A listed pair may only IMPROVE (ratio ≥ recorded − 0.01), never regress, and every other pair gets the strict threshold. Fix the brand value and delete the entry. Regenerate with: node scripts/grove-theme-contrast.mjs --update-baseline",
+    "ggg --grove-color-warning-solid on --grove-color-paper": 2.79,
+    "hub --grove-color-warning-solid on --grove-color-paper": 2.94,
+    "nursery --grove-color-warning-solid on --grove-color-paper": 2.91
+  }
+}
