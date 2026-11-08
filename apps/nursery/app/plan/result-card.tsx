@@ -334,7 +334,7 @@ export function ResultCard({
 
           {result.notify.length > 0 && <NotifyChips plants={result.notify} />}
 
-          <SuggestedList suggestions={suggestions} onAdd={add} />
+          <SuggestedList suggestions={suggestions} track={input.track} onAdd={add} />
           <SuggestForm />
         </div>
 

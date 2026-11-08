@@ -8,7 +8,9 @@ import { FIXTURE_CATALOG } from "@grove/planner/fixtures";
 import { Planner } from "./planner";
 import { ResultCard, headlineFor, numberWord, dropSpan, cartAcceptsGroup, countLabel, type ResultCardProps } from "./result-card";
 import { plan } from "@grove/planner";
-import type { PlanInput } from "@grove/planner";
+import type { PlanInput, SuggestedGroups } from "@grove/planner";
+import { harvestSpan } from "./months";
+import { SuggestedList } from "./suggested-list";
 import type { postSave, postSignal } from "../../lib/planner-signals";
 
 /**
@@ -226,6 +228,37 @@ describe("ResultCard: headline copy", () => {
     expect(headlineFor(plan(empty, FIXTURE_CATALOG), empty)).toBe("Nothing we grow fits a low, wet spot in zone 1 yet.");
     expect(dropSpan([9, 10, 11, 12, 1])).toBe("Sep to Jan");
     expect(dropSpan([6, 7])).toBe("Jun to Jul");
+  });
+});
+
+describe("Harvest span on the plant cards (GOL-3835)", () => {
+  it("reads a summer harvest off the calendar and only wraps when the months straddle New Year", () => {
+    // dropSpan walks from August for a deer plot, which split Peach and Plum (7,8,9) into "Aug to Jul".
+    expect(dropSpan([7, 8, 9])).toBe("Aug to Jul");
+    expect(harvestSpan([7, 8, 9])).toBe("Jul to Sep");
+    expect(harvestSpan([6, 7, 8])).toBe("Jun to Aug");
+    expect(harvestSpan([7, 8, 9, 10, 11])).toBe("Jul to Nov");
+    expect(harvestSpan([11, 12, 1])).toBe("Nov to Jan");
+    expect(harvestSpan([9, 10, 11])).toBe("Sep to Nov");
+    expect(harvestSpan([6])).toBe("Jun");
+    // Odoo order and duplicates do not matter; out-of-range months are ignored; an empty set is no span.
+    expect(harvestSpan([9, 7, 8, 8])).toBe("Jul to Sep");
+    expect(harvestSpan([0, 13])).toBeNull();
+    expect(harvestSpan([])).toBeNull();
+  });
+
+  it("the suggested list reads a calendar harvest on the food track and keeps the deer drop season", () => {
+    const peach = { ...FIXTURE_CATALOG.plants[0], id: 901, slug: "peach", name: "Peach", harvest_months: [7, 8, 9] };
+    const oak = { ...FIXTURE_CATALOG.plants[0], id: 902, slug: "oak", name: "Sawtooth Oak", harvest_months: [9, 10, 11, 12, 1] };
+    const groups = (plant: typeof peach): SuggestedGroups => {
+      const pick = { plant, zoneFit: "safe" as const, slot: "canopy" as const, score: 1 };
+      return { groups: { overstory: [pick], midstory: [], shrub: [], ground: [] }, hidden: 0, all: [pick] };
+    };
+    render(<SuggestedList suggestions={groups(peach)} track="food" onAdd={vi.fn()} />);
+    expect(screen.getByTestId("plan-suggested-line").textContent).toContain("Harvest Jul to Sep");
+    cleanup();
+    render(<SuggestedList suggestions={groups(oak)} track="deer" onAdd={vi.fn()} />);
+    expect(screen.getByTestId("plan-suggested-line").textContent).toContain("Harvest Sep to Jan");
   });
 });
 
