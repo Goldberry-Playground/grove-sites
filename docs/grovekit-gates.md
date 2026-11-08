@@ -93,7 +93,7 @@ Thresholds and routes live in **`mobile-matrix.config.json`**. Edit the budget t
 |---|---|---|---|
 | `viewportMeta` | all | no `<meta name=viewport>` with `width=device-width` | |
 | `overflow` | all | `scrollWidth > innerWidth + 1px`; lists the elements crossing the edge | |
-| `tapTargets` | mobile | a control's smaller side `< 24px` (WCAG 2.5.8 floor). Inline links in running text are exempt; a checkbox is measured by its label | `< 44px` |
+| `tapTargets` | mobile | a control's smaller side `< 24px` **and** crowded — a 24px circle on it touches another target (the WCAG 2.5.8 AA rule, spacing exemption applied). Inline links in running text are exempt; a checkbox is measured by its label; controls hidden from assistive tech (`aria-hidden`, `tabindex="-1"`, off-canvas/sr-only) are not targets | a sub-`44px` target that clears the 2.5.8 spacing exemption (comfortable-size miss only) |
 | `textSize` | mobile | less than `60%` of visible text (by characters) is `≥ 12px` (Lighthouse's legibility rule) | any element `< 12px` is listed |
 | `fixedChrome` | mobile | `position: fixed/sticky` elements at least half the viewport wide pin `> 35%` of the screen height | |
 | `axe` | all | [axe-core](https://github.com/dequelabs/axe-core) with tags `wcag2a`, `wcag2aa`, `wcag21aa`, `best-practice`: any violation with impact `critical` or `serious` | `moderate` / `minor` violations |
