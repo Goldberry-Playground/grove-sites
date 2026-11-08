@@ -1875,7 +1875,7 @@
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--grove-color-ink) 45%, transparent);
+  background: var(--grove-color-ink-a50);
   backdrop-filter: blur(2px);
 }
 
