@@ -67,6 +67,23 @@ jobs:
           fi
           echo "All four ds-theme artifacts match their sources."
 
+  grovekit-token-lint:
+    name: GroveKit token lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # TOKEN-MAP.md "Rules", enforced: no raw color literals, no bespoke
+      # var(--x) tokens, no var(--grove-*) that contract.css never defines.
+      # Pure filesystem scan — no install. See docs/grovekit-gates.md.
+      - name: Test the lint itself
+        run: node --test scripts/test/grove-token-lint.test.mjs
+      - name: GroveKit token lint (packages/grove-ui/src)
+        run: node scripts/grove-token-lint.mjs
+
   lint-and-typecheck:
     name: Lint, Type Check & Test
     runs-on: ubuntu-latest

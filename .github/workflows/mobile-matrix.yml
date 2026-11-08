@@ -1,0 +1,142 @@
+name: Mobile matrix
+
+# Mobile viewport matrix (scripts/mobile-matrix.mjs) — renders each brand's key
+# routes at 375 / 768 / 1440 px in headless Chromium and fails on horizontal
+# overflow, sub-24px tap targets, sub-12px text, missing viewport meta, and
+# fixed/sticky chrome covering more than 35% of a phone screen. Screenshots per
+# page × viewport are uploaded as the run's artifact for eyeballing.
+#
+# ADVISORY for now — not a required check. It needs a deployed page, so like
+# lighthouse-ci.yml it runs against the per-PR preview (qa-labeled PRs only) or
+# an explicit URL. Promote it to required once the prod baseline recorded in
+# the introducing PR is clean and the thresholds have stopped moving.
+#
+# Two triggers:
+#   1. workflow_dispatch — audit any deployed brand (QA, prod, a preview).
+#   2. workflow_run("preview-up") — once a preview is up, recover the per-tenant
+#      URLs from preview-up's `<!-- grove-preview-bot -->` PR comment (same
+#      recovery lighthouse-ci.yml uses) and audit every tenant it lists.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployed base URL to audit (e.g. https://goldberrygrove.farm or https://nursery.pr-123.preview…)"
+        required: true
+        type: string
+      brand:
+        description: "Which brand's routes to walk"
+        required: true
+        type: choice
+        options: [goldberry, ggg, nursery, hub]
+      viewports:
+        description: "Comma-separated subset of mobile,tablet,desktop (blank = all)"
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows: ["preview-up"]
+    types: [completed]
+
+concurrency:
+  group: mobile-matrix-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read # read the preview-up comment to recover URLs
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+
+jobs:
+  matrix:
+    name: Mobile viewport matrix
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # Resolve what to audit.
+      #   - workflow_dispatch: one brand at the given URL.
+      #   - workflow_run: every `| **brand** | https://… |` row of preview-up's
+      #     PR comment, as a brand→url JSON map for --targets-json.
+      - id: ctx
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let targets = {};
+            if (context.eventName === 'workflow_dispatch') {
+              const { brand, base_url } = context.payload.inputs;
+              targets[brand] = base_url;
+            } else {
+              const run = context.payload.workflow_run;
+              let prNumber = run.pull_requests?.[0]?.number ?? null;
+              if (!prNumber) {
+                const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner: context.repo.owner, repo: context.repo.repo, commit_sha: run.head_sha,
+                });
+                prNumber = data.find(p => p.state === 'open')?.number ?? data[0]?.number ?? null;
+              }
+              if (prNumber) {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber,
+                });
+                const c = comments.find(x => x.body && x.body.includes('<!-- grove-preview-bot -->'));
+                if (c) {
+                  for (const m of c.body.matchAll(/\|\s*\*\*([^*|]+)\*\*\s*\|\s*(https?:\/\/[^\s|]+)\s*\|/g)) {
+                    targets[m[1].trim().toLowerCase()] = m[2];
+                  }
+                }
+              }
+            }
+            const known = new Set(['goldberry', 'ggg', 'nursery', 'hub']);
+            for (const k of Object.keys(targets)) if (!known.has(k)) delete targets[k];
+            core.setOutput('targets', JSON.stringify(targets));
+            core.setOutput('count', String(Object.keys(targets).length));
+            core.info(`Auditing: ${JSON.stringify(targets, null, 2)}`);
+
+      - name: Guard — at least one target is required
+        if: steps.ctx.outputs.count == '0'
+        run: |
+          echo "::error::No target recovered (no grove-preview-bot comment, or its URL table listed no known brand)."
+          exit 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the matrix
+        env:
+          TARGETS: ${{ steps.ctx.outputs.targets }}
+          VIEWPORTS: ${{ github.event.inputs.viewports }}
+        run: |
+          args=(--targets-json "$TARGETS")
+          if [ -n "$VIEWPORTS" ]; then args+=(--viewports "$VIEWPORTS"); fi
+          node scripts/mobile-matrix.mjs "${args[@]}"
+
+      - name: Upload screenshots + report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mobile-matrix-${{ github.run_id }}
+          path: mobile-matrix-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

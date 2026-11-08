@@ -44,7 +44,7 @@ CSS onto these instead of inlining px/hex/ms:
 The four status hues are WCAG-compliant (fg ≥4.5:1, solid ≥3:1 on paper) and grayscale-distinct.
 
 ## Rules
-- **Never** leave a raw hex or a `--<bespoke>` token in a lifted component's CSS — every value comes through a `--grove-*` role.
+- **Never** leave a raw hex or a `--<bespoke>` token in a lifted component's CSS — every value comes through a `--grove-*` role. **Enforced in CI** by `scripts/grove-token-lint.mjs` (`pnpm lint:tokens`): raw `#hex`/`rgb()`/`hsl()`, foreign `var(--x)`, and `var(--grove-*)` names the contract never defines all fail the `GroveKit token lint` check. See `docs/grovekit-gates.md`. Escape hatch for a genuinely non-themeable value: `/* grove-lint: allow — reason */` on that line.
 - If a token genuinely has no role above, STOP and report it to the orchestrator (don't invent a new `--grove-*` token — the contract is fixed).
 - `--grid` is identical across all four apps; it's a layout constant → `--grove-space-grid`.
 - VendorCard's per-sub-brand accent (set inline via `style={{borderTopColor}}`) stays a **prop**, not a token.

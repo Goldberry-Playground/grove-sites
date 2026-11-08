@@ -1,0 +1,52 @@
+{
+  "$comment": "Mobile viewport matrix — scripts/mobile-matrix.mjs renders each brand's key routes at each viewport in headless Chromium and fails on the responsive defects that have actually bitten us (horizontal overflow, controls too small to tap, fixed chrome eating the phone screen — cf. the 2026-10-26 WV checkout dead-end where the pickup refusal was pushed off-screen). Edit thresholds here, not in the script. Screenshots per page×viewport land in mobile-matrix-artifacts/ as evidence.",
+  "viewports": {
+    "mobile": {
+      "$comment": "iPhone-class portrait. isMobile+hasTouch so Next/Tailwind touch-only styles and hover-none media queries apply.",
+      "width": 375,
+      "height": 812,
+      "deviceScaleFactor": 2,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "tablet": { "width": 768, "height": 1024, "deviceScaleFactor": 2, "isMobile": true, "hasTouch": true },
+    "desktop": { "width": 1440, "height": 900, "deviceScaleFactor": 1, "isMobile": false, "hasTouch": false }
+  },
+  "routes": {
+    "$comment": "Public, read-only GET routes per brand. Checkout/cart are intentionally excluded here — they need cart state and are covered by apps/nursery/e2e.",
+    "goldberry": ["/", "/shop", "/visit", "/about"],
+    "ggg": ["/", "/shop"],
+    "nursery": ["/", "/shop", "/wholesale", "/shipping-warranty"],
+    "hub": ["/", "/alliance"]
+  },
+  "checks": {
+    "viewportMeta": { "$comment": "Every page must ship <meta name=viewport content=width=device-width…>. Missing → error at every viewport." },
+    "overflow": {
+      "$comment": "documentElement.scrollWidth must not exceed innerWidth by more than tolerancePx at ANY viewport. Lists the elements whose right edge crosses the viewport.",
+      "tolerancePx": 1
+    },
+    "tapTargets": {
+      "$comment": "Mobile only. Visible a/button/input/select/textarea/[role=button|link]. Inline links inside running text are exempt (WCAG 2.5.8 exemption). Smallest side < errorPx → error (the WCAG 2.5.8 AA floor), < warnPx → warn (Apple HIG / Material comfortable minimum).",
+      "errorPx": 24,
+      "warnPx": 44
+    },
+    "textSize": {
+      "$comment": "Mobile only. Lighthouse's legibility rule: at least minLegibleShare of visible text (by character count) must be ≥ minLegiblePx. Below that share → error. Elements under minLegiblePx are listed as warnings regardless, so eyebrows/kickers/fine print stay visible in the report without failing a page for a design choice.",
+      "minLegiblePx": 12,
+      "minLegibleShare": 0.6
+    },
+    "fixedChrome": {
+      "$comment": "Mobile only. Union of the vertical extents of visible position:fixed/sticky elements inside the viewport. Over maxFraction of innerHeight → error: that much pinned chrome leaves no room for the content a shopper has to reach.",
+      "maxFraction": 0.35
+    }
+  },
+  "navigation": {
+    "$comment": "waitUntil load, then a settle pause for client hydration and font swap before measuring. HTTP ≥ 400 on the document is an error for that cell.",
+    "timeoutMs": 45000,
+    "settleMs": 1000
+  },
+  "report": {
+    "maxItemsPerFinding": 12,
+    "artifactsDir": "mobile-matrix-artifacts"
+  }
+}
