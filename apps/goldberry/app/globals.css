@@ -601,7 +601,8 @@ h1 em, h2 em, h3 em, h4 em {
   color: var(--chestnut-reserve);
   text-decoration: none;
   position: relative;
-  padding: 6px 2px;
+  padding: 6px 2px; /* 31px tall — already past the 24px floor */
+  margin: 0; /* ui-kit NavLink's negative block margin is not wanted here */
   transition: color 0.2s;
 }
 .nav-item__link::after,
@@ -727,11 +728,17 @@ h1 em, h2 em, h3 em, h4 em {
 
 .brand-header__cart {
   display: inline-flex;
-  padding: 8px 14px;
   background: var(--chestnut-reserve);
   color: var(--ivory-mist) !important;
 }
-.brand-header__cart a { color: inherit !important; }
+.brand-header__cart a {
+  color: inherit !important;
+  /* The pill's padding lives on the anchor so the whole 35px button is the tap
+     target, not just the 19px label inside it (WCAG 2.5.8, GOL-3824). Overrides
+     the ui-kit CartNavLink block padding / negative margin. */
+  padding: 8px 14px;
+  margin: 0;
+}
 .brand-header__cart:hover { background: var(--forest-command); }
 
 @media (max-width: 720px) {
@@ -1158,16 +1165,29 @@ h1 em, h2 em, h3 em, h4 em {
   margin-bottom: 1rem;
 }
 .story-strip-card .continue {
-  margin-top: 0.6rem;
+  /* WCAG 2.5.8 (GOL-3824): standalone 11px link measured 21px tall. Block
+     padding lifts the tap area to ≥35px; the negative margins keep the label
+     and the surrounding rhythm exactly where they were. The underline moved
+     from border-bottom to a pseudo-element so it still hugs the text. */
+  position: relative;
+  margin-top: calc(0.6rem - var(--grove-space-2));
+  margin-bottom: calc(-1 * var(--grove-space-2));
+  padding: var(--grove-space-2) 0 calc(var(--grove-space-2) + 3px);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--forest-command);
   text-decoration: none;
-  padding-bottom: 3px;
-  border-bottom: 1px solid currentColor;
   align-self: flex-start;
+}
+.story-strip-card .continue::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  bottom: var(--grove-space-2);
+  height: 1px;
+  background: currentColor;
 }
 .story-strip-card .continue:hover { color: var(--chestnut-reserve); }
 

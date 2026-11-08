@@ -123,13 +123,17 @@ a { color: inherit; text-decoration: none; }
 .hub-header__nav a {
   color: var(--ink-soft);
   position: relative;
-  padding-bottom: 3px;
+  /* WCAG 2.5.8 (GOL-3824): 11px mono alone is a 22px-tall target. Block
+     padding makes it ≥35px; the negative margin keeps the header height. The
+     underline is re-anchored 3px under the text, where it was. */
+  padding-block: var(--grove-space-2);
+  margin-block: calc(-1 * var(--grove-space-2));
   transition: color 0.2s;
 }
 .hub-header__nav a:hover { color: var(--moss); }
 .hub-header__nav a::after {
   content: '';
-  position: absolute; left: 0; bottom: 0;
+  position: absolute; left: 0; bottom: calc(var(--grove-space-2) - 3px);
   width: 0; height: 1px;
   background: var(--amber);
   transition: width 0.3s;
@@ -795,13 +799,21 @@ a { color: inherit; text-decoration: none; }
 .hub-footer nav {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  /* WCAG 2.5.8 (GOL-3824): the 8px gap became block padding on each link, so
+     every row is a ≥35px tap target with no dead strip between rows. The
+     negative block margin keeps the first/last labels aligned with the
+     neighbouring column. */
+  gap: 0;
+  margin-block: calc(-1 * var(--grove-space-2));
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
-.hub-footer nav a { color: rgba(244, 239, 227, 0.78); }
+.hub-footer nav a {
+  color: rgba(244, 239, 227, 0.78);
+  padding-block: var(--grove-space-2);
+}
 .hub-footer nav a:hover { color: var(--amber); }
 .hub-footer__contact {
   grid-column: 1 / -1;
