@@ -67,9 +67,6 @@
     }
   },
   "baseline": {
-    "$comment": "Ratchet for pairs that already failed when the gate landed: key `<brand> <fg> on <bg>`, value = the ratio recorded then. A listed pair may only IMPROVE (ratio ≥ recorded − 0.01), never regress, and every other pair gets the strict threshold. Fix the brand value and delete the entry. Regenerate with: node scripts/grove-theme-contrast.mjs --update-baseline",
-    "ggg --grove-color-warning-solid on --grove-color-paper": 2.79,
-    "hub --grove-color-warning-solid on --grove-color-paper": 2.94,
-    "nursery --grove-color-warning-solid on --grove-color-paper": 2.91
+    "$comment": "Ratchet for pairs that already failed when the gate landed: key `<brand> <fg> on <bg>`, value = the ratio recorded then. A listed pair may only IMPROVE (ratio ≥ recorded − 0.01), never regress, and every other pair gets the strict threshold. Fix the brand value and delete the entry. Regenerate with: node scripts/grove-theme-contrast.mjs --update-baseline"
   }
 }

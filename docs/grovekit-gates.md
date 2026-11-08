@@ -66,11 +66,12 @@ as **unchecked**. A theme that sets a `--grove-*` name the contract never define
 fails (`unknown-role`, the typo guard).
 
 **Ratchet.** Pairs that already failed when the gate landed are recorded in
-`config.baseline` at their ratio and may only improve. Today that is one pair,
-three brands: `--grove-color-warning-solid` (`#c77700`, a cross-brand constant)
-on ggg / hub / nursery paper at 2.79 / 2.94 / 2.91. The contract's "solid ≥ 3:1
-on paper" note was only true for the default cream paper. Fix the constant,
-delete the entries.
+`config.baseline` at their ratio and may only improve. The baseline is empty
+today: the one debt the gate landed with (`--grove-color-warning-solid`
+`#c77700` on ggg / hub / nursery paper at 2.79 / 2.94 / 2.91 — the contract's
+"solid ≥ 3:1 on paper" note was only true for the default cream paper) was
+paid in GOL-3825 by darkening the constant to `#b86d00` (3.24:1 on ggg bone).
+If a future change must land under a floor, record it, fix it, delete the entry.
 
 ```bash
 pnpm lint:contrast                                   # or: node scripts/grove-theme-contrast.mjs
