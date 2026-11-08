@@ -154,7 +154,11 @@ export default async function RootLayout({
               events) through the capture arbiter, so no page shows two
               newsletter forms. */}
           <CaptureSlot priority="newsletter">
-            <section className="brand-newsletter" aria-labelledby="brand-newsletter-heading">
+            {/* aria-label, not aria-labelledby: the form's heading id is a React
+                useId, so the old `brand-newsletter-heading` reference pointed at
+                nothing and the section had no name — hence no landmark, and axe's
+                `region` finding on every capture element (prod 2026-11-07). */}
+            <section className="brand-newsletter" aria-label="Newsletter signup">
               <div className="brand-newsletter__inner">
                 <CaptureForm
                   brand="goldberry"

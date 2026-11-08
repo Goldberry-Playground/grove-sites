@@ -32,7 +32,7 @@ export type SiblingStripProps = {
 export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
   const Link = useGroveLink();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +51,15 @@ export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
   }, [open]);
 
   return (
-    <div ref={ref} className={`sibling-strip ${open ? "is-open" : ""}`}>
+    // A labelled <nav> so the strip is a landmark: it sits above every app's
+    // <header>, and axe's `region` rule flagged the pill list as content outside
+    // any landmark on all four brands (prod matrix 2026-11-07). The label keeps
+    // it distinct from each app's own primary/footer navs (landmark-unique).
+    <nav
+      ref={ref}
+      className={`sibling-strip ${open ? "is-open" : ""}`}
+      aria-label="Grove sister sites"
+    >
       {/* Mobile-only toggle. Hidden on desktop via CSS. */}
       <button
         type="button"
@@ -82,6 +90,6 @@ export function SiblingStrip({ currentSiteName, sites }: SiblingStripProps) {
           );
         })}
       </ul>
-    </div>
+    </nav>
   );
 }
