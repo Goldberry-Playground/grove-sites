@@ -6,7 +6,7 @@
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--grove-color-ink-a50);
   backdrop-filter: blur(2px);
 }
 

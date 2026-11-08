@@ -9,6 +9,9 @@ All thresholds live in one place: **`perf-budget.config.json`** at the repo root
 Edit the budget there — the scripts and Lighthouse config read from it (keep
 `lighthouserc.json` in sync with the `lighthouse` block; it can't `require` JSON).
 
+Sibling gates for **consistency** (token lint) and **responsiveness** (mobile viewport
+matrix) live in [grovekit-gates.md](grovekit-gates.md).
+
 ## The three gates
 
 | Gate | Check name | What it measures | Where |

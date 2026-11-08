@@ -40,3 +40,6 @@ apps/*/e2e/.artifacts/
 # Python bytecode (stray audit-script compile artifacts — GOL-1907)
 __pycache__/
 *.pyc
+
+# scripts/mobile-matrix.mjs output (screenshots + report.json)
+mobile-matrix-artifacts/
