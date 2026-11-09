@@ -1,0 +1,72 @@
+name: visual-chrome
+
+# Compares each storefront's header and footer with committed baselines
+# (apps/nursery/visual). Advisory: a planned design change turns it red until
+# the baselines are refreshed, so it does not alert Discord.
+#
+# First run or after a design change: dispatch with update=true, download the
+# `visual-baselines` artifact and commit its PNGs. Until baselines exist the
+# scheduled run exits green without comparing anything.
+
+on:
+  schedule:
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+    inputs:
+      update:
+        description: "Write new baselines instead of comparing"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Header and footer screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: "9.15.0"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @grove/nursery exec playwright install --with-deps chromium
+
+      - name: Compare or update
+        env:
+          UPDATE: ${{ inputs.update }}
+        run: |
+          cd apps/nursery
+          config=visual/playwright.config.ts
+          if [ "$UPDATE" = "true" ]; then
+            pnpm exec playwright test --config "$config" --update-snapshots
+          elif ls visual/*-snapshots/*.png >/dev/null 2>&1; then
+            pnpm exec playwright test --config "$config"
+          else
+            echo "::notice::No visual baselines committed yet; nothing to compare."
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: inputs.update
+        with:
+          name: visual-baselines
+          path: apps/nursery/visual/*-snapshots
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: visual-report
+          path: apps/nursery/visual/report
+          retention-days: 14
