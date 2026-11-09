@@ -41,7 +41,7 @@ CSS onto these instead of inlining px/hex/ms:
 | Status | `--grove-color-{error,warning,success,info}-{fg,solid,surface}` — **cross-brand constants, never theme-overridden** |
 
 **Status a11y rule:** never signal status by color alone — pair color with icon **and** text.
-The four status hues are WCAG-compliant (fg ≥4.5:1, solid ≥3:1 on paper) and grayscale-distinct.
+The four status hues are WCAG-compliant (fg ≥4.5:1, solid ≥3:1 on **every brand's** paper — ggg bone is the darkest; `pnpm lint:contrast` enforces it) and grayscale-distinct.
 
 ## Rules
 - **Never** leave a raw hex or a `--<bespoke>` token in a lifted component's CSS — every value comes through a `--grove-*` role. **Enforced in CI** by `scripts/grove-token-lint.mjs` (`pnpm lint:tokens`): raw `#hex`/`rgb()`/`hsl()`, foreign `var(--x)`, and `var(--grove-*)` names the contract never defines all fail the `GroveKit token lint` check. See `docs/grovekit-gates.md`. Escape hatch for a genuinely non-themeable value: `/* grove-lint: allow — reason */` on that line.
