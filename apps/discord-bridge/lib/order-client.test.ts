@@ -60,11 +60,19 @@ describe("orderAction", () => {
     expect(res).toMatchObject({ ok: false, status: 409, error: "S00042 is on hold until Oct 15." });
   });
 
-  it("a non-JSON reply gives the plain retry message, never a status or body", async () => {
+  it("a non-JSON reply says Odoo may still be working, never that nothing changed", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response("<html>502 Bad Gateway</html>", { status: 502 }));
     const res = await orderAction(CFG, "42", "hold", { actor: "Wes" }, fetchImpl);
     expect(res.ok).toBe(false);
-    expect(res.error).toBe(RETRY);
+    expect(res.error).toMatch(/may still be working/);
+    expect(res.error).not.toMatch(/Nothing changed/);
+    expect(res.error).not.toMatch(/502|html/);
+  });
+
+  it("reports how many boxes a refunded label cleared", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { card: null, boxes_cleared: 2 }));
+    const res = await orderAction(CFG, "42", "label-refunded", { actor: "Wes" }, fetchImpl);
+    expect(res.boxesCleared).toBe(2);
   });
 
   it("a non-2xx JSON reply without an error string gives the plain retry message", async () => {

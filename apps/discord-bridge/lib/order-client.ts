@@ -23,6 +23,8 @@ export interface OrderActionResult {
   status: number;
   /** Mark shipped only: the order was already shipped (idempotent double-click). */
   alreadyShipped?: boolean;
+  /** Label refunded only: how many boxes had their tracking cleared. */
+  boxesCleared?: number;
   /**
    * The rebuilt card payload. On success it can be null: the action happened but
    * the card couldn't be built, so confirm plainly and don't treat it as a failure.
@@ -33,6 +35,9 @@ export interface OrderActionResult {
 }
 
 const UNREACHABLE = "Couldn't reach Odoo. Nothing changed; try again.";
+
+/** Something answered, but not Odoo's JSON (a proxy timeout, say), so the action may have run. */
+const ORDER_UNSURE = "Odoo may still be working, check the order before retrying.";
 
 /**
  * POST one order action to `/grove/api/v1/orders/<id>/<path>`. Odoo's 422/409
@@ -72,7 +77,7 @@ export async function orderAction(
     if (!json || typeof json !== "object" || Array.isArray(json)) throw new Error("not an object");
     parsed = json as Record<string, unknown>;
   } catch {
-    return { ok: false, status: res.status, error: UNREACHABLE };
+    return { ok: false, status: res.status, error: ORDER_UNSURE };
   }
 
   if (!res.ok) {
@@ -81,7 +86,13 @@ export async function orderAction(
   }
 
   const card = parsed.card && typeof parsed.card === "object" ? parsed.card : null;
-  return { ok: true, status: res.status, alreadyShipped: parsed.already_shipped === true, card };
+  return {
+    ok: true,
+    status: res.status,
+    alreadyShipped: parsed.already_shipped === true,
+    card,
+    ...(typeof parsed.boxes_cleared === "number" ? { boxesCleared: parsed.boxes_cleared } : {}),
+  };
 }
 
 /** What Mark all shipped came back with. */

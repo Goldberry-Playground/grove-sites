@@ -16,6 +16,7 @@ import {
   type Platform,
 } from "./approval.ts";
 import {
+  buildConfirmPrompt,
   buildHoldModal,
   buildShippedModal,
   parseOrderAction,
@@ -57,6 +58,8 @@ export const INSIGHTS_COMMAND_NAME = "insights";
 
 export interface DiscordInteraction extends ActorCarrier {
   type: number;
+  /** The channel the interaction happened in. */
+  channel_id?: string;
   data?: {
     name?: string;
     custom_id?: string;
@@ -102,6 +105,9 @@ export type Followup =
       /** Discord user id, for the audit trail. */
       operatorId: string;
       message: unknown;
+      /** The public notice to rewrite with the counts; the click came from the ephemeral confirm. */
+      noticeMessageId?: string;
+      channelId?: string;
     }
   | {
       kind: "order_action";
@@ -114,6 +120,10 @@ export type Followup =
       /** Modal inputs by custom_id; empty for a plain button. */
       inputs: Record<string, string>;
       message: unknown;
+      /** Set when this came from an ephemeral confirm: the outcome goes to the public card by id. */
+      confirmed?: true;
+      cardMessageId?: string;
+      channelId?: string;
     };
 
 export interface InteractionResult {
@@ -192,7 +202,7 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
   const order = parseOrderAction(customId);
   if (order) {
     if (!isApprover(interaction, ctx.operatorIds ?? new Set<string>())) return orderDenied();
-    const { action, orderId, date } = order;
+    const { action, orderId, date, messageId } = order;
     // A modal must come back within 3 seconds, so nothing here calls Odoo.
     if (action === "shipped") {
       return { response: { type: ResponseType.MODAL, data: buildShippedModal(orderId, readCardPrefill(interaction.message)) } };
@@ -201,18 +211,47 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
       const prefill = action === "holddate" ? { date, reason: readCardPrefill(interaction.message).reason } : { date };
       return { response: { type: ResponseType.MODAL, data: buildHoldModal(action, orderId, prefill) } };
     }
-    if (action === "markall") {
+    if (action === "markall" || action === "refunded") {
+      // Neither can be taken back, so the first press only asks; nothing calls Odoo yet.
+      return {
+        response: {
+          type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: buildConfirmPrompt(action, orderId, interaction.message),
+        },
+      };
+    }
+    if (action === "markallgo") {
       // Odoo emails every customer in the batch, so this is the slowest call of all:
       // ack now, answer from the followup. `orderId` is the batch id here.
       const operatorId = actorId(interaction) ?? "unknown";
       return {
-        response: { type: ResponseType.DEFERRED_UPDATE_MESSAGE },
+        response: confirmedAck(),
         followup: {
           kind: "mark_all",
           batchId: orderId,
           actor: actorName(interaction) ?? operatorId,
           operatorId,
           message: interaction.message,
+          noticeMessageId: messageId,
+          channelId: interaction.channel_id,
+        },
+      };
+    }
+    if (action === "refundedgo") {
+      const operatorId = actorId(interaction) ?? "unknown";
+      return {
+        response: confirmedAck(),
+        followup: {
+          kind: "order_action",
+          action: "refunded",
+          orderId,
+          actor: actorName(interaction) ?? operatorId,
+          operatorId,
+          inputs: {},
+          message: interaction.message,
+          confirmed: true,
+          cardMessageId: messageId,
+          channelId: interaction.channel_id,
         },
       };
     }
@@ -328,6 +367,11 @@ function orderActionFollowup(
       message: interaction.message,
     },
   };
+}
+
+/** Replace an ephemeral confirm with a working note and no button, so it can't be pressed twice. */
+function confirmedAck(): InteractionResult["response"] {
+  return { type: ResponseType.UPDATE_MESSAGE, data: { content: "Working on it...", components: [] } };
 }
 
 function ephemeral(message: string): InteractionResult {

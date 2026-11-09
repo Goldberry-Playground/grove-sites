@@ -16,6 +16,7 @@ import {
   orderSecretMatches,
   orderActionOutcome,
   markAllOutcome,
+  buildConfirmPrompt,
   type OrderAction,
   type OrderAlert,
 } from "./orders";
@@ -41,7 +42,7 @@ describe("order action codec", () => {
     expect(parseOrderAction("ord:shipped:42")).toEqual({ action: "shipped", orderId: "42" });
   });
   it("round-trips every action", () => {
-    const all: OrderAction[] = ["shipped", "hold", "holddate", "release", "ready", "snooze", "spring", "fall", "refunded", "markall"];
+    const all: OrderAction[] = ["shipped", "hold", "holddate", "release", "ready", "snooze", "spring", "fall", "refunded", "markall", "markallgo", "refundedgo"];
     for (const a of all) {
       expect(parseOrderAction(encodeOrderAction(a, 42))).toEqual({ action: a, orderId: "42" });
     }
@@ -181,6 +182,24 @@ describe("card prefill + modals", () => {
   it("reads the hold reason off a held card", () => {
     const p = readCardPrefill(msg({ hold: { until: "2026-10-15", reason: "Dormancy", setBy: "Wes" } }));
     expect(p.reason).toBe("Dormancy");
+  });
+  const nudge = (reason: string) => ({
+    embeds: [
+      {
+        title: "S00042: held order is due",
+        description: `Customer: Jamie\nZone: Zone 6\nHeld for: ${reason}\nHeld until: 2026-10-15\nIs it ready to ship, or should the hold move?`,
+      },
+    ],
+  });
+  it("reads the hold reason off a hold nudge", () => {
+    expect(readCardPrefill(nudge("Dormancy first (held by Wes)")).reason).toBe("Dormancy first");
+    expect(readCardPrefill(nudge("Away until May")).reason).toBe("Away until May");
+  });
+  it("keeps a multi-line reason from a nudge whole", () => {
+    expect(readCardPrefill(nudge("Away\nback in May (held by Wes)")).reason).toBe("Away\nback in May");
+  });
+  it("a nudge with no recorded reason prefills nothing", () => {
+    expect(readCardPrefill(nudge("no reason recorded")).reason).toBeUndefined();
   });
   it("is empty for a plain card or junk", () => {
     expect(readCardPrefill(msg({}))).toEqual({});
@@ -385,6 +404,60 @@ describe("orderSecretMatches", () => {
   });
 });
 
+describe("shipped cards", () => {
+  it("a card Odoo says has shipped offers no actions", () => {
+    const card = buildOrderCard({ ...ALERT, lane: "spring", zone: "6", tracking: "1Z1", shipped: true });
+    expect(card.components).toEqual([]);
+    expect(card.embeds[0].title).toMatch(/Shipped S00042/);
+    expect(card.embeds[0].fields?.map((f) => f.name)).not.toContain("Marked shipped by");
+  });
+  it("shipped false keeps the buttons", () => {
+    const card = buildOrderCard({ ...ALERT, lane: "spring", zone: "6", tracking: "1Z1", shipped: false });
+    expect(card.components).toHaveLength(1);
+  });
+});
+
+describe("confirm prompts", () => {
+  const notice = { id: "1500000000000000001", embeds: [{ title: "Zone 6 labels", description: "Zone 6: 14 labels recorded" }] };
+  const button = (p: ReturnType<typeof buildConfirmPrompt>) => p.components[0].components[0];
+
+  it("Mark all names what is on the notice and carries the notice's id", () => {
+    const p = buildConfirmPrompt("markall", "7", notice);
+    expect(p.flags).toBe(64);
+    expect(p.content).toMatch(/14 labels recorded/);
+    expect(button(p).custom_id).toBe("ord:markallgo:7:1500000000000000001");
+  });
+  it("Mark all falls back to plain wording", () => {
+    expect(buildConfirmPrompt("markall", "7", { id: "1500000000000000001" }).content).toMatch(/Mark this batch shipped\?/);
+  });
+  it("Label refunded names the order and says what it clears", () => {
+    const card = buildOrderCard({ ...ALERT, lane: "individual", tracking: "1Z1" });
+    const p = buildConfirmPrompt("refunded", "42", { ...card, id: "1500000000000000002" });
+    expect(p.content).toMatch(/S00042/);
+    expect(p.content).toMatch(/every box/i);
+    expect(button(p).custom_id).toBe("ord:refundedgo:42:1500000000000000002");
+  });
+  it("a confirm custom_id fits Discord's limit and round-trips", () => {
+    const id = button(buildConfirmPrompt("refunded", "2147483647", { id: "15000000000000000001" })).custom_id as string;
+    expect(id.length).toBeLessThanOrEqual(100);
+    expect(parseOrderAction(id)).toEqual({ action: "refundedgo", orderId: "2147483647", messageId: "15000000000000000001" });
+  });
+  it("a confirm id with a junk message id is not an order action", () => {
+    expect(parseOrderAction("ord:markallgo:7:2026-10-15")).toBeNull();
+    expect(parseOrderAction("ord:hold:42:1500000000000000001")).toBeNull();
+  });
+  it("Label refunded's result says how many boxes were cleared", () => {
+    const card = { ...ALERT, lane: "individual" } as unknown as object;
+    expect(orderActionOutcome({ ok: true, status: 200, card, boxesCleared: 2 }, "refunded", "Wes", {}).notice).toMatch(/2 boxes/);
+    expect(orderActionOutcome({ ok: true, status: 200, card, boxesCleared: 1 }, "refunded", "Wes", {}).notice).toMatch(/1 box\b/);
+    expect(orderActionOutcome({ ok: true, status: 200, card: null, boxesCleared: 3 }, "refunded", "Wes", {}).notice).toMatch(/3 boxes/);
+  });
+  it("no other action picks up a boxes note", () => {
+    const card = { ...ALERT, lane: "individual" } as unknown as object;
+    expect(orderActionOutcome({ ok: true, status: 200, card }, "release", "Wes", {}).notice).toBeUndefined();
+  });
+});
+
 describe("markAllOutcome", () => {
   const notice = {
     embeds: [{ title: "Zone 6 labels", description: "Zone 6: 14 labels recorded", color: 1, footer: { text: "Order notice" } }],
@@ -392,7 +465,7 @@ describe("markAllOutcome", () => {
   };
   const done = { ok: true, status: 200, shipped: 12, already: 2, skipped: [{ order: "S00007", reason: "on hold until Apr 20" }] };
 
-  it("edits the notice to the counts, lists skipped orders and removes the button", () => {
+  it("edits the notice to the counts, lists skipped orders and keeps the button for them", () => {
     const o = markAllOutcome(done, "Wes", notice);
     const embed = o.edit?.embeds[0];
     expect(embed?.description).toBe(
@@ -400,13 +473,14 @@ describe("markAllOutcome", () => {
     );
     expect(embed?.title).toBe("Zone 6 labels");
     expect(embed?.footer?.text).toContain("Wes");
-    expect(o.edit?.components).toEqual([]);
+    expect(o.edit?.components).toEqual(notice.components);
     expect(o.notice).toBeUndefined();
   });
 
-  it("shows the counts with no skipped lines when nothing was skipped", () => {
+  it("shows the counts with no skipped lines when nothing was skipped, and removes the button", () => {
     const o = markAllOutcome({ ...done, skipped: [] }, "Wes", notice);
     expect(o.edit?.embeds[0].description).toBe("Zone 6: 14 labels recorded\n\n12 shipped, 2 already shipped, 0 skipped");
+    expect(o.edit?.components).toEqual([]);
   });
 
   it("a refusal posts Odoo's error and leaves the notice and button alone", () => {

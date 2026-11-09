@@ -281,18 +281,83 @@ describe("routeInteraction — order-ops buttons and modals", () => {
     ["snooze", {}],
     ["spring", {}],
     ["fall", {}],
-    ["refunded", {}],
   ])("%s defers with an order_action followup", (action) => {
     const r = click(`ord:${action}:42`);
     expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
     expect(r.followup).toMatchObject({ kind: "order_action", action, orderId: "42", actor: "Wesley", operatorId: OPERATOR });
   });
 
-  it("markall defers and carries the batch id for the mark_all followup", () => {
-    const message = { embeds: [{ title: "Zone 6 labels" }] };
-    const r = click("ord:markall:42", operator, message);
-    expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
-    expect(r.followup).toEqual({ kind: "mark_all", batchId: "42", actor: "Wesley", operatorId: OPERATOR, message });
+  const NOTICE_ID = "1500000000000000001";
+  const clickIn = (custom_id: string, who: object = operator) =>
+    routeInteraction(
+      {
+        type: InteractionType.MESSAGE_COMPONENT,
+        data: { custom_id },
+        channel_id: "111111111111",
+        message: { id: "ephemeral" },
+        ...who,
+      },
+      orderCtx,
+    );
+
+  it.each([
+    ["markall", "ord:markallgo:42:"],
+    ["refunded", "ord:refundedgo:42:"],
+  ])("the first press of %s asks to confirm and calls nothing in Odoo", (action, prefix) => {
+    const r = click(`ord:${action}:42`, operator, { id: NOTICE_ID, embeds: [{ title: "T", description: "D" }] });
+    expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
+    expect(r.response.data?.flags).toBe(64);
+    expect(r.followup).toBeUndefined();
+    const rows = r.response.data?.components as Array<{ components: Array<{ custom_id: string }> }>;
+    expect(rows[0].components).toHaveLength(1);
+    expect(rows[0].components[0].custom_id).toBe(`${prefix}${NOTICE_ID}`);
+  });
+
+  it("confirming Mark all calls Odoo once, aimed at the public notice", () => {
+    const r = clickIn(`ord:markallgo:42:${NOTICE_ID}`);
+    expect(r.response.type).toBe(ResponseType.UPDATE_MESSAGE);
+    expect(r.response.data?.components).toEqual([]);
+    expect(r.followup).toEqual({
+      kind: "mark_all",
+      batchId: "42",
+      actor: "Wesley",
+      operatorId: OPERATOR,
+      message: { id: "ephemeral" },
+      noticeMessageId: NOTICE_ID,
+      channelId: "111111111111",
+    });
+  });
+
+  it("confirming Label refunded calls Odoo once, aimed at the public card", () => {
+    const r = clickIn(`ord:refundedgo:42:${NOTICE_ID}`);
+    expect(r.response.type).toBe(ResponseType.UPDATE_MESSAGE);
+    expect(r.response.data?.components).toEqual([]);
+    expect(r.followup).toEqual({
+      kind: "order_action",
+      action: "refunded",
+      orderId: "42",
+      actor: "Wesley",
+      operatorId: OPERATOR,
+      inputs: {},
+      message: { id: "ephemeral" },
+      cardMessageId: NOTICE_ID,
+      channelId: "111111111111",
+      confirmed: true,
+    });
+  });
+
+  it.each(["ord:markallgo:42:1500000000000000001", "ord:refundedgo:42:1500000000000000001"])(
+    "a non-operator is refused on the confirm button %s",
+    (id) => {
+      const r = clickIn(id, macy);
+      expect(r.response.data?.flags).toBe(64);
+      expect(String(r.response.data?.content)).toMatch(/operator list/);
+      expect(r.followup).toBeUndefined();
+    },
+  );
+
+  it("a confirm button cannot be sent as a modal submit", () => {
+    expect(submit("ord:refundedgo:42:1500000000000000001", {}).followup).toBeUndefined();
   });
 
   it("markall is operator-only: a non-operator gets an ephemeral refusal and no followup", () => {

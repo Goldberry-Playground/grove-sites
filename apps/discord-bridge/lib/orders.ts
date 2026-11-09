@@ -23,7 +23,11 @@ const GROVE_GREEN = 0x3f7d4e;
 /** custom_id namespace for order-ops components (distinct from `cs:` / `insights:`). */
 export const ORD_PREFIX = "ord";
 
-/** Every order action a card button can carry. `markall` carries a batch id and has its own Odoo route (`markBatchShipped`). */
+/**
+ * Every order action a card button can carry. `markall` carries a batch id and has
+ * its own Odoo route (`markBatchShipped`). `markall` and `refunded` only ask to
+ * confirm; `markallgo` and `refundedgo` are the confirm buttons that do the work.
+ */
 export type OrderAction =
   | "shipped"
   | "hold"
@@ -34,7 +38,9 @@ export type OrderAction =
   | "spring"
   | "fall"
   | "refunded"
-  | "markall";
+  | "markall"
+  | "markallgo"
+  | "refundedgo";
 
 const ORDER_ACTIONS: ReadonlySet<string> = new Set<OrderAction>([
   "shipped",
@@ -47,7 +53,12 @@ const ORDER_ACTIONS: ReadonlySet<string> = new Set<OrderAction>([
   "fall",
   "refunded",
   "markall",
+  "markallgo",
+  "refundedgo",
 ]);
+
+/** The confirm buttons. Their fourth custom_id part is the public message's id, not a date. */
+const CONFIRM_ACTIONS: ReadonlySet<string> = new Set<OrderAction>(["markallgo", "refundedgo"]);
 
 /** Held-order data as the Odoo card payload sends it. */
 export interface OrderHold {
@@ -91,6 +102,8 @@ export interface OrderAlert {
   /** Label cost in dollars, or null when no label is on the order. */
   labelCost?: number | null;
   hold?: OrderHold | null;
+  /** Odoo says the box has left: the card offers no actions. */
+  shipped?: boolean;
   /** Set by the bridge (never by Odoo) once Mark shipped succeeds: who marked it. */
   shippedBy?: string;
 }
@@ -118,20 +131,22 @@ function lineBullet(line: OrderLine): string {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const SNOWFLAKE = /^\d{5,}$/;
 
 /**
- * Encode a button custom_id: `ord:<action>:<orderId>`, plus `:<yyyy-mm-dd>` for
- * hold and holddate, which carry the date a modal prefills from.
+ * Encode a button custom_id: `ord:<action>:<orderId>`, plus a fourth part: the
+ * `yyyy-mm-dd` a hold or holddate modal prefills from, or the public message id on
+ * a confirm button.
  */
-export function encodeOrderAction(action: OrderAction, orderId: number | string, date?: string | null): string {
+export function encodeOrderAction(action: OrderAction, orderId: number | string, extra?: string | null): string {
   const base = `${ORD_PREFIX}:${action}:${orderId}`;
-  return date ? `${base}:${date}` : base;
+  return extra ? `${base}:${extra}` : base;
 }
 
 /** Parse an order-ops custom_id, or null when it is not one. */
 export function parseOrderAction(
   customId: string,
-): { action: OrderAction; orderId: string; date?: string } | null {
+): { action: OrderAction; orderId: string; date?: string; messageId?: string } | null {
   const parts = customId.split(":");
   if (parts.length < 3 || parts.length > 4 || parts[0] !== ORD_PREFIX) return null;
   if (!ORDER_ACTIONS.has(parts[1])) return null;
@@ -139,6 +154,7 @@ export function parseOrderAction(
   if (!orderId) return null;
   const action = parts[1] as OrderAction;
   if (parts.length === 3) return { action, orderId };
+  if (CONFIRM_ACTIONS.has(action)) return SNOWFLAKE.test(parts[3]) ? { action, orderId, messageId: parts[3] } : null;
   if (!ISO_DATE.test(parts[3])) return null;
   return { action, orderId, date: parts[3] };
 }
@@ -204,7 +220,7 @@ function orderButtons(alert: OrderAlert): DiscordButton[] {
  * keeps the facts and has no buttons, so it can't be clicked again.
  */
 export function buildOrderCard(alert: OrderAlert): DiscordMessage {
-  const shipped = Boolean(alert.shippedBy);
+  const shipped = Boolean(alert.shippedBy || alert.shipped);
   const kind = alert.isDeposit ? "New preorder (deposit)" : "New order";
   const who = alert.customerEmail
     ? `${alert.customer || "Unknown customer"} <${alert.customerEmail}>`
@@ -231,7 +247,7 @@ export function buildOrderCard(alert: OrderAlert): DiscordMessage {
   if (alert.labelCost != null && Number.isFinite(alert.labelCost)) {
     fields.push({ name: F_COST, value: formatMoney(alert.labelCost, alert.currency || "USD"), inline: true });
   }
-  if (shipped) fields.push({ name: F_SHIPPED_BY, value: clip(alert.shippedBy as string), inline: true });
+  if (alert.shippedBy) fields.push({ name: F_SHIPPED_BY, value: clip(alert.shippedBy), inline: true });
 
   const title = shipped
     ? `✅ Shipped ${alert.orderRef} — ${fulfillmentLabel(alert.fulfillment)}`
@@ -261,7 +277,8 @@ export interface CardPrefill {
  * form takes one; cost is the plain number without `$`, commas or currency.
  */
 export function readCardPrefill(message: unknown): CardPrefill {
-  const embed = (message as { embeds?: Array<{ fields?: Array<{ name?: string; value?: string }> }> })?.embeds?.[0];
+  const embed = (message as { embeds?: Array<{ description?: unknown; fields?: Array<{ name?: string; value?: string }> }> })
+    ?.embeds?.[0];
   const fields = Array.isArray(embed?.fields) ? embed.fields : [];
   const value = (name: string) => fields.find((f) => f.name === name)?.value ?? "";
   const out: CardPrefill = {};
@@ -273,9 +290,17 @@ export function readCardPrefill(message: unknown): CardPrefill {
   const cost = /[\d,]+(?:\.\d+)?/.exec(value(F_COST))?.[0]?.replace(/,/g, "");
   if (cost) out.cost = cost;
 
-  const reason = value(F_REASON);
+  const reason = value(F_REASON) || nudgeReason(embed?.description);
   if (reason) out.reason = reason;
   return out;
+}
+
+/** The hold reason on a nudge notice, which Odoo writes as a line of the description. */
+function nudgeReason(description: unknown): string {
+  if (typeof description !== "string") return "";
+  const held = /(?:^|\n)Held for: ([\s\S]*?)\nHeld until: /.exec(description)?.[1] ?? "";
+  const reason = held.replace(/ \(held by [^)]*\)$/, "").trim();
+  return reason === "no reason recorded" ? "" : reason;
 }
 
 /** Modal input ids. */
@@ -357,7 +382,39 @@ export function readModalFields(components: unknown): Record<string, string> {
   return out;
 }
 
-/** The Odoo route (under `/orders/<id>/`) and body for an action, or null for `markall`, which calls the batch route instead. */
+/**
+ * The one-tap check before an action that cannot be taken back: Mark all emails
+ * every customer in the batch, and Label refunded clears every box's tracking.
+ * Shown only to the person who pressed. The confirm button carries the public
+ * message's id, because its own click arrives on this prompt instead.
+ */
+export function buildConfirmPrompt(
+  action: "markall" | "refunded",
+  id: string,
+  message: unknown,
+): { content: string; flags: 64; components: DiscordActionRow[] } {
+  const source = message as { id?: unknown; embeds?: Array<{ title?: unknown; description?: unknown }> } | null | undefined;
+  const messageId = typeof source?.id === "string" ? source.id : undefined;
+  const embed = source?.embeds?.[0];
+  let content: string;
+  let confirm: DiscordButton;
+  if (action === "markall") {
+    const description = typeof embed?.description === "string" ? embed.description : "";
+    const recorded = /^Zone .*\blabels? recorded$/m.exec(description)?.[0];
+    const ask = recorded ? `${recorded}. Mark them all shipped?` : "Mark this batch shipped?";
+    content = `${ask} Each customer gets a shipping email and any balance due is charged.`;
+    confirm = { type: 2, style: 3, label: "Yes, mark all shipped", custom_id: encodeOrderAction("markallgo", id, messageId) };
+  } else {
+    const ref = typeof embed?.title === "string" ? /\bS\d{3,}\b/.exec(embed.title)?.[0] : undefined;
+    content =
+      `Mark the label on ${ref ?? "this order"} refunded? ` +
+      "This clears every box's tracking and sends the order back to needing a label. No money moves.";
+    confirm = { type: 2, style: 4, label: "Yes, label refunded", custom_id: encodeOrderAction("refundedgo", id, messageId) };
+  }
+  return { content, flags: 64, components: [{ type: 1, components: [confirm] }] };
+}
+
+/** The Odoo route (under `/orders/<id>/`) and body for an action, or null for the actions with no order route. */
 export function buildOrderRequest(
   action: OrderAction,
   inputs: Record<string, string>,
@@ -380,6 +437,8 @@ export function buildOrderRequest(
     case "refunded":
       return { path: "label-refunded", body: { actor } };
     case "markall":
+    case "markallgo":
+    case "refundedgo":
       return null;
   }
 }
@@ -398,9 +457,13 @@ export function orderActionOutcome(
 ): { edit?: DiscordMessage; notice?: string } {
   if (!res.ok) return { notice: res.error ?? "Couldn't reach Odoo. Nothing changed; try again." };
   const shipped = action === "shipped";
+  const cleared = action === "refunded" && res.boxesCleared !== undefined ? boxesClearedNote(res.boxesCleared) : undefined;
   if (res.card) {
     try {
-      return { edit: buildOrderCard({ ...(res.card as unknown as OrderAlert), ...(shipped ? { shippedBy: actorName } : {}) }) };
+      return {
+        edit: buildOrderCard({ ...(res.card as unknown as OrderAlert), ...(shipped ? { shippedBy: actorName } : {}) }),
+        ...(cleared ? { notice: cleared } : {}),
+      };
     } catch (err) {
       // Odoo already changed state, so a malformed card must not read as a failure.
       // eslint-disable-next-line no-console
@@ -414,7 +477,12 @@ export function orderActionOutcome(
       notice: "Marked shipped. The card couldn't be refreshed, but the order is updated.",
     };
   }
+  if (cleared) return { notice: `${cleared} The card couldn't be refreshed.` };
   return { notice: "Done. The card couldn't be refreshed, but the order is updated." };
+}
+
+function boxesClearedNote(boxes: number): string {
+  return `Label refunded: tracking cleared on ${boxes} ${boxes === 1 ? "box" : "boxes"}. The order needs a label again.`;
 }
 
 const DESC_MAX = 4096;
@@ -423,7 +491,9 @@ const DESC_MAX = 4096;
  * What to show after Mark all shipped. A refusal (409) or any failure is an
  * ephemeral note and leaves the notice and its button alone, so it can be pressed
  * again on the right day (marking twice is safe). A success edits the notice to
- * the counts, lists each skipped order with its reason, and removes the button.
+ * the counts and lists each skipped order with its reason. The button goes only
+ * when nothing was skipped: Odoo re-checks every order, so a spare button is
+ * harmless and a missing one strands the skipped orders.
  * With no original embed to edit, the counts go out as the ephemeral note.
  */
 export function markAllOutcome(
@@ -435,7 +505,8 @@ export function markAllOutcome(
   const skipped = res.skipped ?? [];
   const counts = `${res.shipped ?? 0} shipped, ${res.already ?? 0} already shipped, ${skipped.length} skipped`;
   const lines = [counts, ...skipped.map((s) => `• ${s.order}: ${s.reason}`)];
-  const embed = (original as { embeds?: DiscordEmbed[] } | undefined)?.embeds?.[0];
+  const source = original as { embeds?: DiscordEmbed[]; components?: DiscordActionRow[] } | undefined;
+  const embed = source?.embeds?.[0];
   if (!embed) return { notice: lines.join("\n") };
   const was = embed.description ? `${embed.description}\n\n` : "";
   const description = `${was}${lines.join("\n")}`;
@@ -448,7 +519,7 @@ export function markAllOutcome(
           footer: { text: `Mark all shipped by ${actorName}` },
         },
       ],
-      components: [],
+      components: skipped.length ? (source?.components ?? []) : [],
     },
   };
 }

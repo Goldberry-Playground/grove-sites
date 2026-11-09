@@ -16,7 +16,9 @@ import { loadConfig } from "./lib/config.ts";
 import { generateDigest } from "./lib/insights.ts";
 import {
   createInteractionFollowup,
+  editChannelMessage,
   editInteractionOriginal,
+  getChannelMessage,
   postChannelMessage,
 } from "./lib/discord.ts";
 import { routeInteraction, type DiscordInteraction } from "./lib/interactions.ts";
@@ -27,15 +29,14 @@ import { executeDecision, executeRevise, type DecideDeps } from "./lib/decide.ts
 import { fileIdeaIntake, newIdeaId, type IdeaSubmission } from "./lib/idea.ts";
 import {
   buildNotice,
-  buildOrderCard,
   buildOrderRequest,
   orderSecretMatches,
   markAllOutcome,
   orderActionOutcome,
   resolveOrderChannel,
-  type OrderAlert,
 } from "./lib/orders.ts";
 import { markBatchShipped, orderAction } from "./lib/order-client.ts";
+import { orderAlertRoute, orderCardEditRoute, type OrderRouteDeps } from "./lib/order-routes.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BUFFER_ANALYTICS_URL = process.env.BUFFER_ANALYTICS_URL || "https://publish.buffer.com";
@@ -81,6 +82,33 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(payload);
+}
+
+/**
+ * Show the outcome of an action that came through an ephemeral confirm: edit the
+ * public card or notice by id (the click arrived on the prompt, not on it), then
+ * replace the prompt with the note. A failed public edit must not hide the note.
+ */
+async function showConfirmedOutcome(
+  token: string | undefined,
+  channelId: string | undefined,
+  messageId: string | undefined,
+  outcome: { edit?: DiscordMessage; notice?: string },
+): Promise<void> {
+  if (outcome.edit && channelId && messageId) {
+    try {
+      await editChannelMessage(cfg.discordBotToken, channelId, messageId, outcome.edit);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("discord-bridge: confirmed outcome edit failed:", err);
+    }
+  }
+  if (token) {
+    await editInteractionOriginal(cfg.discordAppId, token, {
+      content: outcome.notice ?? "Done. The message above is updated.",
+      components: [],
+    });
+  }
 }
 
 async function handleInteractions(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -181,13 +209,19 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
           followup.batchId,
           followup.actor,
         );
-        const outcome = markAllOutcome(res, followup.actor, followup.message);
-        if (token) {
-          // Success edits the notice and drops its button; a refusal or failure is an
-          // ephemeral followup and leaves the notice (and button) as it was.
-          if (outcome.edit) await editInteractionOriginal(cfg.discordAppId, token, outcome.edit);
-          if (outcome.notice) await createInteractionFollowup(cfg.discordAppId, token, outcome.notice);
-        }
+        // The click came from the ephemeral confirm, so read the public notice to
+        // rewrite it. If that fails, markAllOutcome gives the counts as the note.
+        const { noticeMessageId, channelId } = followup;
+        const notice =
+          noticeMessageId && channelId
+            ? await getChannelMessage(cfg.discordBotToken, channelId, noticeMessageId).catch((err) => {
+                // eslint-disable-next-line no-console
+                console.error("discord-bridge: could not read the Mark all notice:", err);
+                return undefined;
+              })
+            : undefined;
+        // Success edits the notice; a refusal or failure leaves it (and its button) as it was.
+        await showConfirmedOutcome(token, channelId, noticeMessageId, markAllOutcome(res, followup.actor, notice));
         const event = buildAuditEvent({
           action: res.ok ? "order_batch_shipped" : "order_batch_ship_failed",
           actor: followup.operatorId,
@@ -215,7 +249,9 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
           request.body,
         );
         const outcome = orderActionOutcome(res, followup.action, followup.actor, followup.message);
-        if (token) {
+        if (followup.confirmed) {
+          await showConfirmedOutcome(token, followup.channelId, followup.cardMessageId, outcome);
+        } else if (token) {
           // Success edits the card; a failure or plain confirmation is an ephemeral
           // followup, and a failure leaves the card untouched.
           if (outcome.edit) await editInteractionOriginal(cfg.discordAppId, token, outcome.edit);
@@ -271,41 +307,14 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
  * secret; inert (503) until the secret + channel map are provisioned.
  */
 async function handleOrderAlert(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!cfg.orderAlertSecret) {
-    json(res, 503, { error: "order alerts are not configured" });
-    return;
-  }
-  // Constant-work header check — a missing/short secret still compares equal-
-  // length-safely via the strict !== below (the secret is provisioned, not
-  // attacker-chosen length).
-  const provided = req.headers["x-order-alert-secret"];
-  if (typeof provided !== "string" || provided !== cfg.orderAlertSecret) {
-    json(res, 401, { error: "invalid alert secret" });
-    return;
-  }
+  const reply = await orderAlertRoute(req.headers["x-order-alert-secret"], () => readRawBody(req), orderRouteDeps);
+  json(res, reply.status, reply.body);
+}
 
-  let alert: OrderAlert;
-  try {
-    alert = JSON.parse(await readRawBody(req)) as OrderAlert;
-  } catch {
-    json(res, 400, { error: "invalid JSON" });
-    return;
-  }
-  if (alert?.orderId === undefined || !alert?.orderRef || alert?.companyId === undefined) {
-    json(res, 400, { error: "orderId, orderRef and companyId are required" });
-    return;
-  }
-
-  const channelId = resolveOrderChannel(alert.companyId, cfg.orderChannels);
-  if (!channelId) {
-    // A brand with no mapped channel is a provisioning gap, not a client error
-    // we should retry — surface it clearly (422) so it's visible in Odoo logs.
-    json(res, 422, { error: `no order channel mapped for company_id ${alert.companyId}` });
-    return;
-  }
-
-  await postChannelMessage(cfg.discordBotToken, channelId, buildOrderCard(alert));
-  json(res, 200, { ok: true, channel_id: channelId });
+/** POST /orders/alert/edit: redraw an existing order card. Same secret and channel routing as /orders/alert. */
+async function handleOrderCardEdit(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const reply = await orderCardEditRoute(req.headers["x-order-alert-secret"], () => readRawBody(req), orderRouteDeps);
+  json(res, reply.status, reply.body);
 }
 
 /**
@@ -343,6 +352,13 @@ async function handleOrderNotice(req: IncomingMessage, res: ServerResponse): Pro
   json(res, 200, { ok: true, channel_id: channelId });
 }
 
+const orderRouteDeps: OrderRouteDeps = {
+  secret: cfg.orderAlertSecret,
+  channels: cfg.orderChannels,
+  post: (channelId, message) => postChannelMessage(cfg.discordBotToken, channelId, message),
+  edit: (channelId, messageId, message) => editChannelMessage(cfg.discordBotToken, channelId, messageId, message),
+};
+
 const server = createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     json(res, 200, { ok: true, service: "discord-bridge" });
@@ -352,6 +368,14 @@ const server = createServer((req, res) => {
     handleOrderAlert(req, res).catch((err) => {
       // eslint-disable-next-line no-console
       console.error("discord-bridge: order alert handler error:", err);
+      if (!res.headersSent) json(res, 500, { error: "internal error" });
+    });
+    return;
+  }
+  if (req.method === "POST" && req.url === "/orders/alert/edit") {
+    handleOrderCardEdit(req, res).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("discord-bridge: order card edit handler error:", err);
       if (!res.headersSent) json(res, 500, { error: "internal error" });
     });
     return;
