@@ -356,6 +356,13 @@ describe("buildNotice", () => {
     expect(buildNotice({ ...body, buttons: "no" }).ok).toBe(false);
   });
 
+  it("requires companyId to be a positive integer", () => {
+    for (const bad of ["__proto__", "constructor", "3", 0, -1, 1.5, NaN, null]) {
+      expect(buildNotice({ ...body, companyId: bad }).ok).toBe(false);
+    }
+    expect(buildNotice({ ...body, companyId: 1 }).ok).toBe(true);
+  });
+
   it("rejects buttons that are too many, too long, or not ord:", () => {
     const b = body.buttons[0];
     expect(buildNotice({ ...body, buttons: Array(6).fill(b) }).ok).toBe(false);

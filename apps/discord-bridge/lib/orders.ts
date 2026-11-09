@@ -473,8 +473,8 @@ export function buildNotice(body: unknown): NoticeResult {
     buttons?: unknown;
   } | null;
   if (!b || typeof b !== "object") return { ok: false, error: "body must be an object" };
-  if (typeof b.companyId !== "number" && typeof b.companyId !== "string") {
-    return { ok: false, error: "companyId is required" };
+  if (typeof b.companyId !== "number" || !Number.isInteger(b.companyId) || b.companyId < 1) {
+    return { ok: false, error: "companyId must be a positive integer" };
   }
   if (typeof b.title !== "string" || !b.title.trim()) return { ok: false, error: "title is required" };
   if (!Array.isArray(b.lines) || !b.lines.every((l) => typeof l === "string")) {
