@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { routeInteraction, InteractionType, ResponseType } from "./interactions";
 import { buildApprovalCard, encodeAction, encodeModalId, REVISE_INPUT_ID } from "./approval";
 import { MACY_DISCORD_ID } from "./allowlist";
+import { buildOrderCard } from "./orders";
 import { IDEA_MODAL_ID, IDEA_HEADLINE_ID, IDEA_BODY_ID, IDEA_LINKS_ID } from "./idea";
 
 const ctx = { approverIds: new Set([MACY_DISCORD_ID]) };
@@ -205,27 +206,145 @@ describe("routeInteraction — Phase 3 /idea (GOL-471)", () => {
   });
 });
 
-describe("routeInteraction — Phase 2 order-ops (GOL-1980)", () => {
+describe("routeInteraction — order-ops buttons and modals", () => {
   const OPERATOR = "700000000000000000";
   const orderCtx = { approverIds: new Set([MACY_DISCORD_ID]), operatorIds: new Set([OPERATOR]) };
-  const operator = { member: { user: { id: OPERATOR } } };
+  const operator = { member: { nick: "Wesley", user: { id: OPERATOR, username: "wes" } } };
 
-  it("defers with an UPDATE ack + mark_shipped followup for an operator", () => {
-    const r = routeInteraction(
-      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...operator },
+  const click = (custom_id: string, who: object = operator, message: unknown = {}) =>
+    routeInteraction({ type: InteractionType.MESSAGE_COMPONENT, data: { custom_id }, message, ...who }, orderCtx);
+  const submit = (custom_id: string, values: Record<string, string>, who: object = operator) =>
+    routeInteraction(
+      {
+        type: InteractionType.MODAL_SUBMIT,
+        data: {
+          custom_id,
+          components: Object.entries(values).map(([k, v]) => ({ type: 1, components: [{ custom_id: k, value: v }] })),
+        },
+        message: { id: "m1" },
+        ...who,
+      },
       orderCtx,
     );
-    expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
-    expect(r.followup).toMatchObject({ kind: "mark_shipped", orderId: "42", actor: OPERATOR });
+  const inputs = (r: ReturnType<typeof click>) =>
+    ((r.response.data as { components: Array<{ components: Array<Record<string, unknown>> }> }).components).map((row) => row.components[0]);
+
+  it("Mark shipped opens a modal with required Tracking number and Label cost and calls nothing", () => {
+    const r = click("ord:shipped:42");
+    expect(r.response.type).toBe(ResponseType.MODAL);
+    expect(r.followup).toBeUndefined();
+    const [tracking, cost] = inputs(r);
+    expect(tracking).toMatchObject({ label: "Tracking number", required: true });
+    expect(cost).toMatchObject({ label: "Label cost", required: true });
+    expect(tracking.value).toBeUndefined();
   });
 
-  it("denies a non-operator ephemerally with no followup", () => {
-    const r = routeInteraction(
-      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...macy },
-      orderCtx,
-    );
+  it("Mark shipped prefills from the card: first tracking number and the cost", () => {
+    const message = buildOrderCard({
+      orderId: 42, orderRef: "S1", companyId: 1, lines: [], total: 5,
+      lane: "spring", zone: "6", carrier: "UPS", tracking: "1Z111, 1Z222", labelCost: 12.4,
+    });
+    const [tracking, cost] = inputs(click("ord:shipped:42", operator, message));
+    expect(tracking.value).toBe("1Z111");
+    expect(cost.value).toBe("12.40");
+  });
+
+  it("Hold opens a modal with Hold until prefilled from the custom_id and a required Why", () => {
+    const r = click("ord:hold:42:2026-11-10");
+    expect(r.response.type).toBe(ResponseType.MODAL);
+    expect(r.followup).toBeUndefined();
+    const [until, why] = inputs(r);
+    expect(until).toMatchObject({ label: "Hold until", value: "2026-11-10" });
+    expect(why).toMatchObject({ label: "Why", required: true });
+  });
+
+  it("Hold with no suggested date leaves Hold until empty", () => {
+    const [until] = inputs(click("ord:hold:42"));
+    expect(until.value).toBeUndefined();
+  });
+
+  it("Change date prefills date from custom_id and reason from the card", () => {
+    const message = buildOrderCard({
+      orderId: 42, orderRef: "S1", companyId: 1, lines: [], total: 5, lane: "individual",
+      hold: { until: "2026-10-15", reason: "Dormancy first", setBy: "Wes" },
+    });
+    const r = click("ord:holddate:42:2026-10-15", operator, message);
+    expect(r.response.type).toBe(ResponseType.MODAL);
+    const [until, why] = inputs(r);
+    expect(until.value).toBe("2026-10-15");
+    expect(why.value).toBe("Dormancy first");
+  });
+
+  it.each([
+    ["release", {}],
+    ["ready", {}],
+    ["snooze", {}],
+    ["spring", {}],
+    ["fall", {}],
+    ["refunded", {}],
+  ])("%s defers with an order_action followup", (action) => {
+    const r = click(`ord:${action}:42`);
+    expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
+    expect(r.followup).toMatchObject({ kind: "order_action", action, orderId: "42", actor: "Wesley", operatorId: OPERATOR });
+  });
+
+  it("markall replies ephemerally 'not available yet' and calls nothing", () => {
+    const r = click("ord:markall:42");
     expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
     expect(r.response.data?.flags).toBe(64);
+    expect(String(r.response.data?.content)).toMatch(/not available yet/i);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("modal submit defers with an order_action followup carrying the inputs", () => {
+    const r = submit("ord:shipped:42", { tracking: "1Z999", cost: "12.40" });
+    expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
+    expect(r.followup).toMatchObject({
+      kind: "order_action",
+      action: "shipped",
+      orderId: "42",
+      actor: "Wesley",
+      inputs: { tracking: "1Z999", cost: "12.40" },
+    });
+  });
+
+  it("hold and holddate submits both carry until and reason", () => {
+    for (const id of ["ord:hold:42", "ord:holddate:42"]) {
+      const r = submit(id, { until: "Oct 15", reason: "Dormancy" });
+      expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
+      expect(r.followup).toMatchObject({ kind: "order_action", orderId: "42", inputs: { until: "Oct 15", reason: "Dormancy" } });
+    }
+  });
+
+  it("a modal submit for an action without a modal is refused", () => {
+    const r = submit("ord:release:42", {});
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("actor falls back to global name, username, then id", () => {
+    const g = click("ord:release:42", { member: { user: { id: OPERATOR, global_name: "Wes G", username: "wes" } } });
+    expect(g.followup).toMatchObject({ actor: "Wes G" });
+    const u = click("ord:release:42", { member: { user: { id: OPERATOR, username: "wes" } } });
+    expect(u.followup).toMatchObject({ actor: "wes" });
+    const i = click("ord:release:42", { member: { user: { id: OPERATOR } } });
+    expect(i.followup).toMatchObject({ actor: OPERATOR });
+  });
+
+  it.each(["shipped", "hold", "holddate", "release", "ready", "snooze", "spring", "fall", "refunded", "markall"])(
+    "denies a non-operator on %s click, ephemerally with no followup",
+    (action) => {
+      const r = click(`ord:${action}:42`, macy);
+      expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
+      expect(r.response.data?.flags).toBe(64);
+      expect(String(r.response.data?.content)).toMatch(/operator list/);
+      expect(r.followup).toBeUndefined();
+    },
+  );
+
+  it.each(["shipped", "hold", "holddate"])("denies a non-operator on a %s modal submit", (action) => {
+    const r = submit(`ord:${action}:42`, { tracking: "1Z", cost: "1", until: "Oct 1", reason: "x" }, macy);
+    expect(r.response.data?.flags).toBe(64);
+    expect(String(r.response.data?.content)).toMatch(/operator list/);
     expect(r.followup).toBeUndefined();
   });
 
@@ -235,14 +354,6 @@ describe("routeInteraction — Phase 2 order-ops (GOL-1980)", () => {
       { approverIds: new Set([MACY_DISCORD_ID]) },
     );
     expect(r.response.data?.flags).toBe(64);
-    expect(r.followup).toBeUndefined();
-  });
-
-  it("a CMO approver is NOT automatically an order operator", () => {
-    const r = routeInteraction(
-      { type: InteractionType.MESSAGE_COMPONENT, data: { custom_id: "ord:shipped:42" }, message: {}, ...macy },
-      orderCtx,
-    );
     expect(r.followup).toBeUndefined();
   });
 });

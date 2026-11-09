@@ -25,8 +25,14 @@ import { verifyDiscordRequest, ed25519PublicKey } from "./lib/verify.ts";
 import { buildAuditEvent, emitAuditEvent, mirrorAuditEvent } from "./lib/audit.ts";
 import { executeDecision, executeRevise, type DecideDeps } from "./lib/decide.ts";
 import { fileIdeaIntake, newIdeaId, type IdeaSubmission } from "./lib/idea.ts";
-import { buildOrderCard, resolveOrderChannel, shippedCard, type OrderAlert } from "./lib/orders.ts";
-import { markShipped } from "./lib/order-client.ts";
+import {
+  buildOrderCard,
+  buildOrderRequest,
+  orderActionOutcome,
+  resolveOrderChannel,
+  type OrderAlert,
+} from "./lib/orders.ts";
+import { orderAction } from "./lib/order-client.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BUFFER_ANALYTICS_URL = process.env.BUFFER_ANALYTICS_URL || "https://publish.buffer.com";
@@ -166,50 +172,35 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
         return;
       }
 
-      if (followup.kind === "mark_shipped") {
+      if (followup.kind === "order_action") {
+        const request = buildOrderRequest(followup.action, followup.inputs, followup.actor);
+        if (!request) return; // markall is answered before it gets here; nothing to call
         const now = new Date().toISOString();
-        const res = await markShipped(
+        const res = await orderAction(
           { odooApiBase: cfg.odooApiBase ?? "", odooBridgeKey: cfg.odooBridgeKey ?? "" },
           followup.orderId,
-          followup.actor,
+          request.path,
+          request.body,
         );
-        const mirror = {
-          bridgeKey: cfg.bridgeKey,
-          auditIssueId: cfg.auditIssueId,
-          apiBase: cfg.paperclipApiBase,
-        };
-        if (res.ok) {
-          const tail = res.alreadyShipped ? "already shipped" : "shipped";
-          const track = res.tracking?.length ? ` · tracking: ${res.tracking.join(", ")}` : "";
-          const detail = `${res.orderRef ?? `order:${followup.orderId}`} — ${tail}${track}`;
-          if (token) {
-            await editInteractionOriginal(cfg.discordAppId, token, shippedCard(followup.message, followup.actor, detail));
-          }
+        const outcome = orderActionOutcome(res, followup.action, followup.actor, followup.message);
+        if (token) {
+          // Success edits the card; a failure or plain confirmation is an ephemeral
+          // followup, and a failure leaves the card untouched.
+          if (outcome.edit) await editInteractionOriginal(cfg.discordAppId, token, outcome.edit);
+          if (outcome.notice) await createInteractionFollowup(cfg.discordAppId, token, outcome.notice);
+        }
+        if (followup.action === "shipped") {
+          const mirror = {
+            bridgeKey: cfg.bridgeKey,
+            auditIssueId: cfg.auditIssueId,
+            apiBase: cfg.paperclipApiBase,
+          };
           const event = buildAuditEvent({
-            action: "order_shipped",
-            actor: followup.actor,
+            action: res.ok ? "order_shipped" : "order_ship_failed",
+            actor: followup.operatorId,
             ts: now,
             order_id: followup.orderId,
-            reason: res.alreadyShipped ? "already_shipped" : undefined,
-          });
-          emitAuditEvent(event);
-          void mirrorAuditEvent(event, mirror);
-        } else {
-          // No silent ack (GOL-1975 guard): surface the failure to the operator
-          // as an ephemeral message and LEAVE the button clickable for retry.
-          if (token) {
-            await createInteractionFollowup(
-              cfg.discordAppId,
-              token,
-              `⚠️ Couldn't mark order:${followup.orderId} shipped — ${res.error ?? "unknown error"}. The order is unchanged; try again.`,
-            );
-          }
-          const event = buildAuditEvent({
-            action: "order_ship_failed",
-            actor: followup.actor,
-            ts: now,
-            order_id: followup.orderId,
-            reason: res.error,
+            reason: res.ok ? (res.alreadyShipped ? "already_shipped" : undefined) : res.error,
           });
           emitAuditEvent(event);
           void mirrorAuditEvent(event, mirror);

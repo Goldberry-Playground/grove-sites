@@ -6,7 +6,7 @@
  * modal. Pure/synchronous so it is trivially unit-testable; the server performs
  * the async side effects (Buffer draft, audit mirror, message edit).
  */
-import { isApprover, actorId, type ActorCarrier } from "./allowlist.ts";
+import { isApprover, actorId, actorName, type ActorCarrier } from "./allowlist.ts";
 import {
   buildReviseModal,
   parseAction,
@@ -15,7 +15,14 @@ import {
   readModalText,
   type Platform,
 } from "./approval.ts";
-import { parseOrderAction } from "./orders.ts";
+import {
+  buildHoldModal,
+  buildShippedModal,
+  parseOrderAction,
+  readCardPrefill,
+  readModalFields,
+  type OrderAction,
+} from "./orders.ts";
 import { parsePeriod } from "./period.ts";
 import {
   IDEA_COMMAND_NAME,
@@ -87,9 +94,15 @@ export type Followup =
       message: unknown;
     }
   | {
-      kind: "mark_shipped";
+      kind: "order_action";
+      action: OrderAction;
       orderId: string;
+      /** Display name, written to Odoo chatter. */
       actor: string;
+      /** Discord user id, for the audit trail. */
+      operatorId: string;
+      /** Modal inputs by custom_id; empty for a plain button. */
+      inputs: Record<string, string>;
       message: unknown;
     };
 
@@ -165,24 +178,21 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
     };
   }
 
-  // Phase 2 (GOL-1980): order-ops "Mark shipped" button.
+  // Order-ops buttons (GOL-1980, order lanes).
   const order = parseOrderAction(customId);
   if (order) {
-    const operators = ctx.operatorIds ?? new Set<string>();
-    if (!isApprover(interaction, operators)) return orderDenied();
-    const actor = actorId(interaction) ?? "unknown";
-    // Defer with an UPDATE ack: the button stays until the server confirms the
-    // Odoo write, then edits the card to "Shipped" (success) or posts an
-    // ephemeral error and leaves the button clickable for retry (failure).
-    return {
-      response: { type: ResponseType.DEFERRED_UPDATE_MESSAGE },
-      followup: {
-        kind: "mark_shipped",
-        orderId: order.orderId,
-        actor,
-        message: interaction.message,
-      },
-    };
+    if (!isApprover(interaction, ctx.operatorIds ?? new Set<string>())) return orderDenied();
+    const { action, orderId, date } = order;
+    // A modal must come back within 3 seconds, so nothing here calls Odoo.
+    if (action === "shipped") {
+      return { response: { type: ResponseType.MODAL, data: buildShippedModal(orderId, readCardPrefill(interaction.message)) } };
+    }
+    if (action === "hold" || action === "holddate") {
+      const prefill = action === "holddate" ? { date, reason: readCardPrefill(interaction.message).reason } : { date };
+      return { response: { type: ResponseType.MODAL, data: buildHoldModal(action, orderId, prefill) } };
+    }
+    if (action === "markall") return ephemeral("Mark all shipped is not available yet.");
+    return orderActionFollowup(interaction, action, orderId, {});
   }
 
   // Phase 2: content-approval buttons.
@@ -244,6 +254,16 @@ function routeModalSubmit(interaction: DiscordInteraction, ctx: RouteContext): I
     };
   }
 
+  // Order-ops modals. A submit is its own interaction, so it is gated again.
+  const order = parseOrderAction(customId);
+  if (order) {
+    if (!isApprover(interaction, ctx.operatorIds ?? new Set<string>())) return orderDenied();
+    if (order.action !== "shipped" && order.action !== "hold" && order.action !== "holddate") {
+      return ephemeral("Unknown submission.");
+    }
+    return orderActionFollowup(interaction, order.action, order.orderId, readModalFields(interaction.data?.components));
+  }
+
   const parsed = parseModalId(customId);
   if (!parsed) return ephemeral("Unknown submission.");
   if (!isApprover(interaction, ctx.approverIds)) return denied();
@@ -259,6 +279,28 @@ function routeModalSubmit(interaction: DiscordInteraction, ctx: RouteContext): I
       actor: actorId(interaction) ?? "unknown",
       targets: parsed.targets,
       text,
+      message: interaction.message,
+    },
+  };
+}
+
+/** Ack with a message update; the server calls Odoo and edits the card (or posts the error). */
+function orderActionFollowup(
+  interaction: DiscordInteraction,
+  action: OrderAction,
+  orderId: string,
+  inputs: Record<string, string>,
+): InteractionResult {
+  const operatorId = actorId(interaction) ?? "unknown";
+  return {
+    response: { type: ResponseType.DEFERRED_UPDATE_MESSAGE },
+    followup: {
+      kind: "order_action",
+      action,
+      orderId,
+      actor: actorName(interaction) ?? operatorId,
+      operatorId,
+      inputs,
       message: interaction.message,
     },
   };

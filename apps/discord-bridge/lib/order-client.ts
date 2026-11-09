@@ -1,14 +1,14 @@
 /**
- * Bridge → Odoo client for the operator mark-shipped signal (GOL-1980).
+ * Bridge → Odoo client for operator order actions (GOL-1980, order lanes).
  *
- * Calls the bearer-auth'd `POST /grove/api/v1/orders/<id>/mark-shipped` endpoint
- * (grove_headless) with the scoped bridge service key (GOL-592). The endpoint is
- * idempotent, so a double-click returns 200 with `already_shipped: true`; a
- * non-2xx is a REAL failure the caller must surface to the operator as an
- * ephemeral error — never a silent ack (GOL-1975 guard).
+ * Calls the bearer-auth'd `POST /grove/api/v1/orders/<id>/<route>` endpoints
+ * (grove_headless: mark-shipped, hold, hold/release, hold/snooze, move,
+ * label-refunded) with the scoped bridge service key (GOL-592). A non-2xx is a
+ * REAL failure the caller must surface to the operator as an ephemeral error,
+ * never a silent ack (GOL-1975 guard).
  */
 
-/** Config for the Odoo mark-shipped call. */
+/** Config for the Odoo order-action calls. */
 export interface OrderClientConfig {
   /** Odoo API base, e.g. https://odoo.qa.gatheringatthegrove.com. */
   odooApiBase: string;
@@ -16,38 +16,42 @@ export interface OrderClientConfig {
   odooBridgeKey: string;
 }
 
-/** Outcome of a mark-shipped call. `ok=false` ⇒ surface an ephemeral error. */
-export interface MarkShippedResult {
+/** Outcome of an order action. `ok=false` ⇒ post `error` as an ephemeral message. */
+export interface OrderActionResult {
   ok: boolean;
-  /** HTTP status, or 0 when the request never completed (network error). */
+  /** HTTP status, or 0 when the request never completed. */
   status: number;
-  /** True when the order was already shipped (idempotent double-click). */
+  /** Mark shipped only: the order was already shipped (idempotent double-click). */
   alreadyShipped?: boolean;
-  /** Order reference echoed back, for the operator-facing confirmation. */
-  orderRef?: string;
-  /** Tracking numbers persisted on the order, when any. */
-  tracking?: string[];
-  /** Human-readable error, present only when ok is false. */
+  /**
+   * The rebuilt card payload. On success it can be null: the action happened but
+   * the card couldn't be built, so confirm plainly and don't treat it as a failure.
+   */
+  card?: object | null;
+  /** Message for the operator, present only when ok is false. */
   error?: string;
 }
 
+const UNREACHABLE = "Couldn't reach Odoo. Nothing changed; try again.";
+
 /**
- * POST the mark-shipped signal. Configuration is validated up front so a
- * missing key fails visibly here rather than as an opaque 401 from Odoo. Never
- * throws — every failure resolves to `{ ok: false, ... }` so the handler always
- * shows the operator a concrete outcome.
+ * POST one order action to `/grove/api/v1/orders/<id>/<path>`. Odoo's 422/409
+ * `error` strings are written for the operator and passed through as is; every
+ * other failure (network, non-JSON, no error string) becomes one plain message,
+ * never a status code or body. Never throws.
  */
-export async function markShipped(
+export async function orderAction(
   cfg: OrderClientConfig,
   orderId: string,
-  actor: string | undefined,
+  path: string,
+  body: Record<string, unknown>,
   fetchImpl: typeof fetch = fetch,
-): Promise<MarkShippedResult> {
+): Promise<OrderActionResult> {
   if (!cfg.odooApiBase || !cfg.odooBridgeKey) {
     return { ok: false, status: 0, error: "Order write is not configured yet (missing Odoo bridge key)." };
   }
   const base = cfg.odooApiBase.replace(/\/$/, "");
-  const url = `${base}/grove/api/v1/orders/${encodeURIComponent(orderId)}/mark-shipped`;
+  const url = `${base}/grove/api/v1/orders/${encodeURIComponent(orderId)}/${path}`;
   let res: Response;
   try {
     res = await fetchImpl(url, {
@@ -56,31 +60,26 @@ export async function markShipped(
         Authorization: `Bearer ${cfg.odooBridgeKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(actor ? { actor } : {}),
+      body: JSON.stringify(body),
     });
-  } catch (err) {
-    return { ok: false, status: 0, error: `Could not reach Odoo: ${(err as Error).message}` };
+  } catch {
+    return { ok: false, status: 0, error: UNREACHABLE };
   }
 
-  let body: Record<string, unknown> = {};
+  let parsed: Record<string, unknown>;
   try {
-    body = (await res.json()) as Record<string, unknown>;
+    const json: unknown = await res.json();
+    if (!json || typeof json !== "object" || Array.isArray(json)) throw new Error("not an object");
+    parsed = json as Record<string, unknown>;
   } catch {
-    /* non-JSON body (e.g. an HTML 401 page) — leave body empty */
+    return { ok: false, status: res.status, error: UNREACHABLE };
   }
 
   if (!res.ok) {
-    const detail = typeof body.error === "string" ? body.error : `HTTP ${res.status}`;
-    return { ok: false, status: res.status, error: detail };
+    const error = typeof parsed.error === "string" && parsed.error.trim() ? parsed.error : UNREACHABLE;
+    return { ok: false, status: res.status, error };
   }
 
-  return {
-    ok: true,
-    status: res.status,
-    alreadyShipped: body.already_shipped === true,
-    orderRef: typeof body.name === "string" ? body.name : undefined,
-    tracking: Array.isArray(body.tracking_numbers)
-      ? (body.tracking_numbers as unknown[]).filter((t): t is string => typeof t === "string")
-      : undefined,
-  };
+  const card = parsed.card && typeof parsed.card === "object" ? parsed.card : null;
+  return { ok: true, status: res.status, alreadyShipped: parsed.already_shipped === true, card };
 }
