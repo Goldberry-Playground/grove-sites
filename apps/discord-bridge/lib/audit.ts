@@ -16,7 +16,10 @@ export type AuditAction =
   | "idea_submitted"
   // Phase 2 order-ops (GOL-1980).
   | "order_shipped"
-  | "order_ship_failed";
+  | "order_ship_failed"
+  // Mark all shipped on a zone batch.
+  | "order_batch_shipped"
+  | "order_batch_ship_failed";
 
 export interface AuditEventInput {
   action: AuditAction;
@@ -32,6 +35,8 @@ export interface AuditEventInput {
   idea_id?: string;
   /** Phase 2 order-ops (GOL-1980): the Odoo sale.order id the action applies to. */
   order_id?: string;
+  /** Mark all shipped: the Odoo grove.label.batch id. */
+  batch_id?: string;
   /** Phase 2: platforms drafted to (approve/revise). */
   platforms?: string[];
   /** Phase 2: Buffer draft ids created (approve/revise). */
@@ -78,6 +83,7 @@ export function renderMirrorComment(event: AuditEvent): string {
   ];
   if (event.idea_id) parts.push(`idea: \`${event.idea_id}\``);
   if (event.order_id) parts.push(`order: \`${event.order_id}\``);
+  if (event.batch_id) parts.push(`batch: \`${event.batch_id}\``);
   if (event.suggestion_id) parts.push(`suggestion: \`${event.suggestion_id}\``);
   if (event.platforms?.length) parts.push(`platforms: ${event.platforms.join(", ")}`);
   if (event.buffer_draft_ids?.length) parts.push(`buffer drafts: ${event.buffer_draft_ids.join(", ")}`);

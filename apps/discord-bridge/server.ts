@@ -30,11 +30,12 @@ import {
   buildOrderCard,
   buildOrderRequest,
   orderSecretMatches,
+  markAllOutcome,
   orderActionOutcome,
   resolveOrderChannel,
   type OrderAlert,
 } from "./lib/orders.ts";
-import { orderAction } from "./lib/order-client.ts";
+import { markBatchShipped, orderAction } from "./lib/order-client.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const BUFFER_ANALYTICS_URL = process.env.BUFFER_ANALYTICS_URL || "https://publish.buffer.com";
@@ -174,9 +175,38 @@ async function handleInteractions(req: IncomingMessage, res: ServerResponse): Pr
         return;
       }
 
+      if (followup.kind === "mark_all") {
+        const res = await markBatchShipped(
+          { odooApiBase: cfg.odooApiBase ?? "", odooBridgeKey: cfg.odooBridgeKey ?? "" },
+          followup.batchId,
+          followup.actor,
+        );
+        const outcome = markAllOutcome(res, followup.actor, followup.message);
+        if (token) {
+          // Success edits the notice and drops its button; a refusal or failure is an
+          // ephemeral followup and leaves the notice (and button) as it was.
+          if (outcome.edit) await editInteractionOriginal(cfg.discordAppId, token, outcome.edit);
+          if (outcome.notice) await createInteractionFollowup(cfg.discordAppId, token, outcome.notice);
+        }
+        const event = buildAuditEvent({
+          action: res.ok ? "order_batch_shipped" : "order_batch_ship_failed",
+          actor: followup.operatorId,
+          ts: new Date().toISOString(),
+          batch_id: followup.batchId,
+          reason: res.ok ? `${res.shipped} shipped, ${res.already} already, ${res.skipped?.length ?? 0} skipped` : res.error,
+        });
+        emitAuditEvent(event);
+        void mirrorAuditEvent(event, {
+          bridgeKey: cfg.bridgeKey,
+          auditIssueId: cfg.auditIssueId,
+          apiBase: cfg.paperclipApiBase,
+        });
+        return;
+      }
+
       if (followup.kind === "order_action") {
         const request = buildOrderRequest(followup.action, followup.inputs, followup.actor);
-        if (!request) return; // markall is answered before it gets here; nothing to call
+        if (!request) return; // markall has its own followup; this is only the order routes
         const now = new Date().toISOString();
         const res = await orderAction(
           { odooApiBase: cfg.odooApiBase ?? "", odooBridgeKey: cfg.odooBridgeKey ?? "" },

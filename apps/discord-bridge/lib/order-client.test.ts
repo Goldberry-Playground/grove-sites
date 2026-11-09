@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { orderAction, type OrderClientConfig } from "./order-client";
+import { MARK_ALL_TIMEOUT_MS, markBatchShipped, orderAction, type OrderClientConfig } from "./order-client";
 
 const CFG: OrderClientConfig = {
   odooApiBase: "https://odoo.example.com/",
@@ -77,5 +77,72 @@ describe("orderAction", () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
     const res = await orderAction(CFG, "42", "hold", { actor: "Wes" }, fetchImpl);
     expect(res).toMatchObject({ ok: false, status: 0, error: RETRY });
+  });
+});
+
+describe("markBatchShipped", () => {
+  const UNSURE = /Odoo may still be working, check the orders before retrying/;
+
+  it("POSTs the actor to the batch route with the bearer key and a long timeout", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { shipped: 12, already: 2, skipped: [{ order: "S1", reason: "no label recorded" }] }));
+    const res = await markBatchShipped(CFG, "7", "Wes", fetchImpl);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://odoo.example.com/grove/api/v1/label-batches/7/mark-shipped");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer sk_test");
+    expect(JSON.parse(init.body)).toEqual({ actor: "Wes" });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(res).toEqual({ ok: true, status: 200, shipped: 12, already: 2, skipped: [{ order: "S1", reason: "no label recorded" }] });
+  });
+
+  it("allows at least two minutes for a batch of emails", () => {
+    expect(MARK_ALL_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+  });
+
+  it("fails visibly when the bridge key is missing", async () => {
+    const res = await markBatchShipped({ odooApiBase: "", odooBridgeKey: "" }, "7", "Wes", vi.fn());
+    expect(res).toMatchObject({ ok: false, status: 0 });
+    expect(res.error).toMatch(/not configured/i);
+  });
+
+  it("a 409 is a refusal carrying Odoo's words", async () => {
+    const error = "Zone 6 spring shipping starts April 5, 2027. Today is April 1, 2027, so nothing was marked shipped.";
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(409, { error }));
+    expect(await markBatchShipped(CFG, "7", "Wes", fetchImpl)).toEqual({ ok: false, status: 409, refused: true, error });
+  });
+
+  it("a timeout says Odoo may still be working, never 'nothing changed'", async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new DOMException("The operation timed out.", "TimeoutError"));
+    const res = await markBatchShipped(CFG, "7", "Wes", fetchImpl, 5);
+    expect(res.ok).toBe(false);
+    expect(res.refused).toBeUndefined();
+    expect(res.error).toMatch(UNSURE);
+    expect(res.error).not.toMatch(/nothing changed/i);
+  });
+
+  it("a real timeout aborts the request", async () => {
+    const fetchImpl = vi.fn((_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      }),
+    );
+    const res = await markBatchShipped(CFG, "7", "Wes", fetchImpl as unknown as typeof fetch, 20);
+    expect(res.error).toMatch(UNSURE);
+  });
+
+  it("a network error, a non-JSON reply and a malformed success all say it may still be working", async () => {
+    const down = vi.fn().mockRejectedValue(new Error("ECONNRESET"));
+    expect((await markBatchShipped(CFG, "7", "Wes", down)).error).toMatch(UNSURE);
+    const html = vi.fn().mockResolvedValue(new Response("<html>502</html>", { status: 502 }));
+    expect((await markBatchShipped(CFG, "7", "Wes", html)).error).toMatch(UNSURE);
+    const odd = vi.fn().mockResolvedValue(jsonResponse(200, { shipped: "many" }));
+    expect((await markBatchShipped(CFG, "7", "Wes", odd)).error).toMatch(UNSURE);
+  });
+
+  it("a 500 passes Odoo's check-first message through", async () => {
+    const error = "Something went wrong. Some orders may have shipped; check the orders before retrying.";
+    const res = await markBatchShipped(CFG, "7", "Wes", vi.fn().mockResolvedValue(jsonResponse(500, { error })));
+    expect(res).toMatchObject({ ok: false, status: 500, error });
+    expect(res.refused).toBeUndefined();
   });
 });

@@ -14,7 +14,7 @@
  * the audit side effects.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { OrderActionResult } from "./order-client.ts";
+import type { MarkAllResult, OrderActionResult } from "./order-client.ts";
 import type { DiscordActionRow, DiscordButton, DiscordEmbed, DiscordMessage } from "./render.ts";
 
 /** Grove green (embed accent) — matches the digest / approval cards. */
@@ -23,7 +23,7 @@ const GROVE_GREEN = 0x3f7d4e;
 /** custom_id namespace for order-ops components (distinct from `cs:` / `insights:`). */
 export const ORD_PREFIX = "ord";
 
-/** Every order action a card button can carry. `markall` is parsed but not routed to Odoo yet. */
+/** Every order action a card button can carry. `markall` carries a batch id and has its own Odoo route (`markBatchShipped`). */
 export type OrderAction =
   | "shipped"
   | "hold"
@@ -357,7 +357,7 @@ export function readModalFields(components: unknown): Record<string, string> {
   return out;
 }
 
-/** The Odoo route (under `/orders/<id>/`) and body for an action, or null when none yet (`markall`). */
+/** The Odoo route (under `/orders/<id>/`) and body for an action, or null for `markall`, which calls the batch route instead. */
 export function buildOrderRequest(
   action: OrderAction,
   inputs: Record<string, string>,
@@ -415,6 +415,42 @@ export function orderActionOutcome(
     };
   }
   return { notice: "Done. The card couldn't be refreshed, but the order is updated." };
+}
+
+const DESC_MAX = 4096;
+
+/**
+ * What to show after Mark all shipped. A refusal (409) or any failure is an
+ * ephemeral note and leaves the notice and its button alone, so it can be pressed
+ * again on the right day (marking twice is safe). A success edits the notice to
+ * the counts, lists each skipped order with its reason, and removes the button.
+ * With no original embed to edit, the counts go out as the ephemeral note.
+ */
+export function markAllOutcome(
+  res: MarkAllResult,
+  actorName: string,
+  original: unknown,
+): { edit?: DiscordMessage; notice?: string } {
+  if (!res.ok) return { notice: res.error ?? "Couldn't reach Odoo. Odoo may still be working, check the orders before retrying." };
+  const skipped = res.skipped ?? [];
+  const counts = `${res.shipped ?? 0} shipped, ${res.already ?? 0} already shipped, ${skipped.length} skipped`;
+  const lines = [counts, ...skipped.map((s) => `• ${s.order}: ${s.reason}`)];
+  const embed = (original as { embeds?: DiscordEmbed[] } | undefined)?.embeds?.[0];
+  if (!embed) return { notice: lines.join("\n") };
+  const was = embed.description ? `${embed.description}\n\n` : "";
+  const description = `${was}${lines.join("\n")}`;
+  return {
+    edit: {
+      embeds: [
+        {
+          ...embed,
+          description: description.length > DESC_MAX ? `${description.slice(0, DESC_MAX - 1)}…` : description,
+          footer: { text: `Mark all shipped by ${actorName}` },
+        },
+      ],
+      components: [],
+    },
+  };
 }
 
 /**

@@ -288,11 +288,24 @@ describe("routeInteraction — order-ops buttons and modals", () => {
     expect(r.followup).toMatchObject({ kind: "order_action", action, orderId: "42", actor: "Wesley", operatorId: OPERATOR });
   });
 
-  it("markall replies ephemerally 'not available yet' and calls nothing", () => {
-    const r = click("ord:markall:42");
+  it("markall defers and carries the batch id for the mark_all followup", () => {
+    const message = { embeds: [{ title: "Zone 6 labels" }] };
+    const r = click("ord:markall:42", operator, message);
+    expect(r.response.type).toBe(ResponseType.DEFERRED_UPDATE_MESSAGE);
+    expect(r.followup).toEqual({ kind: "mark_all", batchId: "42", actor: "Wesley", operatorId: OPERATOR, message });
+  });
+
+  it("markall is operator-only: a non-operator gets an ephemeral refusal and no followup", () => {
+    const r = click("ord:markall:42", macy);
     expect(r.response.type).toBe(ResponseType.CHANNEL_MESSAGE_WITH_SOURCE);
     expect(r.response.data?.flags).toBe(64);
-    expect(String(r.response.data?.content)).toMatch(/not available yet/i);
+    expect(String(r.response.data?.content)).toMatch(/operator list/);
+    expect(r.followup).toBeUndefined();
+  });
+
+  it("markall is refused as a modal submit", () => {
+    const r = submit("ord:markall:42", {});
+    expect(r.response.data?.flags).toBe(64);
     expect(r.followup).toBeUndefined();
   });
 

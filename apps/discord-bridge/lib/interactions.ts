@@ -94,6 +94,16 @@ export type Followup =
       message: unknown;
     }
   | {
+      kind: "mark_all";
+      /** Odoo grove.label.batch id. */
+      batchId: string;
+      /** Display name, written to Odoo chatter. */
+      actor: string;
+      /** Discord user id, for the audit trail. */
+      operatorId: string;
+      message: unknown;
+    }
+  | {
       kind: "order_action";
       action: OrderAction;
       orderId: string;
@@ -191,7 +201,21 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
       const prefill = action === "holddate" ? { date, reason: readCardPrefill(interaction.message).reason } : { date };
       return { response: { type: ResponseType.MODAL, data: buildHoldModal(action, orderId, prefill) } };
     }
-    if (action === "markall") return ephemeral("Mark all shipped is not available yet.");
+    if (action === "markall") {
+      // Odoo emails every customer in the batch, so this is the slowest call of all:
+      // ack now, answer from the followup. `orderId` is the batch id here.
+      const operatorId = actorId(interaction) ?? "unknown";
+      return {
+        response: { type: ResponseType.DEFERRED_UPDATE_MESSAGE },
+        followup: {
+          kind: "mark_all",
+          batchId: orderId,
+          actor: actorName(interaction) ?? operatorId,
+          operatorId,
+          message: interaction.message,
+        },
+      };
+    }
     return orderActionFollowup(interaction, action, orderId, {});
   }
 

@@ -15,6 +15,7 @@ import {
   buildNotice,
   orderSecretMatches,
   orderActionOutcome,
+  markAllOutcome,
   type OrderAction,
   type OrderAlert,
 } from "./orders";
@@ -254,7 +255,7 @@ describe("buildOrderRequest", () => {
     expect(buildOrderRequest("fall", {}, "Wes")).toEqual({ path: "move", body: { actor: "Wes", wave: "fall" } });
     expect(buildOrderRequest("refunded", {}, "Wes")).toEqual({ path: "label-refunded", body: { actor: "Wes" } });
   });
-  it("does not route markall to Odoo yet", () => {
+  it("markall has no order route; it calls the batch route instead", () => {
     expect(buildOrderRequest("markall", {}, "Wes")).toBeNull();
   });
 });
@@ -381,5 +382,55 @@ describe("orderSecretMatches", () => {
     expect(orderSecretMatches("s3cret-and-more", "s3cret")).toBe(false);
     expect(orderSecretMatches(undefined, "s3cret")).toBe(false);
     expect(orderSecretMatches("", "")).toBe(false);
+  });
+});
+
+describe("markAllOutcome", () => {
+  const notice = {
+    embeds: [{ title: "Zone 6 labels", description: "Zone 6: 14 labels recorded", color: 1, footer: { text: "Order notice" } }],
+    components: [{ type: 1, components: [{ type: 2, style: 3, label: "Mark all shipped", custom_id: "ord:markall:7" }] }],
+  };
+  const done = { ok: true, status: 200, shipped: 12, already: 2, skipped: [{ order: "S00007", reason: "on hold until Apr 20" }] };
+
+  it("edits the notice to the counts, lists skipped orders and removes the button", () => {
+    const o = markAllOutcome(done, "Wes", notice);
+    const embed = o.edit?.embeds[0];
+    expect(embed?.description).toBe(
+      "Zone 6: 14 labels recorded\n\n12 shipped, 2 already shipped, 1 skipped\n• S00007: on hold until Apr 20",
+    );
+    expect(embed?.title).toBe("Zone 6 labels");
+    expect(embed?.footer?.text).toContain("Wes");
+    expect(o.edit?.components).toEqual([]);
+    expect(o.notice).toBeUndefined();
+  });
+
+  it("shows the counts with no skipped lines when nothing was skipped", () => {
+    const o = markAllOutcome({ ...done, skipped: [] }, "Wes", notice);
+    expect(o.edit?.embeds[0].description).toBe("Zone 6: 14 labels recorded\n\n12 shipped, 2 already shipped, 0 skipped");
+  });
+
+  it("a refusal posts Odoo's error and leaves the notice and button alone", () => {
+    const msg = "Zone 6 spring shipping starts April 5, 2027. Today is April 1, 2027, so nothing was marked shipped.";
+    const o = markAllOutcome({ ok: false, status: 409, refused: true, error: msg }, "Wes", notice);
+    expect(o.edit).toBeUndefined();
+    expect(o.notice).toBe(msg);
+  });
+
+  it("any other failure is a note too, with the notice and button untouched", () => {
+    const o = markAllOutcome({ ok: false, status: 0, error: "Odoo may still be working, check the orders before retrying." }, "Wes", notice);
+    expect(o.edit).toBeUndefined();
+    expect(o.notice).toMatch(/may still be working/);
+  });
+
+  it("without the original embed the counts go out as the note", () => {
+    const o = markAllOutcome(done, "Wes", undefined);
+    expect(o.edit).toBeUndefined();
+    expect(o.notice).toBe("12 shipped, 2 already shipped, 1 skipped\n• S00007: on hold until Apr 20");
+  });
+
+  it("clips a very long skipped list to Discord's description limit", () => {
+    const skipped = Array.from({ length: 400 }, (_, i) => ({ order: `S${i}`, reason: "on hold until Apr 20 for the customer" }));
+    const o = markAllOutcome({ ...done, skipped }, "Wes", notice);
+    expect((o.edit?.embeds[0].description ?? "").length).toBeLessThanOrEqual(4096);
   });
 });
