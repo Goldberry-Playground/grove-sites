@@ -66,7 +66,7 @@ jobs:
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -104,6 +104,9 @@ jobs:
       - name: Run canary on iPhone, Android, Mac, Windows
         id: run
         continue-on-error: true
+        # Shorter than the job timeout on purpose: a job timeout cancels the run
+        # and skips the Discord alert, a step timeout counts as a failure.
+        timeout-minutes: 15
         env:
           CI: "true"
           E2E_NURSERY_BASE_URL: ${{ env.BASE_URL }}

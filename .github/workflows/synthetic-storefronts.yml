@@ -1,0 +1,97 @@
+name: synthetic-storefronts
+
+# Opens the key pages of all four production storefronts on a phone and a
+# desktop (scripts/storefront-canary.mjs) and alerts Discord ops when a shopper
+# would see a redirect, a Cloudflare challenge, a server error, a page crash or
+# a broken image. Page loads only: no cart, no checkout, no writes.
+#
+# The run step has its own timeout, shorter than the job's. A job-level timeout
+# cancels the run and skips the alert; a step timeout counts as a failure, so
+# the alert still fires.
+#
+# GitHub throttles `schedule` to about 5 runs a day here (GOL-3132), so frontend
+# builds on main add a run after every change.
+
+on:
+  schedule:
+    - cron: "10,40 * * * *"
+  workflow_run:
+    workflows:
+      - Docker — Frontends
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-storefronts
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+
+jobs:
+  canary:
+    name: Storefront prod canary
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event != 'pull_request' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Check every storefront
+        id: run
+        continue-on-error: true
+        timeout-minutes: 15
+        run: node scripts/storefront-canary.mjs --out canary-failures.txt
+
+      - name: Load Discord webhook from 1Password
+        if: steps.run.outcome == 'failure'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_CI_SA_TOKEN }}
+          DISCORD_OPS_WEBHOOK_URL: op://Grove Prod/odoocker/DISCORD_OPS_WEBHOOK_URL
+        with:
+          export-env: true
+
+      - name: Alert Discord ops + fail
+        if: steps.run.outcome == 'failure'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          details="$(head -c 1400 canary-failures.txt 2>/dev/null || true)"
+          [ -n "$details" ] || details="The check timed out or could not run."
+          msg="🚨 Storefront canary FAILED. Run: $RUN_URL"$'\n'"$details"
+          if [ -n "${DISCORD_OPS_WEBHOOK_URL:-}" ]; then
+            jq -n --arg content "$msg" '{content: $content}' |
+              curl -fsS -H 'Content-Type: application/json' -d @- "$DISCORD_OPS_WEBHOOK_URL" ||
+              echo "::warning::Discord alert post failed"
+          else
+            echo "::warning::DISCORD_OPS_WEBHOOK_URL unavailable; relying on GitHub's failure email"
+          fi
+          echo "::error title=Storefront canary failed::See the run log for each page."
+          exit 1
