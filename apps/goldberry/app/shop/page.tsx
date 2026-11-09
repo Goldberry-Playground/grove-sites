@@ -67,7 +67,7 @@ export default async function ShopPage({
                       alt={product.name}
                       fill
                       className={`object-cover ${!product.available ? "saturate-50" : ""}`}
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 50vw, 33vw"
+                      sizes="(max-width: 1024px) 50vw, min(33vw, 340px)"
                     />
                   )}
                   {src && dataUri && (
