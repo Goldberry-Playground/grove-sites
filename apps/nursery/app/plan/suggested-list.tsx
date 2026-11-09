@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { CaptionGlyph } from "./badges";
-import { STRATA, type SuggestedGroups, type SuggestedPlant } from "@grove/planner";
+import { STRATA, type SuggestedGroups, type SuggestedPlant, type Track } from "@grove/planner";
 import * as copy from "./copy";
-import { dropSpan } from "./months";
+import { dropSpan, harvestSpan } from "./months";
 import { CautionMark, CheckMark } from "./questions";
 import { productPath } from "../../lib/product-path";
 
 export interface SuggestedListProps {
   suggestions: SuggestedGroups;
+  /** The deer track reads a drop season from August; food and agro read a calendar harvest. */
+  track: Track;
   onAdd: (pick: SuggestedPlant) => void;
 }
 
@@ -25,7 +27,7 @@ function usd(n: number): string {
  * what they want will find it, and it never nags: an empty stratum is simply
  * not shown.
  */
-export function SuggestedList({ suggestions, onAdd }: SuggestedListProps) {
+export function SuggestedList({ suggestions, track, onAdd }: SuggestedListProps) {
   const groups = STRATA.map((s) => [s, suggestions.groups[s]] as const).filter(([, g]) => g.length > 0);
   return (
     <section aria-labelledby="plan-suggested-heading" className="mt-10" data-testid="plan-suggested">
@@ -41,7 +43,7 @@ export function SuggestedList({ suggestions, onAdd }: SuggestedListProps) {
           </h4>
           <ul className="mt-2 divide-y divide-primary/10 border-y border-primary/10" aria-label={`${copy.STRATUM_LABELS[stratum]} suggestions`}>
             {picks.map((pick) => (
-              <SuggestedRow key={pick.plant.id} pick={pick} onAdd={() => onAdd(pick)} />
+              <SuggestedRow key={pick.plant.id} pick={pick} track={track} onAdd={() => onAdd(pick)} />
             ))}
           </ul>
         </div>
@@ -55,9 +57,9 @@ export function SuggestedList({ suggestions, onAdd }: SuggestedListProps) {
   );
 }
 
-function SuggestedRow({ pick, onAdd }: { pick: SuggestedPlant; onAdd: () => void }) {
+function SuggestedRow({ pick, track, onAdd }: { pick: SuggestedPlant; track: Track; onAdd: () => void }) {
   const p = pick.plant;
-  const span = dropSpan(p.harvest_months);
+  const span = track === "deer" ? dropSpan(p.harvest_months) : harvestSpan(p.harvest_months);
   return (
     <li className="grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1 py-3" data-testid="plan-suggested-line">
       <div className="min-w-0">

@@ -132,14 +132,14 @@
    *       `-surface` = soft tint bg; the matching `-fg` is legible on it (≥4.5:1).
    *       Ratios must hold on EVERY brand's --grove-color-paper, not just this cream
    *       default — ggg bone #efe6d3 is the darkest; scripts/grove-theme-contrast.mjs
-   *       checks all four (GOL-3825 darkened warning-solid #c77700→#b86d00 for it).
+   *       checks all four (GOL-3825 darkened warning-solid #c77700→#bb6f00 for it).
    *    3. The four hues are also luminance-separated, so they stay distinct in grayscale.
    *    ── */
   --grove-color-error-fg: #9e2b1e;       /* 6.99:1 on paper */
   --grove-color-error-solid: #c0392b;    /* 5.10:1 */
   --grove-color-error-surface: #fbeae7;
   --grove-color-warning-fg: #8a5200;     /* 5.99:1 on paper */
-  --grove-color-warning-solid: #b86d00;  /* 3.24:1 on ggg bone (darkest paper); 3.77:1 on cream */
+  --grove-color-warning-solid: #bb6f00;  /* 3.14:1 on ggg paper (darkest); ≥3.28 on the rest */
   --grove-color-warning-surface: #fbf0dc;
   --grove-color-success-fg: #256437;     /* 6.66:1 on paper */
   --grove-color-success-solid: #2e7d46;  /* 4.76:1 */
@@ -486,6 +486,12 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
+  /* WCAG 2.5.8 target size (GOL-3824): the 13–14px label alone is a ~19px-tall
+   * hit area. Block padding lifts it to ≥35px; the matching negative margin
+   * keeps the nav row's height and baseline exactly where the app set them,
+   * so the padding is pure tap area and the header does not grow. */
+  padding-block: var(--grove-space-2);
+  margin-block: calc(-1 * var(--grove-space-2));
   text-decoration: none;
   color: inherit;
   transition: color 0.15s ease;
@@ -2124,6 +2130,10 @@
  */
 
 .grove-nav-link {
+  /* Tap area ≥35px without moving the row (see CartNavLink.css, GOL-3824). */
+  display: inline-block;
+  padding-block: var(--grove-space-2);
+  margin-block: calc(-1 * var(--grove-space-2));
   color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
   text-decoration: none;
   transition: color 0.15s ease;

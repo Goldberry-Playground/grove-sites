@@ -35,6 +35,23 @@ describe("<CaptureForm />", () => {
     expect(screen.getByLabelText("Email")).toBeDefined();
   });
 
+  it("is a named form landmark when a heading is given (axe `region`, prod matrix 2026-11-07)", () => {
+    render(<CaptureForm brand="goldberry" heading="News from the farm" />);
+    // A <form> only becomes a landmark once it has an accessible name; without
+    // one every capture element was reported as content outside landmarks.
+    expect(screen.getByRole("form", { name: "News from the farm" })).toBeDefined();
+  });
+
+  it("keeps the landmark name on the success state", async () => {
+    mockFetch({ ok: true });
+    render(<CaptureForm brand="goldberry" heading="News from the farm" />);
+    await userEvent.type(screen.getByLabelText("Email"), "you@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Sign up" }));
+    await waitFor(() => {
+      expect(screen.getByRole("status", { name: "News from the farm" })).toBeDefined();
+    });
+  });
+
   it("renders the eyebrow kicker when provided (GOL-682 #1 — differentiates two captures on one page)", () => {
     render(
       <CaptureForm brand="nursery" eyebrow="Back-in-stock alert" heading="Want us to tell you?" />,

@@ -26,7 +26,7 @@
       "tolerancePx": 1
     },
     "tapTargets": {
-      "$comment": "Mobile only. Visible a/button/input/select/textarea/[role=button|link]. Inline links inside running text are exempt (WCAG 2.5.8 exemption). Smallest side < errorPx → error (the WCAG 2.5.8 AA floor), < warnPx → warn (Apple HIG / Material comfortable minimum).",
+      "$comment": "Mobile only. Visible a/button/input/select/textarea/[role=button|link] that are actual targets — controls hidden from assistive tech (aria-hidden, tabindex=-1) or off-canvas/sr-only (honeypots, skip links) are skipped, and inline links inside running text are exempt. A target with smallest side < errorPx is an error ONLY when it is also crowded: per WCAG 2.5.8 AA an undersized target passes if a 24px-diameter circle centred on it does not intersect another target. Otherwise it is a warn, as is any side < warnPx (Apple HIG / Material comfortable minimum). errorPx doubles as the 2.5.8 circle diameter.",
       "errorPx": 24,
       "warnPx": 44
     },

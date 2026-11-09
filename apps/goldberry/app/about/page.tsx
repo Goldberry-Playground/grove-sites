@@ -15,8 +15,12 @@ export default function StoryPage() {
   return (
     <article className="story-page">
       <section className="story-hero">
+        {/* A CSS background image carries no alt text, so the div takes
+            role="img" to make its aria-label legitimate: a generic div is not
+            permitted to be named (axe aria-prohibited-attr, prod 2026-11-07). */}
         <div
           className="story-hero__img"
+          role="img"
           style={{ backgroundImage: `url('${assetPath("goldberry", "photos/founders-family.webp")}')` }}
           aria-label="The Dunbar family at Goldberry Grove"
         />

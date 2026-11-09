@@ -20,7 +20,11 @@ export default function HomePage() {
   const ggg = marketplace.vendors.find((v) => v.slug === "ggg")!;
 
   return (
-    <>
+    // The page's own <main>, like every other (site) route: the layout can't
+    // supply one without nesting. Without it the homepage had no main landmark
+    // and every section sat outside landmarks (axe landmark-one-main + region,
+    // prod 2026-11-07).
+    <main>
       {/* Hero — NRG aerial backdrop; aerial drone footage will replace later. */}
       <section className="hero">
         <div className="hero-media">
@@ -257,6 +261,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-    </>
+    </main>
   );
 }

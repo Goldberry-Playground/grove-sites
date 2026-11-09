@@ -190,6 +190,13 @@ export function CaptureForm({
   const messageId = useId();
   const multibrandId = useId();
   const optInLineId = useId();
+  // Names the form (and the success status) after its heading. A <form> is a
+  // landmark only once it has an accessible name; unnamed, every capture
+  // element sat outside landmarks and axe's `region` rule flagged each one on
+  // all four brands (prod matrix 2026-11-07). Done here rather than in each
+  // app's wrapper so the fix travels with the component.
+  const headingId = useId();
+  const landmarkName = heading ? headingId : undefined;
   const Link = useGroveLink();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -300,9 +307,14 @@ export function CaptureForm({
         className={`grove-capture grove-capture--success ${className}`}
         role="status"
         aria-live="polite"
+        aria-labelledby={landmarkName}
       >
         {eyebrow ? <p className="grove-capture__eyebrow">{eyebrow}</p> : null}
-        {heading ? <p className="grove-capture__heading">{heading}</p> : null}
+        {heading ? (
+          <p id={headingId} className="grove-capture__heading">
+            {heading}
+          </p>
+        ) : null}
         <p className="grove-capture__success">{successMessage}</p>
       </div>
     );
@@ -313,9 +325,14 @@ export function CaptureForm({
       className={`grove-capture grove-capture--${layout} ${className}`}
       onSubmit={handleSubmit}
       noValidate
+      aria-labelledby={landmarkName}
     >
       {eyebrow ? <p className="grove-capture__eyebrow">{eyebrow}</p> : null}
-      {heading ? <p className="grove-capture__heading">{heading}</p> : null}
+      {heading ? (
+        <p id={headingId} className="grove-capture__heading">
+          {heading}
+        </p>
+      ) : null}
       {description ? <p className="grove-capture__desc">{description}</p> : null}
 
       <div className="grove-capture__fields">

@@ -22,7 +22,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <Link href="/" className="hub-header__brand">
           <em>Gather</em> at the Grove
         </Link>
-        <nav className="hub-header__nav">
+        {/* Both navs are labelled: two unnamed <nav>s share an accessible name
+            (none), which axe reports as landmark-unique (prod 2026-11-07). */}
+        <nav className="hub-header__nav" aria-label="Primary">
           <Link href="/marketplace">Marketplace</Link>
           <Link href="/journal">Journal</Link>
           <Link href="/about">About</Link>
@@ -58,7 +60,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           <strong>Gather at the Grove</strong>
           <p>A federated village of independent Appalachian agroforestry makers. The hub never takes a cut — every checkout goes to the maker who grew it, built it, or wrote it.</p>
         </div>
-        <nav>
+        <nav aria-label="Footer">
           <Link href="/marketplace">Marketplace</Link>
           <Link href="/journal">Journal</Link>
           <Link href="/about">About</Link>

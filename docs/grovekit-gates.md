@@ -67,11 +67,12 @@ fails (`unknown-role`, the typo guard).
 
 **Ratchet.** Pairs that already failed when the gate landed are recorded in
 `config.baseline` at their ratio and may only improve. The baseline is empty
-today: the one debt the gate landed with (`--grove-color-warning-solid`
-`#c77700` on ggg / hub / nursery paper at 2.79 / 2.94 / 2.91 — the contract's
-"solid ≥ 3:1 on paper" note was only true for the default cream paper) was
-paid in GOL-3825 by darkening the constant to `#b86d00` (3.24:1 on ggg bone).
-If a future change must land under a floor, record it, fix it, delete the entry.
+today. When the gate landed it held one pair on three brands:
+`--grove-color-warning-solid` (`#c77700`, a cross-brand constant) on ggg / hub /
+nursery paper at 2.79 / 2.94 / 2.91, because the contract's "solid ≥ 3:1 on
+paper" note was only true for the default cream paper. The constant was darkened
+to `#bb6f00` (3.14:1 on ggg, the darkest paper) and the entries deleted. Keep it
+that way: fix the value, delete the entry.
 
 ```bash
 pnpm lint:contrast                                   # or: node scripts/grove-theme-contrast.mjs
@@ -94,7 +95,7 @@ Thresholds and routes live in **`mobile-matrix.config.json`**. Edit the budget t
 |---|---|---|---|
 | `viewportMeta` | all | no `<meta name=viewport>` with `width=device-width` | |
 | `overflow` | all | `scrollWidth > innerWidth + 1px`; lists the elements crossing the edge | |
-| `tapTargets` | mobile | a control's smaller side `< 24px` (WCAG 2.5.8 floor). Inline links in running text are exempt; a checkbox is measured by its label | `< 44px` |
+| `tapTargets` | mobile | a control's smaller side `< 24px` **and** crowded — a 24px circle on it touches another target (the WCAG 2.5.8 AA rule, spacing exemption applied). Inline links in running text are exempt; a checkbox is measured by its label; controls hidden from assistive tech (`aria-hidden`, `tabindex="-1"`, off-canvas/sr-only) are not targets | a sub-`44px` target that clears the 2.5.8 spacing exemption (comfortable-size miss only) |
 | `textSize` | mobile | less than `60%` of visible text (by characters) is `≥ 12px` (Lighthouse's legibility rule) | any element `< 12px` is listed |
 | `fixedChrome` | mobile | `position: fixed/sticky` elements at least half the viewport wide pin `> 35%` of the screen height | |
 | `axe` | all | [axe-core](https://github.com/dequelabs/axe-core) with tags `wcag2a`, `wcag2aa`, `wcag21aa`, `best-practice`: any violation with impact `critical` or `serious` | `moderate` / `minor` violations |

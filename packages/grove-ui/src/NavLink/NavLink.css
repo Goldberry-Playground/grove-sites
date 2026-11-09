@@ -9,6 +9,10 @@
  */
 
 .grove-nav-link {
+  /* Tap area ≥35px without moving the row (see CartNavLink.css, GOL-3824). */
+  display: inline-block;
+  padding-block: var(--grove-space-2);
+  margin-block: calc(-1 * var(--grove-space-2));
   color: color-mix(in srgb, var(--grove-color-ink) 70%, transparent);
   text-decoration: none;
   transition: color 0.15s ease;

@@ -466,8 +466,11 @@ h1 em, h2 em, h3 em, h4 em {
   gap: clamp(2rem, 6vw, 6rem);
   align-items: start;
 }
+/* Eyebrow text is cream on the forest band (4.97:1); gold measured 3.62:1,
+   under the 4.5:1 floor for 11px text (axe, prod 2026-11-07). The drawn
+   half-circle keeps the gold accent — non-text, 3:1 floor. */
 .about-vision .about-eyebrow {
-  color: var(--harvest-gold);
+  color: var(--ivory-mist);
 }
 .about-vision .about-eyebrow::before {
   color: var(--harvest-gold);
@@ -488,7 +491,8 @@ h1 em, h2 em, h3 em, h4 em {
   font-size: 1.1rem;
   margin-bottom: 1.2rem;
   max-width: 60ch;
-  color: rgba(255, 247, 230, 0.88);
+  /* Full Ivory Mist on Forest Command is 4.97:1; the 88% tint was 4.22:1. */
+  color: var(--ivory-mist);
   line-height: 1.65;
 }
 .about-vision-pillars {
@@ -528,7 +532,8 @@ h1 em, h2 em, h3 em, h4 em {
 .about-vision-pillar p {
   font-size: 0.95rem;
   margin-bottom: 0;
-  color: rgba(255, 247, 230, 0.78);
+  /* Was a 78% tint (3.69:1 on the forest band); full cream clears 4.5:1. */
+  color: var(--ivory-mist);
 }
 
 @media (max-width: 720px) {
@@ -601,7 +606,8 @@ h1 em, h2 em, h3 em, h4 em {
   color: var(--chestnut-reserve);
   text-decoration: none;
   position: relative;
-  padding: 6px 2px;
+  padding: 6px 2px; /* 31px tall — already past the 24px floor */
+  margin: 0; /* ui-kit NavLink's negative block margin is not wanted here */
   transition: color 0.2s;
 }
 .nav-item__link::after,
@@ -727,11 +733,17 @@ h1 em, h2 em, h3 em, h4 em {
 
 .brand-header__cart {
   display: inline-flex;
-  padding: 8px 14px;
   background: var(--chestnut-reserve);
   color: var(--ivory-mist) !important;
 }
-.brand-header__cart a { color: inherit !important; }
+.brand-header__cart a {
+  color: inherit !important;
+  /* The pill's padding lives on the anchor so the whole 35px button is the tap
+     target, not just the 19px label inside it (WCAG 2.5.8, GOL-3824). Overrides
+     the ui-kit CartNavLink block padding / negative margin. */
+  padding: 8px 14px;
+  margin: 0;
+}
 .brand-header__cart:hover { background: var(--forest-command); }
 
 @media (max-width: 720px) {
@@ -933,7 +945,9 @@ h1 em, h2 em, h3 em, h4 em {
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(255, 247, 230, 0.55);
+  /* 80% of the on-primary ink over Chestnut Reserve: ~4.8:1. The 55% tint it
+     replaced measured 3.15:1 (axe color-contrast, prod matrix 2026-11-07). */
+  color: color-mix(in srgb, var(--grove-color-primary-foreground) 80%, transparent);
   /* Removed the top rule + extra padding so the copyright sits close
      under the logo, tightening the overall band height. */
   margin-top: 0;
@@ -1158,16 +1172,29 @@ h1 em, h2 em, h3 em, h4 em {
   margin-bottom: 1rem;
 }
 .story-strip-card .continue {
-  margin-top: 0.6rem;
+  /* WCAG 2.5.8 (GOL-3824): standalone 11px link measured 21px tall. Block
+     padding lifts the tap area to ≥35px; the negative margins keep the label
+     and the surrounding rhythm exactly where they were. The underline moved
+     from border-bottom to a pseudo-element so it still hugs the text. */
+  position: relative;
+  margin-top: calc(0.6rem - var(--grove-space-2));
+  margin-bottom: calc(-1 * var(--grove-space-2));
+  padding: var(--grove-space-2) 0 calc(var(--grove-space-2) + 3px);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--forest-command);
   text-decoration: none;
-  padding-bottom: 3px;
-  border-bottom: 1px solid currentColor;
   align-self: flex-start;
+}
+.story-strip-card .continue::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  bottom: var(--grove-space-2);
+  height: 1px;
+  background: currentColor;
 }
 .story-strip-card .continue:hover { color: var(--chestnut-reserve); }
 
@@ -1308,8 +1335,20 @@ h1 em, h2 em, h3 em, h4 em {
   cursor: pointer;
 }
 .btn:hover { background: var(--plum-deep); color: var(--cream); }
-.btn-gold { background: var(--gold); border-color: var(--gold); color: var(--cream); }
-.btn-gold:hover { background: var(--gold-deep); border-color: var(--gold-deep); color: var(--cream); }
+/* Text ON the gold fill is the secondary-foreground role (Chestnut Reserve):
+   4.79:1 on Harvest Gold. The cream label it replaced measured 1.35:1 (axe
+   color-contrast, prod matrix 2026-11-07). Hover deepens both fill and ink so
+   the pair stays above 4.5:1 (primary-deep on gold-deep = 5.03:1). */
+.btn-gold {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--grove-color-secondary-foreground);
+}
+.btn-gold:hover {
+  background: var(--gold-deep);
+  border-color: var(--gold-deep);
+  color: var(--grove-color-primary-deep);
+}
 
 /* ─────────────────────────────────────────────
    Shop page + product card add-to-cart
@@ -1737,7 +1776,10 @@ h1 em, h2 em, h3 em, h4 em {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.22em;
-  color: var(--harvest-gold);
+  /* Forest Command on the cream card: 4.91:1. Harvest Gold here was 1.35:1
+     (axe, prod 2026-11-07). The anchor card keeps gold — it sits on the dark
+     photo scrim, where gold clears 9:1. */
+  color: var(--grove-color-accent-fg);
   text-transform: uppercase;
   margin-bottom: 1rem;
 }
@@ -2114,9 +2156,6 @@ h1 em, h2 em, h3 em, h4 em {
   justify-content: center;
   background: var(--cream);
 }
-.story-hero__copy .about-eyebrow {
-  color: var(--harvest-gold);
-}
 .story-hero__copy h1 {
   font-family: var(--font-display);
   font-size: clamp(2rem, 4vw, 3.2rem);
@@ -2124,7 +2163,10 @@ h1 em, h2 em, h3 em, h4 em {
   line-height: 1.05;
   margin: 0.5rem 0 1.2rem;
 }
-.story-hero__copy h1 em { font-style: italic; color: var(--harvest-gold); }
+/* The italic flourish is Forest Command on cream (4.91:1); gold was 1.35:1
+   (axe, prod 2026-11-07). The eyebrow above it falls back to .about-eyebrow's
+   own forest ink for the same reason. */
+.story-hero__copy h1 em { font-style: italic; color: var(--grove-color-accent-fg); }
 .story-hero__copy p { font-size: 1.1rem; line-height: 1.65; color: var(--brown); }
 .story-hero__copy .sig {
   margin-top: 1.5rem;
@@ -2177,7 +2219,8 @@ h1 em, h2 em, h3 em, h4 em {
   margin: 0 0 1.2rem;
 }
 .story-crew h2 em { font-style: italic; color: var(--ivory-mist); }
-.story-crew p { line-height: 1.7; color: rgba(244, 236, 216, 0.92); margin-bottom: 1rem; }
+/* Full cream on the forest band: 4.97:1 (the 92% tint measured 4.03:1). */
+.story-crew p { line-height: 1.7; color: var(--cream); margin-bottom: 1rem; }
 
 @media (max-width: 720px) {
   .story-hero { grid-template-columns: 1fr; }
