@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { groveImageDefaults } from "@grove/config/images";
 import { securityHeadersRoute } from "@grove/config/security-headers";
 import { legacyRedirects } from "./lib/legacy-redirects";
 
@@ -48,15 +49,9 @@ const nextConfig: NextConfig = {
     "@grove/otel",
   ],
   images: {
-    // WebP only, not AVIF: the optimizer encodes on first request, per width and
-    // per app instance, and AVIF took ~2s cold against ~0.5s for WebP (measured
-    // on the nursery, 2026-11-09). See docs/storefront-delivery-standard.md.
-    formats: ["image/webp"],
-    // Optimized variants are immutable per product-photo revision, so raise the
-    // optimizer/CDN cache floor from Next's 60s default to 31 days. Stops the
-    // droplet re-transcoding the same photo on every cache miss (see
-    // odoo-client/images.ts production note).
-    minimumCacheTTL: 2678400,
+    // Formats, widths, qualities and cache lifetime are shared across every
+    // storefront; only the allowed hosts are per-site.
+    ...groveImageDefaults,
     remotePatterns: [
       // Derived from ODOO_URL at build time — always allows the host the
       // storefront is actually configured to fetch product images from

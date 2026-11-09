@@ -14,7 +14,9 @@
   },
   "componentCss": {
     "$comment": "GOL-864 §1c per-component CSS ceiling — the Angular `budgets` analog. Targets bespoke component stylesheets in @grove/ui, where drift and bloat accumulate. App globals.css, generated ds-theme.*.css, and token contract.css are app-wide/generated, not per-component, so they are excluded. styles.css (the @import aggregator) and CheckoutShared.css (the deduplicated cross-component pattern layer, GOL-872) are shared, not bespoke-per-component, so they are excluded too — overall CSS weight is still bounded by the 60 KB route.css budget above. Sizes are UNCOMPRESSED bytes.",
-    "include": ["packages/grove-ui/src/**/*.css"],
+    "include": [
+      "packages/grove-ui/src/**/*.css"
+    ],
     "exclude": [
       "packages/grove-ui/src/styles.css",
       "packages/grove-ui/src/CheckoutShared/CheckoutShared.css"
@@ -31,5 +33,24 @@
     "clsMax": 0.05,
     "totalBlockingTimeMs": 200,
     "totalByteWeightBytes": 552960
+  },
+  "images": {
+    "$comment": "Image budget. Source rules are enforced by scripts/image-budget.mjs. The budgets block holds targets for the rendered-page check, which is not built yet, so nothing enforces those numbers today.",
+    "budgets": {
+      "cardImageBytes": 153600,
+      "heroImageBytes": 307200,
+      "firstScreenImageBytes": 512000,
+      "maxRequestedToDisplayedWidth": 1.5,
+      "coldEncodeMs": 1000
+    },
+    "uncappedSizesBaseline": {
+      "apps/ggg/app/shop/[id]/page.tsx": 1,
+      "apps/goldberry/app/blog/page.tsx": 1,
+      "apps/goldberry/app/shop/[id]/page.tsx": 1,
+      "apps/nursery/app/featured-lead-sellers.tsx": 1,
+      "apps/nursery/app/layout.tsx": 1,
+      "apps/nursery/app/page.tsx": 1,
+      "apps/nursery/app/shop/[slug]/companions-strip.tsx": 1
+    }
   }
 }
