@@ -12,6 +12,8 @@ import {
   buildHoldModal,
   readCardPrefill,
   readModalFields,
+  buildNotice,
+  orderSecretMatches,
   orderActionOutcome,
   type OrderAction,
   type OrderAlert,
@@ -308,5 +310,69 @@ describe("parseOrderChannelMap / resolveOrderChannel", () => {
     expect(parseOrderChannelMap("not json")).toEqual({});
     expect(parseOrderChannelMap("[1,2]")).toEqual({});
     expect(parseOrderChannelMap('{"1":"abc","2":"123"}')).toEqual({});
+  });
+});
+
+describe("buildNotice", () => {
+  const body = {
+    companyId: 3,
+    title: "S00042 hold is due",
+    lines: ["Customer: Jamie Farmer", "Held until 2026-11-09"],
+    buttons: [
+      { label: "Ready to ship", style: 3, customId: "ord:ready:42" },
+      { label: "Snooze a week", style: 2, customId: "ord:snooze:42" },
+      { label: "Change date", style: 2, customId: "ord:holddate:42:2026-11-09" },
+    ],
+  };
+
+  it("renders an embed with the three nudge buttons", () => {
+    const r = buildNotice(body);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.companyId).toBe(3);
+    const embed = r.message.embeds![0];
+    expect(embed.title).toBe("S00042 hold is due");
+    expect(embed.description).toBe("Customer: Jamie Farmer\nHeld until 2026-11-09");
+    const row = r.message.components![0] as { components: Array<{ label: string; custom_id: string; style: number }> };
+    expect(row.components.map((c) => c.label)).toEqual(["Ready to ship", "Snooze a week", "Change date"]);
+    expect(row.components.map((c) => c.custom_id)).toEqual(["ord:ready:42", "ord:snooze:42", "ord:holddate:42:2026-11-09"]);
+    expect(row.components[0].style).toBe(3);
+  });
+
+  it("clips the title and description to Discord limits", () => {
+    const r = buildNotice({ ...body, title: "t".repeat(500), lines: ["x".repeat(3000), "y".repeat(3000)] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.message.embeds![0].title!.length).toBeLessThanOrEqual(256);
+    expect(r.message.embeds![0].description!.length).toBeLessThanOrEqual(4096);
+  });
+
+  it("rejects bad bodies", () => {
+    expect(buildNotice(null).ok).toBe(false);
+    expect(buildNotice({ ...body, companyId: undefined }).ok).toBe(false);
+    expect(buildNotice({ ...body, title: "" }).ok).toBe(false);
+    expect(buildNotice({ ...body, lines: "no" }).ok).toBe(false);
+    expect(buildNotice({ ...body, lines: [1] }).ok).toBe(false);
+    expect(buildNotice({ ...body, buttons: "no" }).ok).toBe(false);
+  });
+
+  it("rejects buttons that are too many, too long, or not ord:", () => {
+    const b = body.buttons[0];
+    expect(buildNotice({ ...body, buttons: Array(6).fill(b) }).ok).toBe(false);
+    expect(buildNotice({ ...body, buttons: [{ ...b, customId: "ord:ready:" + "9".repeat(100) }] }).ok).toBe(false);
+    expect(buildNotice({ ...body, buttons: [{ ...b, customId: "cs:approve:1" }] }).ok).toBe(false);
+    expect(buildNotice({ ...body, buttons: [{ ...b, label: "L".repeat(81) }] }).ok).toBe(false);
+    expect(buildNotice({ ...body, buttons: [{ ...b, label: "" }] }).ok).toBe(false);
+    expect(buildNotice({ ...body, buttons: [{ ...b, style: 9 }] }).ok).toBe(false);
+  });
+});
+
+describe("orderSecretMatches", () => {
+  it("accepts only the exact secret", () => {
+    expect(orderSecretMatches("s3cret", "s3cret")).toBe(true);
+    expect(orderSecretMatches("wrong", "s3cret")).toBe(false);
+    expect(orderSecretMatches("s3cret-and-more", "s3cret")).toBe(false);
+    expect(orderSecretMatches(undefined, "s3cret")).toBe(false);
+    expect(orderSecretMatches("", "")).toBe(false);
   });
 });

@@ -26,8 +26,10 @@ import { buildAuditEvent, emitAuditEvent, mirrorAuditEvent } from "./lib/audit.t
 import { executeDecision, executeRevise, type DecideDeps } from "./lib/decide.ts";
 import { fileIdeaIntake, newIdeaId, type IdeaSubmission } from "./lib/idea.ts";
 import {
+  buildNotice,
   buildOrderCard,
   buildOrderRequest,
+  orderSecretMatches,
   orderActionOutcome,
   resolveOrderChannel,
   type OrderAlert,
@@ -276,6 +278,41 @@ async function handleOrderAlert(req: IncomingMessage, res: ServerResponse): Prom
   json(res, 200, { ok: true, channel_id: channelId });
 }
 
+/**
+ * POST /orders/notice — Odoo posts a plain notice (title, lines, `ord:` buttons)
+ * to the brand's order channel. Used for the daily hold nudge. Same secret and
+ * channel resolution as /orders/alert.
+ */
+async function handleOrderNotice(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!cfg.orderAlertSecret) {
+    json(res, 503, { error: "order alerts are not configured" });
+    return;
+  }
+  if (!orderSecretMatches(req.headers["x-order-alert-secret"], cfg.orderAlertSecret)) {
+    json(res, 401, { error: "invalid alert secret" });
+    return;
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(await readRawBody(req));
+  } catch {
+    json(res, 400, { error: "invalid JSON" });
+    return;
+  }
+  const notice = buildNotice(body);
+  if (!notice.ok) {
+    json(res, 400, { error: notice.error });
+    return;
+  }
+  const channelId = resolveOrderChannel(notice.companyId, cfg.orderChannels);
+  if (!channelId) {
+    json(res, 422, { error: `no order channel mapped for company_id ${notice.companyId}` });
+    return;
+  }
+  await postChannelMessage(cfg.discordBotToken, channelId, notice.message);
+  json(res, 200, { ok: true, channel_id: channelId });
+}
+
 const server = createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     json(res, 200, { ok: true, service: "discord-bridge" });
@@ -285,6 +322,14 @@ const server = createServer((req, res) => {
     handleOrderAlert(req, res).catch((err) => {
       // eslint-disable-next-line no-console
       console.error("discord-bridge: order alert handler error:", err);
+      if (!res.headersSent) json(res, 500, { error: "internal error" });
+    });
+    return;
+  }
+  if (req.method === "POST" && req.url === "/orders/notice") {
+    handleOrderNotice(req, res).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("discord-bridge: order notice handler error:", err);
       if (!res.headersSent) json(res, 500, { error: "internal error" });
     });
     return;

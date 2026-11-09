@@ -13,6 +13,7 @@
  * Pure/synchronous — no I/O. The server owns the bot POST, the Odoo call, and
  * the audit side effects.
  */
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { OrderActionResult } from "./order-client.ts";
 import type { DiscordActionRow, DiscordButton, DiscordEmbed, DiscordMessage } from "./render.ts";
 
@@ -445,4 +446,78 @@ export function resolveOrderChannel(
   map: Record<string, string>,
 ): string | undefined {
   return map[String(companyId)];
+}
+
+/** Discord limits for an embed title / description and a button label / custom_id. */
+const NOTICE_TITLE_MAX = 256;
+const NOTICE_DESC_MAX = 4096;
+const NOTICE_BUTTON_MAX = 5;
+const NOTICE_LABEL_MAX = 80;
+const NOTICE_CUSTOM_ID_MAX = 100;
+
+export type NoticeResult =
+  | { ok: true; companyId: number | string; message: DiscordMessage }
+  | { ok: false; error: string };
+
+/**
+ * Validate a `/orders/notice` body and render it: a plain embed (title, lines)
+ * with up to five `ord:` buttons. Odoo uses it for the daily hold nudge. The
+ * buttons carry the normal `ord:` ids, so answering one edits this message into
+ * the order card through the existing action routes.
+ */
+export function buildNotice(body: unknown): NoticeResult {
+  const b = body as {
+    companyId?: unknown;
+    title?: unknown;
+    lines?: unknown;
+    buttons?: unknown;
+  } | null;
+  if (!b || typeof b !== "object") return { ok: false, error: "body must be an object" };
+  if (typeof b.companyId !== "number" && typeof b.companyId !== "string") {
+    return { ok: false, error: "companyId is required" };
+  }
+  if (typeof b.title !== "string" || !b.title.trim()) return { ok: false, error: "title is required" };
+  if (!Array.isArray(b.lines) || !b.lines.every((l) => typeof l === "string")) {
+    return { ok: false, error: "lines must be an array of strings" };
+  }
+  if (!Array.isArray(b.buttons) || b.buttons.length > NOTICE_BUTTON_MAX) {
+    return { ok: false, error: `buttons must be an array of at most ${NOTICE_BUTTON_MAX}` };
+  }
+  const buttons: DiscordButton[] = [];
+  for (const raw of b.buttons as Array<{ label?: unknown; style?: unknown; customId?: unknown }>) {
+    const { label, style, customId } = raw ?? {};
+    if (typeof label !== "string" || !label || label.length > NOTICE_LABEL_MAX) {
+      return { ok: false, error: `button label must be 1-${NOTICE_LABEL_MAX} characters` };
+    }
+    if (typeof customId !== "string" || !customId.startsWith(`${ORD_PREFIX}:`) || customId.length > NOTICE_CUSTOM_ID_MAX) {
+      return { ok: false, error: `button customId must start with "${ORD_PREFIX}:" and be at most ${NOTICE_CUSTOM_ID_MAX} characters` };
+    }
+    const st = style === undefined ? 2 : style;
+    if (typeof st !== "number" || ![1, 2, 3, 4].includes(st)) {
+      return { ok: false, error: "button style must be 1-4" };
+    }
+    buttons.push({ type: 2, style: st as DiscordButton["style"], label, custom_id: customId });
+  }
+  const clipTo = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+  const embed: DiscordEmbed = {
+    title: clipTo(b.title, NOTICE_TITLE_MAX),
+    description: clipTo((b.lines as string[]).join("\n"), NOTICE_DESC_MAX),
+    color: GROVE_GREEN,
+    footer: { text: "Order notice" },
+  };
+  return {
+    ok: true,
+    companyId: b.companyId,
+    message: { embeds: [embed], components: buttons.length ? [{ type: 1, components: buttons }] : [] },
+  };
+}
+
+/**
+ * Does the `x-order-alert-secret` header match? False for a missing header or an
+ * unset secret. Compares fixed-length digests so timing does not leak the secret.
+ */
+export function orderSecretMatches(provided: unknown, expected: string | undefined): boolean {
+  if (typeof provided !== "string" || !expected) return false;
+  const digest = (v: string) => createHash("sha256").update(v).digest();
+  return timingSafeEqual(digest(provided), digest(expected));
 }
