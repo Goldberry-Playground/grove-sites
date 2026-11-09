@@ -53,11 +53,10 @@ const nextConfig: NextConfig = {
   // the native binary resolves at runtime on the Node server.
   serverExternalPackages: ["sharp", "@aws-sdk/client-s3"],
   images: {
-    // Frontend performance standard (GOL-864): negotiate AVIF first, then WebP.
-    // next/image already transcodes source JPEG/PNG to WebP on demand; adding
-    // AVIF gives ~20-30% smaller bytes to browsers that accept it, at no source
-    // change. WebP stays as the universal fallback.
-    formats: ["image/avif", "image/webp"],
+    // WebP only, not AVIF: the optimizer encodes on first request, per width and
+    // per app instance, and AVIF took ~2s cold against ~0.5s for WebP (measured
+    // on the nursery, 2026-11-09). See docs/storefront-delivery-standard.md.
+    formats: ["image/webp"],
     // Next 16 rejects any `quality` not listed here. 75 is next/image's
     // default; 82 is the product-photo re-encode quality (GOL-818, used by the
     // hub's NextImageAdapter for marketplace cards — GOL-3477).

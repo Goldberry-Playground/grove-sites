@@ -48,11 +48,10 @@ const nextConfig: NextConfig = {
     "@grove/otel",
   ],
   images: {
-    // Frontend performance standard (GOL-864): negotiate AVIF first, then WebP.
-    // next/image already transcodes source JPEG/PNG to WebP on demand; adding
-    // AVIF gives ~20-30% smaller bytes to browsers that accept it, at no source
-    // change. WebP stays as the universal fallback.
-    formats: ["image/avif", "image/webp"],
+    // WebP only, not AVIF: the optimizer encodes on first request, per width and
+    // per app instance, and AVIF took ~2s cold against ~0.5s for WebP (measured
+    // on the nursery, 2026-11-09). See docs/storefront-delivery-standard.md.
+    formats: ["image/webp"],
     // Optimized variants are immutable per product-photo revision, so raise the
     // optimizer/CDN cache floor from Next's 60s default to 31 days. Stops the
     // droplet re-transcoding the same photo on every cache miss (see
