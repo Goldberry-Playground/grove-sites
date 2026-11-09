@@ -42,11 +42,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       # Guard the gate logic itself (dedupe, ceilings, ratchet) — no install needed.
       - name: Test the budget scripts
-        run: node --test scripts/test/perf-budget.test.mjs
+        run: node --test scripts/test/perf-budget.test.mjs scripts/test/image-budget.test.mjs
 
       # Pure filesystem scan — no install, no build. Reads perf-budget.config.json.
       - name: Per-component CSS ceiling (GOL-864 §1c)
         run: node scripts/css-component-budget.mjs
+
+      # Same job so it needs no new required check: shared image settings, sizes props.
+      - name: Image consistency (shared config, sizes)
+        run: node scripts/image-budget.mjs
 
   route-byte-budget:
     name: Route byte budget

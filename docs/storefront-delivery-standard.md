@@ -4,7 +4,7 @@ Applies to every Grove storefront: nursery, Goldberry, Gathering hub and George 
 
 ## Images
 
-- Serve WebP only (`images.formats: ["image/webp"]`). AVIF took about 2s to encode from cold and WebP about 0.5s on the nursery (2026-11-09). WebP files were about twice as large. Revisit AVIF only once a shared image cache makes cold encodes rare.
+- Serve WebP only, through `groveImageDefaults` in `@grove/config/images`. Apps set only their allowed hosts. AVIF took about 2s to encode from cold and WebP about 0.5s on the nursery (2026-11-09). WebP files were about twice as large. Revisit AVIF only once a shared image cache makes cold encodes rare.
 - Set `sizes` from a measured layout. If a container has a maximum width, cap the value, for example `min(33vw, 340px)`. A bare `33vw` over-requests on wide and retina screens.
 - Check grids that stretch. `auto-fit` grids widen cards when few results show, so keep a larger `sizes` for those.
 
