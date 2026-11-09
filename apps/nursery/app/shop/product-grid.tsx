@@ -21,8 +21,9 @@ const LCP_PRIORITY_COUNT = 3;
 // with the filter column. `auto-fit` stretches cards when fewer than three
 // results fill a row, so those keep the viewport-relative size to stay sharp.
 const FULL_ROW_CARD_COUNT = 3;
-const CARD_SIZES_FULL_ROW = "(max-width: 640px) 45vw, (max-width: 1024px) 50vw, 360px";
-const CARD_SIZES_STRETCHED = "(max-width: 640px) 45vw, (max-width: 1024px) 50vw, 33vw";
+// Measured: 46vw below 768, one column at ~65vw from 768 to 899, then 33vw.
+const CARD_SIZES_FULL_ROW = "(max-width: 767px) 46vw, (max-width: 899px) 65vw, (max-width: 1024px) 34vw, 360px";
+const CARD_SIZES_STRETCHED = "(max-width: 767px) 46vw, (max-width: 899px) 65vw, 33vw";
 
 export interface ProductGridProps {
   products: Product[];

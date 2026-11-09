@@ -100,7 +100,7 @@ export default async function ProductDetailPage({
               alt={product.name}
               fill
               className="object-cover"
-              sizes="(max-width: 768px) 100vw, 50vw"
+              sizes="(max-width: 767px) 100vw, 50vw"
               priority
             />
           )}
