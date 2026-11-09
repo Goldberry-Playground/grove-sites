@@ -18,6 +18,11 @@
 //   fixedChrome   fixed/sticky elements may pin ≤ 35% of the screen (mobile)
 //   axe           axe-core (wcag2a/aa, wcag21aa, best-practice): critical or
 //                 serious violations → error, others → warning      (all)
+//   images        after scrolling every lazy image in: broken images and
+//                 requested widths far above the displayed size are errors;
+//                 byte budgets (perf-budget.config.json) warn       (all)
+//   layout        per-page rules for the pages that earn the money: required
+//                 elements exist, grid columns, buy button reachable (all)
 //   screenshot    full-page PNG per cell → mobile-matrix-artifacts/ (evidence,
 //                 no diffing)
 //
@@ -248,8 +253,132 @@ export function auditPage(cfg) {
 }
 
 // ── Run ────────────────────────────────────────────────────────────────────
+// ── Product page discovery ─────────────────────────────────────────────
+// Catalogs change, so the product route is the first product linked from the
+// listing page rather than a slug that goes stale when an item is archived.
+export function firstProductPath(html, prefix, marker) {
+  for (const tag of html.match(/<a\b[^>]*>/g) ?? []) {
+    const href = /href="([^"?#]+)"/.exec(tag)?.[1];
+    if (!href || !href.startsWith(prefix) || href === prefix) continue;
+    if (!marker || tag.includes(marker)) return href;
+  }
+  return null;
+}
+
+// ── Image audit (runs inside the browser) ─────────────────────────────
+// Call after scrolling back to the top so "first screen" means what it says.
+export function auditImages(cfg) {
+  const dpr = window.devicePixelRatio || 1;
+  const timing = new Map(performance.getEntriesByType("resource").map((e) => [e.name, e]));
+  const out = { checked: 0, broken: [], tooWide: [], overBudget: [], firstScreenBytes: 0 };
+  const widthOf = (url) => {
+    const m = /[?&]w=(\d+)/.exec(url);
+    return m ? Number(m[1]) : null;
+  };
+
+  for (const img of document.querySelectorAll("img")) {
+    const src = img.currentSrc || img.src || "";
+    if (!src.includes("/_next/image")) continue;
+    const rect = img.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) continue;
+    out.checked++;
+    const label = (img.alt || src).slice(0, 60);
+    if (img.complete && img.naturalWidth === 0) {
+      out.broken.push(label);
+      continue;
+    }
+
+    const bytes = timing.get(src)?.encodedBodySize || 0;
+    if (rect.top < window.innerHeight && rect.bottom > 0) out.firstScreenBytes += bytes;
+
+    const isHero = rect.width >= window.innerWidth * cfg.heroMinViewportFraction;
+    const limit = isHero ? cfg.heroImageBytes : cfg.cardImageBytes;
+    if (bytes > limit) {
+      out.overBudget.push({ label, bytes, limit, kind: isHero ? "hero" : "card" });
+    }
+
+    // A wide rung is only the page's fault when a smaller rung would have
+    // covered the display. Tiny files cost nothing even when oversized.
+    const requested = widthOf(src);
+    if (requested && bytes >= cfg.minBytesForWidthCheck) {
+      const needed = rect.width * dpr;
+      const rungs = (img.srcset || "")
+        .split(",")
+        .map((c) => widthOf(c.trim()))
+        .filter(Boolean)
+        .sort((a, b) => a - b);
+      const ideal = rungs.find((w) => w >= needed) ?? requested;
+      const ratio = requested / needed;
+      if (requested > ideal && ratio > cfg.maxRequestedToDisplayedWidth) {
+        out.tooWide.push({ label, requested, ideal, displayed: Math.round(needed), ratio: Number(ratio.toFixed(2)), bytes });
+      }
+    }
+  }
+  return out;
+}
+
+// ── Layout rules (runs inside the browser) ────────────────────────────
+// Each rule comes from mobile-matrix.config.json. Geometry, not pixels: it
+// keeps working when the catalog, photos or prices change.
+export async function auditLayout({ rules, viewport }) {
+  const shown = (el) => {
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none";
+  };
+  const describe = (el) => {
+    if (!el) return "nothing";
+    const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/)[0] : "";
+    return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${cls ? `.${cls}` : ""}`;
+  };
+  const failures = [];
+
+  for (const rule of rules) {
+    const found = [...document.querySelectorAll(rule.selector)].filter(shown);
+    const min = rule.minCount ?? 1;
+    if (found.length < min) {
+      failures.push(`${rule.name}: found ${found.length}, need at least ${min} (${rule.selector})`);
+      continue;
+    }
+    const wantColumns = rule.columns?.[viewport];
+    if (wantColumns) {
+      const firstTop = found[0].getBoundingClientRect().top;
+      const columns = found.filter((el) => Math.abs(el.getBoundingClientRect().top - firstTop) < 2).length;
+      if (columns !== wantColumns) failures.push(`${rule.name}: ${columns} column(s), expected ${wantColumns}`);
+    }
+    if (rule.reachable) {
+      const control = found[0].querySelector("button, a[href], input") ?? found[0];
+      control.scrollIntoView({ block: "center", behavior: "instant" });
+      await new Promise((done) => setTimeout(done, 150));
+      const r = control.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (!hit || !(control === hit || control.contains(hit) || found[0].contains(hit))) {
+        failures.push(`${rule.name}: covered by ${describe(hit)}`);
+      }
+    }
+  }
+  window.scrollTo({ top: 0, behavior: "instant" });
+  return failures;
+}
+
+// Lazy images only load near the viewport, so walk the page once.
+async function loadLazyImages(page, settleMs) {
+  await page.evaluate(async () => {
+    const step = Math.max(window.innerHeight * 0.8, 200);
+    const maxTop = Math.min(document.documentElement.scrollHeight, step * 40);
+    for (let top = 0; top < maxTop; top += step) {
+      window.scrollTo({ top, behavior: "instant" });
+      await new Promise((done) => setTimeout(done, 120));
+    }
+    window.scrollTo({ top: 0, behavior: "instant" });
+  });
+  await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(settleMs);
+}
+
 async function main() {
   const CONFIG = JSON.parse(readFileSync(join(ROOT, "mobile-matrix.config.json"), "utf8"));
+  const IMAGE_BUDGETS = JSON.parse(readFileSync(join(ROOT, "perf-budget.config.json"), "utf8")).images.budgets;
 
   // ── Args ───────────────────────────────────────────────────────────────
   const argv = process.argv.slice(2);
@@ -320,7 +449,19 @@ async function main() {
   let unreachable = 0;
 
   for (const [brand, base] of Object.entries(targets)) {
-    const routes = routeOverride ?? CONFIG.routes[brand];
+    const routes = [...(routeOverride ?? CONFIG.routes[brand])];
+    let productRoute = null;
+    const productSpec = CONFIG.productRoute[brand];
+    if (!routeOverride && productSpec) {
+      try {
+        const res = await fetch(base + productSpec.listing, { signal: AbortSignal.timeout(CONFIG.navigation.timeoutMs) });
+        productRoute = firstProductPath(await res.text(), productSpec.prefix, productSpec.marker);
+      } catch {
+        // Reported below as a missing product page.
+      }
+      if (productRoute) routes.push(productRoute);
+      else console.error(`::warning title=Mobile matrix::${brand}: no product link found on ${productSpec.listing}, product page skipped`);
+    }
     for (const route of routes) {
       const url = base + route;
       for (const vpName of viewportNames) {
@@ -336,6 +477,7 @@ async function main() {
             : undefined,
         });
         const page = await context.newPage();
+        await page.addInitScript(() => performance.setResourceTimingBufferSize(2000));
         const cell = { brand, route, url, viewport: vpName, status: null, errors: [], warns: [], findings: null, axe: null, screenshot: null };
         try {
           const resp = await page.goto(url, { waitUntil: "load", timeout: CONFIG.navigation.timeoutMs });
@@ -405,6 +547,27 @@ async function main() {
                 if (AX.failImpacts.includes(v.impact)) cell.errors.push(line);
                 else cell.warns.push(line);
               }
+            }
+
+            const layoutRules = CONFIG.layout[brand]?.[route === productRoute ? "@product" : route] ?? [];
+            if (layoutRules.length) {
+              for (const failure of await page.evaluate(auditLayout, { rules: layoutRules, viewport: vpName })) {
+                cell.errors.push(`layout: ${failure}`);
+              }
+            }
+
+            await loadLazyImages(page, CONFIG.navigation.settleMs);
+            const images = await page.evaluate(auditImages, { ...CONFIG.checks.images, ...IMAGE_BUDGETS });
+            cell.images = images;
+            for (const label of images.broken) cell.errors.push(`broken image: ${label}`);
+            for (const i of images.tooWide) {
+              cell.errors.push(`image too wide: ${i.label} requested ${i.requested}w for ${i.displayed}px shown (${i.ratio}x, ${i.ideal}w would do)`);
+            }
+            for (const i of images.overBudget) {
+              cell.warns.push(`${i.kind} image over budget: ${i.label} ${Math.round(i.bytes / 1024)} KB (limit ${Math.round(i.limit / 1024)} KB)`);
+            }
+            if (images.firstScreenBytes > IMAGE_BUDGETS.firstScreenImageBytes) {
+              cell.warns.push(`first-screen images ${Math.round(images.firstScreenBytes / 1024)} KB (limit ${Math.round(IMAGE_BUDGETS.firstScreenImageBytes / 1024)} KB)`);
             }
           }
           if (screenshots) {

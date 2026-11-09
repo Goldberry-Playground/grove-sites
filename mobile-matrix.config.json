@@ -17,7 +17,13 @@
     "goldberry": ["/", "/shop", "/visit", "/about"],
     "ggg": ["/", "/shop"],
     "nursery": ["/", "/shop", "/wholesale", "/shipping-warranty"],
-    "hub": ["/", "/alliance"]
+    "hub": ["/", "/alliance", "/marketplace"]
+  },
+  "productRoute": {
+    "$comment": "Adds the first product linked from each listing page, found at run time so an archived item cannot break the check.",
+    "goldberry": {"listing": "/shop", "prefix": "/shop/"},
+    "ggg": {"listing": "/shop", "prefix": "/shop/"},
+    "nursery": {"listing": "/shop", "prefix": "/shop/", "marker": "var-card__link"}
   },
   "checks": {
     "viewportMeta": { "$comment": "Every page must ship <meta name=viewport content=width=device-width…>. Missing → error at every viewport." },
@@ -38,7 +44,18 @@
     "fixedChrome": {
       "$comment": "Mobile only. Union of the vertical extents of visible position:fixed/sticky elements inside the viewport. Over maxFraction of innerHeight → error: that much pinned chrome leaves no room for the content a shopper has to reach.",
       "maxFraction": 0.35
+    },
+    "images": {
+      "$comment": "Runs after scrolling every lazy image in. Byte limits come from images.budgets in perf-budget.config.json. Width errors skip files under minBytesForWidthCheck, where an oversized request costs almost nothing. coldEncodeMs is not measured here because this check cannot tell a cached image from a fresh encode.",
+      "heroMinViewportFraction": 0.7,
+      "minBytesForWidthCheck": 30720
     }
+  },
+  "layout": {
+    "$comment": "Chosen from what has cost us: the WV checkout refusal off-screen (10-26), the buy button sticky-bar overlap, and the phone grid sizing work (11-09). Geometry only, so catalog and photo changes do not fail it. '@product' is the discovered product page.",
+    "nursery": {"/shop": [{"name": "product grid", "selector": ".var-card__link", "minCount": 2, "columns": {"mobile": 2}}], "@product": [{"name": "product title", "selector": "h1"}, {"name": "add to cart", "selector": "[data-add-to-cart-anchor]", "reachable": true}]},
+    "goldberry": {"/shop": [{"name": "shop has products", "selector": "a[href^='/shop/']", "minCount": 1}], "@product": [{"name": "product title", "selector": "h1"}, {"name": "add to cart", "selector": "[data-add-to-cart-anchor]", "reachable": true}]},
+    "hub": {"/marketplace": [{"name": "page title", "selector": "h1"}]}
   },
   "axe": {
     "$comment": "axe-core (root devDependency) is injected into every page × viewport after settle and run with these tags. Violations whose impact is in failImpacts → error (exit 1); the rest → warning. Skip with --no-axe. The context is opened with bypassCSP so the injected script is not blocked by a site's Content-Security-Policy.",
@@ -54,5 +71,21 @@
   "report": {
     "maxItemsPerFinding": 12,
     "artifactsDir": "mobile-matrix-artifacts"
+  },
+  "canary": {
+    "$comment": "Production hosts for scripts/storefront-canary.mjs. Routes come from `routes` and `productRoute` above.",
+    "targets": {
+      "nursery": "https://atthegrovenursery.com",
+      "goldberry": "https://goldberrygrove.farm",
+      "hub": "https://gatheringatthegrove.com",
+      "ggg": "https://woodworkingeorge.com"
+    },
+    "viewports": [
+      "mobile",
+      "desktop"
+    ],
+    "pageTimeoutMs": 30000,
+    "settleTimeoutMs": 6000,
+    "retryDelayMs": 5000
   }
 }

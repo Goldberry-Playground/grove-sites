@@ -24,6 +24,16 @@ The first two run on every PR from the build output (`perf-budget.yml`). The
 Lighthouse gate needs a running page, so it targets a per-PR **preview URL** and
 only applies to `qa`-labeled PRs that have a preview (`lighthouse-ci.yml`).
 
+## Image consistency
+
+`scripts/image-budget.mjs` runs in the Component CSS budget job and needs no build. It fails a PR when:
+
+- An app sets its own image `formats`, `deviceSizes`, `qualities` or `minimumCacheTTL`. These come from `groveImageDefaults` in `@grove/config/images`.
+- A `fill` image or `ProductImage` has no `sizes`.
+- A `sizes` value ends in a bare partial-viewport width such as `33vw`. Cap it from the measured layout, for example `min(33vw, 340px)`. Existing uses are grandfathered per file and may only shrink; refresh with `--update-baseline` after removing one.
+
+`images.budgets` in `perf-budget.config.json` records the byte, width and encode-time targets for the rendered-page check. `scripts/mobile-matrix.mjs` now checks rendered pages against them: oversized image requests and broken images are errors, byte limits are warnings while source photos are still being reduced. `coldEncodeMs` is not measured there. The matrix is advisory until promoted to a required check.
+
 ## Run it locally
 
 ```bash

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { groveImageDefaults } from "@grove/config/images";
 import { securityHeadersRoute } from "@grove/config/security-headers";
 
 // GOL-3477: marketplace card photos are Odoo `/web/image/...` files served
@@ -53,18 +54,9 @@ const nextConfig: NextConfig = {
   // the native binary resolves at runtime on the Node server.
   serverExternalPackages: ["sharp", "@aws-sdk/client-s3"],
   images: {
-    // Frontend performance standard (GOL-864): negotiate AVIF first, then WebP.
-    // next/image already transcodes source JPEG/PNG to WebP on demand; adding
-    // AVIF gives ~20-30% smaller bytes to browsers that accept it, at no source
-    // change. WebP stays as the universal fallback.
-    formats: ["image/avif", "image/webp"],
-    // Next 16 rejects any `quality` not listed here. 75 is next/image's
-    // default; 82 is the product-photo re-encode quality (GOL-818, used by the
-    // hub's NextImageAdapter for marketplace cards — GOL-3477).
-    qualities: [75, 82],
-    // Optimized variants are immutable per asset revision, so raise the
-    // optimizer/CDN cache floor from Next's 60s default to 31 days.
-    minimumCacheTTL: 2678400,
+    // Formats, widths, qualities and cache lifetime are shared across every
+    // storefront; only the allowed hosts are per-site.
+    ...groveImageDefaults,
     remotePatterns: [
       // Vendor Odoo product photos (GOL-3477): env-derived first, then the
       // prod + QA hosts as explicit literals so a build without

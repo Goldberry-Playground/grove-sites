@@ -35,7 +35,7 @@ export function ProductGallery({
   return (
     <div>
       <div className="relative aspect-square bg-secondary/20 rounded-lg overflow-hidden">
-        <ProductImage src={hero} alt={name} sizes="(max-width: 768px) 100vw, 50vw" priority />
+        <ProductImage src={hero} alt={name} sizes="(max-width: 767px) calc(100vw - 48px), min(50vw, 560px)" priority />
         {featured && (
           <span className="absolute top-3 right-3 bg-accent text-white text-xs font-medium px-2 py-1 rounded">
             Featured

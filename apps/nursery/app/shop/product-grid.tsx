@@ -17,6 +17,14 @@ import { showsDealBadge } from "../../lib/deals";
 // over-primes a narrower viewport by more than a card or two.
 const LCP_PRIORITY_COUNT = 3;
 
+// Desktop cards stop at ~342px because the page is capped and shares the row
+// with the filter column. `auto-fit` stretches cards when fewer than three
+// results fill a row, so those keep the viewport-relative size to stay sharp.
+const FULL_ROW_CARD_COUNT = 3;
+// Measured: 46vw below 768, one column at ~65vw from 768 to 899, then 33vw.
+const CARD_SIZES_FULL_ROW = "(max-width: 767px) 46vw, (max-width: 899px) 65vw, (max-width: 1024px) 34vw, 360px";
+const CARD_SIZES_STRETCHED = "(max-width: 767px) 46vw, (max-width: 899px) 65vw, 33vw";
+
 export interface ProductGridProps {
   products: Product[];
   /** Odoo origin, for resolving relative image paths. */
@@ -83,7 +91,7 @@ export function ProductGrid({
                     odooBase,
                   )}
                   alt={product.name}
-                  sizes="(max-width: 640px) 45vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes={products.length >= FULL_ROW_CARD_COUNT ? CARD_SIZES_FULL_ROW : CARD_SIZES_STRETCHED}
                   priority={i < LCP_PRIORITY_COUNT}
                 />
                 {product.featured && <span className="var-badge">Featured</span>}

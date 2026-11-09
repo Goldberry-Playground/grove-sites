@@ -129,6 +129,9 @@
    *       AND text (deuteranopia/protanopia collapse error-red vs success-green).
    *    2. `-fg` = text/icon on paper, ≥4.5:1. `-solid` = borders/fills/icons, ≥3:1.
    *       `-surface` = soft tint bg; the matching `-fg` is legible on it (≥4.5:1).
+   *       Ratios must hold on EVERY brand's --grove-color-paper, not just this cream
+   *       default — ggg bone #efe6d3 is the darkest; scripts/grove-theme-contrast.mjs
+   *       checks all four (GOL-3825 darkened warning-solid #c77700→#bb6f00 for it).
    *    3. The four hues are also luminance-separated, so they stay distinct in grayscale.
    *    ── */
   --grove-color-error-fg: #9e2b1e;       /* 6.99:1 on paper */

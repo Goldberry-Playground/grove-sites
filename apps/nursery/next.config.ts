@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { groveImageDefaults } from "@grove/config/images";
 import { securityHeadersRoute } from "@grove/config/security-headers";
 
 // Product images are fetched from whatever host ODOO_URL points at — every
@@ -48,26 +49,9 @@ const nextConfig: NextConfig = {
     "@grove/otel",
   ],
   images: {
-    // Frontend performance standard (GOL-864): negotiate AVIF first, then WebP.
-    // next/image already transcodes source JPEG/PNG to WebP on demand; adding
-    // AVIF gives ~20-30% smaller bytes to browsers that accept it, at no source
-    // change. WebP stays as the universal fallback.
-    formats: ["image/avif", "image/webp"],
-    // GOL-2074: cap the responsive srcset at 1920px. Odoo's largest image field
-    // is `image_1920` (see @grove/odoo-client ODOO_IMAGE_SIZES), so no product
-    // photo source ever exceeds 1920px — the default 2048/3840 rungs could only
-    // upscale (which the optimizer refuses) or waste optimizer/CDN cache slots.
-    // Every next/image on the nursery site stays under this ceiling at DPR2:
-    // the grid renders ≤33vw (~1266px @ 1920 viewport), and the widest case —
-    // the PDP hero at 50vw / 100vw ≤768px — needs ≤1920px, which this keeps. The
-    // sub-1920 rungs are retained so the grid still gets a tightly-fitting
-    // candidate (no full-width over-fetch on smaller cards).
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
-    // Optimized variants are immutable per product-photo revision, so raise the
-    // optimizer/CDN cache floor from Next's 60s default to 31 days. Stops the
-    // droplet re-transcoding the same photo on every cache miss (see
-    // odoo-client/images.ts production note).
-    minimumCacheTTL: 2678400,
+    // Formats, widths, qualities and cache lifetime are shared across every
+    // storefront; only the allowed hosts are per-site.
+    ...groveImageDefaults,
     remotePatterns: [
       // Derived from ODOO_URL at build time — always allows the host the
       // storefront is actually configured to fetch product images from

@@ -107,7 +107,7 @@ jobs:
           exit 1
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6.1.0
+        uses: pnpm/action-setup@v6.1.1
         with:
           version: ${{ env.PNPM_VERSION }}
 
@@ -134,7 +134,7 @@ jobs:
 
       - name: Upload screenshots + report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: mobile-matrix-${{ github.run_id }}
           path: mobile-matrix-artifacts/
