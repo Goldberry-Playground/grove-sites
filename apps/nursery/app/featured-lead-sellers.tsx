@@ -27,6 +27,13 @@ import { productPath } from "../lib/product-path";
  * page (hero "varieties in catalog" stat + total) and the lead-seller row, so
  * both read one consistent count rather than fetching (and disagreeing).
  */
+// .var-grid is auto-fit minmax(280px, 1fr) inside a 1400px section, so a full
+// row is 1 column to ~620px, 2 to ~945px, 3 to ~1255px, then 4 capped at 316px.
+// With fewer cards auto-fit stretches them, so the cap would undersize them.
+const FULL_ROW_CARD_COUNT = 4;
+const CARD_SIZES_FULL_ROW = "(max-width: 630px) calc(100vw - 32px), (max-width: 960px) 48vw, (max-width: 1270px) 31vw, 320px";
+const CARD_SIZES_STRETCHED = "(max-width: 630px) calc(100vw - 32px), (max-width: 960px) 48vw, 33vw";
+
 export async function fetchCatalog(): Promise<{ products: Product[]; total: number }> {
   try {
     const result = await odoo.products.list({ limit: 200 });
@@ -106,7 +113,7 @@ export function FeaturedLeadSellers({ products, total }: FeaturedLeadSellersProp
                   // images ≤ 1024px (the current nursery photos).
                   src={resolveOdooImageUrl(withOdooImageSize(p.imageUrl, 1024), odooBase)}
                   alt={p.name}
-                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes={featured.length >= FULL_ROW_CARD_COUNT ? CARD_SIZES_FULL_ROW : CARD_SIZES_STRETCHED}
                 />
               </div>
               <div className="var-info">
