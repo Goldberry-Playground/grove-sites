@@ -86,7 +86,7 @@ export function StickyAddToCartBar({
     >
       <div className="grove-sticky-atc__inner">
         {imageUrl && (
-          <Image src={imageUrl} alt="" className="grove-sticky-atc__thumb" />
+          <Image src={imageUrl} alt="" width={40} height={40} className="grove-sticky-atc__thumb" />
         )}
         <div className="grove-sticky-atc__meta">
           <div className="grove-sticky-atc__name">{name}</div>
