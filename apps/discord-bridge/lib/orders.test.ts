@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildOrderCard,
   encodeOrderAction,
@@ -132,14 +132,20 @@ describe("buildOrderCard", () => {
     expect(buttons(card)[1].custom_id).toBe("ord:fall:42");
     expect(card.embeds[0].fields?.find((f) => f.name === "Lane")?.value).toBe("Spring · Zone 6");
   });
-  it("spring order with a label keeps Mark shipped and Label refunded", () => {
+  it("pickup order (lane none) shows no Mark shipped", () => {
+    const card = buildOrderCard({ ...ALERT, fulfillment: "pickup", lane: "none" });
+    expect(labels(card)).toEqual([]);
+    expect(card.components).toEqual([]);
+    expect(card.embeds[0].title).toContain("S00042");
+  });
+  it("spring order with a label keeps Mark shipped, Hold and Label refunded", () => {
     const card = buildOrderCard({ ...ALERT, lane: "spring", shipWave: "spring", zone: "6", carrier: "UPS", tracking: "1Z999", labelCost: 12.4 });
-    expect(labels(card)).toEqual(["Mark shipped", "Label refunded"]);
+    expect(labels(card)).toEqual(["Mark shipped", "Hold", "Label refunded"]);
   });
   it("labelled individual order shows Label refunded and no Move", () => {
     const card = buildOrderCard({ ...ALERT, lane: "individual", carrier: "UPS", tracking: "1Z999", labelCost: 12.4 });
-    expect(labels(card)).toEqual(["Mark shipped", "Label refunded"]);
-    expect(buttons(card)[1].custom_id).toBe("ord:refunded:42");
+    expect(labels(card)).toEqual(["Mark shipped", "Hold", "Label refunded"]);
+    expect(buttons(card)[2].custom_id).toBe("ord:refunded:42");
     expect(card.embeds[0].fields?.find((f) => f.name === "Label cost")?.value).toBe("$12.40 USD");
   });
   it("shipped card has no buttons and shows carrier, tracking, cost and who marked it", () => {
@@ -273,6 +279,15 @@ describe("orderActionOutcome", () => {
     const o = orderActionOutcome({ ok: true, status: 200, card: null }, "shipped", "Wes", original);
     expect(o.edit?.components).toEqual([]);
     expect(o.notice).toMatch(/shipped/i);
+  });
+  it("a malformed card falls back to the plain confirmation and logs", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bad = { orderId: 42, orderRef: "S1", lines: null, total: 1, lane: "individual" } as unknown as OrderAlert;
+    const o = orderActionOutcome({ ok: true, status: 200, card: bad }, "release", "Wes", undefined);
+    expect(o.edit).toBeUndefined();
+    expect(o.notice).toMatch(/done/i);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
   it("failure posts Odoo's error and leaves the card alone", () => {
     const o = orderActionOutcome({ ok: false, status: 422, error: "Tracking number is required." }, "shipped", "Wes", undefined);

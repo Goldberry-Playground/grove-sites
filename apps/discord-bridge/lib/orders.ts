@@ -186,12 +186,13 @@ function orderButtons(alert: OrderAlert): DiscordButton[] {
       button(2, "Release hold", "▶️", encodeOrderAction("release", id)),
     ];
   }
-  if (!alert.lane || alert.lane === "none") return [shipBtn];
-
-  const labelled = Boolean(alert.tracking);
-  if (labelled) return [shipBtn, button(4, "Label refunded", "↩️", encodeOrderAction("refunded", id))];
+  // Pickup: Odoo always refuses Mark shipped (409), so the modal would be a dead end.
+  if (alert.lane === "none") return [];
+  if (!alert.lane) return [shipBtn];
 
   const holdBtn = button(2, "Hold", "⏸️", encodeOrderAction("hold", id, alert.suggestedHold));
+  // A label is on the order: Hold stays (Odoo allows it), Move does not.
+  if (alert.tracking) return [shipBtn, holdBtn, button(4, "Label refunded", "↩️", encodeOrderAction("refunded", id))];
   if (alert.lane === "spring") return [holdBtn, button(2, "Move to fall", "🍂", encodeOrderAction("fall", id))];
   return [shipBtn, holdBtn, button(2, "Move to spring", "🌱", encodeOrderAction("spring", id))];
 }
@@ -397,7 +398,13 @@ export function orderActionOutcome(
   if (!res.ok) return { notice: res.error ?? "Couldn't reach Odoo. Nothing changed; try again." };
   const shipped = action === "shipped";
   if (res.card) {
-    return { edit: buildOrderCard({ ...(res.card as unknown as OrderAlert), ...(shipped ? { shippedBy: actorName } : {}) }) };
+    try {
+      return { edit: buildOrderCard({ ...(res.card as unknown as OrderAlert), ...(shipped ? { shippedBy: actorName } : {}) }) };
+    } catch (err) {
+      // Odoo already changed state, so a malformed card must not read as a failure.
+      // eslint-disable-next-line no-console
+      console.error("discord-bridge: order card build failed:", err);
+    }
   }
   if (shipped) {
     const embeds = (original as { embeds?: DiscordEmbed[] } | undefined)?.embeds;
