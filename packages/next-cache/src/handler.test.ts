@@ -308,6 +308,17 @@ describe("GroveCacheHandler with Valkey", () => {
     expect(raw.calls).toBe(callsBefore);
   });
 
+  it("non-FETCH Valkey miss falls back to the build's file cache entry", async () => {
+    const { handler, file } = setup();
+    const prerender = { lastModified: Date.now() - 1000, value: routeValue("_N_T_/sitemap.xml") };
+    file.entries.set(ROUTE_KEY, prerender);
+    expect(await handler.get(ROUTE_KEY, { kind: "APP_ROUTE" })).toEqual(prerender);
+    // A FETCH miss stays a plain miss: fetch entries are shared, not per build.
+    file.entries.set("fk", { lastModified: Date.now(), value: fetchValue("disk") });
+    expect(await handler.get("fk", fetchGetCtx([]))).toBeNull();
+    expect(file.calls).toEqual([`get:${ROUTE_KEY}`]);
+  });
+
   it("a not-ready store falls back to the file cache without logging", async () => {
     const store = new FakeStore();
     store.get = () => Promise.reject(new StoreNotReadyError());
@@ -344,6 +355,23 @@ describe("file-cache mode", () => {
     expect(create).toHaveBeenCalledWith("redis://x:6379", "n");
     expect(both.store).not.toBeNull();
     expect(both.flushStore).not.toBe(both.store);
+  });
+
+  it("env-unset mode serves a product entry older than 600s from the file cache", async () => {
+    const file = fakeFileCache();
+    const Handler = createGroveCacheHandler({
+      store: null,
+      flushStore: null,
+      createFileCache: () => file,
+      buildId: () => "B",
+    });
+    const old = {
+      lastModified: Date.now() - 3_600_000,
+      value: fetchValue("old", ["grove-catalog"]),
+    };
+    file.entries.set("k1", old);
+    const got = await new Handler(CTOR_CTX).get("k1", fetchGetCtx(["grove-product-1"]));
+    expect(got).toEqual(old);
   });
 
   it("delegates to the file cache when VALKEY_URL is unset", async () => {

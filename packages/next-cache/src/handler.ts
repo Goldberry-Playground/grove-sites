@@ -8,8 +8,10 @@
  * - Tag flush times: the hash `tags`.
  * Each value is `{ v: 1, lastModified, tags, value }`, stamped with Valkey server time.
  *
- * With `VALKEY_URL` or `GROVE_CACHE_NAMESPACE` unset, or while Valkey is unavailable, calls
- * go to Next's own file cache. Product data is never served older than 600s from either.
+ * With `VALKEY_URL` or `GROVE_CACHE_NAMESPACE` unset, every call passes straight through to
+ * Next's own file cache, unchanged. While Valkey is unavailable, calls fall back to that file
+ * cache too, but product data is then never served older than 600s. A page or route miss in
+ * Valkey also checks the file cache, so a fresh deploy can serve its on-disk prerenders.
  *
  * Next loads this file directly (bundled to `dist/handler.js`), so it must not import any
  * workspace package source.
@@ -174,7 +176,8 @@ export function createGroveCacheHandler(deps: HandlerDeps): GroveCacheHandlerCla
       if (!store || k === null) return this.fileGet(key, ctx);
       try {
         const raw = await store.get(k);
-        if (raw === null) return null;
+        // A page or route miss may still be this build's on-disk prerender.
+        if (raw === null) return ctx.kind === "FETCH" ? null : this.fileGet(key, ctx);
         const entry = parseEntry(raw);
         if (!entry) return null;
         const tags = union(entry.tags, ctx.tags);
@@ -233,10 +236,14 @@ export function createGroveCacheHandler(deps: HandlerDeps): GroveCacheHandlerCla
       this.fileCache?.resetRequestCache?.();
     }
 
+    /**
+     * Reads Next's file cache. With no store configured this is a pure pass-through (today's
+     * behaviour). As a fallback for Valkey it also enforces the 600s product-data cap.
+     */
     private async fileGet(key: string, ctx: GetContext): Promise<CacheHandlerValue | null> {
       try {
         const hit = await this.file().get(key, ctx);
-        if (!hit || typeof hit.lastModified !== "number") return hit;
+        if (!store || !hit || typeof hit.lastModified !== "number") return hit;
         return tooOld(union(valueTags(hit.value), ctx.tags), hit.lastModified) ? null : hit;
       } catch (err) {
         report("file get", err);
