@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { PRODUCT_CATALOG_CACHE_TAG, productCacheTag } from "@grove/odoo-client";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
@@ -45,6 +46,12 @@ export interface PublishWebhookOptions {
    * factory is unit-testable without a live request/render context.
    */
   revalidate?: (path: string) => void;
+  /**
+   * Tag revalidator seam, defaulting to Next's `revalidateTag`. Product pages
+   * cache their read under `productCacheTag`, and path revalidation cannot reach
+   * it: nursery pages are keyed by slug while this webhook knows the id.
+   */
+  revalidateByTag?: (tag: string) => void;
   /** Bounded delivery-id dedupe cap (module memory guard). */
   dedupeCap?: number;
 }
@@ -78,14 +85,15 @@ interface PublishBody {
 /**
  * Build the POST handler for `/api/webhooks/publish` on a storefront app.
  *
- * Storefront product pages are id-keyed (`/shop/[id]`), so we revalidate
- * `/shop/${product.id}` plus the `/shop` listing. The contract's `product.slug`
- * is carried for future slug-routed tenants but is not the URL key here.
+ * Revalidates `/shop/${product.id}` plus the `/shop` listing, and flushes the
+ * product's cached display read by tag. The tag matters: nursery pages are keyed
+ * by slug, so the id path alone would not clear their cached product data.
  */
 export function createPublishWebhookRoute({
   secret,
   tenant,
   revalidate = revalidatePath,
+  revalidateByTag = revalidateTag,
   dedupeCap = 500,
 }: PublishWebhookOptions) {
   // Per-instance, bounded, best-effort dedupe of `X-Grove-Delivery`. Retries
@@ -134,6 +142,8 @@ export function createPublishWebhookRoute({
 
     const paths = [`/shop/${productId}`, "/shop"];
     for (const p of paths) revalidate(p);
+    revalidateByTag(productCacheTag(productId));
+    revalidateByTag(PRODUCT_CATALOG_CACHE_TAG);
     if (delivery) remember(delivery);
 
     return NextResponse.json({ ok: true, tenant, revalidated: paths });

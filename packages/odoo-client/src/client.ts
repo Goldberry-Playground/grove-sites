@@ -45,6 +45,7 @@ import type {
   ApiPlannerSuggestInput,
   ApiPlannerSaveInput,
   ApiPlannerSaveResponse,
+  ProductReadOptions,
 } from "./types";
 import {
   normalizeProductListItem,
@@ -101,6 +102,32 @@ export class OdooApiError extends Error {
   }
 }
 
+/**
+ * Cache window for a product detail read used to RENDER a product page.
+ *
+ * Uncached, each view cost one or two sequential Odoo round-trips, which was
+ * nearly all of the page's 0.7-2s time to first byte. Next serves the cached
+ * copy and refreshes in the background, so the first view after a quiet spell
+ * can be older than this window. `product.availability` webhooks flush
+ * `productCacheTag` on the instance they reach. Checkout stays on live reads.
+ */
+export const PRODUCT_DISPLAY_REVALIDATE_SECONDS = 30;
+
+/** Cache window for the slug-to-id lookup, which almost never changes. */
+export const PRODUCT_SLUG_REVALIDATE_SECONDS = 300;
+
+/**
+ * Data Cache tag on the catalog list and the slug-to-id lookup. The publish
+ * webhook flushes it so a new or renamed product shows up without waiting out
+ * the revalidate window.
+ */
+export const PRODUCT_CATALOG_CACHE_TAG = "grove-catalog";
+
+/** Data Cache tag on a product's display read; the publish webhook flushes it. */
+export function productCacheTag(id: number): string {
+  return `grove-product-${id}`;
+}
+
 /** `RequestInit` plus Next.js's `next` cache directive. Declared locally so this
  * framework-agnostic package can request ISR-style revalidation without taking
  * a dependency on `next` — the field is a plain extra property that a non-Next
@@ -142,6 +169,14 @@ async function api<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+function productDetailFetchOptions(
+  id: number,
+  options?: ProductReadOptions,
+): NextFetchOptions {
+  if (options?.freshness !== "display") return {};
+  return { next: { revalidate: PRODUCT_DISPLAY_REVALIDATE_SECONDS, tags: [productCacheTag(id)] } };
 }
 
 // Normalizers live in ./normalizers — extracted there so they can be
@@ -206,8 +241,9 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         // round-trip to the single Odoo droplet per navigation. A short revalidate
         // collapses those into one shared Data Cache entry (per facet URL) while
         // the publish webhook's `revalidatePath('/shop')` still flushes it on a
-        // new/edited product. (Callers on `force-dynamic` pages opt out of this
-        // via Next's `force-no-store`; that's fine — they wanted per-request.)
+        // new/edited product. An explicit `next.revalidate` is honoured even on
+        // `force-dynamic` pages (goldberry `/shop` included), so this fetch is
+        // cached for every caller; only a `cache: "no-store"` fetch opts out.
         //
         // 30s, not 60 (GOL-1896): the `product.availability` webhook is the fast
         // path (sellout/restock reflected in ~5s); this ISR window is the safety
@@ -215,7 +251,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         // window rather than the old minute. Don't drop it much lower — every
         // miss is a full-catalog fetch against the single Odoo droplet.
         const raw = await api<ApiProductListResponse>(config, path, {
-          next: { revalidate: 30 },
+          next: { revalidate: 30, tags: [PRODUCT_CATALOG_CACHE_TAG] },
         });
 
         return {
@@ -226,24 +262,54 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         };
       },
 
-      async get(id) {
-        const raw = await api<ApiProductDetail>(config, `/grove/api/v1/products/${id}`);
+      async get(id, options) {
+        const raw = await api<ApiProductDetail>(
+          config,
+          `/grove/api/v1/products/${id}`,
+          productDetailFetchOptions(id, options),
+        );
         return normalizeProductDetail(raw);
       },
 
-      async getBySlug(slug) {
+      async getBySlug(slug, options) {
         const params = new URLSearchParams({ slug });
-        const raw = await api<ApiProductListResponse>(
+        const path = `/grove/api/v1/products?${params.toString()}`;
+        const display = options?.freshness === "display";
+        let raw = await api<ApiProductListResponse>(
           config,
-          `/grove/api/v1/products?${params.toString()}`,
+          path,
+          display
+            ? {
+                next: {
+                  revalidate: PRODUCT_SLUG_REVALIDATE_SECONDS,
+                  tags: [PRODUCT_CATALOG_CACHE_TAG],
+                },
+              }
+            : {},
         );
+        // A cached empty answer must not 404 a product published since it was
+        // stored, so confirm live. Only unknown slugs pay this extra read.
+        if (raw.results.length === 0 && display) {
+          raw = await api<ApiProductListResponse>(config, path, { cache: "no-store" });
+        }
         if (raw.results.length === 0) return null;
         // List response carries everything except variants[]. Re-fetch detail by id for
         // variants — hub product pages need them.
-        const detail = await api<ApiProductDetail>(
-          config,
-          `/grove/api/v1/products/${raw.results[0].id}`,
-        );
+        let detail: ApiProductDetail;
+        try {
+          detail = await api<ApiProductDetail>(
+            config,
+            `/grove/api/v1/products/${raw.results[0].id}`,
+            productDetailFetchOptions(raw.results[0].id, options),
+          );
+        } catch (err) {
+          // A cached slug can point at a product since unpublished. Ask Odoo
+          // live, so that reads as "not found" rather than as an outage.
+          if (display && err instanceof OdooApiError && err.status === 404) {
+            return this.getBySlug(slug);
+          }
+          throw err;
+        }
         return normalizeProductDetail(detail);
       },
     },

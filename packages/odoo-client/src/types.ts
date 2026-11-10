@@ -1766,8 +1766,8 @@ export interface OdooClient {
       limit?: number;
       offset?: number;
     }): Promise<ProductListResult>;
-    get(id: number): Promise<Product>;
-    getBySlug(slug: string): Promise<Product | null>;
+    get(id: number, options?: ProductReadOptions): Promise<Product>;
+    getBySlug(slug: string, options?: ProductReadOptions): Promise<Product | null>;
   };
   catalog: {
     /**
@@ -1866,3 +1866,15 @@ export interface OdooClient {
   };
 }
 
+
+/**
+ * How fresh a single-product read must be.
+ *
+ * - `"live"` (default): straight from Odoo. Anything that prices or commits an
+ *   order must use this.
+ * - `"display"`: a short shared cache, for rendering product pages only. See
+ *   `PRODUCT_DISPLAY_REVALIDATE_SECONDS`.
+ */
+export interface ProductReadOptions {
+  freshness?: "live" | "display";
+}

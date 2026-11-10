@@ -33,23 +33,23 @@ availability/pricing. (A repo-wide grep for `revalidate: false` must stay empty.
 
 | Surface | Mechanism | Worst-case stale |
 |---|---|---|
-| nursery `/shop/[id]` PDP — availability, price, variants | `force-dynamic`, `odoo.products.get` sets no `next.revalidate` → opted out of the Data Cache | **0s (fresh per request)** |
+| nursery `/shop/[slug]` PDP — availability, price, variants | `force-dynamic` page; product read uses `freshness: "display"` → `next.revalidate: 30`, tagged per product (slug-to-id lookup 300s) | **≤30s while the product gets traffic; the first view after a quiet spell can be older, then refreshes in the background** |
 | nursery `/shop` listing — availability, price, nav | `odoo.products.list()` / `catalog.nav()` → `next.revalidate: 30` | **≤30s** |
 | nursery PDP shipping rate table | `SHIPPING_RATES_REVALIDATE_SECONDS = 3600` (time-based only; no webhook feeds it) | **≤1h** (same at any instance count) |
-| goldberry `/shop` + `/shop/[id]` | `force-dynamic`, uncached | **0s** |
+| goldberry `/shop` | `force-dynamic` page, but the list fetch sets `next.revalidate: 30` (honoured under `force-dynamic`), tagged `grove-catalog` | **≤30s** |
+| goldberry `/shop/[id]` | same `display` read as nursery | **same as nursery PDP** |
 | ggg `/shop` | static coming-soon page, no Odoo call | n/a |
-| ggg `/shop/[id]` | `force-dynamic`, uncached | **0s** |
+| ggg `/shop/[id]` | same `display` read as nursery | **same as nursery PDP** |
+| checkout cart quote and promo routes | `odoo.products.get` live read | **0s** |
 | hub marketplace / journal / home | `export const revalidate` 60–3600s | **≤ that window** |
 
 ### Why this is acceptable as-is (no hardening required)
 
-- **The page shoppers buy from is fresh.** Add-to-Cart lives on the PDP
-  (`/shop/[id]`), which is `force-dynamic` with an uncached product fetch, so it
-  shows true availability/pricing on **every** instance regardless of which one
-  the webhook hit. The `/shop` grid can advertise stale "In stock" for ≤30s on
-  the non-webhook instance, but clicking through to the PDP shows truth, and
-  checkout validates stock server-side against Odoo. Overselling risk is **not**
-  materially raised by running 2 instances.
+- **Checkout is the source of truth.** Since the product-page latency fix, a PDP
+  can show cached availability or price (see the table). The cart quote and promo
+  routes still read live from Odoo, and checkout validates stock server-side, so
+  a stale PDP does not decide what the order is quoted or whether stock is taken.
+  Running 2 instances does not materially raise overselling risk.
 - **The bound is the floor, not the fast path.** `createPublishWebhookRoute`'s
   own docstring calls the webhook "the fast path" and the ISR window "the safety
   net that catches any missed or failed delivery." A webhook reaching only 1 of

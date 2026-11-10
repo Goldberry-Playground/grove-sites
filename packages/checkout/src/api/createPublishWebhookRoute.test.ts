@@ -30,13 +30,15 @@ const VALID_BODY = JSON.stringify({
 
 function makeRoute(overrides: Partial<Parameters<typeof createPublishWebhookRoute>[0]> = {}) {
   const revalidate = vi.fn();
+  const revalidateByTag = vi.fn();
   const POST = createPublishWebhookRoute({
     secret: SECRET,
     tenant: "goldberry",
     revalidate,
+    revalidateByTag,
     ...overrides,
   });
-  return { POST, revalidate };
+  return { POST, revalidate, revalidateByTag };
 }
 
 describe("createPublishWebhookRoute", () => {
@@ -57,6 +59,19 @@ describe("createPublishWebhookRoute", () => {
     });
     expect(revalidate).toHaveBeenCalledWith("/shop/42");
     expect(revalidate).toHaveBeenCalledWith("/shop");
+  });
+
+  it("flushes the product's cached display read by tag, which slug URLs depend on", async () => {
+    const { POST, revalidateByTag } = makeRoute();
+    const res = await POST(
+      makeRequest(VALID_BODY, {
+        "x-grove-event": "guide.publish",
+        "x-grove-signature-256": sign(VALID_BODY),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(revalidateByTag).toHaveBeenCalledWith("grove-product-42");
+    expect(revalidateByTag).toHaveBeenCalledWith("grove-catalog");
   });
 
   it("revalidates the same two paths on a product.availability event (GOL-1896)", async () => {
