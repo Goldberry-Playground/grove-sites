@@ -22,6 +22,43 @@ function urlSegment(value: string): string {
   return encodeURIComponent(value);
 }
 
+/** A Discord API call that came back non-2xx, keeping the status for callers that care. */
+export class DiscordApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "DiscordApiError";
+    this.status = status;
+  }
+}
+
+/** Longest a request will sit out a rate limit. Odoo's bridge calls time out at 10 to 15 seconds. */
+export const MAX_RATE_LIMIT_WAIT_MS = 5_000;
+
+/** How long Discord asked us to wait, from the JSON body, then the header, else one second. */
+async function retryAfterMs(res: Response): Promise<number> {
+  try {
+    const body = (await res.clone().json()) as { retry_after?: unknown };
+    if (typeof body.retry_after === "number" && body.retry_after >= 0) return body.retry_after * 1000;
+  } catch {
+    /* no JSON body; fall through to the header */
+  }
+  const header = Number(res.headers.get("retry-after"));
+  return Number.isFinite(header) && header > 0 ? header * 1000 : 1000;
+}
+
+/**
+ * Send a request, and on a 429 wait out `retry_after` (capped) and try once more.
+ * A 429 means Discord did not act on the request, so repeating it is safe.
+ */
+async function sendRateLimited(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Response> {
+  const res = await fetchImpl(url, init);
+  if (res.status !== 429) return res;
+  const wait = Math.min(await retryAfterMs(res), MAX_RATE_LIMIT_WAIT_MS);
+  await new Promise((resolve) => setTimeout(resolve, wait));
+  return fetchImpl(url, init);
+}
+
 async function assertOk(res: Response, action: string): Promise<void> {
   if (!res.ok) {
     let body = "";
@@ -30,23 +67,69 @@ async function assertOk(res: Response, action: string): Promise<void> {
     } catch {
       /* ignore */
     }
-    throw new Error(`Discord ${action} failed: HTTP ${res.status} ${body}`);
+    throw new DiscordApiError(`Discord ${action} failed: HTTP ${res.status} ${body}`, res.status);
   }
 }
 
-/** Post the digest (or any message) to a channel using the bot token. */
+/**
+ * Post the digest (or any message) to a channel using the bot token. Resolves to
+ * the new message's id, or undefined if the reply did not carry one (the post
+ * still happened).
+ */
 export async function postChannelMessage(
   botToken: string,
   channelId: string,
   message: DiscordMessage,
   fetchImpl: typeof fetch = fetch,
-): Promise<void> {
-  const res = await fetchImpl(`${DISCORD_API_BASE}/channels/${urlSegment(channelId)}/messages`, {
+): Promise<string | undefined> {
+  const res = await sendRateLimited(fetchImpl, `${DISCORD_API_BASE}/channels/${urlSegment(channelId)}/messages`, {
     method: "POST",
     headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(message),
   });
   await assertOk(res, "postChannelMessage");
+  try {
+    const { id } = (await res.json()) as { id?: unknown };
+    return typeof id === "string" ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Edit a message the bot posted, by id. Throws `DiscordApiError` (404 when Discord no longer has it). */
+export async function editChannelMessage(
+  botToken: string,
+  channelId: string,
+  messageId: string,
+  message: DiscordMessage,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const res = await sendRateLimited(
+    fetchImpl,
+    `${DISCORD_API_BASE}/channels/${urlSegment(channelId)}/messages/${urlSegment(messageId)}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(message),
+    },
+  );
+  await assertOk(res, "editChannelMessage");
+}
+
+/** Read one message from a channel, for rewriting a notice from a click on another message. */
+export async function getChannelMessage(
+  botToken: string,
+  channelId: string,
+  messageId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<unknown> {
+  const res = await sendRateLimited(
+    fetchImpl,
+    `${DISCORD_API_BASE}/channels/${urlSegment(channelId)}/messages/${urlSegment(messageId)}`,
+    { method: "GET", headers: { Authorization: `Bot ${botToken}` } },
+  );
+  await assertOk(res, "getChannelMessage");
+  return res.json();
 }
 
 /**
@@ -57,10 +140,11 @@ export async function postChannelMessage(
 export async function editInteractionOriginal(
   appId: string,
   interactionToken: string,
-  message: DiscordMessage,
+  message: DiscordMessage | { content: string; components: [] },
   fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
-  const res = await fetchImpl(
+  const res = await sendRateLimited(
+    fetchImpl,
     `${DISCORD_API_BASE}/webhooks/${urlSegment(appId)}/${urlSegment(interactionToken)}/messages/@original`,
     {
       method: "PATCH",
@@ -85,7 +169,8 @@ export async function createInteractionFollowup(
   ephemeral = true,
   fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
-  const res = await fetchImpl(
+  const res = await sendRateLimited(
+    fetchImpl,
     `${DISCORD_API_BASE}/webhooks/${urlSegment(appId)}/${urlSegment(interactionToken)}`,
     {
       method: "POST",

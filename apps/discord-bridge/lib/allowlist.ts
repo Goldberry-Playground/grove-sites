@@ -40,13 +40,26 @@ export function parseOperatorIds(csv: string | undefined): Set<string> {
 
 /** A Discord interaction carrying the invoking user (guild `member` or DM `user`). */
 export interface ActorCarrier {
-  member?: { user?: { id?: string } };
-  user?: { id?: string };
+  member?: { nick?: string | null; user?: DiscordUserName };
+  user?: DiscordUserName;
+}
+
+/** The parts of a Discord user object used to name them. */
+export interface DiscordUserName {
+  id?: string;
+  username?: string;
+  global_name?: string | null;
 }
 
 /** Resolve the invoking Discord user id, or undefined when absent. */
 export function actorId(interaction: ActorCarrier): string | undefined {
   return interaction.member?.user?.id ?? interaction.user?.id ?? undefined;
+}
+
+/** Display name for chatter and cards: server nickname, global name, username, then the id. */
+export function actorName(interaction: ActorCarrier): string | undefined {
+  const user = interaction.member?.user ?? interaction.user;
+  return interaction.member?.nick || user?.global_name || user?.username || user?.id || undefined;
 }
 
 /** True only when the interaction's invoking user is on the allowlist. */
