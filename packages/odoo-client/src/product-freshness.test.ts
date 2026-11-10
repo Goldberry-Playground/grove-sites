@@ -69,7 +69,7 @@ describe("product read freshness", () => {
     });
   });
 
-  it("re-checks live before trusting a cached empty slug, so a new product never 404s", async () => {
+  it("re-checks live before trusting a cached empty slug (no 404 on new products)", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(listOf([]))
       .mockResolvedValueOnce(listOf([detail]))

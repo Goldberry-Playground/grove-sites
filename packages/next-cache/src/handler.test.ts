@@ -357,20 +357,44 @@ describe("file-cache mode", () => {
     expect(both.flushStore).not.toBe(both.store);
   });
 
-  it("env-unset mode serves a product entry older than 600s from the file cache", async () => {
-    const file = fakeFileCache();
-    const Handler = createGroveCacheHandler({
+  function unsetHandler(file: ReturnType<typeof fakeFileCache>) {
+    return createGroveCacheHandler({
       store: null,
       flushStore: null,
       createFileCache: () => file,
       buildId: () => "B",
     });
-    const old = {
+  }
+
+  it("env-unset mode treats a product entry older than 600s as a miss", async () => {
+    const file = fakeFileCache();
+    const Handler = unsetHandler(file);
+    file.entries.set("k1", {
       lastModified: Date.now() - 3_600_000,
       value: fetchValue("old", ["grove-catalog"]),
-    };
-    file.entries.set("k1", old);
+    });
     const got = await new Handler(CTOR_CTX).get("k1", fetchGetCtx(["grove-product-1"]));
+    expect(got).toBeNull();
+  });
+
+  it("env-unset mode still serves a fresh product entry", async () => {
+    const file = fakeFileCache();
+    const Handler = unsetHandler(file);
+    const fresh = {
+      lastModified: Date.now() - 60_000,
+      value: fetchValue("new", ["grove-catalog"]),
+    };
+    file.entries.set("k1", fresh);
+    const got = await new Handler(CTOR_CTX).get("k1", fetchGetCtx(["grove-product-1"]));
+    expect(got).toEqual(fresh);
+  });
+
+  it("env-unset mode serves a non-product entry older than 600s", async () => {
+    const file = fakeFileCache();
+    const Handler = unsetHandler(file);
+    const old = { lastModified: Date.now() - 3_600_000, value: fetchValue("old", ["blog"]) };
+    file.entries.set("k1", old);
+    const got = await new Handler(CTOR_CTX).get("k1", fetchGetCtx(["blog"]));
     expect(got).toEqual(old);
   });
 

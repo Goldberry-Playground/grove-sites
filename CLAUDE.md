@@ -25,7 +25,7 @@ Next.js 15 App Router monorepo (pnpm + Turborepo) for the Gather at the Grove ec
 | `packages/grove-brand` | `@grove/brand`: brand-asset manifest (SVG logos in git, rasters on the CDN) |
 | `packages/grove-tokens` | `@grove/tokens`: design-system token contract (`--grove-*`) + per-brand themes |
 | `packages/grove-ui` | `@grove/ui-kit`: design-system components (cart, checkout, product cards, capture forms) on `@grove/tokens` |
-| `packages/next-cache` | `@grove/next-cache`: Valkey-backed Next.js Data Cache handler + catalog warmer (off unless `VALKEY_URL` is set) |
+| `packages/next-cache` | `@grove/next-cache`: Valkey-backed Next.js Data Cache handler + catalog warmer (off unless `VALKEY_URL` and `GROVE_CACHE_NAMESPACE` are set) |
 | `packages/newsletter` | Newsletter opt-in capture into Odoo Email Marketing (one list per brand) |
 | `packages/odoo-client` | Typed Odoo 19 REST client for `grove_headless` (products, cart, orders) |
 | `packages/otel` | Server-side OpenTelemetry tracing (`@vercel/otel`), wired via each app's `instrumentation.ts` |
@@ -71,7 +71,8 @@ Write code following the architecture blueprint. Conventions:
 - Cacheable Odoo reads (`next.revalidate` + tags) go to the Next Data Cache. With `VALKEY_URL`
   and `GROVE_CACHE_NAMESPACE` set, `@grove/next-cache` keeps it in one shared Valkey, so entries
   and tag flushes reach every instance; product data is never served older than 600s. Either
-  var unset = per-instance file cache (today's behaviour, the off switch). Checkout, cart quote
+  var unset = per-instance file cache (today's behaviour, the off switch), which still caps
+  product entries at 600s, so that bound holds in both modes. Checkout, cart quote
   and promo reads stay live. Next is pinned to 15.5.28: re-run the cache spike before bumping
   it. See `docs/runbooks/isr-multi-instance.md`.
 

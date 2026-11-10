@@ -13,7 +13,7 @@ what it does.
 |---|---|
 | `VALKEY_URL` | Valkey connection URL (secret; delivered by the infra repo, never printed) |
 | `GROVE_CACHE_NAMESPACE` | Key prefix `grove:<namespace>:`, one per app (e.g. `nursery`) so brands never share entries |
-| `PORT` | Needed by the catalog warmer to request its own pages (images set `3001`) |
+| `PORT` | Needed by the catalog warmer to request its own pages (images set `3001` for nursery, goldberry and ggg; `3000` for hub, which does not warm) |
 
 **With both `VALKEY_URL` and `GROVE_CACHE_NAMESPACE` set:**
 
@@ -38,8 +38,10 @@ what it does.
 - Logs to watch: `[grove-cache] ... failed` and `[grove-warmer] cycle done: N warmed, M failed`.
 
 **With either var unset** the handler passes every call straight to Next's own file cache:
-exactly the per-instance behaviour described in the rest of this doc, with no 600s bound and no
-warmer. Local dev, tests and `next build` run this way.
+the per-instance behaviour described in the rest of this doc, with no warmer. The 600s bound
+still applies: a product-tagged (`grove-catalog` / `grove-product-<id>`) file-cache hit older
+than 600s is treated as a miss, so the read waits for Odoo. Other entries are served as Next
+serves them. Local dev, tests and `next build` run this way.
 
 **Switching it off (rollback):** unset `VALKEY_URL` (or `GROVE_CACHE_NAMESPACE`) on the app and
 redeploy or restart. No code change or rebuild is needed; the same image serves both modes.
@@ -49,9 +51,28 @@ the app's `grove:<ns>:*` keys.
 **Next.js version pin:** `next` is pinned to exactly `15.5.28` in the four apps because the
 handler depends on cache internals (`FileSystemCache` import path, the `get`/`set` ctx shapes,
 route-cache keys) that changed between 15.5 patch releases. Any Next bump must re-run the
-two-instance cache proof (spike recipe: `.superpowers/sdd/2026-11-09-storefront-shared-cache/`
-task 0 and task 5 reports, if still present; otherwise two `next start` instances on one
-`valkey/valkey:8` with a counting mock Odoo) before it ships.
+two-instance cache proof before it ships. Pass criteria:
+
+- Two `next start` instances of one app share one Valkey (`valkey/valkey:8`, counting mock
+  Odoo): `revalidateTag` on A changes what B serves, and `revalidatePath` likewise.
+- A `fetch` entry survives a rebuild (new `BUILD_ID`).
+- With Valkey hanging (unreachable IP) and with it refused, pages still serve, within about the
+  150ms timeout plus one uncached read.
+- The handler's import of `next/dist/server/lib/incremental-cache/file-system-cache` still
+  resolves.
+- The `get`/`set` ctx shapes are unchanged: `kind`, `tags`, `softTags` on get; `fetchCache`,
+  `tags` on set.
+
+## QA gate (train-up)
+
+Before promoting, on the QA node with `VALKEY_URL` set, using the Docker image (`server.js`,
+not `next start`):
+
+1. Container logs show `[grove-warmer] cycle done`. A `[grove-warmer] not started` line is a
+   fail.
+2. `grove:<ns>:d:*` keys exist in Valkey.
+3. Run the outage test against the image: Valkey hanging (unreachable IP), then refused. Pages
+   must keep serving within about the 150ms timeout plus one uncached read.
 
 Checkout, cart quote and promo routes read Odoo live and never touch this cache.
 

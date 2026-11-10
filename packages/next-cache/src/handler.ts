@@ -237,13 +237,13 @@ export function createGroveCacheHandler(deps: HandlerDeps): GroveCacheHandlerCla
     }
 
     /**
-     * Reads Next's file cache. With no store configured this is a pure pass-through (today's
-     * behaviour). As a fallback for Valkey it also enforces the 600s product-data cap.
+     * Reads Next's file cache, in both modes (Valkey fallback and env-unset). Non-product
+     * entries pass straight through; product entries older than the 600s cap are a miss.
      */
     private async fileGet(key: string, ctx: GetContext): Promise<CacheHandlerValue | null> {
       try {
         const hit = await this.file().get(key, ctx);
-        if (!store || !hit || typeof hit.lastModified !== "number") return hit;
+        if (!hit || typeof hit.lastModified !== "number") return hit;
         return tooOld(union(valueTags(hit.value), ctx.tags), hit.lastModified) ? null : hit;
       } catch (err) {
         report("file get", err);

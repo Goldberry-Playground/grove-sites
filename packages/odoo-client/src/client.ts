@@ -109,7 +109,10 @@ export class OdooApiError extends Error {
  * nearly all of the page's 0.7-2s time to first byte. Next serves the cached
  * copy and refreshes in the background, so the first view after a quiet spell
  * can be older than this window. `product.availability` webhooks flush
- * `productCacheTag` on the instance they reach. Checkout stays on live reads.
+ * `productCacheTag`: with the shared Valkey cache on, the flush reaches every
+ * instance; with it off, only the instance that received the webhook. Either
+ * way product entries are never served older than 600s (@grove/next-cache).
+ * Checkout stays on live reads.
  */
 export const PRODUCT_DISPLAY_REVALIDATE_SECONDS = 30;
 
@@ -242,8 +245,9 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         // collapses those into one shared Data Cache entry (per facet URL) while
         // the publish webhook still flushes it on a new/edited product, by
         // `revalidatePath('/shop')` and by the `grove-catalog` tag. An explicit
-        // `next.revalidate` is honoured even on `force-dynamic` pages (goldberry `/shop` included), so this fetch is
-        // cached for every caller; only a `cache: "no-store"` fetch opts out.
+        // `next.revalidate` is honoured even on `force-dynamic` pages (goldberry
+        // `/shop` included), so this fetch is cached for every caller; only a
+        // `cache: "no-store"` fetch opts out.
         //
         // 30s, not 60 (GOL-1896): the `product.availability` webhook is the fast
         // path (sellout/restock reflected in ~5s); this ISR window is the safety

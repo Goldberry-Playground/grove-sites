@@ -20,7 +20,7 @@
     "iovalkey": "^0.4.0"
   },
   "peerDependencies": {
-    "next": "^15.5.24"
+    "next": "15.5.28"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
