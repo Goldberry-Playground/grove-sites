@@ -59,7 +59,7 @@ export default async function GuildsPage({ searchParams }: GuildsPageProps) {
   await Promise.all(
     guilds.map(async (guild) => {
       try {
-        const detail = await odoo.products.get(guild.id);
+        const detail = await odoo.products.get(guild.id, { freshness: "display" });
         const purpose = guildPurpose(detail.description);
         if (purpose) purposes.set(guild.id, purpose);
       } catch {

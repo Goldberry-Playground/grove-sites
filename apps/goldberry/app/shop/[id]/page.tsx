@@ -38,7 +38,7 @@ export default async function ProductDetailPage({
 
   let product: Product | null = null;
   try {
-    product = await odoo.products.get(productId);
+    product = await odoo.products.get(productId, { freshness: "display" });
   } catch {
     // Odoo unreachable or the id is unknown: a 404, never a demo product
     // (GOL-3315). The farm shop shows only what Odoo can actually sell.

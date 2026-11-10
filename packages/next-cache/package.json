@@ -1,0 +1,31 @@
+{
+  "name": "@grove/next-cache",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Valkey-backed Next.js data cache handler shared by every storefront instance.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./handler": "./dist/handler.js",
+    "./config": "./src/config.ts",
+    "./warmer": "./src/warmer.ts"
+  },
+  "scripts": {
+    "build": "esbuild src/handler.ts --bundle --platform=node --format=cjs --target=node20 --external:next --external:next/* --outfile=dist/handler.js",
+    "type-check": "tsc --noEmit",
+    "lint": "echo 'lint placeholder'"
+  },
+  "dependencies": {
+    "iovalkey": "^0.4.0"
+  },
+  "peerDependencies": {
+    "next": "15.5.28"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "next": "15.5.28",
+    "typescript": "^5.7.0"
+  }
+}

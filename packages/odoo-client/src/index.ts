@@ -10,6 +10,7 @@ export type {
   SeedSeason,
   SeedRolloverReason,
   ProductListResult,
+  ProductReadOptions,
   Cart,
   CartItem,
   OdooClient,
@@ -83,6 +84,10 @@ export {
   OdooApiError,
   SHIPPING_RATES_CACHE_TAG,
   SHIPPING_RATES_REVALIDATE_SECONDS,
+  PRODUCT_CATALOG_CACHE_TAG,
+  PRODUCT_DISPLAY_REVALIDATE_SECONDS,
+  PRODUCT_SLUG_REVALIDATE_SECONDS,
+  productCacheTag,
 } from "./client";
 export { resolveOdooImageUrl, withOdooImageSize, ODOO_IMAGE_SIZES } from "./images";
 export type { OdooImageSize } from "./images";

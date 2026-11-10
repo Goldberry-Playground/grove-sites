@@ -72,11 +72,10 @@ function odooBaseUrl(): string {
  * `cache()`-wrapped because `generateMetadata` and the page component both
  * need the product and Next runs them in the same request. Without it this
  * route would make two full detail round-trips to the single Odoo droplet per
- * page view: the product fetch sets no `next.revalidate`, and under
- * `dynamic = "force-dynamic"` a fetch with no explicit cache option or
- * revalidate is opted out of the Data Cache, so nothing dedupes it. React's
- * per-request memoization does, and it also guarantees the title and the <h1>
- * describe the same product even if the catalog changes mid-render.
+ * page view. React's per-request memoization dedupes them, and it also
+ * guarantees the title and the <h1> describe the same product even if the
+ * catalog changes mid-render. The `display` read adds the shared cache across
+ * requests; see `PRODUCT_DISPLAY_REVALIDATE_SECONDS`.
  *
  * Note `force-dynamic` does NOT disable the Data Cache for a fetch that sets
  * its own `next.revalidate` (Next 15.5 `server/lib/patch-fetch`: the
@@ -87,7 +86,7 @@ function odooBaseUrl(): string {
  */
 const loadProduct = cache(async (productId: number): Promise<Product | null> => {
   try {
-    return await odoo.products.get(productId);
+    return await odoo.products.get(productId, { freshness: "display" });
   } catch {
     return getMockProductById(productId);
   }
@@ -99,7 +98,7 @@ const loadProduct = cache(async (productId: number): Promise<Product | null> => 
  */
 const loadProductBySlug = cache(async (slug: string): Promise<Product | null> => {
   try {
-    return await odoo.products.getBySlug(slug);
+    return await odoo.products.getBySlug(slug, { freshness: "display" });
   } catch {
     return getMockProductBySlug(slug);
   }

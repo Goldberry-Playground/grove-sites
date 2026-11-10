@@ -6,9 +6,10 @@ import { odoo } from "../../lib/clients";
 import { isDataUri } from "../../lib/is-data-uri";
 import { pageMetadata } from "../../lib/site-metadata";
 
-// Render on every request so the page reflects current Odoo state.
-// (Build-time render can't reach Odoo when building inside Docker; ISR will
-// be reintroduced once Odoo posts a revalidation webhook — Sprint 5.)
+// Rendered per request (build-time render can't reach Odoo inside Docker). The
+// page is dynamic but its data is not: `odoo.products.list()` sets
+// `next.revalidate: 30` under the `grove-catalog` tag, which Next honours here,
+// and the publish webhook flushes that tag.
 export const dynamic = "force-dynamic";
 
 export const metadata = pageMetadata({

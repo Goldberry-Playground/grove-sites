@@ -40,7 +40,7 @@ export default async function ProductDetailPage({
   // pieces must never render as buyable.
   let product;
   try {
-    product = await odoo.products.get(productId);
+    product = await odoo.products.get(productId, { freshness: "display" });
   } catch {
     product = null;
   }
