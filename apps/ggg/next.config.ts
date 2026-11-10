@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 import { groveImageDefaults } from "@grove/config/images";
+import { groveCacheConfig } from "@grove/next-cache/config";
 import { securityHeadersRoute } from "@grove/config/security-headers";
 
 // Product images are fetched from whatever host ODOO_URL points at — every
@@ -31,6 +32,8 @@ function odooImageAllowlist(): NonNullable<
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Shared Valkey data cache; a pass-through unless VALKEY_URL is set at runtime.
+  ...groveCacheConfig(),
   // Self-contained server bundle for Docker deploys.
   // .next/standalone/ contains node_modules + a server.js that boots Next
   // with no need for the source tree at runtime.

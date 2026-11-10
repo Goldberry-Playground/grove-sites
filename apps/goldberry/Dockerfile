@@ -32,6 +32,7 @@ COPY packages/ghost-client/package.json packages/ghost-client/
 COPY packages/config/package.json packages/config/
 COPY packages/analytics/package.json packages/analytics/
 COPY packages/otel/package.json packages/otel/
+COPY packages/next-cache/package.json packages/next-cache/
 # @grove/ui-kit (packages/grove-ui) + its token dep — the kit builds to
 # dist/ inside the image before the app build (grove-tokens has no deps,
 # so it gets no node_modules copy below).
@@ -56,6 +57,7 @@ COPY --from=deps /workspace/packages/ghost-client/node_modules ./packages/ghost-
 COPY --from=deps /workspace/packages/config/node_modules ./packages/config/node_modules
 COPY --from=deps /workspace/packages/analytics/node_modules ./packages/analytics/node_modules
 COPY --from=deps /workspace/packages/otel/node_modules ./packages/otel/node_modules
+COPY --from=deps /workspace/packages/next-cache/node_modules ./packages/next-cache/node_modules
 COPY --from=deps /workspace/packages/grove-ui/node_modules ./packages/grove-ui/node_modules
 
 # Then copy the rest of the source.
@@ -102,7 +104,10 @@ ENV NEXT_PUBLIC_OO_RUM_INSECURE=$NEXT_PUBLIC_OO_RUM_INSECURE
 # no font requests. (GOL-3479)
 # Build the ui-kit first — pnpm --filter does NOT build workspace deps,
 # and @grove/ui-kit resolves to dist/ which only exists after tsup runs.
-RUN pnpm --filter @grove/ui-kit build && pnpm --filter @grove/goldberry build
+# Same for @grove/next-cache: next.config.ts resolves its bundled dist/handler.js.
+RUN pnpm --filter @grove/ui-kit build \
+    && pnpm --filter @grove/next-cache build \
+    && pnpm --filter @grove/goldberry build
 
 # ── 3. minimal runtime image ─────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner

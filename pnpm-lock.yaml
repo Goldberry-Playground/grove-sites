@@ -125,6 +125,9 @@ importers:
       '@grove/ghost-client':
         specifier: workspace:*
         version: link:../../packages/ghost-client
+      '@grove/next-cache':
+        specifier: workspace:*
+        version: link:../../packages/next-cache
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
@@ -213,6 +216,9 @@ importers:
       '@grove/newsletter':
         specifier: workspace:*
         version: link:../../packages/newsletter
+      '@grove/next-cache':
+        specifier: workspace:*
+        version: link:../../packages/next-cache
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
@@ -307,6 +313,9 @@ importers:
       '@grove/newsletter':
         specifier: workspace:*
         version: link:../../packages/newsletter
+      '@grove/next-cache':
+        specifier: workspace:*
+        version: link:../../packages/next-cache
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
@@ -395,6 +404,9 @@ importers:
       '@grove/newsletter':
         specifier: workspace:*
         version: link:../../packages/newsletter
+      '@grove/next-cache':
+        specifier: workspace:*
+        version: link:../../packages/next-cache
       '@grove/odoo-client':
         specifier: workspace:*
         version: link:../../packages/odoo-client
