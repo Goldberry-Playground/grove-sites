@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./handler": "./dist/handler.js",
-    "./config": "./src/config.ts"
+    "./config": "./src/config.ts",
+    "./warmer": "./src/warmer.ts"
   },
   "scripts": {
     "build": "esbuild src/handler.ts --bundle --platform=node --format=cjs --target=node20 --external:next --external:next/* --outfile=dist/handler.js",
