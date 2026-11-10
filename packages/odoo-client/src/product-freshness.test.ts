@@ -108,4 +108,10 @@ describe("product read freshness", () => {
     await client().products.getBySlug("hickory", { freshness: "display" });
     expect(initOf(0).next?.tags).toContain(PRODUCT_CATALOG_CACHE_TAG);
   });
+
+  it("nav() caches 30s under the catalog tag", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ departments: [], categories: [] }));
+    await client().catalog.nav().catch(() => undefined);
+    expect(initOf(0).next).toEqual({ revalidate: 30, tags: [PRODUCT_CATALOG_CACHE_TAG] });
+  });
 });

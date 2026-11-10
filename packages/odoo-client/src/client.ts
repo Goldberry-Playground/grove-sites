@@ -240,9 +240,9 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         // search, category-pill click, and `?all=1` reveal — a fresh full-catalog
         // round-trip to the single Odoo droplet per navigation. A short revalidate
         // collapses those into one shared Data Cache entry (per facet URL) while
-        // the publish webhook's `revalidatePath('/shop')` still flushes it on a
-        // new/edited product. An explicit `next.revalidate` is honoured even on
-        // `force-dynamic` pages (goldberry `/shop` included), so this fetch is
+        // the publish webhook still flushes it on a new/edited product, by
+        // `revalidatePath('/shop')` and by the `grove-catalog` tag. An explicit
+        // `next.revalidate` is honoured even on `force-dynamic` pages (goldberry `/shop` included), so this fetch is
         // cached for every caller; only a `cache: "no-store"` fetch opts out.
         //
         // 30s, not 60 (GOL-1896): the `product.availability` webhook is the fast
@@ -324,7 +324,7 @@ export function createOdooClient(config: TenantConfig): OdooClient {
         const raw = await api<ApiCatalogNavResponse>(
           config,
           "/grove/api/v1/catalog/nav",
-          { next: { revalidate: 30 } },
+          { next: { revalidate: 30, tags: [PRODUCT_CATALOG_CACHE_TAG] } },
         );
         return normalizeCatalogNav(raw);
       },
