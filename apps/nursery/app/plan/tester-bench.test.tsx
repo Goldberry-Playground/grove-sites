@@ -87,13 +87,25 @@ describe("TesterBench: what-if sliders", () => {
     expect(screen.queryByRole("button", { name: copy.BENCH_RESET_ALL })).toBeNull();
   });
 
-  it("names the pick a weight change would swap in", () => {
+  it("says so when the picks hold", () => {
     mount();
-    // With no priority or years pull and a huge marginal penalty, scores collapse
-    // onto the same base; whatever changes, the summary must say it in words.
-    fireEvent.change(slider("priority_weight"), { target: { value: "6" } });
+    fireEvent.change(slider("wildlife_bonus"), { target: { value: "20" } });
+    expect(screen.getByTestId("plan-bench-whatif").textContent).toBe(copy.BENCH_SAME_PICKS);
+  });
+
+  it("names the pick a weight change would swap in", () => {
+    // A canopy contender that loses on priority (50 vs the anchor's) but
+    // fruits in a year: drop the priority weight to 0 and it wins the slot.
+    const anchor = result.lines.find((l) => l.slot === "canopy")!.plant;
+    const contender = { ...anchor, id: 9001, slug: "quick-chestnut", name: "Quick Chestnut", priority: 50, years_to_fruit_min: 1 };
+    const catalog = { ...FIXTURE_CATALOG, plants: [...FIXTURE_CATALOG.plants, contender] };
+    expect(plan(input, catalog).lines.find((l) => l.slot === "canopy")!.plant.id).toBe(anchor.id);
+    render(<TesterBench input={input} catalog={catalog} lines={plan(input, catalog).lines} />);
+    fireEvent.change(slider("priority_weight"), { target: { value: "0" } });
     const box = screen.getByTestId("plan-bench-whatif");
-    expect(box.textContent === copy.BENCH_SAME_PICKS || box.textContent!.startsWith(copy.BENCH_PICKS_HEADING)).toBe(true);
+    expect(box.textContent).toContain(copy.BENCH_PICKS_HEADING);
+    expect(box.textContent).toContain(copy.BENCH_PICK_CHANGE(copy.SLOT_LABELS.canopy, "Quick Chestnut", anchor.name));
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

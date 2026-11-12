@@ -143,7 +143,7 @@ export function TesterBench({ input, catalog, lines, dispute = postDispute, prop
       <p className="mt-2 max-w-prose text-sm text-ink-soft">{copy.BENCH_LEDE}</p>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-10">
-        <div>
+        <div className="order-2 lg:order-1">
           <h4 className="font-mono text-[11px] tracking-[0.16em] uppercase text-primary-deep">{copy.BENCH_LINES_HEADING}</h4>
           <ul className="mt-3 divide-y divide-primary/10 border-y border-primary/10">
             {lines.map((line) => (
@@ -159,9 +159,36 @@ export function TesterBench({ input, catalog, lines, dispute = postDispute, prop
           </ul>
         </div>
 
-        <div className="lg:sticky lg:top-6 lg:self-start">
+        {/* Weights first on a phone, so the what-if summary sits under the
+            slider being moved. Not sticky: eight sliders outgrow a viewport. */}
+        <div className="order-1 lg:order-2">
           <h4 className="font-mono text-[11px] tracking-[0.16em] uppercase text-primary-deep">{copy.BENCH_WEIGHTS_HEADING}</h4>
           <p className="mt-1 text-sm text-ink-soft">{copy.BENCH_WEIGHTS_LEDE}</p>
+          <div role="status" aria-live="polite" className="mt-3 text-sm" data-testid="plan-bench-whatif">
+            {whatIf == null ? null : whatIf.length === 0 ? (
+              <p className="text-ink-soft">{copy.BENCH_SAME_PICKS}</p>
+            ) : (
+              <>
+                <p className="font-semibold text-primary-deep">{copy.BENCH_PICKS_HEADING}</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {whatIf.map((s) => (
+                    <li key={s.slot}>
+                      {copy.BENCH_PICK_CHANGE(copy.SLOT_LABELS[s.slot], s.now ?? copy.BENCH_PICK_NONE, s.was ?? copy.BENCH_PICK_NONE)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+          {changed && (
+            <button
+              type="button"
+              className="mt-1 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-2"
+              onClick={() => setOverrides({})}
+            >
+              {copy.BENCH_RESET_ALL}
+            </button>
+          )}
           <div className="mt-4 space-y-5">
             {RULE_KEYS.map((key) => (
               <WeightSlider
@@ -180,31 +207,6 @@ export function TesterBench({ input, catalog, lines, dispute = postDispute, prop
                 propose={propose}
               />
             ))}
-          </div>
-          {changed && (
-            <button
-              type="button"
-              className="mt-5 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-2"
-              onClick={() => setOverrides({})}
-            >
-              {copy.BENCH_RESET_ALL}
-            </button>
-          )}
-          <div role="status" aria-live="polite" className="mt-4 text-sm" data-testid="plan-bench-whatif">
-            {whatIf == null ? null : whatIf.length === 0 ? (
-              <p className="text-ink-soft">{copy.BENCH_SAME_PICKS}</p>
-            ) : (
-              <>
-                <p className="font-semibold text-primary-deep">{copy.BENCH_PICKS_HEADING}</p>
-                <ul className="mt-1 list-disc space-y-1 pl-5">
-                  {whatIf.map((s) => (
-                    <li key={s.slot}>
-                      {copy.BENCH_PICK_CHANGE(copy.SLOT_LABELS[s.slot], s.now ?? copy.BENCH_PICK_NONE, s.was ?? copy.BENCH_PICK_NONE)}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
           </div>
         </div>
       </div>
