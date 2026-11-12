@@ -1,4 +1,6 @@
 import type {
+  ApiPlannerDisputeInput,
+  ApiPlannerProposeInput,
   ApiPlannerSaveInput,
   ApiPlannerSignalInput,
   ApiPlannerSignalKind,
@@ -111,7 +113,9 @@ export async function postSignal(
   }
 }
 
-export type SaveOutcome = { ok: true; id: number | null } | { ok: false; reason: "off" | "limit" | "invalid" | "failed" };
+export type SaveOutcome =
+  | { ok: true; id: number | null }
+  | { ok: false; reason: "off" | "limit" | "invalid" | "forbidden" | "failed" };
 
 /** Save a named plan (spec §B.7). The caller posts the `saved` signal on success. */
 export async function postSave(
@@ -127,6 +131,25 @@ export async function postSuggest(
   fetchImpl: typeof fetch = fetch,
 ): Promise<SaveOutcome> {
   return outcome(() => post("/api/planner/suggest", { ...body, browser_id: browserId() }, fetchImpl));
+}
+
+/**
+ * Tester bench writes (spec §C.4, GOL-3551). The tester token is NOT in the
+ * body: it lives in an HttpOnly cookie this code cannot read, and the BFF
+ * adds it. A 403 means the cookie is gone or Odoo no longer knows it.
+ */
+export async function postDispute(
+  body: Omit<ApiPlannerDisputeInput, "tester_token" | "contradicts">,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SaveOutcome> {
+  return outcome(() => post("/api/planner/dispute", body, fetchImpl));
+}
+
+export async function postPropose(
+  body: Omit<ApiPlannerProposeInput, "tester_token">,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SaveOutcome> {
+  return outcome(() => post("/api/planner/propose", body, fetchImpl));
 }
 
 async function outcome(send: () => Promise<Response>): Promise<SaveOutcome> {
@@ -149,5 +172,6 @@ async function outcome(send: () => Promise<Response>): Promise<SaveOutcome> {
   if (res.status === 503) return { ok: false, reason: "off" };
   if (res.status === 429) return { ok: false, reason: "limit" };
   if (res.status === 400) return { ok: false, reason: "invalid" };
+  if (res.status === 403) return { ok: false, reason: "forbidden" };
   return { ok: false, reason: "failed" };
 }

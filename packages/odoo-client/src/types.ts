@@ -1249,6 +1249,38 @@ export interface ApiPlannerSaveResponse {
   id: number;
 }
 
+/** The planner facts a tester can dispute (grove_headless `EVIDENCE_FACTS`). */
+export type ApiPlannerFact =
+  | "zone_min"
+  | "zone_max"
+  | "years_to_fruit"
+  | "tolerates_wet"
+  | "tolerates_poor_soil"
+  | "tolerates_shade"
+  | "pollination"
+  | "harvest_months"
+  | "role"
+  | "succession"
+  | "stratum";
+
+/** `POST /grove/api/v1/planner/dispute` body. Tester token required. */
+export interface ApiPlannerDisputeInput {
+  tester_token: string;
+  product_tmpl_id: number;
+  fact: ApiPlannerFact;
+  /** Default true: the tester says the fact is wrong. */
+  contradicts?: boolean;
+  note?: string | null;
+  zone?: number | null;
+}
+
+/** `POST /grove/api/v1/planner/propose` body: one retail rule key and value. */
+export interface ApiPlannerProposeInput {
+  tester_token: string;
+  key: string;
+  value: number;
+}
+
 /** ZIP → USDA hardiness zone lookup result (GET /grove/api/v1/zone). Powers
  * the "Will this grow for me?" zone check — the buyer's ZIP resolves to a zone
  * that's compared against a plant's zoneMin..zoneMax, and doubles as the value
@@ -1794,6 +1826,12 @@ export interface OdooClient {
     signal(input: ApiPlannerSignalInput): Promise<{ ok: true }>;
     suggest(input: ApiPlannerSuggestInput): Promise<{ ok: true }>;
     save(input: ApiPlannerSaveInput): Promise<ApiPlannerSaveResponse>;
+    /** Tester bench (§C.4): evidence that a fact is wrong. 403 without a valid `tester_token`. */
+    dispute(input: ApiPlannerDisputeInput): Promise<{ ok: true }>;
+    /** Tester bench (§C.4): a rule-weight proposal. 403 without a valid `tester_token`. */
+    propose(input: ApiPlannerProposeInput): Promise<{ ok: true }>;
+    /** Is `token` an active tester token? "off" when the learning loop is switched off. */
+    testerStatus(token: string): Promise<"valid" | "invalid" | "off">;
   };
   shipping: {
     /** Legacy schema-1 tier-keyed rate table (GOL-952): a read-only mirror of
