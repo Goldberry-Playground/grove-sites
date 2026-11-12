@@ -36,6 +36,7 @@ import { dropSpan } from "./months";
 import { CautionMark, CheckMark } from "./questions";
 import { SuggestForm } from "./suggest-form";
 import { SuggestedList } from "./suggested-list";
+import { TesterBench } from "./tester-bench";
 import { productPath } from "../../lib/product-path";
 
 export interface ResultCardProps {
@@ -53,6 +54,8 @@ export interface ResultCardProps {
   onManualChange: (ids: number[]) => void;
   onEdit: () => void;
   onRetrySite: () => void;
+  /** Render the tester bench under the card (§C.4; the page decides from the cookie). */
+  tester?: boolean;
   /** Signal transport seam (tests). */
   signal?: typeof postSignal;
   save?: typeof postSave;
@@ -139,6 +142,7 @@ export function ResultCard({
   onManualChange,
   onEdit,
   onRetrySite,
+  tester = false,
   signal = postSignal,
   save = postSave,
 }: ResultCardProps) {
@@ -384,6 +388,7 @@ export function ResultCard({
       </div>
 
       {result.consult && <ConsultPanel contact={contact} />}
+      {tester && <TesterBench input={input} catalog={catalog} lines={active} />}
     </section>
   );
 }
