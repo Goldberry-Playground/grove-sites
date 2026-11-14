@@ -232,3 +232,52 @@ export const SHIP_WINDOW_FALLBACK =
   "Everything ships dormant in your zone's window; the exact dates show at checkout.";
 export const WAVES_CLOSED = (zone: number) =>
   `Bareroot pre-orders for zone ${zone} are closed right now. They open September 1 for the fall wave and November 1 for spring. Add your email to the lines below and we will say when.`;
+
+// ── Tester bench (winter-beta spec §C.4, GOL-3551). Testers only; plain words. ──
+export const BENCH_EYEBROW = "Tester bench";
+export const BENCH_HEADING = "How this plan was scored";
+export const BENCH_LEDE =
+  "Only testers see this. Moving a slider re-runs the plan on this page and nowhere else. Nothing changes for anyone until you propose a weight and the nursery accepts it.";
+export const BENCH_LINES_HEADING = "Score per line";
+export const BENCH_WEIGHTS_HEADING = "What-if weights";
+export const BENCH_WEIGHTS_LEDE = "Try a weight here first. Propose it once the plan reads right to you.";
+export const BENCH_RESET_ALL = "Reset all weights";
+export const BENCH_RESET_ONE = (label: string) => `Reset ${label.toLowerCase()}`;
+export const BENCH_LIVE = (value: string) => `Live value ${value}`;
+export const BENCH_TOTAL = "Score";
+export const BENCH_WAS = (value: string) => `was ${value}`;
+export const BENCH_SAME_PICKS = "With these weights the plan picks the same plants.";
+export const BENCH_PICKS_HEADING = "With these weights the plan would pick";
+export const BENCH_PICK_CHANGE = (slot: string, now: string, was: string) => `${slot}: ${now} instead of ${was}`;
+export const BENCH_PICK_NONE = "nothing";
+export const BENCH_PROPOSE = "Propose this weight";
+export const BENCH_PROPOSING = "Sending";
+export const BENCH_PROPOSED = (label: string, value: string) => `Proposed ${label.toLowerCase()} at ${value}. It goes to the nursery for review.`;
+export const BENCH_DISPUTE = "Dispute a fact";
+export const BENCH_DISPUTE_LEGEND = (name: string) => `Which fact about ${name} is wrong?`;
+export const BENCH_DISPUTE_NOTE = "What you have seen";
+export const BENCH_DISPUTE_NOTE_HINT = "Where you grow it and what it did. A sentence is plenty.";
+export const BENCH_DISPUTE_SEND = "Send dispute";
+export const BENCH_DISPUTE_SENDING = "Sending";
+export const BENCH_DISPUTE_PICK = "Pick the fact you think is wrong.";
+export const BENCH_DISPUTED = (fact: string) => `Thank you. Your note on ${fact.toLowerCase()} is with the nursery.`;
+export const BENCH_FAILED = "That did not go through. Try again in a minute.";
+export const BENCH_OFF = "The tester bench is paused for the moment.";
+export const BENCH_LIMIT = "That is plenty for one hour. Try again later.";
+export const BENCH_NOT_TESTER = "Your tester link has expired. Ask Josh for a fresh one.";
+export const BENCH_UNSET = "not set";
+export const BENCH_YES = "yes";
+export const BENCH_NO = "no";
+export const BENCH_FACT_LABELS: Record<string, string> = {
+  zone_min: "Coldest zone",
+  zone_max: "Warmest zone",
+  years_to_fruit: "Years to first crop",
+  tolerates_wet: "Takes wet ground",
+  tolerates_poor_soil: "Takes poor soil",
+  tolerates_shade: "Takes shade",
+  pollination: "Plants to pollinate",
+  harvest_months: "Harvest months",
+  role: "Role",
+  succession: "Succession",
+  stratum: "Layer",
+};

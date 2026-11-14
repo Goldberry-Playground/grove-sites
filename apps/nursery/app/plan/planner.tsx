@@ -31,6 +31,8 @@ export interface PlannerProps {
   contact: { phone: string; email: string };
   /** Answers to start from (the page passes the URL's; the teaser starts empty). */
   initialAnswers?: PlanAnswers;
+  /** The tester cookie is present (§C.4): render the tester bench under the card. */
+  tester?: boolean;
 }
 
 type CatalogState =
@@ -44,7 +46,7 @@ type CatalogState =
  * run, the result card. Every answer lives in the URL on /plan so a result is
  * shareable; the home teaser keeps answers local and hands them to /plan.
  */
-export function Planner({ mode, odooBase, contact, initialAnswers }: PlannerProps) {
+export function Planner({ mode, odooBase, contact, initialAnswers, tester = false }: PlannerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -226,6 +228,7 @@ export function Planner({ mode, odooBase, contact, initialAnswers }: PlannerProp
               onManualChange={setManualIds}
               onEdit={() => setEditing(true)}
               onRetrySite={() => setAnswers({ ...answers, site: "open" })}
+              tester={tester}
             />
           ) : null}
         </div>

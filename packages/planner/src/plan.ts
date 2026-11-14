@@ -79,7 +79,7 @@ export function explainScore(
   const years = plant.years_to_fruit_min ?? 0;
   const parts: ScorePart[] = [{ key: "base", label: "Start", value: 100 }];
   parts.push({ key: "priority_weight", label: `Priority ${priority}`, value: -rules.priority_weight * priority });
-  if (years) parts.push({ key: "years_weight", label: `${years} years to fruit`, value: -rules.years_weight * years });
+  if (years) parts.push({ key: "years_weight", label: `${years} ${years === 1 ? "year" : "years"} to fruit`, value: -rules.years_weight * years });
   if (fit === "marginal") parts.push({ key: "marginal_penalty", label: "Marginal zone", value: -rules.marginal_penalty });
   if (input.track !== "deer") {
     if (input.timing === "fast" && years) {

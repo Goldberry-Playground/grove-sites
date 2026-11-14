@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { CategoryBar } from "../category-bar";
 import { tenantConfig } from "../../tenant.config";
 import { plannerEnabled } from "../../lib/planner-flag";
+import { TESTER_COOKIE, isTesterToken } from "../../lib/planner-tester";
 import * as copy from "./copy";
 import { Planner } from "./planner";
 
@@ -22,8 +24,12 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function PlanPage() {
+export default async function PlanPage() {
   if (!plannerEnabled()) notFound();
+  // Tester mode (§C.4): the middleware set this HttpOnly cookie after Odoo
+  // accepted the token. The page only needs to know it is there; the token
+  // itself never reaches the browser's JS.
+  const tester = isTesterToken((await cookies()).get(TESTER_COOKIE)?.value);
   const odooBase = process.env.ODOO_URL ?? "http://localhost:8069";
   return (
     <>
@@ -44,7 +50,7 @@ export default function PlanPage() {
         <p className="plan-experimental-note">{copy.PLAN_EXPERIMENTAL_NOTE}</p>
         <div className="max-w-5xl">
           <Suspense fallback={null}>
-            <Planner mode="page" odooBase={odooBase} contact={tenantConfig.contact} />
+            <Planner mode="page" odooBase={odooBase} contact={tenantConfig.contact} tester={tester} />
           </Suspense>
         </div>
       </section>

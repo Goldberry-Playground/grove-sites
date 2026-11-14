@@ -454,3 +454,19 @@ describe("Planner: manual lines survive Edit", () => {
     expect(within(hickory!).getByTestId("plan-badge-manual").textContent).toBe("your pick");
   });
 });
+
+describe("ResultCard: tester bench (winter-beta §C.4, GOL-3551)", () => {
+  it("is hidden without the tester flag", () => {
+    mountCard();
+    expect(screen.queryByTestId("plan-tester-bench")).toBeNull();
+  });
+
+  it("renders under the card in tester mode, one breakdown row per live line", async () => {
+    const { result } = mountCard({ tester: true });
+    const bench = screen.getByTestId("plan-tester-bench");
+    expect(within(bench).getAllByTestId("plan-bench-line")).toHaveLength(result.lines.length);
+    // A Remove on the card drops that line from the bench too.
+    await userEvent.click(screen.getAllByTestId("plan-remove")[0]);
+    expect(within(bench).getAllByTestId("plan-bench-line")).toHaveLength(result.lines.length - 1);
+  });
+});

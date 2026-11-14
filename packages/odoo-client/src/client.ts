@@ -45,6 +45,8 @@ import type {
   ApiPlannerSuggestInput,
   ApiPlannerSaveInput,
   ApiPlannerSaveResponse,
+  ApiPlannerDisputeInput,
+  ApiPlannerProposeInput,
   ProductReadOptions,
 } from "./types";
 import {
@@ -394,6 +396,52 @@ export function createOdooClient(config: TenantConfig): OdooClient {
           body: JSON.stringify(input),
           cache: "no-store",
         });
+      },
+
+      // Tester-token routes (winter-beta spec §B.6 / §C.4, GOL-3551). The BFF
+      // passes the token from its HttpOnly cookie in the body as
+      // `tester_token`; Odoo resolves the tester's name from it and 403s an
+      // unknown or inactive token.
+      async dispute(input: ApiPlannerDisputeInput) {
+        return api<{ ok: true }>(config, "/grove/api/v1/planner/dispute", {
+          method: "POST",
+          body: JSON.stringify(input),
+          cache: "no-store",
+        });
+      },
+      async propose(input: ApiPlannerProposeInput) {
+        return api<{ ok: true }>(config, "/grove/api/v1/planner/propose", {
+          method: "POST",
+          body: JSON.stringify(input),
+          cache: "no-store",
+        });
+      },
+      /**
+       * Is this an active tester token? grove_headless has no read route for
+       * tokens, so this asks the dispute route with the token and nothing
+       * else: it checks the token before the body, so a known token answers
+       * 400 (no product) and writes nothing, an unknown one 403. Resolves
+       * "valid" | "invalid" | "off" (kill switch / route absent); network
+       * and 5xx re-throw.
+       */
+      async testerStatus(token: string): Promise<"valid" | "invalid" | "off"> {
+        try {
+          await api<unknown>(config, "/grove/api/v1/planner/dispute", {
+            method: "POST",
+            body: JSON.stringify({ tester_token: token }),
+            cache: "no-store",
+          });
+          // A 200 would mean Odoo wrote evidence from an empty body; it never
+          // does, but if it did the token was still accepted.
+          return "valid";
+        } catch (err) {
+          if (err instanceof OdooApiError) {
+            if (err.status === 400) return "valid";
+            if (err.status === 403) return "invalid";
+            if (err.status === 503 || err.status === 404) return "off";
+          }
+          throw err;
+        }
       },
     },
 

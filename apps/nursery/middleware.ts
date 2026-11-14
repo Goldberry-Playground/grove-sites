@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createOdooClient } from "@grove/odoo-client";
 import { tenantConfig } from "./tenant.config";
 import { pdpRedirectTarget } from "./lib/pdp-redirect";
+import { TESTER_COOKIE, testerCookie, testerDecision } from "./lib/planner-tester";
 
 /**
  * PDP URL canonicalisation (GOL-3601, GOL-2875 §3 R1/R3/R6).
@@ -21,7 +22,7 @@ import { pdpRedirectTarget } from "./lib/pdp-redirect";
  * links the site itself renders) never call Odoo here.
  */
 export const config = {
-  matcher: "/shop/:segment",
+  matcher: ["/shop/:segment", "/plan"],
   runtime: "nodejs",
 };
 
@@ -41,7 +42,33 @@ async function slugForId(id: number): Promise<string | null> {
   }
 }
 
+/**
+ * `/plan?tester=<token>` (planner winter-beta spec §B.6 / §C.4, GOL-3551):
+ * ask Odoo whether the token is active, keep it in an HttpOnly cookie when
+ * it is, and redirect to the same plan without the token so it does not sit
+ * in the address bar, the history or a shared link. A token Odoo refuses
+ * clears the cookie; Odoo off or unreachable leaves the cookie as it was.
+ */
+async function testerLink(request: NextRequest): Promise<NextResponse> {
+  const token = request.nextUrl.searchParams.get("tester") ?? "";
+  const decision = await testerDecision(odoo, token);
+  const url = request.nextUrl.clone();
+  url.searchParams.delete("tester");
+  const response = NextResponse.redirect(url, 303);
+  response.headers.set("cache-control", "no-store");
+  if (decision === "set") {
+    const proto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
+    response.cookies.set(testerCookie(token, proto === "https"));
+  } else if (decision === "clear") {
+    response.cookies.delete(TESTER_COOKIE);
+  }
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname === "/plan") {
+    return request.nextUrl.searchParams.has("tester") ? testerLink(request) : NextResponse.next();
+  }
   const raw = request.nextUrl.pathname.slice("/shop/".length);
   let segment: string;
   try {
