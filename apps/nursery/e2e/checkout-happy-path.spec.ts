@@ -6,6 +6,7 @@ import {
   expectOnReview,
   fillCheckoutForm,
   fillStripeCheckoutAndPay,
+  STRIPE_HOSTED_WEBKIT_REASON,
   findProductByCtaOrNull,
   payAtReview,
   submitAndCaptureSession,
@@ -28,7 +29,9 @@ import { NO_FULL_CHARGE_PRODUCT_REASON } from "./qa-helpers";
 test.describe("checkout — happy path", { tag: "@stripe" }, () => {
   test("in-stock cart pays with 4242, lands on success, empties the cart", async ({
     page,
+    browserName,
   }) => {
+    test.skip(browserName === "webkit", STRIPE_HOSTED_WEBKIT_REASON);
     // Full-charge flow runs whenever the catalog offers an "Add to cart"
     // (ships-now, charged-in-full) line; after the GOL-2233 season cutover a
     // shipped bareroot line is a $10 deposit instead, so none is offered and

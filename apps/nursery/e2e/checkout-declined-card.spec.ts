@@ -5,7 +5,9 @@ import {
   expectCartNotEmpty,
   expectOnReview,
   fillCheckoutForm,
+  expectStripeDeclineVisible,
   fillStripeCheckoutAndPay,
+  STRIPE_HOSTED_WEBKIT_REASON,
   findProductByCtaOrNull,
   payAtReview,
   submitAndCaptureSession,
@@ -34,7 +36,9 @@ const ZONE = 6; // ZIP 26651, the fillCheckoutForm default
 test.describe("checkout — declined card", { tag: "@stripe" }, () => {
   test("a declined card on a full-charge session surfaces an error and keeps the cart", async ({
     page,
+    browserName,
   }) => {
+    test.skip(browserName === "webkit", STRIPE_HOSTED_WEBKIT_REASON);
     // Full charge needs an "Add to cart" (ships-now) line; after the GOL-2233
     // cutover a shipped bareroot line is a deposit instead, so this skips on
     // product availability, never the date. The deposit case below carries the
@@ -55,9 +59,7 @@ test.describe("checkout — declined card", { tag: "@stripe" }, () => {
     await fillStripeCheckoutAndPay(page, STRIPE_TEST_CARD_DECLINE);
 
     // Stripe keeps the buyer on its page and shows a decline message.
-    await expect(
-      page.getByText(/declin|card was declined|try a different card|incorrect/i).first(),
-    ).toBeVisible({ timeout: 30_000 });
+    await expectStripeDeclineVisible(page);
     // We never got a success confirmation.
     expect(page.url()).not.toMatch(/\/checkout\/success/);
 
@@ -67,7 +69,9 @@ test.describe("checkout — declined card", { tag: "@stripe" }, () => {
 
   test("a declined card on a deposit (pre-order) session surfaces an error and keeps the cart", async ({
     page,
+    browserName,
   }) => {
+    test.skip(browserName === "webkit", STRIPE_HOSTED_WEBKIT_REASON);
     // Deployed target + Stripe's hosted page + a real decline: give it room
     // beyond the suite default (same budget as checkout-deposit-happy-path).
     test.setTimeout(180_000);
@@ -104,9 +108,7 @@ test.describe("checkout — declined card", { tag: "@stripe" }, () => {
     await payAtReview(page);
     await fillStripeCheckoutAndPay(page, STRIPE_TEST_CARD_DECLINE);
 
-    await expect(
-      page.getByText(/declin|card was declined|try a different card|incorrect/i).first(),
-    ).toBeVisible({ timeout: 30_000 });
+    await expectStripeDeclineVisible(page);
     expect(page.url()).not.toMatch(/\/checkout\/success/);
 
     // A declined deposit must not empty the cart any more than a declined full

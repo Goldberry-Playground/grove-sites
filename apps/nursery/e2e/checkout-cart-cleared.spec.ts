@@ -6,6 +6,7 @@ import {
   expectOnReview,
   fillCheckoutForm,
   fillStripeCheckoutAndPay,
+  STRIPE_HOSTED_WEBKIT_REASON,
   findProductByCtaOrNull,
   payAtReview,
   submitAndCaptureSession,
@@ -37,7 +38,8 @@ import { NO_FULL_CHARGE_PRODUCT_REASON } from "./qa-helpers";
 const ZONE = 6; // ZIP 26651, the fillCheckoutForm default
 
 test.describe("checkout — cart cleared after success", { tag: "@stripe" }, () => {
-  test("Stripe return route (/checkout/success) empties the cart", async ({ page }) => {
+  test("Stripe return route (/checkout/success) empties the cart", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", STRIPE_HOSTED_WEBKIT_REASON);
     // Full-charge success route; runs when an "Add to cart" line is offered and
     // skips on product availability after the GOL-2233 cutover (not the date).
     // The deposit /checkout/success cart-clear is covered by

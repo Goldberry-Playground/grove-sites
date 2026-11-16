@@ -1,4 +1,4 @@
-import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
+import { expect, type Frame, type Locator, type Page } from "@playwright/test";
 
 /**
  * Shared page-object helpers for the nursery checkout acceptance suite
@@ -20,6 +20,15 @@ import { expect, type FrameLocator, type Locator, type Page } from "@playwright/
  */
 
 /** Stripe test cards (test mode only). */
+/**
+ * Skip reason for every spec that pays on Stripe's hosted page. Playwright's
+ * Linux WebKit build cannot initialise that page (its `payment_pages/:id/init`
+ * fetch fails on every run, GOL-3661 / GOL-3786), so those specs are gated on
+ * Chromium. That is a test-browser limit, not real Safari.
+ */
+export const STRIPE_HOSTED_WEBKIT_REASON =
+  "Stripe's hosted page cannot initialise on Playwright's Linux WebKit (GOL-3661 / GOL-3786); the money path is gated on Chromium";
+
 export const STRIPE_TEST_CARD_OK = "4242 4242 4242 4242";
 export const STRIPE_TEST_CARD_DECLINE = "4000 0000 0000 0002";
 
@@ -398,15 +407,30 @@ export async function fillStripeCheckoutAndPay(
 ): Promise<void> {
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
 
+  // Stripe renders the hosted page under more than one DOM, and since 2026-11
+  // (QA gate run 43956459228, GOL-3786) the whole payment form (Link button,
+  // payment-method list, card inputs, Pay button) can sit inside an iframe
+  // that a main-frame locator cannot see. So every lookup below walks every
+  // frame, main frame first, and the form is filled in the frame that holds it.
+  const firstVisible = async (
+    pick: (frame: Frame) => Locator,
+  ): Promise<{ frame: Frame; loc: Locator } | null> => {
+    for (const frame of page.frames()) {
+      const loc = pick(frame).first();
+      if (await loc.isVisible().catch(() => false)) return { frame, loc };
+    }
+    return null;
+  };
+
   // Escape Stripe **Link**: if the prefilled email is a known Link account the
   // hosted page opens on a "Confirm it's you" OTP screen that hides the card
   // form. A unique buyer email (see `uniqueBuyerEmail`) normally avoids this, but
   // Stripe can register an address mid-suite, so defensively click "Pay without
   // Link" whenever it is offered to fall back to the manual card form (GOL-1157).
-  const payWithoutLink = page.getByRole("button", { name: /pay without link/i });
-  if (await payWithoutLink.count()) {
-    await payWithoutLink.first().click().catch(() => {});
-  }
+  const payWithoutLink = await firstVisible((f) =>
+    f.getByRole("button", { name: /pay without link/i }),
+  );
+  if (payWithoutLink) await payWithoutLink.loc.click().catch(() => {});
 
   // Select the card payment method so its fields render (validated GOL-1149).
   // Stripe has shipped the accordion under more than one DOM: the title-id
@@ -416,31 +440,12 @@ export async function fillStripeCheckoutAndPay(
   const cardRadio = page.locator("#payment-method-accordion-item-title-card");
   if (await cardRadio.count()) await cardRadio.check({ force: true }).catch(() => {});
 
-  // Stripe has shipped the hosted page under two DOMs:
-  //   (legacy, GOL-1149) the card fields (#cardNumber …) live in the main
-  //   frame once the accordion title is checked;
-  //   (2026-09, seen on QA deposit sessions) the accordion rows are custom
-  //   controls whose hidden radio ignores check(); each row carries a
-  //   "Pay with card" / "Pay with Cash App" … button that is the real
-  //   selector, and the card inputs then render as accessible textboxes —
-  //   possibly inside a Stripe iframe, which a main-frame locator can't see.
-  // Resolve the card-number field in ANY frame, clicking the new-layout
-  // button first when the legacy field isn't already there.
-  type Scope = Page | FrameLocator;
-  const findCardNumber = async (): Promise<{ scope: Scope; loc: Locator } | null> => {
-    const main = page.locator("#cardNumber").or(page.getByRole("textbox", { name: /card number/i })).first();
-    if (await main.isVisible().catch(() => false)) return { scope: page, loc: main };
-    for (const frame of page.frames()) {
-      if (frame === page.mainFrame()) continue;
-      const inFrame = frame.locator("#cardNumber").or(frame.getByRole("textbox", { name: /card number/i })).first();
-      if (await inFrame.isVisible().catch(() => false)) {
-        const url = frame.url();
-        const fl = page.frameLocator(`iframe[src="${url}"]`);
-        return { scope: fl, loc: fl.locator("#cardNumber").or(fl.getByRole("textbox", { name: /card number/i })).first() };
-      }
-    }
-    return null;
-  };
+  // The card fields are `#cardNumber …` in the legacy DOM (GOL-1149) and
+  // accessible textboxes in the 2026-09 one; either can be in any frame.
+  const findCardNumber = () =>
+    firstVisible((f) =>
+      f.locator("#cardNumber").or(f.getByRole("textbox", { name: /card number/i })),
+    );
   let card = await findCardNumber();
   if (!card) {
     // Verified headless on 2026-09-08 (QA deposit session, Playwright probes):
@@ -453,78 +458,121 @@ export async function fillStripeCheckoutAndPay(
     // is refused too ("outside of the viewport"), force or not. What works is
     // what a person does: a raw mouse click at the VISIBLE "Card" label's
     // coordinates, which the overlay receives and expands the row; the card
-    // fields then render in the main frame as accessible textboxes.
-    // The list renders a few seconds after the page URL lands, so wait for the
-    // label and keep re-clicking inside the poll — a click fired before the
-    // list exists selects nothing. Fallback: a synthetic click event on the
-    // overlay button (no hit-testing involved).
-    const cardLabel = page.getByText("Card", { exact: true }).filter({ visible: true }).first();
+    // fields then render as accessible textboxes. `boundingBox` is in main
+    // viewport coordinates even for a label inside an iframe, so the same
+    // click works there.
+    // The list renders a few seconds after the page URL lands, so keep
+    // re-clicking inside the poll — a click fired before the list exists
+    // selects nothing. Fallbacks, tried on alternate rounds: the row's own
+    // `button "Card"` (the 2026-11 iframe layout), then a synthetic click
+    // event on the overlay button (no hit-testing involved).
+    const findCardLabel = () =>
+      firstVisible((f) => f.getByText("Card", { exact: true }).filter({ visible: true }));
     // Stripe's own failure screen. Its `payment_pages/:id/init` POST never
     // completed (Playwright's Linux WebKit build does this on every run,
     // GOL-3661 / GOL-3786), so no payment method will ever render: say so
     // instead of polling for a Card row that cannot appear.
-    const stripeInitFailed = page.getByRole("heading", { name: /something went wrong/i });
-    await cardLabel.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+    const stripeInitFailed = () =>
+      firstVisible((f) => f.getByRole("heading", { name: /something went wrong/i }));
+    let round = 0;
     const selectCard = async () => {
-      // `boundingBox` with no timeout waits for the element until the TEST
-      // timeout: on the 2026-11-05 WebKit gate that was ~150 s of nothing,
-      // then a "Target page, context or browser has been closed" from the
-      // teardown (GOL-3786). Bound it; the poll below re-tries anyway.
-      const box = await cardLabel.boundingBox({ timeout: 2_000 }).catch(() => null);
-      if (box) {
-        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+      round += 1;
+      const label = await findCardLabel();
+      if (label && round % 2 === 1) {
+        // `boundingBox` with no timeout waits for the element until the TEST
+        // timeout: on the 2026-11-05 WebKit gate that was ~150 s of nothing,
+        // then a "Target page, context or browser has been closed" from the
+        // teardown (GOL-3786). Bound it; the poll below re-tries anyway.
+        const box = await label.loc.boundingBox({ timeout: 2_000 }).catch(() => null);
+        if (box) {
+          await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+          return;
+        }
+      }
+      const rowButton = await firstVisible((f) =>
+        f.getByRole("button", { name: /^Card\b/ }),
+      );
+      if (rowButton) {
+        await rowButton.loc.click({ timeout: 2_000 }).catch(() => {});
         return;
       }
-      const overlay = page.getByTestId("card-accordion-item-button").first();
-      if (await overlay.count()) await overlay.dispatchEvent("click").catch(() => {});
+      for (const frame of page.frames()) {
+        const overlay = frame.getByTestId("card-accordion-item-button").first();
+        if (await overlay.count().catch(() => 0)) {
+          await overlay.dispatchEvent("click").catch(() => {});
+          return;
+        }
+      }
     };
-    await selectCard();
     await expect
       .poll(
         async () => {
           card = await findCardNumber();
           if (card) return "found";
-          if (await stripeInitFailed.isVisible().catch(() => false)) {
+          if (await stripeInitFailed()) {
             return "stripe-init-failed: Stripe's hosted page shows 'Something went wrong' (its payment_pages/:id/init fetch did not complete; GOL-3661)";
           }
           await selectCard();
           return "missing";
         },
         {
-          timeout: 20_000,
+          timeout: 40_000,
           intervals: [500, 1_000, 2_000],
           message: "card number field should render after selecting the Card payment method",
         },
       )
       .toBe("found");
   }
-  const scope: Scope = card!.scope;
+  const scope: Frame = card!.frame;
 
-  const fillIfPresent = async (selector: string, value: string) => {
-    const el = page.locator(selector);
-    if (await el.count()) await el.first().fill(value);
-  };
   /** Fill by id when present, else by accessible textbox name, in the frame
-   *  the card field lives in. */
-  const fillField = async (selector: string, name: RegExp, value: string) => {
+   *  the card field lives in. Each field is filled only if present. */
+  const fillField = async (selector: string, name: RegExp | null, value: string) => {
     const byId = scope.locator(selector);
     if (await byId.count()) return byId.first().fill(value);
+    if (!name) return;
     const byRole = scope.getByRole("textbox", { name });
     if (await byRole.count()) await byRole.first().fill(value);
   };
-  await fillIfPresent("#email", "e2e@goldberrygrove.farm");
+  await fillField("#email", null, "e2e@goldberrygrove.farm");
   await fillField("#cardNumber", /card number/i, cardNumber);
   await fillField("#cardExpiry", /expir/i, "12 / 34");
   await fillField("#cardCvc", /cvc|security code/i, "123");
   await fillField("#billingName", /name on card|cardholder/i, "E2E Test Buyer");
-  await fillField("#billingPostalCode", /^zip$|postal/i, "26651");
+  await fillField("#billingPostalCode", /^zip( code)?$|postal/i, "26651");
+  // The 2026-11 layout pre-checks "Save my information for faster checkout",
+  // which makes a Link mobile number required and blocks Pay. Uncheck it: the
+  // suite must not enrol its buyers in Link anyway (a Link account is what
+  // puts the "Confirm it's you" screen in front of the card form, GOL-1157).
+  const saveInfo = scope.getByRole("checkbox", { name: /save my info/i });
+  if (await saveInfo.count()) await saveInfo.first().uncheck({ timeout: 5_000 }).catch(() => {});
   // This session enables Stripe phone-number collection; the required phone
   // field otherwise blocks Pay (validated GOL-1149).
-  await fillIfPresent("#phoneNumber", "2015550123");
+  await fillField("#phoneNumber", /^phone number$/i, "2015550123");
 
-  const submitById = page.getByTestId("hosted-payment-submit-button");
+  const submitById = scope.getByTestId("hosted-payment-submit-button");
   if (await submitById.count()) await submitById.click();
-  else await page.getByRole("button", { name: /pay/i }).first().click();
+  else await scope.getByRole("button", { name: /^(Pay|Subscribe|Reserve)/ }).last().click();
+}
+
+/**
+ * Assert Stripe's hosted page shows its card-declined message. The message
+ * renders next to the card fields, so it is in whichever frame holds the
+ * payment form (an iframe since 2026-11, GOL-3786): look in every frame.
+ */
+export async function expectStripeDeclineVisible(page: Page): Promise<void> {
+  const declined = /declin|card was declined|try a different card|incorrect/i;
+  await expect
+    .poll(
+      async () => {
+        for (const frame of page.frames()) {
+          if (await frame.getByText(declined).first().isVisible().catch(() => false)) return true;
+        }
+        return false;
+      },
+      { timeout: 30_000, message: "Stripe's hosted page should show a card-declined message" },
+    )
+    .toBe(true);
 }
 
 /**
