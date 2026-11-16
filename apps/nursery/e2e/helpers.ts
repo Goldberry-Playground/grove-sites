@@ -113,6 +113,16 @@ export type BuyLabel = typeof ADD_TO_CART | typeof PREORDER_CTA | typeof PICKUP_
  *  should prefer them. */
 export const ANY_BUY_LABEL: BuyLabel[] = [ADD_TO_CART, PREORDER_CTA, PICKUP_ONLY_CTA];
 
+/** The planner-catalog fixtures (`QA Planner Fixture — …`, grove-odoo-modules
+ *  `seed_e2e_planner_catalog.py`, GOL-3999/GOL-4003). As of GOL-4003 they are
+ *  stocked + priced so the planner engine can build a plan from them, which also
+ *  makes them render an enabled "Add to cart" on `/shop`. The checkout suite's
+ *  {@link findProductByCta} must NOT pick one — they are synthetic and would
+ *  shift which product the deterministic checkout totals run against — so it
+ *  drops them by card name. The `AAA QA E2E …` fixtures are the suite's INTENDED
+ *  targets and are deliberately not excluded here. */
+export const PLANNER_FIXTURE_NAME_RE = /^QA Planner Fixture /;
+
 /** How a "Pre-order for $10" line is set up on the PDP before its CTA enables. */
 export interface WavePreorderOpts {
   /** Fulfillment toggle to choose. Default "ship". */
@@ -226,16 +236,24 @@ export async function findProductByCta(
 ): Promise<FoundProduct> {
   const labels = Array.isArray(label) ? label : [label];
   let hrefs = (await collectProductHrefs(page)).filter((h) => h !== skipHref);
+  // Card names live next to the links on the grid `collectProductHrefs` just
+  // loaded. Read them once so we can (a) always drop the stocked planner
+  // fixtures — they render an enabled "Add to cart" but are synthetic and would
+  // shift this pick / the deterministic checkout totals (GOL-4003) — and
+  // (b) honour `nameMatch`.
+  const named = await page
+    .locator(".var-card")
+    .evaluateAll((els) =>
+      els.map((el) => ({
+        href: (el.querySelector('a.var-card__link[href^="/shop/"]') as HTMLAnchorElement | null)?.getAttribute("href") ?? "",
+        name: el.querySelector(".var-name")?.textContent?.trim() ?? "",
+      })),
+    );
+  const plannerFixtures = new Set(
+    named.filter((c) => PLANNER_FIXTURE_NAME_RE.test(c.name)).map((c) => c.href),
+  );
+  hrefs = hrefs.filter((h) => !plannerFixtures.has(h));
   if (nameMatch) {
-    // Card names live next to the links on the grid we just loaded.
-    const named = await page
-      .locator(".var-card")
-      .evaluateAll((els) =>
-        els.map((el) => ({
-          href: (el.querySelector('a.var-card__link[href^="/shop/"]') as HTMLAnchorElement | null)?.getAttribute("href") ?? "",
-          name: el.querySelector(".var-name")?.textContent?.trim() ?? "",
-        })),
-      );
     const keep = new Set(named.filter((c) => nameMatch.test(c.name)).map((c) => c.href));
     hrefs = hrefs.filter((h) => keep.has(h));
   }
