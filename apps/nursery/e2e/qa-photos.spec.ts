@@ -66,13 +66,23 @@ test.describe("qa gate — product photos", () => {
     }
     // Lazy grid images below the fold may not be decoded yet; require the
     // above-the-fold set (first 6) to have decoded.
+    // On a phone the grid is one column, so most of those six sit far below
+    // the viewport, and WebKit does not fetch a lazy image until it is near
+    // (iphone project, QA gate run 43956459228, GOL-3786). Bring each one on
+    // screen, as a buyer scrolling would, before asking whether it decoded.
     const aboveFold = photos.filter((x) => !/^AAA QA E2E /.test(x.name)).slice(0, 6);
+    const firstPhotos = page.locator(".var-card img.product-photo");
     await expect
       .poll(
-        async () =>
-          page.locator(".var-card img.product-photo").evaluateAll((els) =>
+        async () => {
+          const count = Math.min(6, await firstPhotos.count());
+          for (let i = 0; i < count; i++) {
+            await firstPhotos.nth(i).scrollIntoViewIfNeeded().catch(() => {});
+          }
+          return firstPhotos.evaluateAll((els) =>
             els.slice(0, 6).every((el) => (el as HTMLImageElement).naturalWidth > 0),
-          ),
+          );
+        },
         { timeout: 20_000, message: "above-the-fold card photos should decode" },
       )
       .toBe(true);

@@ -6,6 +6,7 @@ import {
   expectOnReview,
   fillCheckoutForm,
   fillStripeCheckoutAndPay,
+  STRIPE_HOSTED_WEBKIT_REASON,
   findProductByCtaOrNull,
   payAtReview,
   submitAndCaptureSession,
@@ -56,10 +57,7 @@ test.describe("checkout — deposit happy path (flat $10 per order)", { tag: "@s
     page,
     browserName,
   }) => {
-    test.skip(
-      browserName === "webkit",
-      "Stripe's hosted page cannot initialise on Playwright's Linux WebKit (GOL-3661 / GOL-3786); the money path is gated on Chromium",
-    );
+    test.skip(browserName === "webkit", STRIPE_HOSTED_WEBKIT_REASON);
     // Deployed target + Stripe's hosted page + a real test payment: give it
     // room beyond the suite default so a slow Stripe render is a retry, not a
     // torn-down browser mid-poll.
