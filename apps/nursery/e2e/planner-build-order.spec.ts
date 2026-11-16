@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { skipIfPlannerDisabled, skipIfPlannerFeedEmpty } from "./planner-helpers";
 
 /**
  * Order builder acceptance (order-builder spec §C.5, GOL-3383): a West
@@ -8,15 +9,17 @@ import { expect, test } from "@playwright/test";
  * Runs against a target with `PLANNER_ENABLED=1` in its runtime env (the §F
  * kill switch, GOL-3527; QA sets it, prod leaves it unset); on a target with
  * the flag off `/plan` is a 404 and the spec skips rather than fails, so the
- * prod gate stays green until Josh flips it.
+ * prod gate stays green until Josh flips it. It also skips when the target's
+ * planner feed carries no plants (GOL-3997) — the quiz then renders its empty
+ * state and no plan can be built, which is correct behaviour, not a regression.
  */
 
 const MOBILE = { width: 390, height: 844 };
 
 test.describe("Plant a community", () => {
   test.beforeEach(async ({ page }) => {
-    const res = await page.goto("/plan");
-    test.skip(res?.status() === 404, "PLANNER_ENABLED is off on this target");
+    await skipIfPlannerDisabled(page);
+    await skipIfPlannerFeedEmpty(page);
   });
 
   test("WV ZIP, open ground, food forest 20, mixed → add to cart → cart has the lines", async ({ page }) => {

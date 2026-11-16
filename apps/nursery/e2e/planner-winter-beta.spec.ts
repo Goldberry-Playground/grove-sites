@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Request } from "@playwright/test";
+import { skipIfPlannerDisabled, skipIfPlannerFeedEmpty } from "./planner-helpers";
 
 /**
  * Planner winter beta acceptance (planner-winter-beta spec §C.5, GOL-3550):
@@ -8,7 +9,8 @@ import { expect, test, type Page, type Request } from "@playwright/test";
  *
  * The BFF routes are intercepted here so the spec proves what the page sends
  * (kind, product, zone, lines) without writing signals into QA's Odoo on
- * every run. Same `PLANNER_ENABLED` skip as the order-builder spec.
+ * every run. Same `PLANNER_ENABLED` and empty-feed skips as the order-builder
+ * spec (GOL-3527 / GOL-3997).
  */
 
 interface Captured {
@@ -28,8 +30,8 @@ function capture(page: Page, pattern: string, reply: Record<string, unknown>): C
 
 test.describe("Planner winter beta", () => {
   test.beforeEach(async ({ page }) => {
-    const res = await page.goto("/plan");
-    test.skip(res?.status() === 404, "PLANNER_ENABLED is off on this target");
+    await skipIfPlannerDisabled(page);
+    await skipIfPlannerFeedEmpty(page);
   });
 
   test("WV ZIP, open ground, food forest 20, mixed → remove, add, save → signal and save calls", async ({ page }) => {
