@@ -21,11 +21,15 @@ import { isLivechatAbortNoise, isWebKitRscPrefetchNoise } from "./watchdog";
  *                  (`#grove-checkout-promo`, label "Promo code")
  */
 
-/** The two Playwright test-inventory fixtures seeded on QA by
- *  grove-odoo-modules `scripts/seed_e2e_test_inventory.py` (GOL-1148/1154).
- *  They deliberately carry NO photo, so photo-accuracy assertions must skip
- *  them — they are runner fixtures, not catalog. */
-export const E2E_FIXTURE_NAME_RE = /^AAA QA E2E /;
+/** The synthetic Playwright fixtures seeded on QA by grove-odoo-modules that are
+ *  NOT real catalog — they deliberately carry no photo, so photo-accuracy
+ *  assertions must skip them. Two families:
+ *   - `AAA QA E2E …` — the checkout test-inventory fixtures
+ *     (`seed_e2e_test_inventory.py`, GOL-1148/1154/2464).
+ *   - `QA Planner Fixture — …` — the planner-catalog fixtures
+ *     (`seed_e2e_planner_catalog.py`, GOL-3999); stocked/buyable as of GOL-4003
+ *     so they render on `/shop`, but still imageless runner fixtures. */
+export const E2E_FIXTURE_NAME_RE = /^(?:AAA QA E2E |QA Planner Fixture )/;
 
 /**
  * Odoo serves its own gray "no image" placeholder at HTTP 200 for imageless

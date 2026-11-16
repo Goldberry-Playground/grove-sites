@@ -21,8 +21,10 @@ import {
  * check passes on a missing photo (product-image.tsx documents this). Fetching
  * the served bytes and requiring a real-photo size closes that hole.
  *
- * The two `AAA QA E2E ...` runner fixtures are excluded: they are seeded
- * without images by design (grove-odoo-modules seed_e2e_test_inventory.py).
+ * The synthetic runner fixtures are excluded (`E2E_FIXTURE_NAME_RE`): both the
+ * `AAA QA E2E …` checkout fixtures and the `QA Planner Fixture — …` planner
+ * fixtures (GOL-4003) are seeded without images by design (grove-odoo-modules
+ * seed_e2e_test_inventory.py / seed_e2e_planner_catalog.py).
  */
 test.describe("qa gate — product photos", () => {
   test("every catalog card on /shop shows a real photo, not a placeholder", async ({
@@ -39,7 +41,7 @@ test.describe("qa gate — product photos", () => {
       .evaluateAll((els) =>
         els.map((el) => el.querySelector(".var-name")?.textContent?.trim() ?? "?"),
       );
-    const catalogPlaceholders = placeholders.filter((n) => !/^AAA QA E2E /.test(n));
+    const catalogPlaceholders = placeholders.filter((n) => !E2E_FIXTURE_NAME_RE.test(n));
     expect(
       catalogPlaceholders,
       "catalog products rendering the 'Photo coming soon' placeholder",
@@ -60,7 +62,7 @@ test.describe("qa gate — product photos", () => {
           };
         }),
       );
-    for (const p of photos.filter((x) => !/^AAA QA E2E /.test(x.name))) {
+    for (const p of photos.filter((x) => !E2E_FIXTURE_NAME_RE.test(x.name))) {
       expect(p.hasImg, `${p.name}: card should render a photo element`).toBe(true);
       expect(p.alt, `${p.name}: photo alt should name the product`).toBe(p.name);
     }
@@ -70,7 +72,7 @@ test.describe("qa gate — product photos", () => {
     // the viewport, and WebKit does not fetch a lazy image until it is near
     // (iphone project, QA gate run 43956459228, GOL-3786). Bring each one on
     // screen, as a buyer scrolling would, before asking whether it decoded.
-    const aboveFold = photos.filter((x) => !/^AAA QA E2E /.test(x.name)).slice(0, 6);
+    const aboveFold = photos.filter((x) => !E2E_FIXTURE_NAME_RE.test(x.name)).slice(0, 6);
     const firstPhotos = page.locator(".var-card img.product-photo");
     await expect
       .poll(
