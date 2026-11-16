@@ -120,6 +120,17 @@ tag + skip is how the fix is proven. Current: the sold-out arbitration spec
 the `/shop` grid says "Sold out" on cap-reached products the PDP still sells;
 first caught on QA 2026-09-08).
 
+**Planner specs and the empty-feed skip (GOL-3997).** `planner-build-order` and
+`planner-winter-beta` assert a *built* plan, which only renders when the target's
+planner catalog feed carries plants. Both skip — with a reason — on two correct
+no-plan conditions, via `skipIfPlannerDisabled` / `skipIfPlannerFeedEmpty` in
+`planner-helpers.ts`: (1) `PLANNER_ENABLED` is off, so `/plan` 404s (prod today,
+GOL-3527); (2) the target's Odoo returns a present-but-empty feed
+(`plants: []`) — e.g. an ephemeral QA that bring-up does not seed with planner
+facts. The feed guard reads `/api/planner/catalog` in `beforeEach`. A release-gate
+run that shows the planner specs **skipped** is covering the planner render path
+only once QA carries planner data; until then the skip is expected, not a pass.
+
 Shared helpers for these live in `qa-helpers.ts` (`readShopGrid`, `probeImage`,
 `collectFailures`, `navTiming`, `lcpMs`, `fillPromoCode`); keep checkout/Stripe
 helpers in `helpers.ts`.
