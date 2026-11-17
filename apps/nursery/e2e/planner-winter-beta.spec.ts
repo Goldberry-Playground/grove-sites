@@ -96,7 +96,12 @@ test.describe("Planner winter beta", () => {
     for (const line of save.lines) {
       expect(typeof line.product_tmpl_id).toBe("number");
       expect(line.qty as number).toBeGreaterThan(0);
-      expect(["overstory", "understory", "mushroom", null]).toContain(line.stratum);
+      // The save payload carries the canonical stratum vocabulary from
+      // `stratumOf` (@grove/planner): overstory | midstory | shrub | ground |
+      // null. The earlier `understory`/`mushroom` here were the legacy words and
+      // never matched a real plan — this assertion only ran now that GOL-4003
+      // stocks the planner feed so the specs stop skipping.
+      expect(["overstory", "midstory", "shrub", "ground", null]).toContain(line.stratum);
     }
     const kinds = signals.map((s) => s.body.kind);
     expect(kinds[kinds.length - 1]).toBe("saved");
