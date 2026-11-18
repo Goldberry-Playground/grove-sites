@@ -23,7 +23,7 @@ Internal apps (not storefronts):
 | `apps/discord-bridge` | CMO Discord bridge: weekly Buffer digest, `/insights`, content-approval cards ([README](apps/discord-bridge/README.md)) | n/a |
 | `apps/qa-portal` | Component-QA gallery of per-brand design bundles ([README](apps/qa-portal/README.md)) | 3005 |
 
-`apps/consult` is moving to AgriforestryOS in Train #5 and is not documented here.
+`apps/consult` is moving to AgriforestryOS in Train #6 (it is still in this repo, and was not moved in Train #5) and is not documented here.
 
 ## Table of Contents
 
@@ -141,7 +141,7 @@ grove-sites/
 │   │   └── …                       # Same storefront shape as goldberry, plus /plan (order builder)
 │   ├── discord-bridge/             # CMO Discord bridge (Buffer digest, /insights, approvals)
 │   ├── qa-portal/                  # Component-QA gallery of design bundles (:3005)
-│   └── consult/                    # Moving to AgriforestryOS (Train #5)
+│   └── consult/                    # Moving to AgriforestryOS (Train #6)
 ├── packages/
 │   ├── analytics/                  # RUM dual-writer: OpenObserve RUM + Plausible sinks
 │   ├── assets/                     # Product-photo ingest → grove-assets Spaces CDN
@@ -152,6 +152,7 @@ grove-sites/
 │   ├── grove-tokens/               # @grove/tokens — design-system token contract + brand themes
 │   ├── grove-ui/                   # @grove/ui-kit — design-system components on @grove/tokens
 │   ├── newsletter/                 # Newsletter opt-in capture into Odoo Email Marketing
+│   ├── next-cache/                 # @grove/next-cache — Valkey-backed Next.js Data Cache handler + catalog warmer
 │   ├── odoo-client/                # Typed Odoo 19 REST API client — products, cart, orders
 │   ├── otel/                       # Server-side OpenTelemetry tracing (@vercel/otel)
 │   ├── planner/                    # Order-builder planning engine (pure plan())
@@ -227,12 +228,17 @@ Each storefront's `.env.local` follows the same shape (see the per-app `.env.loc
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TENANT_ID` | No | per app | Tenant identifier sent as `X-Grove-Tenant` header (company scoping in `grove_headless`) |
+| `TENANT_ID` | No | per app | **Not read by the code.** The `X-Grove-Tenant` header value comes from the hardcoded `tenantId` in each app's `tenant.config.ts`; the entry in `.env.local.example` is informational only |
 | `NEXT_PUBLIC_TENANT_ID` | No | per app | Same value, exposed to the client — scopes the localStorage cart key per tenant |
 | `ODOO_URL` | Yes | `http://localhost:8069` | Odoo instance URL for the REST API |
-| `ODOO_API_KEY` | No | — | Optional — public storefront endpoints (products, cart, orders) use `auth=public`. Only needed for authenticated endpoints |
+| `ODOO_API_KEY` | Yes in production | — | Optional in local dev (public endpoints such as products, cart and orders use `auth=public`). In a production runtime `tenant.secrets.ts` refuses to start without it, and newsletter signup (`/api/newsletter/subscribe`) returns 503 when it is missing |
 | `GHOST_URL` | Yes | `http://localhost:2368/2369/2370` | Ghost CMS instance URL (one instance per tenant: goldberry 2368, ggg 2369, nursery 2370) |
 | `GHOST_CONTENT_KEY` | Yes | — | Ghost Content API key. Generate via `make ghost-setup-<tenant>` in the odoocker stack |
+| `GROVE_PUBLISH_WEBHOOK_SECRET` | No | — | HMAC secret for the guides publish webhook (`/api/webhooks/publish`). Unset = the receiver fails closed (401 on every delivery) |
+| `VALKEY_URL` / `GROVE_CACHE_NAMESPACE` | No | — | Shared Valkey Data Cache (`@grove/next-cache`, all four apps including the hub). Either unset = per-instance file cache. See `docs/runbooks/isr-multi-instance.md` |
+| `CAPTURE_ALERT_WEBHOOK_URL` | No | — | Discord-compatible webhook for capture-route 5xx alerts (`@grove/newsletter`). Unset = log line only |
+| `PLANNER_ENABLED` | No | — | Nursery only. Runtime switch for `/plan` and the homepage planner teaser; unset = `/plan` 404s |
+| `LIVECHAT_CHANNEL_ID` / `LIVECHAT_ODOO_URL` | No | — | Nursery only. Runtime config for the support chat widget; the widget renders only when a channel id is set (see `apps/nursery/.env.local.example`) |
 
 > **Deployed environments (decided 2026-07-20):** in QA and prod, `GHOST_URL` points at the **prod blogs droplet** (`blog.{domain}`) with a **read-only Content API key** (1Password `Grove Infra`). There is no QA Ghost instance; the values are injected via Terraform (odoocker `qa-app-platform/apps.tf`). The local ports above are for local dev only.
 
@@ -244,6 +250,8 @@ Each storefront's `.env.local` follows the same shape (see the per-app `.env.loc
 | `HUB_GHOST_URL` | Yes | `http://localhost:2368` | Ghost instance for the hub's village journal |
 | `HUB_GHOST_CONTENT_API_KEY` | Yes | — | Ghost Content API key for the journal |
 | `GROVE_REVALIDATE_SECRET` | Yes | — | Shared secret for `/api/revalidate` (generate: `openssl rand -hex 32`) |
+| `ODOO_API_KEY` | No | — | Bearer key for the hub newsletter signup (`/api/newsletter/subscribe`). Unset = that route returns 503 `newsletter_not_configured` |
+| `GROVE_ASSETS_OPTIMIZE_TOKEN` | No | — | Shared secret for the hub asset routes (`/api/assets/*`). Unset = those routes return 503 `not_configured` |
 
 ### Shared observability vars (all four apps)
 
@@ -334,6 +342,7 @@ pnpm --filter @grove/ui type-check
 | `@grove/tokens` | `packages/grove-tokens` | Design-system token contract (`--grove-*`) + per-brand themes |
 | `@grove/ui-kit` | `packages/grove-ui` | Design-system components (cart, checkout, product cards, capture forms) on `@grove/tokens` |
 | `@grove/newsletter` | `packages/newsletter` | Newsletter opt-in capture into Odoo Email Marketing (one list per brand) |
+| `@grove/next-cache` | `packages/next-cache` | Valkey-backed Next.js Data Cache handler + catalog warmer (off unless `VALKEY_URL` and `GROVE_CACHE_NAMESPACE` are set) |
 | `@grove/odoo-client` | `packages/odoo-client` | Typed Odoo 19 REST client for `grove_headless` (products, cart, orders) |
 | `@grove/otel` | `packages/otel` | Server-side OpenTelemetry tracing (`@vercel/otel`), wired via each app's `instrumentation.ts` |
 | `@grove/planner` | `packages/planner` | Order-builder planning engine: pure `plan()` from quiz answers + catalog feed (nursery `/plan`) |
@@ -460,7 +469,9 @@ GitHub Actions workflows in `.github/workflows/`:
 | `docker.yml` | push / PR to `main` | Matrix build of all 4 frontend images (`grove-hub`, `grove-goldberry`, `grove-ggg`, `grove-nursery`), smoke test each container, Trivy image scan, publish to GHCR on `main` |
 | `preview-up.yml` / `preview-down.yml` | PR labeled `qa` / PR closed or unlabeled | Per-PR full-stack preview droplet: builds images at the PR HEAD, terraform-applies the odoocker `preview/` env, comments per-tenant URLs on the PR; teardown on close |
 | `do-spec-validate.yml` | push / PR | `doctl apps spec validate` for every `infra/do/*.yaml` |
-| `release.yml` | `workflow_dispatch` or `v*.*.*` tag | Deploy Goldberry to sandbox / production |
+| `release.yml` | `workflow_dispatch` or `v*.*.*` tag | **Legacy, not the prod deploy path.** SSH deploy of the Goldberry image to a sandbox / production Droplet, from before the App Platform move. Production storefronts are promoted with odoocker's `promote-storefronts.yml` (see `docs/runbooks/prod-frontend-deploy.md`); do not push a `v*.*.*` tag to deploy |
+| `prod-deploy-drift.yml` | schedule (every 30 min) / `workflow_dispatch` | Read-only alarm: compares the digest each prod app serves with the digest its pinned tag resolves to on GHCR |
+| `e2e-nursery.yml` / `lighthouse-qa.yml` | `workflow_dispatch` (release-train QA gate) | Playwright checkout specs and Lighthouse audits against QA |
 | `actionlint.yml` | push / PR | Lints the workflow files themselves |
 | `dependency-review.yml` | PR | GitHub dependency review |
 | `claude.yml` | PR / comments | Claude Code assistant (interactive `@claude` helper) |
@@ -469,7 +480,7 @@ GitHub Actions workflows in `.github/workflows/`:
 
 ### QA / Production — DigitalOcean App Platform
 
-Per ADR-007 ("Level 3", in the odoocker repo's `docs/ADR/`), the QA and production frontends deploy to **DO App Platform** — one App per business, so each site owns its domain, billing line, and rollout cadence. The App Platform spec files live in this repo under [`infra/do/`](infra/do/README.md) (`hub.yaml`, `goldberry.yaml`, `ggg.yaml`, `nursery.yaml`); each wires GitHub → Dockerfile build → App Platform with auto-redeploy on push to `main`. See `infra/do/README.md` for create/update/secrets/DNS runbooks.
+Per ADR-007 ("Level 3", in the odoocker repo's `docs/ADR/`), the QA and production frontends deploy to **DO App Platform** — one App per business, so each site owns its domain, billing line, and rollout cadence. The App Platform spec files live in this repo under [`infra/do/`](infra/do/README.md) (`hub.yaml`, `goldberry.yaml`, `ggg.yaml`, `nursery.yaml`); each describes a standalone GitHub → Dockerfile build → App Platform app. **The live QA and production apps are not created from these specs and do not redeploy on push to `main`:** they are Terraform-managed in odoocker from GHCR images, production is pinned to a reviewed 40-char commit SHA (`hub_image_tag` / `tenant_image_tag`), and a new build reaches production only through odoocker's `promote-storefronts.yml`. See [`docs/runbooks/prod-frontend-deploy.md`](docs/runbooks/prod-frontend-deploy.md) for the deploy procedure and `infra/do/README.md` for the spec files.
 
 ### Production Build (manual)
 
@@ -642,11 +653,11 @@ pnpm --filter @grove/odoo-client type-check
 - Blog listing page wired to Ghost Content API
 - Containerized goldberry deploy (`Dockerfile` + standalone Next.js output)
 
-**Phase 3 — Hardening & Expansion (next)**
+**Phase 3 — Hardening & Expansion (mostly shipped)**
 
-- Real payment integration (Stripe / direct invoice via Odoo)
-- Blog post detail + tag filtering
-- Unit and integration tests (Vitest + Playwright)
+- ~~Real payment integration (Stripe / direct invoice via Odoo)~~ — shipped: Stripe hosted Checkout via `/api/checkout/session`
+- ~~Blog post detail~~ — shipped (`/blog/[slug]`); tag filtering still open
+- ~~Unit and integration tests (Vitest + Playwright)~~ — shipped (`pnpm test`, `apps/nursery/e2e`)
 - ~~Remaining tenant apps (GGG Woodworking, At The Grove Nursery)~~ — shipped in Sprint 3
 
 ## License

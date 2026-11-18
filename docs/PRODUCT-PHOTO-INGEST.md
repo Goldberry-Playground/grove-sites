@@ -8,7 +8,7 @@ automatically, and nothing writes at build time (`docs/QA-AGENT-GUARDRAILS.md` �
 ## For the family: how to name a photo
 
 Name the file after the product's shop URL slug — the last part of its page address.
-`gatheringatthegrove.com/shop/pawpaw-mango` → the slug is `pawpaw-mango`:
+`atthegrovenursery.com/shop/pawpaw-mango` → the slug is `pawpaw-mango`:
 
 | Filename | What it becomes |
 | --- | --- |

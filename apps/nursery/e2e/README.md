@@ -124,8 +124,8 @@ first caught on QA 2026-09-08).
 `planner-winter-beta` assert a *built* plan, which only renders when the target's
 planner catalog feed carries plants. Both skip — with a reason — on two correct
 no-plan conditions, via `skipIfPlannerDisabled` / `skipIfPlannerFeedEmpty` in
-`planner-helpers.ts`: (1) `PLANNER_ENABLED` is off, so `/plan` 404s (prod today,
-GOL-3527); (2) the target's Odoo returns a present-but-empty feed
+`planner-helpers.ts`: (1) `PLANNER_ENABLED` is off, so `/plan` 404s (the rollback state;
+prod has it on, odoocker `nursery_planner_enabled = true`, GOL-3547); (2) the target's Odoo returns a present-but-empty feed
 (`plants: []`) — e.g. an ephemeral QA that bring-up does not seed with planner
 facts. The feed guard reads `/api/planner/catalog` in `beforeEach`. A release-gate
 run that shows the planner specs **skipped** is covering the planner render path

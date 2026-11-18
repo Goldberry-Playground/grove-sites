@@ -26,7 +26,9 @@ All four prod frontends are DigitalOcean App Platform apps sourced from **GHCR**
 | grove-nursery-prod    | `b9e0d2a6-6495-4dc7-a069-015b653c87e9` | https://atthegrovenursery.com     | `ghcr.io/goldberry-playground/grove-nursery`    |
 
 QA counterparts pull from the same per-tenant GHCR repos. Under Option A, QA
-tracks `latest` and prod is pinned to a reviewed SHA — QA's current build is the
+tracks `latest` by default (odoocker `qa-app-platform` `hub_image_tag` /
+`tenant_image_tag` default to `latest`; set `TF_VAR_hub_image_tag` /
+`TF_VAR_tenant_image_tag` to pin QA to a SHA for a train) and prod is pinned to a reviewed SHA — QA's current build is the
 image the *next* prod promotion will pull, not necessarily what prod is serving
 right now.
 
