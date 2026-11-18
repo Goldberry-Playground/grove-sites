@@ -3,6 +3,12 @@
 **Status:** verified 2026-10-19 (GOL-3446); shared Valkey cache added and proven locally
 2026-11-10 · applies to every storefront app in this monorepo
 
+**Prod state 2026-11-18:** the code is deployed (Train #5) but the shared cache is **off on
+prod**. The `grove-prod-valkey` cluster exists, yet no prod app has `VALKEY_URL` /
+`GROVE_CACHE_NAMESPACE` (odoocker `storefront_cache_apps` defaults to `[]`), so every prod
+instance runs the per-instance file cache described under "With either var unset". Turning it on
+is a per-app targeted apply in odoocker (GOL-3907).
+
 ## Shared data cache (Valkey)
 
 Nursery, goldberry, ggg and hub load `@grove/next-cache` as their Next.js `cacheHandler`

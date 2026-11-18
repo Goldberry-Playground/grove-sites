@@ -79,9 +79,15 @@ doctl apps update <APP_ID> --spec infra/do/hub.yaml
 >   (If the key already exists, replace the `+=` append with a `map(...)`
 >   update as in *Setting secrets* below.)
 
-For routine code changes, you do **not** need `doctl update` — every push
-to `main` that touches the relevant app paths triggers an auto-redeploy
-(see `deploy_on_push: true` in each spec).
+For an app created from one of these specs, routine code changes do **not**
+need `doctl update` — every push to `main` that touches the relevant app paths
+triggers an auto-redeploy (see `deploy_on_push: true` in each spec).
+
+That does **not** apply to the live `grove-*-qa` / `grove-*-prod` apps. They are
+GHCR-sourced and Terraform-managed in odoocker, `deploy_on_push` is ignored for
+GHCR images, and production is pinned to a commit SHA. A merge to `main` never
+reaches production by itself; promote with odoocker's `promote-storefronts.yml`
+(see [`docs/runbooks/prod-frontend-deploy.md`](../../docs/runbooks/prod-frontend-deploy.md)).
 
 ## Setting secrets
 
@@ -123,7 +129,7 @@ doctl apps spec validate infra/do/hub.yaml
 ```
 
 A GitHub Actions workflow at `.github/workflows/do-spec-validate.yml`
-(if/when added) runs the same check on every PR that touches `infra/do/`.
+runs the same check on every PR that touches `infra/do/`.
 
 ## Why one App per site (not one App with four services)?
 
