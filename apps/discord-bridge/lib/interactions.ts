@@ -22,6 +22,7 @@ import {
   parseOrderAction,
   readCardPrefill,
   readModalFields,
+  SHIP_TRACKING_ID,
   type OrderAction,
 } from "./orders.ts";
 import { parsePeriod } from "./period.ts";
@@ -202,7 +203,7 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
   const order = parseOrderAction(customId);
   if (order) {
     if (!isApprover(interaction, ctx.operatorIds ?? new Set<string>())) return orderDenied();
-    const { action, orderId, date, messageId } = order;
+    const { action, orderId, date, messageId, tracking } = order;
     // A modal must come back within 3 seconds, so nothing here calls Odoo.
     if (action === "shipped") {
       return { response: { type: ResponseType.MODAL, data: buildShippedModal(orderId, readCardPrefill(interaction.message)) } };
@@ -247,7 +248,9 @@ function routeComponent(interaction: DiscordInteraction, ctx: RouteContext): Int
           orderId,
           actor: actorName(interaction) ?? operatorId,
           operatorId,
-          inputs: {},
+          // The label the confirm was raised for (GOL-3936); Odoo refuses the refund
+          // if the order no longer carries it. Absent on a legacy confirm button.
+          inputs: tracking ? { [SHIP_TRACKING_ID]: tracking } : {},
           message: interaction.message,
           confirmed: true,
           cardMessageId: messageId,
