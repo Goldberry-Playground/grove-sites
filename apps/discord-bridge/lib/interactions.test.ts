@@ -346,6 +346,17 @@ describe("routeInteraction — order-ops buttons and modals", () => {
     });
   });
 
+  it("confirming Label refunded carries the confirmed label into the followup inputs", () => {
+    const r = clickIn(`ord:refundedgo:42:${NOTICE_ID}:1Z1`);
+    expect(r.followup).toMatchObject({
+      kind: "order_action",
+      action: "refunded",
+      orderId: "42",
+      inputs: { tracking: "1Z1" },
+      confirmed: true,
+    });
+  });
+
   it.each(["ord:markallgo:42:1500000000000000001", "ord:refundedgo:42:1500000000000000001"])(
     "a non-operator is refused on the confirm button %s",
     (id) => {

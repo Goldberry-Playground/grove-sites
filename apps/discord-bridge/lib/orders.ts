@@ -136,26 +136,42 @@ const SNOWFLAKE = /^\d{5,}$/;
 /**
  * Encode a button custom_id: `ord:<action>:<orderId>`, plus a fourth part: the
  * `yyyy-mm-dd` a hold or holddate modal prefills from, or the public message id on
- * a confirm button.
+ * a confirm button. `refundedgo` carries a fifth part too: the label the confirm
+ * was raised for, so a stale confirm can be told from a live one (GOL-3936).
  */
-export function encodeOrderAction(action: OrderAction, orderId: number | string, extra?: string | null): string {
-  const base = `${ORD_PREFIX}:${action}:${orderId}`;
-  return extra ? `${base}:${extra}` : base;
+export function encodeOrderAction(
+  action: OrderAction,
+  orderId: number | string,
+  extra?: string | null,
+  extra2?: string | null,
+): string {
+  const parts = [ORD_PREFIX, action, String(orderId)];
+  if (extra) parts.push(extra);
+  if (extra && extra2) parts.push(extra2);
+  return parts.join(":");
 }
 
 /** Parse an order-ops custom_id, or null when it is not one. */
 export function parseOrderAction(
   customId: string,
-): { action: OrderAction; orderId: string; date?: string; messageId?: string } | null {
+): { action: OrderAction; orderId: string; date?: string; messageId?: string; tracking?: string } | null {
   const parts = customId.split(":");
-  if (parts.length < 3 || parts.length > 4 || parts[0] !== ORD_PREFIX) return null;
+  if (parts.length < 3 || parts.length > 5 || parts[0] !== ORD_PREFIX) return null;
   if (!ORDER_ACTIONS.has(parts[1])) return null;
   const orderId = parts[2];
   if (!orderId) return null;
   const action = parts[1] as OrderAction;
   if (parts.length === 3) return { action, orderId };
-  if (CONFIRM_ACTIONS.has(action)) return SNOWFLAKE.test(parts[3]) ? { action, orderId, messageId: parts[3] } : null;
-  if (!ISO_DATE.test(parts[3])) return null;
+  if (CONFIRM_ACTIONS.has(action)) {
+    if (!SNOWFLAKE.test(parts[3])) return null;
+    // refundedgo also carries the label number the confirm was shown for (GOL-3936);
+    // markallgo never has a fifth part.
+    if (parts.length === 5) {
+      return action === "refundedgo" && parts[4] ? { action, orderId, messageId: parts[3], tracking: parts[4] } : null;
+    }
+    return { action, orderId, messageId: parts[3] };
+  }
+  if (parts.length !== 4 || !ISO_DATE.test(parts[3])) return null;
   return { action, orderId, date: parts[3] };
 }
 
@@ -386,7 +402,10 @@ export function readModalFields(components: unknown): Record<string, string> {
  * The one-tap check before an action that cannot be taken back: Mark all emails
  * every customer in the batch, and Label refunded clears every box's tracking.
  * Shown only to the person who pressed. The confirm button carries the public
- * message's id, because its own click arrives on this prompt instead.
+ * message's id, because its own click arrives on this prompt instead; the refund
+ * confirm also carries the label shown on the card, so a confirm clicked after the
+ * label was already replaced can be refused instead of clearing the new one
+ * (GOL-3936).
  */
 export function buildConfirmPrompt(
   action: "markall" | "refunded",
@@ -409,7 +428,15 @@ export function buildConfirmPrompt(
     content =
       `Mark the label on ${ref ?? "this order"} refunded? ` +
       "This clears every box's tracking and sends the order back to needing a label. No money moves.";
-    confirm = { type: 2, style: 4, label: "Yes, label refunded", custom_id: encodeOrderAction("refundedgo", id, messageId) };
+    // The first tracking number as the card shows it now; Odoo refuses the refund if
+    // the order no longer carries it by the time the confirm is clicked.
+    const tracking = readCardPrefill(message).tracking;
+    confirm = {
+      type: 2,
+      style: 4,
+      label: "Yes, label refunded",
+      custom_id: encodeOrderAction("refundedgo", id, messageId, tracking),
+    };
   }
   return { content, flags: 64, components: [{ type: 1, components: [confirm] }] };
 }
@@ -435,7 +462,12 @@ export function buildOrderRequest(
     case "fall":
       return { path: "move", body: { actor, wave: action } };
     case "refunded":
-      return { path: "label-refunded", body: { actor } };
+      // `tracking` is the label the confirm was raised for (GOL-3936); absent on a
+      // legacy confirm button, in which case Odoo skips the stale check.
+      return {
+        path: "label-refunded",
+        body: { actor, ...(inputs[SHIP_TRACKING_ID] ? { tracking: inputs[SHIP_TRACKING_ID] } : {}) },
+      };
     case "markall":
     case "markallgo":
     case "refundedgo":

@@ -274,6 +274,12 @@ describe("buildOrderRequest", () => {
     expect(buildOrderRequest("fall", {}, "Wes")).toEqual({ path: "move", body: { actor: "Wes", wave: "fall" } });
     expect(buildOrderRequest("refunded", {}, "Wes")).toEqual({ path: "label-refunded", body: { actor: "Wes" } });
   });
+  it("refunded carries the confirmed label so Odoo can refuse a stale confirm", () => {
+    expect(buildOrderRequest("refunded", { tracking: "1Z1" }, "Wes")).toEqual({
+      path: "label-refunded",
+      body: { actor: "Wes", tracking: "1Z1" },
+    });
+  });
   it("markall has no order route; it calls the batch route instead", () => {
     expect(buildOrderRequest("markall", {}, "Wes")).toBeNull();
   });
@@ -430,17 +436,51 @@ describe("confirm prompts", () => {
   it("Mark all falls back to plain wording", () => {
     expect(buildConfirmPrompt("markall", "7", { id: "1500000000000000001" }).content).toMatch(/Mark this batch shipped\?/);
   });
-  it("Label refunded names the order and says what it clears", () => {
+  it("Label refunded names the order, says what it clears, and carries the label", () => {
     const card = buildOrderCard({ ...ALERT, lane: "individual", tracking: "1Z1" });
     const p = buildConfirmPrompt("refunded", "42", { ...card, id: "1500000000000000002" });
     expect(p.content).toMatch(/S00042/);
     expect(p.content).toMatch(/every box/i);
-    expect(button(p).custom_id).toBe("ord:refundedgo:42:1500000000000000002");
+    // The label shown on the card rides along as a fifth part (GOL-3936).
+    expect(button(p).custom_id).toBe("ord:refundedgo:42:1500000000000000002:1Z1");
+    expect(parseOrderAction(button(p).custom_id as string)).toEqual({
+      action: "refundedgo",
+      orderId: "42",
+      messageId: "1500000000000000002",
+      tracking: "1Z1",
+    });
+  });
+  it("Label refunded confirm carries only the first number of a multi-box card", () => {
+    const card = buildOrderCard({ ...ALERT, lane: "individual", tracking: "1Z1, 1Z2" });
+    const id = button(buildConfirmPrompt("refunded", "42", { ...card, id: "1500000000000000002" })).custom_id as string;
+    expect(parseOrderAction(id)?.tracking).toBe("1Z1");
+  });
+  it("Label refunded confirm omits the label when the card has none", () => {
+    const id = button(buildConfirmPrompt("refunded", "42", { id: "1500000000000000002" })).custom_id as string;
+    expect(id).toBe("ord:refundedgo:42:1500000000000000002");
+    expect(parseOrderAction(id)).toEqual({ action: "refundedgo", orderId: "42", messageId: "1500000000000000002" });
   });
   it("a confirm custom_id fits Discord's limit and round-trips", () => {
-    const id = button(buildConfirmPrompt("refunded", "2147483647", { id: "15000000000000000001" })).custom_id as string;
+    const card = buildOrderCard({ ...ALERT, lane: "individual", tracking: "9400111899223818218110" });
+    const id = button(buildConfirmPrompt("refunded", "2147483647", { ...card, id: "15000000000000000001" }))
+      .custom_id as string;
     expect(id.length).toBeLessThanOrEqual(100);
-    expect(parseOrderAction(id)).toEqual({ action: "refundedgo", orderId: "2147483647", messageId: "15000000000000000001" });
+    expect(parseOrderAction(id)).toEqual({
+      action: "refundedgo",
+      orderId: "2147483647",
+      messageId: "15000000000000000001",
+      tracking: "9400111899223818218110",
+    });
+  });
+  it("a refundedgo id without a label still parses", () => {
+    expect(parseOrderAction("ord:refundedgo:42:1500000000000000002")).toEqual({
+      action: "refundedgo",
+      orderId: "42",
+      messageId: "1500000000000000002",
+    });
+  });
+  it("markallgo never carries a fifth part", () => {
+    expect(parseOrderAction("ord:markallgo:7:1500000000000000001:junk")).toBeNull();
   });
   it("a confirm id with a junk message id is not an order action", () => {
     expect(parseOrderAction("ord:markallgo:7:2026-10-15")).toBeNull();
