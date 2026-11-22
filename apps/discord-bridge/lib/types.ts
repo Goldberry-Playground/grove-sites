@@ -27,7 +27,7 @@ export interface PeriodWindow {
 /** One Buffer channel (social account). */
 export interface BufferChannel {
   id: string;
-  /** Buffer service key, e.g. "threads" | "facebook" | "instagram" | "youtube". */
+  /** Buffer service key, e.g. "threads" | "facebook" | "instagram" | "youtube" | "tiktok". */
   service: string;
   name: string;
 }

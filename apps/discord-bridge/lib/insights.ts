@@ -10,9 +10,10 @@ import type { ChannelStats, Period, WeeklyDigest } from "./types.ts";
 
 /**
  * Services included in the CMO digest (GOL-233 §1a). Google Business is a
- * listing, not a content channel — excluded by default.
+ * listing, not a content channel — excluded by default. TikTok added in
+ * GOL-4076.
  */
-export const DEFAULT_DIGEST_SERVICES = new Set(["threads", "instagram", "facebook", "youtube"]);
+export const DEFAULT_DIGEST_SERVICES = new Set(["threads", "instagram", "facebook", "youtube", "tiktok"]);
 
 export interface GenerateOptions {
   services?: Set<string>;

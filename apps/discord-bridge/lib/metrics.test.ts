@@ -19,6 +19,19 @@ const threads: BufferMetric[] = [
   { type: "reposts", value: 1156 },
 ];
 
+// Real TikTok metric shape (verified live against Buffer 2026-11-22, GOL-4076).
+const tiktok: BufferMetric[] = [
+  { type: "postCount", value: 30 },
+  { type: "reactions", value: 103 },
+  { type: "comments", value: 10 },
+  { type: "engagementRate", value: 2.61 },
+  { type: "views", value: 4490 },
+  { type: "shares", value: 4 },
+  { type: "reach", value: 3749 },
+  { type: "totalTimeWatched", value: 548.47 },
+  { type: "averageTimeWatched", value: 6.83 },
+];
+
 describe("metrics parsing", () => {
   it("reads post count from postCount", () => {
     expect(postCount(threads)).toBe(446);
@@ -51,5 +64,13 @@ describe("metrics parsing", () => {
     expect(wowDeltaPct(80, 100)).toBeCloseTo(-20, 5);
     expect(wowDeltaPct(5, 0)).toBeNull();
     expect(wowDeltaPct(5, null)).toBeNull();
+  });
+});
+
+describe("TikTok metrics", () => {
+  it("maps views to impressions and ignores watch-time in engagements", () => {
+    expect(postCount(tiktok)).toBe(30);
+    expect(impressions(tiktok)).toBe(4490);
+    expect(engagements(tiktok)).toBe(103 + 10 + 4);
   });
 });
