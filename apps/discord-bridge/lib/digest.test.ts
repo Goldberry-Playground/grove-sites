@@ -100,6 +100,7 @@ describe("buildWeeklyDigest", () => {
 describe("serviceLabel", () => {
   it("maps known services to display names", () => {
     expect(serviceLabel("threads")).toBe("Threads");
+    expect(serviceLabel("tiktok")).toBe("TikTok");
     expect(serviceLabel("googlebusiness")).toBe("Google Business");
     expect(serviceLabel("mastodon")).toBe("Mastodon");
   });

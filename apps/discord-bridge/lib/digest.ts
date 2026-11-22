@@ -31,6 +31,7 @@ export function serviceLabel(service: string): string {
     facebook: "Facebook",
     instagram: "Instagram",
     youtube: "YouTube",
+    tiktok: "TikTok",
     googlebusiness: "Google Business",
   };
   return map[service] ?? service.charAt(0).toUpperCase() + service.slice(1);
