@@ -125,6 +125,24 @@ export function resolvePdpCopy(product: Pick<Product, "id" | "name" | "seoDescri
   };
 }
 
+/**
+ * Product photo used as the share card and as the JSON-LD `image`, at the
+ * largest rung below the 1200px card width, or "" when the product has none.
+ *
+ * ⚠ Odoo serves `/web/image/...` as **image/webp unconditionally** — verified
+ * 2026-10-01 against prod with `Accept: image/jpeg,image/png`, with no Accept
+ * header, as `facebookexternalhit`, and with the `.jpg` filename and
+ * `?download=1` forms. There is no JPEG variant to ask for. Some scrapers do
+ * not render a WebP og:image, so a product card may still come up blank on
+ * those; the fix is a Next `opengraph-image` route that transcodes, filed as
+ * a follow-up rather than guessed at here. The site-level card
+ * (`og-default.jpg`) is a JPEG, so the homepage and every non-PDP route are
+ * unaffected.
+ */
+export function resolvePdpImage(product: Pick<Product, "imageUrl">, odooBase: string): string {
+  return resolveOdooImageUrl(withOdooImageSize(product.imageUrl, OG_IMAGE_RUNG), odooBase);
+}
+
 export interface PdpMetadataInput {
   product: Product;
   /**
@@ -154,22 +172,8 @@ export function buildPdpMetadata({
 }: PdpMetadataInput): Metadata {
   const { title, description } = resolvePdpCopy(product);
 
-  // Product photo as the share card, at the largest rung below the 1200px card
-  // width; the site card is the fallback when a product has no image at all.
-  //
-  // ⚠ Odoo serves `/web/image/...` as **image/webp unconditionally** — verified
-  // 2026-10-01 against prod with `Accept: image/jpeg,image/png`, with no Accept
-  // header, as `facebookexternalhit`, and with the `.jpg` filename and
-  // `?download=1` forms. There is no JPEG variant to ask for. Some scrapers do
-  // not render a WebP og:image, so a product card may still come up blank on
-  // those; the fix is a Next `opengraph-image` route that transcodes, filed as
-  // a follow-up rather than guessed at here. The site-level card
-  // (`og-default.jpg`) is a JPEG, so the homepage and every non-PDP route are
-  // unaffected.
-  const productImage = resolveOdooImageUrl(
-    withOdooImageSize(product.imageUrl, OG_IMAGE_RUNG),
-    odooBase,
-  );
+  // The site card is the fallback when a product has no image at all.
+  const productImage = resolvePdpImage(product, odooBase);
   const images = productImage
     ? [{ url: productImage, alt: product.name }]
     : [

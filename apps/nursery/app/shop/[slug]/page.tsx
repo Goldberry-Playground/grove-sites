@@ -4,8 +4,10 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import type { Product } from "@grove/odoo-client";
 import { resolveOdooImageUrl } from "@grove/odoo-client";
+import { JsonLd } from "@grove/ui";
 import { odoo } from "../../../lib/clients";
 import { buildPdpMetadata, notFoundMetadata } from "../../../lib/pdp-metadata";
+import { buildProductJsonLd } from "../../../lib/product-json-ld";
 import {
   getMockProductById,
   getMockProductBySlug,
@@ -301,8 +303,16 @@ export default async function ShopSegmentPage({
     .map((s) => s.trim())
     .filter((s) => s.length > 0 && s.toLowerCase() !== product.name.trim().toLowerCase());
 
+  // Product + offers structured data (GOL-4086), computed per request so price
+  // and availability follow the live feed. Only on the canonical slug URL: the
+  // slugless id form is served noindex (R4), so it gets no block.
+  const productJsonLd = isUsableSlug(product.slug)
+    ? buildProductJsonLd({ product, canonicalPath: productPath(product), odooBase })
+    : null;
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
+      {productJsonLd && <JsonLd data={productJsonLd} />}
       <nav className="text-sm text-ink-soft mb-4" aria-label="Breadcrumb">
         <Link href="/shop" className="hover:text-primary transition-colors">
           Shop

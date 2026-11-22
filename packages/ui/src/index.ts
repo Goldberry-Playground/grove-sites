@@ -9,3 +9,5 @@ export { FooterContact, formatPhone } from "./footer-contact";
 export type { FooterContactProps } from "./footer-contact";
 export { SocialIcon, SocialLinks, SOCIAL_LABELS, SOCIAL_THEME_VARS } from "./social-links";
 export type { SocialKind, SocialLink, SocialLinksProps } from "./social-links";
+export { JsonLd, organizationJsonLd, serializeJsonLd } from "./json-ld";
+export type { OrganizationJsonLdInput } from "./json-ld";

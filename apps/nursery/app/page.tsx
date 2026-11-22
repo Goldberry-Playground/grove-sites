@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import Image from "next/image";
-import { assetPath } from "@grove/ui";
+import { assetPath, JsonLd, organizationJsonLd } from "@grove/ui";
 import { CategoryBar } from "./category-bar";
 import { DepartmentNav } from "./department-nav";
 import { getCatalogNav } from "../lib/catalog-nav";
@@ -20,6 +20,8 @@ import {
 } from "../lib/fulfillment-mode";
 import { fieldNoteWaves } from "../lib/preorder-waves";
 import { FieldNotesWaves } from "./field-notes-waves";
+import { tenantConfig } from "../tenant.config";
+import { SITE_URL } from "../lib/site-metadata";
 
 // GOL-2878 Phase 1. Title and description stay inherited from the root layout
 // — a brand-only homepage title is correct, and a keyword-tuned one is CMO's
@@ -96,6 +98,15 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Organization structured data (GOL-4086). `sameAs` lists only the
+          social profiles this site's footer links to, and it links to none. */}
+      <JsonLd
+        data={organizationJsonLd({
+          name: tenantConfig.name,
+          url: SITE_URL,
+          logo: "/brand/nursery-logo-horizontal.png",
+        })}
+      />
       {/* Departments above the Orchard pills, as on /shop. The homepage is
           not a department, so no tab is marked current. */}
       <DepartmentNav nav={nav} activeSlug="" />

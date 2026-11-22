@@ -5,20 +5,27 @@ import { ProductCard } from "../../../../../components/ProductCard";
 import { firstPhotoIndex } from "../../../../../lib/odoo-image";
 import { fetchVendorCatalog } from "../../../../../lib/marketplace";
 import { findVendor } from "../../../../../data/marketplace";
+import { pageMetadata } from "../../../../../lib/site-metadata";
 
 export const revalidate = 600;
 
 type Params = { slug: string };
 
-// Self-canonical only (GOL-3585), so `?utm_…` copies collapse to one URL. Built
-// from the route params alone — no extra Ghost/Odoo round-trip for metadata.
+// Self-canonical (GOL-3585), so `?utm_…` copies collapse to one URL, plus the
+// vendor's own title and description (GOL-4086): every vendor page used to
+// serve the homepage title. Name and tagline come from the static vendor table,
+// so there is still no Ghost/Odoo round-trip for metadata.
 export async function generateMetadata({
   params,
 }: {
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  return { alternates: { canonical: `/marketplace/vendor/${slug}` } };
+  const path = `/marketplace/vendor/${slug}`;
+  const vendor = findVendor(slug);
+  // Unknown slug: the page 404s. Keep the bare canonical it had before.
+  if (!vendor) return { alternates: { canonical: path } };
+  return pageMetadata({ path, title: vendor.name, description: vendor.tagline });
 }
 
 export default async function VendorProfilePage({

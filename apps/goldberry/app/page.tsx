@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
 import type { Metadata } from "next";
-import { assetPath } from "@grove/ui";
-import { pageMetadata } from "../lib/site-metadata";
+import { assetPath, JsonLd, organizationJsonLd } from "@grove/ui";
+import { pageMetadata, SITE_URL } from "../lib/site-metadata";
+import { GOLDBERRY_SOCIALS } from "../lib/socials";
+import { tenantConfig } from "../tenant.config";
 import { DroneLoop } from "./drone-loop";
 
 // Brand title + description inherit from the root layout; what the homepage
@@ -39,6 +41,17 @@ const familySlideDescriptions = [
 export default function HomePage() {
   return (
     <>
+      {/* Organization structured data (GOL-4086). `sameAs` lists only the
+          social profiles this site's footer links to. */}
+      <JsonLd
+        data={organizationJsonLd({
+          name: tenantConfig.name,
+          url: SITE_URL,
+          // The header wordmark; absolute already when served from the asset CDN.
+          logo: assetPath("goldberry", "photos/logo-wordmark.png"),
+          sameAs: GOLDBERRY_SOCIALS.map((s) => s.href),
+        })}
+      />
       <section className="hero">
         <div className="hero-copy">
           <h1 className="hero-title">
