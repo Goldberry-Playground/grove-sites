@@ -73,7 +73,7 @@ export interface WeeklyDigest {
   channels: ChannelDigest[];
   best_content: { channel: string; permalink: string; why: string } | null;
   watch_item: string | null;
-  notes: string;
+  notes: string | null;
 }
 
 /** Intermediate per-channel stats before ranking/summary (internal). */

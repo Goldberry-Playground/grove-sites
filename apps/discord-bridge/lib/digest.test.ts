@@ -74,10 +74,10 @@ describe("buildWeeklyDigest", () => {
   });
 
   it("makes zero demographic claims", () => {
-    // The notes field disclaims demographics ("age/gender need Coupler"); every
-    // OTHER field must be demographic-free — Buffer exposes no such data (GOL-227).
-    expect(digest.notes).toMatch(/No demographic data/i);
-    expect(JSON.stringify({ ...digest, notes: "" })).not.toMatch(/gender|female|male/i);
+    // Buffer exposes no age/gender data, so no field may claim any. The digest
+    // also carries no standing footnote about it (the Coupler path is retired).
+    expect(digest.notes).toBeNull();
+    expect(JSON.stringify(digest)).not.toMatch(/gender|female|male|demographic|coupler/i);
   });
 
   it("flags a >20% WoW drop on the lead channel", () => {

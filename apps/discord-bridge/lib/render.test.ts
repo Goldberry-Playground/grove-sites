@@ -31,7 +31,7 @@ const digest: WeeklyDigest = {
     why: "#TreeFacts — educational storytelling, our strongest pattern",
   },
   watch_item: "YouTube posted 0 this period.",
-  notes: "No demographic data available via Buffer (age/gender need Coupler — GOL-227).",
+  notes: null,
 };
 
 describe("renderTable", () => {
@@ -56,12 +56,13 @@ describe("renderDigestMessage", () => {
     expect(msg.embeds[0].title).toBe(digest.headline);
   });
 
-  it("includes best-content link, watch item, and the demographic-free note", () => {
+  it("includes best-content link and watch item, with no standing footnote", () => {
     const desc = msg.embeds[0].description;
     expect(desc).toContain("Best content");
     expect(desc).toContain(digest.best_content!.permalink);
     expect(desc).toContain("Watch");
-    expect(desc).toContain("No demographic data");
+    expect(desc).not.toContain("demographic");
+    expect(desc).not.toContain("Coupler");
   });
 
   it("offers the two non-current periods plus an Open-in-Buffer link button", () => {
