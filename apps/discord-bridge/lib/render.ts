@@ -106,7 +106,9 @@ export function renderDigestMessage(
   if (digest.watch_item) {
     lines.push(`**👀 Watch** — ${digest.watch_item}`);
   }
-  lines.push(`_${digest.notes}_`);
+  if (digest.notes) {
+    lines.push(`_${digest.notes}_`);
+  }
 
   const embed: DiscordEmbed = {
     title: digest.headline,

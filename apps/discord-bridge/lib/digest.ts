@@ -8,13 +8,10 @@
  *  - best_content = single highest-engagement post across all channels.
  *  - watch_item = one honest note (lead channel drops >20% WoW, or a channel
  *    posted 0). Positive-but-realistic — no doom, no spin.
- *  - ZERO demographic claims (Buffer exposes none — GOL-227).
+ *  - ZERO demographic claims (Buffer exposes no age/gender data).
  */
 import { engagementRate, wowDeltaPct } from "./metrics.ts";
 import type { ChannelDigest, ChannelStats, Period, PeriodWindow, WeeklyDigest } from "./types.ts";
-
-const DEMOGRAPHIC_NOTE =
-  "No demographic data available via Buffer (age/gender need Coupler — GOL-227).";
 
 /** WoW drop threshold on the lead channel that earns a watch-item note. */
 const WOW_DROP_THRESHOLD = -20;
@@ -87,7 +84,7 @@ export function buildWeeklyDigest(
     channels,
     best_content: best,
     watch_item,
-    notes: DEMOGRAPHIC_NOTE,
+    notes: null,
   };
 }
 
