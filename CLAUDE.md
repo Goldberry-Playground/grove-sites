@@ -89,14 +89,15 @@ After code review passes, invoke `/simplify` to:
 - Remove unnecessary abstractions
 - Ensure code is as simple as the task requires
 
-### 6. Product Management — Asana Sync
-After each task is complete, update the corresponding Asana task:
-- Use `mcp__asana-goldberrygrove__asana_update_task` to mark as complete
-- Add a comment with `mcp__asana-goldberrygrove__asana_create_task_story` summarizing:
-  - What was built (files created/modified)
-  - What was tested (verification steps)
-  - Any follow-up tasks discovered
-- Project GID: `1213867393569940`
+### 6. Product Management — Board Sync
+Work is tracked on the Paperclip board (not Asana). After each task is
+complete, update the corresponding board issue to a clear final disposition
+(`done`, `in_review`, `blocked`, or `in_progress`) with a comment summarizing:
+- What was built (files created/modified)
+- What was tested (verification steps)
+- Any follow-up work discovered — create child issues for parallel or long work
+  rather than leaving it in a comment
+Attach the PR/commit as a work product so operators can reach the change.
 
 ### 7. Operations — Documentation & Release Notes
 After code is committed:
