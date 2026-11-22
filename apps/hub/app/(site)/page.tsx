@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { GlyphIcon } from "@grove/ui-kit";
+import { JsonLd, organizationJsonLd } from "@grove/ui";
 import { marketplace } from "../../data/marketplace";
-import { pageMetadata } from "../../lib/site-metadata";
+import { pageMetadata, SITE_URL } from "../../lib/site-metadata";
+import { tenantConfig } from "../../tenant.config";
 
 // Title + description inherit from the root layout (GOL-3585).
 export const metadata = pageMetadata({ path: "/" });
@@ -25,6 +27,15 @@ export default function HomePage() {
     // and every section sat outside landmarks (axe landmark-one-main + region,
     // prod 2026-11-07).
     <main>
+      {/* Organization structured data (GOL-4086). `sameAs` lists only the
+          social profiles this site's footer links to, and it links to none. */}
+      <JsonLd
+        data={organizationJsonLd({
+          name: tenantConfig.name,
+          url: SITE_URL,
+          logo: "/brand/gather/gather-logo-primary.svg",
+        })}
+      />
       {/* Hero — NRG aerial backdrop; aerial drone footage will replace later. */}
       <section className="hero">
         <div className="hero-media">

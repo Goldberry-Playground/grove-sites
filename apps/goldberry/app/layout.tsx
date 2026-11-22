@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { assetPath, siblingSitesForHost, GroveProviders, FooterContact, SocialLinks, type SocialLink } from "@grove/ui";
+import { assetPath, siblingSitesForHost, GroveProviders, FooterContact, SocialLinks } from "@grove/ui";
+import { GOLDBERRY_SOCIALS } from "../lib/socials";
 import { SiblingStrip, CaptureForm, CaptureSlot } from "@grove/ui-kit";
 import { tenantConfig } from "../tenant.config";
 import { SITE_OPEN_GRAPH, SITE_TWITTER, SITE_URL } from "../lib/site-metadata";
@@ -25,15 +26,6 @@ export const metadata: Metadata = {
   openGraph: SITE_OPEN_GRAPH,
   twitter: SITE_TWITTER,
 };
-
-// Goldberry Grove's own accounts (Josh, 2026-09-30) — the same set its card on
-// the hub /alliance page links to. Clean profile URLs, no tracking params.
-const GOLDBERRY_SOCIALS: SocialLink[] = [
-  { kind: "facebook", href: "https://www.facebook.com/goldberrygrove/" },
-  { kind: "instagram", href: "https://www.instagram.com/goldberrygrove/" },
-  { kind: "threads", href: "https://www.threads.com/@goldberrygrove" },
-  { kind: "youtube", href: "https://www.youtube.com/@GoldberryGrove" },
-];
 
 export default async function RootLayout({
   children,

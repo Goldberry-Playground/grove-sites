@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { GlyphIcon } from "@grove/ui-kit";
-import { pageMetadata } from "../lib/site-metadata";
+import { JsonLd, organizationJsonLd } from "@grove/ui";
+import { pageMetadata, SITE_URL } from "../lib/site-metadata";
+import { tenantConfig } from "../tenant.config";
 
 // Brand title + description inherit from the root layout; the homepage only
 // needed a self-canonical and a share card (GOL-3585).
@@ -30,6 +32,10 @@ function PhotoPending({ label = "Photography in progress" }: { label?: string })
 export default function HomePage() {
   return (
     <>
+      {/* Organization structured data (GOL-4086). No `logo`: GGG has no logo
+          asset yet (GOL-1863). No `sameAs`: the footer links to no social
+          profiles. */}
+      <JsonLd data={organizationJsonLd({ name: tenantConfig.name, url: SITE_URL })} />
       <section className="hero">
         {/* Real hero photography is pending the GOL-235 shoot; a decorative
             branded panel stands in rather than stock/fabricated slides. */}
