@@ -13,7 +13,7 @@ Next.js 15 App Router monorepo (pnpm + Turborepo) for the Gather at the Grove ec
 | `apps/discord-bridge` | (internal, DO App Platform) | CMO Discord bridge: Buffer digest, `/insights`, content approvals |
 | `apps/qa-portal` | (internal, local only) | Component-QA gallery of per-brand design bundles (:3005) |
 
-`apps/consult` is not listed here. It moves to AgriforestryOS in Train #6 (it did not move in Train #5 and is still in this repo).
+`apps/consult` moved to AgriforestryOS in Train #6. It is no longer in this repo.
 
 | Package | Purpose |
 |---------|---------|
