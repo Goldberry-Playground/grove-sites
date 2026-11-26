@@ -58,6 +58,7 @@ jobs:
             image_name: ghcr.io/goldberry-playground/grove-goldberry
             qa_app: grove-goldberry-qa
             smoke_routes: "/ /cart /checkout"
+            smoke_forbidden_routes: ""
             env_extra: |
               -e TENANT_ID=goldberry
               -e ODOO_URL=http://127.0.0.1:1
@@ -69,6 +70,7 @@ jobs:
             image_name: ghcr.io/goldberry-playground/grove-ggg
             qa_app: grove-ggg-qa
             smoke_routes: "/ /cart /checkout"
+            smoke_forbidden_routes: ""
             env_extra: |
               -e TENANT_ID=ggg
               -e ODOO_URL=http://127.0.0.1:1
@@ -80,6 +82,7 @@ jobs:
             image_name: ghcr.io/goldberry-playground/grove-nursery
             qa_app: grove-nursery-qa
             smoke_routes: "/ /cart /checkout"
+            smoke_forbidden_routes: ""
             env_extra: |
               -e TENANT_ID=nursery
               -e ODOO_URL=http://127.0.0.1:1
@@ -92,6 +95,7 @@ jobs:
             image_name: ghcr.io/goldberry-playground/grove-hub
             qa_app: grove-hub-qa
             smoke_routes: "/ /journal"
+            smoke_forbidden_routes: ""
             env_extra: |
               -e GROVE_ODOO_URL=http://127.0.0.1:1
               -e HUB_GHOST_URL=http://127.0.0.1:1
