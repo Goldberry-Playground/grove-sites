@@ -23,7 +23,7 @@ Internal apps (not storefronts):
 | `apps/discord-bridge` | CMO Discord bridge: weekly Buffer digest, `/insights`, content-approval cards ([README](apps/discord-bridge/README.md)) | n/a |
 | `apps/qa-portal` | Component-QA gallery of per-brand design bundles ([README](apps/qa-portal/README.md)) | 3005 |
 
-`apps/consult` is moving to AgriforestryOS in Train #6 (it is still in this repo, and was not moved in Train #5) and is not documented here.
+The staff consult app lives in [AgriforestryOS](https://github.com/Goldberry-Playground/AgriforestryOS) (`apps/consult`, image `grove-consult`). It moved out of this repo in Train #6.
 
 ## Table of Contents
 
@@ -140,8 +140,7 @@ grove-sites/
 │   ├── nursery/                    # At The Grove Nursery — atthegrovenursery.com (:3003)
 │   │   └── …                       # Same storefront shape as goldberry, plus /plan (order builder)
 │   ├── discord-bridge/             # CMO Discord bridge (Buffer digest, /insights, approvals)
-│   ├── qa-portal/                  # Component-QA gallery of design bundles (:3005)
-│   └── consult/                    # Moving to AgriforestryOS (Train #6)
+│   └── qa-portal/                  # Component-QA gallery of design bundles (:3005)
 ├── packages/
 │   ├── analytics/                  # RUM dual-writer: OpenObserve RUM + Plausible sinks
 │   ├── assets/                     # Product-photo ingest → grove-assets Spaces CDN
